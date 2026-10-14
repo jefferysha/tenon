@@ -63,14 +63,17 @@ Tenon 自有的 skill 只有一个 `tenon`：它读任务冻结的工作流计�
 `verify-build-revision-untrusted`，修复标识为 `return-to-build-and-capture-current-revision`。不要手动 `set build_sha`。
 
 `pre_verify_review_result=pass` 是 Build 的通过结论，`tenon set` 写入前核对本步声明的就绪证据。
-每条重型轨道的 Build 都声明了可核对的证据：frontend、backend 要求项目测试目录里的 `unit` 套件通过（Build 的
-`test_policy`），pm 要求必需评审者 `spec-consistency`（`block_at: medium`，逐条比对实现与 proposal /
+每条重型轨道的 Build 都声明了可核对的证据：frontend、backend 要求项目测试目录里的单测类套件通过（Build 的
+`test: changed` 档位），pm 要求必需评审者 `spec-consistency`（`block_at: medium`，逐条比对实现与 proposal /
 design / delta spec / tasks，语言无关）。证据不齐时写 `pass` 被拒，并点名缺的测试或评审者。
 
 每条重型轨道都挂了[智能体](./agents.md)：调研步骤的执行者是 `researcher`；实现步骤的执行者是 `builder`
 （按独立任务各起一个子代理，合成一份报告），先于该步的评审者运行；验证步骤声明 `code-size` 测试
-（`tenon test code-size --json`，新增行数不超过 2000 为通过）并挂必需评审者 `code-size` 读取它的结果。
-新增行数确实超限且用户决定豁免时，用 `tenon test waive <change> --test code-size --reason …` 登记；评审确认这道门时一并批准，
+（`tenon test code-size --json`）并挂必需评审者 `code-size` 读取它的结果。这条测试**默认没有上限**：它记录
+`files_changed`、`lines_added`、`lines_deleted`、`largest_added_lines`，退出码 0 即通过，不挡出口，也不需要豁免；
+规模是否合理由评审者按实测值和改动性质判断。想要上限的项目在自己的工作流里给该测试写 `pass.metrics`，例如
+`pass: { metrics: [{ name: lines_added, max: 3000 }] }`，超限的运行以 `metric-threshold` 失败。启用上限之后，
+用户决定放行时才用 `tenon test waive <change> --test code-size --reason …` 登记；评审确认这道门时一并批准，
 批准前不放行。执行者没有 `done` 之前不能离开步骤。
 
 评审者按风险挂载。`security` 声明了 `attach_on: [auth, dependency, contract]`（见[智能体](./agents.md)），所以在验证要求它的轨道上，
@@ -82,55 +85,89 @@ design / delta spec / tasks，语言无关）。证据不齐时写 `pass` 被拒
 就以 `fix`（`test-unconfigured`）提出。默认工作流里仍是必需的步骤测试只有 `code-size`（pm、frontend、backend 的验证）、轻量轨道实现步的
 `diff-risk` 探针和设计体系校验（frontend 的交付）；项目自己的测试来自测试目录，所以一个普通项目不会为了满足工作流去补 `typecheck` 或 `test:integration` 脚本。
 
-步骤还可以声明 `test_policy`，它是测试体系在工作流这一侧的部分（项目的 `.tenon/tests/catalog.yaml` 说明测试怎么跑，
-任务的 `test-plan.yaml` 说明本任务动了哪些套件和测试文件，策略说明每一步必须看到什么）。`kinds` 必须登记进计划
-（该种类的套件或已批准的豁免），`run` 必须在当前代码上跑过并通过，`run_if_registered` 只在计划登记了该种类时才要求，
-`scope` 是最小运行范围（`changed` 认任何范围，`full` 只认全量运行），`files: registered` 在本任务新增或修改的测试文件
-没有登记进计划时阻塞，`scenarios`（`required` / `passing`）要求每个 OpenSpec 场景都映射到测试用例，`coverage`、`flaky`、
-`browsers` 追加门槛。没有 `test_policy` 的步骤行为与之前完全一致，已开始的任务按冻结计划执行，步骤自己的 `tests` 与策略并存可用。
+步骤用一个键 `test:` 声明自己对测试体系的要求，取值是一个档位：`none`（不要求，与不写相同）、`plan`（本任务有测试计划，
+且项目目录里有每个必需类的套件）、`changed`（跑本任务改动碰到的套件，只跑改动范围）、`full`（必需类的套件全量跑，被改动碰到的其他类也全量跑）。
+项目的 `.tenon/tests/catalog.yaml` 说明测试怎么跑、每个档位是什么含义，任务的 `test-plan.yaml` 只记你手工做的选择（加跑的套件、用例映射、豁免），
+工作流只写档位名。套件被「碰到」，是指本任务改动的某个文件匹配该套件的 `files` 或 `covers` glob；没写 `covers` 的套件只有它自己的测试文件改了才算被碰到，
+改动只含源码文件时给出不阻断的提示 `suites-without-covers`（见 [CLI 参考](cli-reference.md)）。较早的多字段 `test_policy`
+是旧写法，冻结了它的任务照旧可读（同一步不能同时写两个键）。步骤自己的 `tests` 与档位并存可用。
 
-`integrity: notice | block`（缺省 `notice`）决定测试完整性报告在这一步的去向。报告把任务和它的起点对比，指出全量运行的用例数下降与跳过数上升、
+档位的含义写在目录里，不写在工作流里。`.tenon/tests/catalog.yaml` 的可选顶层键 `levels` 覆盖 `plan`、`changed`、`full` 三档的内建缺省；
+每档只接受六个键：`required`（目录里必须有套件的测试类）、`touched`（只在被改动碰到时才跑的类）、`scenarios`（`off | required | passing`）、
+`coverage`（`lines`、`branches`、`functions`、`statements`、`changed_lines`，各 0–100）、`flaky`（`{ max, fail_on_new }`）、`require_baseline`；
+`plan` 档只接受 `required` 与 `scenarios`。没写的键取内建缺省：
+
+```yaml
+levels:
+  plan:    { required: [unit] }
+  changed: { required: [unit], touched: [static] }
+  full:    { required: [unit], touched: [integration, e2e, static, benchmark] }
+```
+
+内建缺省是 `scenarios: off`、不设覆盖率与不稳定用例门槛、`require_baseline: false`，普通任务不会被要求超出改动所需的测试。需要更多的项目自己写回：
+`levels.full.coverage: { lines: 80 }` 让每个 `test: full` 的步骤对声明了覆盖率报告的套件检查行覆盖率。未知的档、键或类，或超出 0–100 的覆盖率，
+都会让目录无效（`tenon test catalog validate` 给出行号），测试相关的出口一律阻断直到修好。`levels` 计入目录摘要，目录仍是受保护的测试配置：
+任务里改它要经评审确认。
+
+测试类把套件种类归成五类（外加只在点名时运行的 `custom`）：`unit`（`unit`、`coverage`）、`integration`（`integration`、`regression`、`contract`、`smoke`）、
+`e2e`（`e2e`、`playwright`、`browser`、`a11y`、`visual`）、`static`（`typecheck`、`lint`、`code-size`、`design-system`）和 `benchmark`。
+套件的 `kind` 可以写类名，也可以写旧种类名（别名仍有效）；档位按类匹配，冻结的旧策略仍按种类名逐字匹配，要求不会因此变宽。
+
+改动过的测试文件由套件认领，不逐个登记（冻结的旧 `files: registered` 也按同样的方式判定，不再要求逐个登记）。本任务新增或修改的测试文件，
+只要被某个套件的 `files` glob 匹配，就归入该套件，并随档位要跑的套件一起运行。认领在求值时现算，不写进 `test-plan.yaml`，所以新增测试文件
+不会让已有运行过期。套件跑完后，认领的文件必须在报告里至少有一个执行过的用例，否则出口以 `registered-test-not-executed` 阻断。
+像测试却没有任何套件认领的文件是孤儿（`test-file-orphan`），阻断到执行 `tenon test register <change> --auto`，它把该文件的精确路径追加进合适套件。
+`openspec/`、`.tenon/`、`.pipeline/` 下的路径从来不算测试改动，测试文件名规则只对源码扩展名（js、ts、py、go、rs、java 等）成立，
+所以 `fixtures/data.spec.json` 或归档里的 `.spec.report` 都不是测试。
+
+测试完整性报告把任务和它的起点对比，指出全量运行的用例数下降与跳过数上升、
 被删或被跳过的测试、被删的断言、被改写的快照、被改的基线、新增的已知失败和降低的覆盖率门槛（十种信号见
-[CLI 参考](cli-reference.md)的「测试完整性」，命令是 `tenon test integrity <change>`）。默认工作流的各条轨道都没声明它，所以
-每个实现与验证步骤都是 `notice`：信号在 `status`、`test status` 和 Dashboard 测试页签里汇成一条 `test-integrity` 提示，从不阻塞。
-在某个步骤上写 `integrity: block`，就让这些信号成为该步骤的阻塞（读不出 diff 时也阻塞，`files-diff-unavailable`）；没有逐条豁免，
-有意删除就还原测试或改策略。`integrity: notice` 与不写这个键完全一样，不改变工作流指纹。Dashboard 工作流页在 `scenarios` 旁边编辑它。
+[CLI 参考](cli-reference.md)的「测试完整性」，命令是 `tenon test integrity <change>`）。档位没有完整性设置，所以默认工作流的
+每个实现与验证步骤都按 `notice` 运行：信号在 `status`、`test status` 和 Dashboard 测试页签里汇成一条 `test-integrity` 提示，从不阻塞。
+只有冻结了 `integrity: block` 的旧策略仍会让这些信号成为该步骤的阻塞（读不出 diff 时也阻塞，`files-diff-unavailable`）；没有逐条豁免，
+有意删除就还原测试。
 
-零豁免默认值：**只强制 `unit`**（规格步登记，实现步按 `changed` 运行，验证步按 `full` 运行）。其余种类项目里有才跑：
-`typecheck`、`integration`、`regression`、`e2e`、`playwright`、`a11y`、`visual`、`benchmark`、`smoke` 都是
-`run_if_registered`，种子（`tenon test plan <change> --seed`、`tenon test register <change> --auto`）会把目录里这些种类的
-套件（基准除外）登记进计划。覆盖率门槛（frontend / backend 验证，lines 80%）只对目录里声明了 `coverage` 的套件生效，
-目录没声明覆盖率就不会被它挡；Playwright 要哪些浏览器由套件自己的 `browsers` 决定。`regression` 不需要单独的套件：
-策略要求 `regression` 且 `scope: full` 时，全量运行的 `unit` 套件即满足。各轨道默认值（都可在 Dashboard 工作流页修改）：
+各轨道默认档位（在 Dashboard 工作流页按步骤选档；每档的含义来自目录）：
 
-| 轨道 | spec 登记 | build 运行（changed） | verify 运行（full） |
+| 轨道 | spec | build | verify |
 | --- | --- | --- | --- |
-| lite | `unit`（在实现步制定计划，没有规格步） | `unit`；已登记则加 `typecheck` | `unit`；已登记则加 `regression`、`typecheck`、`integration`、`e2e`、`playwright`、`a11y`、`visual` |
-| frontend | `unit` | `unit`；已登记则加 `typecheck` | `unit`；已登记则加 `regression`、`e2e`、`playwright`、`a11y`、`visual`；套件声明了覆盖率时 lines 80% |
-| backend | `unit` | `unit`；已登记则加 `typecheck` | `unit`；已登记则加 `integration`、`regression`、`benchmark`；套件声明了覆盖率时 lines 80% |
-| pm | 每个 OpenSpec 场景都有映射 | 无 | 已登记则跑 `smoke` |
+| lite | （没有规格步） | `changed` | `full` |
+| pm | `none`（不要求映射场景） | 无 | `changed` |
+| frontend | `plan` | `changed` | `full` |
+| backend | `plan` | `changed` | `full` |
 
-某个种类对整个项目都不适用（纯 JavaScript 项目没有类型检查）时，在目录里声明一次，不必每个任务各豁免一次：
-`tenon test catalog not-applicable typecheck --reason '<原因>'` 会在 `.tenon/tests/catalog.yaml` 写入一条 `not_applicable`。
-它要经一次人工确认才生效：`tenon review request` 把它和计划里的豁免一起列出（键 `not-applicable:<kind>`），用户的确认
-（`tenon review acknowledge`，不含 `--delegated`）批准它，`approved_by` 记录批准人；在此之前策略仍要求这个种类，
+按内建档位定义，这意味着：只有单测类套件是必需类；`changed` 的步骤只跑本任务碰到的套件（`typecheck` 这类静态检查也只在碰到时才跑），
+`full` 的步骤全量跑每个单测类套件，再加被碰到的集成、端到端、静态与基准类套件。`changed` 下改动没碰到任何套件时零运行，
+`tenon test run <change> --stage` 如实说明并以 0 退出。默认工作流不再写覆盖率门槛：想要的项目在目录里写 `levels.full.coverage`，
+它只对目录里声明了 `coverage` 的套件生效。
+
+OpenSpec 场景映射默认关闭，只在档位要求时才有（`scenarios: required | passing`）。关闭时没有任何场景会挡出口，`step.next`
+不为它们下发 `test-plan-map`，验证报告的追溯矩阵只列已映射的行，另加一行「另有 N 条场景 / 任务未映射（本步不要求映射）」。
+
+某个测试类对整个项目都不适用（纯 JavaScript 项目没有类型检查）时，在目录里声明一次，不必每个任务各豁免一次：
+`tenon test catalog not-applicable typecheck --reason '<原因>'` 会在 `.tenon/tests/catalog.yaml` 写入一条 `not_applicable`，
+它同时满足该种类所属的测试类。它要经一次人工确认才生效：`tenon review request` 把它和计划里的豁免一起列出（键 `not-applicable:<kind>`），
+用户的确认（`tenon review acknowledge`，不含 `--delegated`）批准它，`approved_by` 记录批准人；在此之前档位仍要求这个类，
 报 `waiver-unapproved`。只有单个任务不适用时仍用 `tenon test waive`。
 
-项目还没有测试目录时，`tenon init`（声明了 `test_policy` 的工作流）会自己跑 `tenon test discover --write` 并在 stderr 说明；
+项目还没有测试目录时，`tenon init` 会自己跑 `tenon test discover --write` 并在 stderr 说明；
 请审阅生成的 `.tenon/tests/catalog.yaml` 后提交。discover 认领 `src/`、`test/`、`tests/`、`__tests__/` 和项目根目录下的单测文件
-（`*.test.*`、`*.spec.*`）。`tenon test register <change> --auto` 一条命令做完剩下的：缺目录先识别，把没有套件认领的测试文件
-并进套件的 `files` glob，生成计划初稿并登记这些文件。
+（`*.test.*`、`*.spec.*`）。`tenon test register <change> --auto` 一条命令做完剩下的：缺目录先识别，再把本任务改动里没有套件认领的测试文件
+的精确路径追加进合适的套件，不放宽任何 glob，也不碰本任务没改动的文件。所有写目录的命令（`catalog add|set|rm|not-applicable`、`register --auto`）
+只改实际变化的行，保留注释、空行和排版；唯一丢失的是被改键上的行内注释。新建的目录整份写出。
+
+阻塞带稳定的码（`test-catalog-missing`、`test-plan-missing`、`test-kind-missing`、`test-file-orphan`、`test-not-run`、
+`test-failed`、`test-stale`、`no-tests-ran`、`coverage-below`、`scenario-uncovered` 等）、短标签、完整原因和修复命令。
+（`test-file-unregistered` 不再产生，只留在词表里供旧报告显示。）
 
 `tenon status` 的 `step.next` 按固定顺序推进测试体系：`test-discover`（无目录）→ `test-plan-seed` → `test-plan-map`
-（缺的种类、未映射的场景）→ `test-register-files`（未登记的测试文件）→ `run-tests`（`tenon test run <change> --stage`）
+（只在缺必需测试类，或档位要求场景映射时）→ `test-register-files`（只在出现孤儿测试文件时，一条 `tenon test register <change> --auto`
+全部认领）→ `run-tests`（`tenon test run <change> --stage`）
 → `test-report`（把追溯矩阵写进验证报告）。它们排在本步文档之后、评审者之前；已经运行过却不满足策略的阻塞变成
 `fix`，评审门上有回退边则走回退边（轮次内直接 `tenon transition`）。豁免与目录里的 `not_applicable` 要人工批准：`tenon review request` 列出待批准的项，用户的确认
 （`tenon review acknowledge`，不含 `--delegated`）恰好批准这些。测试计划、基线、已知失败清单和运行记录只经
 `tenon test …` 写入，写门拒绝直接编辑和 shell 重定向，`tenon` 命令与普通 git 操作放行。声明 `reads_tests` 的
 评审者，提示词还附带最新的失败用例、flaky 用例、覆盖率对照门槛与基准变化。
-
-阻塞带稳定的码（`test-catalog-missing`、`test-plan-missing`、`test-kind-missing`、`test-file-unregistered`、`test-not-run`、
-`test-failed`、`test-stale`、`no-tests-ran`、`coverage-below`、`scenario-uncovered` 等）、短标签、完整原因和修复命令。
 
 ## Verify
 

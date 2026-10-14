@@ -76,11 +76,11 @@ export const HELP_EN_TESTS: Readonly<Record<string, string>> = {
   'test known list': 'List known failures (expired ones are marked)',
   'test known list --json': 'JSON output',
 
-  'test plan': 'Show the task test plan; --seed generates a first draft (suites touched by the diff, suites the policy requires, unregistered test files)',
+  'test plan': 'Show the task test plan; --seed generates a first draft (suites touched by the diff, suites the policy requires; changed test files are claimed by the suites\' files globs, no registration needed)',
   'test plan --seed': 'Generate / complete the draft plan (adds only, never removes)',
   'test plan --json': 'JSON output',
   'test register': 'Register: --auto in one command until you can move on / --suite a suite / --file a test file / --case + --test a scenario or task to case mapping',
-  'test register --auto': 'Detect the missing catalog, fold test files no suite owns into a suite\'s file glob, generate the draft plan and register those files (adds only, never removes)',
+  'test register --auto': 'Detect the missing catalog, append the exact path of each test file this task changed that no suite owns to a suite\'s files (never widening a glob), generate the draft plan (adds only, never removes)',
   'test register --suite': 'Catalog suite id (with --file, the suite that owns it)',
   'test register --scope': 'full | changed | files | grep (default full)',
   'test register --pattern': 'Case-name filter for the grep scope',
@@ -100,7 +100,7 @@ export const HELP_EN_TESTS: Readonly<Record<string, string>> = {
   'test waive --covers': 'Scenario / task being waived, spec:<capability>/<Scenario title> or task:<number>',
   'test waive --test': 'Step test being waived (a test id declared by a step of this task\'s workflow, for example code-size): once it has failed, a review approval lets it through, but only the failure on the code that was approved (if the code changes and it fails again, it needs approving again); a test that is not run or is stale gets no waiver',
   'test waive --reason': 'Why it does not apply / why the failure is let through',
-  'test sync': 'Reconcile: test files in the diff that are not registered, orphan files no suite owns, and registered items that no longer exist or that the catalog no longer claims (exit 2 when something is pending); --prune removes the registrations the catalog no longer claims',
+  'test sync': 'Reconcile: test files in the diff that suites auto-claim, orphan files no suite owns, and registered items that no longer exist or that the catalog no longer claims (exit 2 when something is pending); --prune removes the registrations the catalog no longer claims',
   'test sync --prune': 'Remove from the plan the test-file registrations the catalog no longer claims (the suite is gone from the catalog, or no suite\'s files glob claims the path); touches only the test-file registrations, never the case mappings; does not read the diff',
   'test sync --json': 'JSON output',
 

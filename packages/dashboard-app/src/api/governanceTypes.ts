@@ -1,3 +1,5 @@
+import type { TestLevel } from '@tenon/kernel/workflow/test-level'
+
 export type WbHookEvent = 'SessionStart' | 'UserPromptSubmit' | 'PreToolUse' | 'PostToolUse'
 
 export interface WbHookMeta {
@@ -189,6 +191,9 @@ export interface WbStepTestPolicy {
   browsers?: string[]
 }
 
+/** 步骤的测试档位（kernel TEST_LEVELS）：不要求 / 写计划 / 跑改动 / 全量；档位含义在项目测试目录的 levels。 */
+export type WbTestLevel = TestLevel
+
 export interface WbStepDef {
   id: string
   label: string
@@ -201,6 +206,9 @@ export interface WbStepDef {
   outputs: WbFieldRef[]
   artifacts?: WbArtifactConfig[]
   tests?: WbStepTest[]
+  /** 测试档位；与旧 `test_policy` 互斥（同一步只会有其一）。 */
+  test?: WbTestLevel
+  /** 旧逐字段策略：只读保留，选了档位就被替换。 */
   test_policy?: WbStepTestPolicy
   agents?: WbStepAgents
   guards: WbGuardConfig[]

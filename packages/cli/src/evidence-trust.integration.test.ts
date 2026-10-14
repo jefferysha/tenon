@@ -368,7 +368,7 @@ describe('测试证据可信根', () => {
     expect(current.json.policy?.blockers[0]).toMatchObject({ subject: baselinePath, fix: 'tenon review request demo --event build-done' })
   }, 180_000)
 
-  test('R7 指纹：未声明的 coverage/ 目录里塞文件会让已有记录过期；声明的报告与产物不会', async () => {
+  test('R7 指纹：未声明的 coverage/ 目录里塞源码会让已有记录过期；声明的报告与产物、未跟踪的证据格式文件不会', async () => {
     await project()
     await registerBoth()
     expect(await tenon(USER, 'test', 'run', 'demo', '--stage'), `${out()}\n${err()}`).toBe(0)
@@ -384,7 +384,10 @@ describe('测试证据可信根', () => {
     expect(codes(current.json)).toContain('test-stale')
     await rm(join(cwd(), 'src', 'coverage'), { recursive: true })
     expect((await status()).code).toBe(0)
+    // 未声明但未跟踪、扩展名是证据格式的文件（日志、报告）是测试输出，不动候选；脚本扩展名的照旧属于候选。
     await writeFile(join(cwd(), 'test-results', 'notes.txt'), 'not declared\n', 'utf8')
+    expect((await status()).code).toBe(0)
+    await writeFile(join(cwd(), 'test-results', 'payload.mjs'), 'export const smuggled = true\n', 'utf8')
     current = await status()
     expect(codes(current.json)).toContain('test-stale')
   }, 180_000)

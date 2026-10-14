@@ -10,6 +10,7 @@ import { testStatusWord, type TestEvidenceItem, type TestEvidenceReport } from '
 import { errMsg, type CliDeps } from '../deps.js'
 import { str } from '../render.js'
 import { testEvidenceContextFor, testEvidenceReaderFor } from '../testEvidenceContext.js'
+import { noticeLines } from '../test-system/run-summary.js'
 import { resolveTestCommand, type TestCommandContext } from './test-context.js'
 
 interface StepItem {
@@ -117,7 +118,7 @@ export async function cmdTestStatus(
       pass: report.pass,
       items: entries.map((entry) => itemJson(entry, false)),
       blockers: report.blockers,
-      // 步骤声明了 test_policy 时的结构化判定：阻塞码 / 修复命令、套件、追溯矩阵、未登记文件、记录链状态。
+      // 步骤声明了测试档位或 test_policy 时的结构化判定：阻塞码 / 修复命令、套件、追溯矩阵、认领的测试文件与孤儿、记录链状态。
       ...(report.policy === undefined ? {} : { policy: report.policy }),
     }, null, 2))
     return report.pass ? 0 : 2
@@ -125,5 +126,6 @@ export async function cmdTestStatus(
   deps.io.out(`[TEST] ${change} step=${stepId}`)
   for (const entry of entries) deps.io.out(itemLine(entry, false))
   for (const blocker of report.blockers) deps.io.out(`  [FAIL] test: ${blocker}`)
+  for (const line of noticeLines(report.policy?.notices ?? [])) deps.io.out(line)
   return report.pass ? 0 : 2
 }

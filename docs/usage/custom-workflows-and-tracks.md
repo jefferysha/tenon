@@ -198,6 +198,37 @@ tenon tracks show release-note:docs --json
 `tracks show` takes `<workflow>:<track>`; the Track id alone is enough while it
 exists in only one Workflow.
 
+## Test level per step
+
+A step states how much testing it needs with one key, `test:`, which takes `none`, `plan`,
+`changed` or `full` (omitting it is the same as `none`). It works on flat Workflows and on every
+Track branch alike:
+
+```yaml
+  - id: implement
+    label: Implement
+    gate: auto
+    test: changed
+    skills: []
+    inputs: []
+    outputs: []
+    guards: []
+    transitions: []
+```
+
+The Workflow only names the level. What the level requires (which test classes must exist, which
+ones run when the change touches them, scenario mapping, coverage and flaky limits, benchmark
+baselines) is the optional `levels` key of the project's `.tenon/tests/catalog.yaml`, and it falls
+back to built-in defaults; changing it never changes a Workflow or its fingerprint. The five test
+classes are `unit`, `integration`, `e2e`, `static` and `benchmark` (plus `custom`, run only by
+name), and a suite's older kind names remain valid aliases. See the
+[default workflow](default-workflow.md) for the defaults and the Track choices.
+
+The older multi-field `test_policy` key is still read for Changes that froze it, but a step cannot
+carry both keys: the compile error names the step. A step can also declare its own `tests`, such as
+the `code-size` probe; the default `code-size` test has no ceiling, and a project that wants one
+writes `pass: { metrics: [{ name: lines_added, max: <n> }] }` under that test in its own Workflow.
+
 ## Skill DAG and guards
 
 Workflow Skills are declarations, not proof they ran. Host hooks and the

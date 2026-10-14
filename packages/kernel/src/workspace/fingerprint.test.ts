@@ -3,7 +3,7 @@ import { closeSync, constants, lstatSync, openSync, promises as fsPromises } fro
 import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, test } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 import {
   fingerprintWorkspace, fingerprintWorkspaceTwins, isHostLocalPath, isWorkspaceBaseline, isWorkspaceCandidatePath, portableModeOf, TEST_OUTPUT_DIR_SEGMENTS,
   trackedHostLocalPaths,
@@ -571,5 +571,236 @@ describe('portable fingerprint follows git mode model', () => {
     await rm(join(root, 'link.js'))
     await symlink('src/deep/b.js', join(root, 'link.js'))
     expect((await fingerprintWorkspaceTwins(root)).portable, '目标变了').not.toBe(before.portable)
+  })
+})
+
+/**
+ * 测试输出目录（test-results / playwright-report / coverage，任意深度）里「未被 git 跟踪、扩展名属于证据格式」的文件不计入指纹
+ * （完整值与可移植值都不计），不必在目录里逐个声明。已跟踪的、源码 / 脚本扩展名的、没有扩展名的、符号链接都照旧计入——
+ * 不能借这些常见目录名藏源码；git 读不出跟踪情况时，这些目录下一律照算。
+ */
+describe('untracked test evidence files', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  async function repo(): Promise<string> {
+    const root = await freshWorkspace()
+    execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: root })
+    await mkdir(join(root, 'src'), { recursive: true })
+    await writeFile(join(root, 'src', 'app.js'), 'export const a = 1\n')
+    return root
+  }
+  const track = (root: string, ...paths: string[]): void => {
+    execFileSync('git', ['add', '-f', '--', ...paths], { cwd: root })
+  }
+  async function put(root: string, path: string, text = 'x\n'): Promise<void> {
+    await mkdir(join(root, ...path.split('/').slice(0, -1)), { recursive: true })
+    await writeFile(join(root, ...path.split('/')), text)
+  }
+  const both = async (root: string, options?: Parameters<typeof fingerprintWorkspaceTwins>[1]): Promise<readonly [string, string]> => {
+    const twins = await fingerprintWorkspaceTwins(root, options)
+    return [twins.full, twins.portable]
+  }
+
+  test('e2e 被测服务写的未跟踪日志不动指纹：目录第一次出现、里面只有日志，与没有这个目录时相同（完整值与可移植值）', async () => {
+    const root = await repo()
+    const before = await both(root)
+    await put(root, 'test-results/dashboard-e2e-server/serve.log', 'listening\n')
+    await put(root, 'test-results/dashboard-e2e-server/dashboard.log', 'ready\n')
+    expect(await both(root), '只装着日志的外壳目录（含子目录）也不进指纹').toEqual(before)
+    await put(root, 'test-results/dashboard-e2e-server/serve.log', 'listening again\n')
+    expect(await both(root), '日志内容变了也不动').toEqual(before)
+    await rm(join(root, 'test-results'), { recursive: true })
+    await mkdir(join(root, 'test-results', 'dashboard-e2e-server'), { recursive: true })
+    expect(await both(root), '空的测试输出目录等同没有').toEqual(before)
+  })
+
+  test('证据扩展名全覆盖（大小写不敏感）、嵌在包里的目录与更深的子目录一样不计入', async () => {
+    const root = await repo()
+    await put(root, 'packages/web/index.ts', 'export const web = 1\n')
+    const before = await both(root)
+    const extensions = ['log', 'txt', 'xml', 'md', 'csv', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'webm', 'mp4', 'lcov', 'info']
+    for (const extension of extensions) await put(root, `packages/web/test-results/deep/run.${extension}`)
+    await put(root, 'packages/web/playwright-report/data/Shot.PNG')
+    await put(root, 'packages/web/coverage/lcov-report/notes.MD')
+    await put(root, 'packages/web/coverage/lcov.info')
+    await put(root, 'coverage/test-results/inner.log')
+    expect(await both(root)).toEqual(before)
+  })
+
+  test.each([
+    'coverage/x/fixture.json',
+    'playwright-report/index.html',
+    'playwright-report/page.htm',
+    'test-results/trace.zip',
+    'test-results/a.gz',
+    'test-results/net.har',
+  ])('未跟踪的 %s 动指纹：能被代码或浏览器加载、解包的产物不能借目录名藏起来（写入与修改都算）', async (path) => {
+    const root = await repo()
+    const before = await both(root)
+    await put(root, path, 'first\n')
+    const written = await both(root)
+    expect(written[0], `${path} 写入`).not.toBe(before[0])
+    expect(written[1], `${path} 写入（可移植值）`).not.toBe(before[1])
+    await put(root, path, 'second\n')
+    const edited = await both(root)
+    expect(edited[0], `${path} 修改`).not.toBe(written[0])
+    expect(edited[1], `${path} 修改（可移植值）`).not.toBe(written[1])
+  })
+
+  test('未跟踪的 serve.log、lcov.info、截图与 error-context.md 写入前后指纹不变', async () => {
+    const root = await repo()
+    const before = await both(root)
+    for (const path of ['test-results/s/serve.log', 'coverage/lcov.info', 'test-results/shot.png', 'test-results/error-context.md']) {
+      await put(root, path)
+      expect(await both(root), `${path} 不计入`).toEqual(before)
+    }
+  })
+
+  test('未跟踪的 coverage/hook.js 动指纹：源码 / 脚本扩展名不能借目录名藏起来（含大写扩展名 .JS）', async () => {
+    const root = await repo()
+    const before = await both(root)
+    await put(root, 'coverage/hook.js', 'export const smuggled = true\n')
+    const withHook = await both(root)
+    expect(withHook[0]).not.toBe(before[0])
+    expect(withHook[1]).not.toBe(before[1])
+    for (const name of ['coverage/other.JS', 'test-results/run.mjs', 'playwright-report/x.sh', 'coverage/y.py', 'coverage/z.ts', 'coverage/w.json5']) {
+      const base = await both(root)
+      await put(root, name, 'smuggled\n')
+      expect(await both(root), `${name} 必须计入`).not.toEqual(base)
+    }
+  })
+
+  test('已跟踪的 test-results/fixture.json 被修改动指纹；同目录里没跟踪的 txt 不动', async () => {
+    const root = await repo()
+    await put(root, 'test-results/fixture.json', '{ "a": 1 }\n')
+    track(root, 'test-results/fixture.json')
+    const tracked = await both(root)
+    await put(root, 'test-results/other.txt', 'b\n')
+    await put(root, 'test-results/run.log', 'log\n')
+    expect(await both(root), '没跟踪的不动').toEqual(tracked)
+    await put(root, 'test-results/fixture.json', '{ "a": 2 }\n')
+    const edited = await both(root)
+    expect(edited[0]).not.toBe(tracked[0])
+    expect(edited[1]).not.toBe(tracked[1])
+  })
+
+  test('「跟踪」包括只暂存没提交：git add 之后的日志计入，git rm --cached 之后又不计', async () => {
+    const root = await repo()
+    await put(root, 'test-results/run.log', 'one\n')
+    const untracked = await both(root)
+    track(root, 'test-results/run.log')
+    const staged = await both(root)
+    expect(staged).not.toEqual(untracked)
+    await put(root, 'test-results/run.log', 'two\n')
+    expect(await both(root), '暂存的日志内容变了就动').not.toEqual(staged)
+    execFileSync('git', ['rm', '-q', '--cached', '-f', '--', 'test-results/run.log'], { cwd: root })
+    expect(await both(root)).toEqual(untracked)
+  })
+
+  test('没有扩展名的 playwright-report/run 计入；点开头的文件和以点结尾的名字也算没有扩展名', async () => {
+    const root = await repo()
+    const before = await both(root)
+    await put(root, 'playwright-report/run', 'binary\n')
+    const withRun = await both(root)
+    expect(withRun).not.toEqual(before)
+    await put(root, 'playwright-report/.json', 'dotfile\n')
+    const withDot = await both(root)
+    expect(withDot).not.toEqual(withRun)
+    await put(root, 'playwright-report/name.', 'trailing dot\n')
+    expect(await both(root)).not.toEqual(withDot)
+  })
+
+  test('符号链接计入：证据扩展名的符号链接不被当成证据文件，目标变了就动', async () => {
+    const root = await repo()
+    await mkdir(join(root, 'coverage'), { recursive: true })
+    await symlink('../src/app.js', join(root, 'coverage', 'link.json'))
+    const first = await both(root)
+    expect(first, '符号链接本身是候选内容').not.toEqual(await both(await repo()))
+    await rm(join(root, 'coverage', 'link.json'))
+    await symlink('../src/other.js', join(root, 'coverage', 'link.json'))
+    expect(await both(root)).not.toEqual(first)
+  })
+
+  test('名字带证据扩展名的目录不能藏东西：coverage/x.json/hook.js 与 test-results/logs.log/run 照算', async () => {
+    const root = await repo()
+    const before = await both(root)
+    await put(root, 'coverage/x.json/hook.js', 'export const smuggled = true\n')
+    const first = await both(root)
+    expect(first).not.toEqual(before)
+    await put(root, 'test-results/logs.log/run', 'no extension\n')
+    expect(await both(root)).not.toEqual(first)
+  })
+
+  test('规则只限三个目录名本身：别的目录、名字只是相似的目录里的日志照算', async () => {
+    const root = await repo()
+    for (const path of ['logs/serve.log', 'my-test-results/serve.log', 'coverage-old/lcov.info', 'Coverage/lcov.info', 'report/test-results.log']) {
+      const base = await both(root)
+      await put(root, path)
+      expect(await both(root), `${path} 必须计入`).not.toEqual(base)
+    }
+  })
+
+  test('已声明的输出照旧排除；声明之外的证据文件由通用规则排除，源码仍计入', async () => {
+    const root = await repo()
+    const declaredOutputs = ['test-results/report.xml', 'coverage/summary.js']
+    const before = await both(root, { declaredOutputs })
+    await put(root, 'test-results/report.xml', '<testsuite/>\n')
+    await put(root, 'test-results/serve.log')
+    await put(root, 'coverage/summary.js', 'declared even though it is a script\n')
+    expect(await both(root, { declaredOutputs })).toEqual(before)
+    await put(root, 'coverage/other.js', 'not declared\n')
+    expect(await both(root, { declaredOutputs })).not.toEqual(before)
+  })
+
+  test('git 不可用（PATH 里找不到 git）：这些目录下的 .log 也计入，与没有规则时一致', async () => {
+    const root = await repo()
+    const clean = await both(root)
+    await put(root, 'test-results/serve.log', 'listening\n')
+    await put(root, 'coverage/lcov.info')
+    expect(await both(root), '有 git 时不计入').toEqual(clean)
+    const empty = await freshWorkspace()
+    vi.stubEnv('PATH', empty)
+    const withoutGit = await both(root)
+    expect(withoutGit[0]).not.toBe(clean[0])
+    expect(withoutGit[1]).not.toBe(clean[1])
+    await put(root, 'test-results/serve.log', 'changed\n')
+    expect(await both(root), '照算：改日志就动').not.toEqual(withoutGit)
+  })
+
+  test('git 读不出跟踪情况（索引损坏）与不是 git 仓库：一律照算，绝不放宽', async () => {
+    const root = await repo()
+    const clean = await both(root)
+    await put(root, 'test-results/serve.log', 'listening\n')
+    expect(await both(root)).toEqual(clean)
+    await writeFile(join(root, '.git', 'index'), 'not an index')
+    const broken = await both(root)
+    expect(broken).not.toEqual(clean)
+    await put(root, 'test-results/serve.log', 'changed\n')
+    expect(await both(root)).not.toEqual(broken)
+
+    const plain = await freshWorkspace()
+    await put(plain, 'src/app.js', 'export const a = 1\n')
+    const plainBefore = await both(plain)
+    await put(plain, 'test-results/serve.log')
+    expect(await both(plain), '非 git 目录里日志照算').not.toEqual(plainBefore)
+  })
+
+  test('没有这些目录的工作区：指纹与加规则之前逐字节相同（快照）', async () => {
+    const root = await freshWorkspace()
+    const dir = async (rel: string): Promise<void> => { await mkdir(join(root, rel), { recursive: true }); await chmod(join(root, rel), 0o755) }
+    const file = async (rel: string, text: string, mode = 0o644): Promise<void> => { await writeFile(join(root, rel), text); await chmod(join(root, rel), mode) }
+    await chmod(root, 0o755)
+    for (const rel of ['src', 'src/deep', 'scripts', 'logs']) await dir(rel)
+    await file('src/a.js', 'export const a = 1\n')
+    await file('src/deep/b.ts', 'export const b = 2\n')
+    await file('scripts/run.sh', '#!/bin/sh\necho hi\n', 0o755)
+    await file('logs/serve.log', 'not under a test-output directory\n')
+    await file('README.md', '# demo\n')
+    await symlink('src/a.js', join(root, 'link.js'))
+    // 可移植值按 git 的权限位模型记录，与机器无关；完整值含符号链接的权限位（macOS 0755、Linux 0777），不进快照。
+    // 这个值是加规则之前的实现算出来的。
+    expect((await fingerprintWorkspaceTwins(root)).portable).toBe('workspace:sha256:654861ca1548e642c428dd79f00b443ea98f06f01944cd058e4f5e4011947a7d')
   })
 })

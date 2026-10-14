@@ -27,6 +27,7 @@ import { errMsg, type CliDeps } from '../deps.js'
 import { ensureChangeHostAgents, fallbackOutcome, hostAgentHostOf } from './agent-host.js'
 import { resolveAgentCommand, roleOf, type AgentContext } from './agent-context.js'
 import { renderAgentPrompt, type AgentPromptInput } from './agent-prompt.js'
+import { stepPolicyFor } from '../test-system/plan-context.js'
 import { renderTestPolicySummary } from './agent-prompt-tests.js'
 import { parseRerunReason, priorRunsOnCandidate, rerunRefusal } from './agent-rerun.js'
 import { codexCommand, claudeCommand, hostSourceOf, planRoute, recordCommand, routeLines } from './agent-route.js'
@@ -41,10 +42,12 @@ const REPORT_MAX_BYTES = 256 * 1024
  * 评审者声明了 `reads_tests` 时，附上目录套件最新运行的摘要（失败用例、flaky、覆盖率对照门槛、基准变化）。
  * `reads_tests` 是本步测试 id 的清单，非空即「这个评审者读测试结果」；没有声明就不附，提示词与之前逐字相同。
  */
-function testSummaryFor(context: AgentContext, agent: string): readonly string[] {
+async function testSummaryFor(deps: CliDeps, context: AgentContext, agent: string): Promise<readonly string[]> {
   const reads = context.step.reviewers.find((ref) => ref.agent === agent)?.readsTests ?? []
   if (reads.length === 0) return []
-  const policy = context.plan.workflow.steps.find((step) => step.id === context.step.stepId)?.test_policy
+  const step = context.plan.workflow.steps.find((entry) => entry.id === context.step.stepId)
+  // 覆盖率门槛来自求值后的策略（档位的门槛在目录 levels 里）。
+  const policy = step === undefined ? undefined : await stepPolicyFor(deps, step)
   return renderTestPolicySummary(context.testPolicy, policy?.coverage)
 }
 
@@ -66,7 +69,8 @@ async function testsFor(
     return {
       id,
       run: await latestTestRun(deps.cwd, context.name, context.slug, id, workflowRunId),
-      ...(waiver === undefined ? {} : { waiver: { approved: verdict?.state === 'waived', reason: waiver.reason } }),
+      // 实测值取自策略判定（当前候选上的新鲜失败）：没有豁免失败的 verdict（没运行、已通过、记录过期）就没有失败记录。
+      ...(waiver === undefined ? {} : { waiver: { approved: verdict?.state === 'waived', reason: waiver.reason, metrics: verdict?.failedMetrics } }),
     }
   }))
 }
@@ -176,7 +180,7 @@ export async function cmdAgentPrompt(
     reportPath,
     ...(stepPrompt === undefined ? {} : { stepPrompt }),
     tests: await testsFor(deps, context, agent),
-    testSummary: testSummaryFor(context, agent),
+    testSummary: await testSummaryFor(deps, context, agent),
     ...(requirement.host === 'any' ? {} : { recordHost: requirement.host }),
   })
   if (route.runOn !== null) {

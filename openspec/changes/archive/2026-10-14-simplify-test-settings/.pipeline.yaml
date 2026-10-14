@@ -1,0 +1,48 @@
+track: backend
+preset: full
+created_by: jefferySha <710227704@qq.com>
+assignee: jefferySha <710227704@qq.com>
+phase: archive
+phase_status: done
+design_doc: docs/superpowers/specs/simplify-test-settings-design.md
+plan: docs/superpowers/plans/simplify-test-settings.md
+verification_report: docs/superpowers/reports/simplify-test-settings-verify.md
+build_mode: subagent-driven-development
+isolation: in-place
+build_sha: build:v1:workspace:56c178646aa21cb9765d3430e6c9b226d4eeeeea310706e65de81703974d0844:467996397e337a566945ca1fde5f827268a63c2735267155c7c68855a8263fc7:37d2c849a1e6d96e01a4cade3a8350e7723e6a72f4178edd9ce8c36742488c7f
+agent_review_result: pending
+codex_review_result: pending
+verify_result: pass
+branch_status: handled
+direct_override: false
+prd_path: null
+pr_url: https://github.com/jefferysha/tenon/pull/84
+automation: off
+automation_queued_at: ""
+automation_sandbox: ""
+automation_worktree: ""
+automation_attempts: 0
+automation_last_error: ""
+automation_preserved_path: ""
+branch: null
+base_branch: tenon/simplify-test-settings
+scope: null
+related_files: null
+spec_scope: null
+depends_on: null
+created_at: 2026-10-12T00:37:56Z
+updated_at: 2026-10-14T01:52:54Z
+verified_at: 2026-10-14T00:31:07Z
+archived_at: 2026-10-14T01:52:54Z
+archived: true
+workflow: default
+automation_current_phase: ""
+automation_cause: ""
+pipeline_run_id: c6279f4b-c76a-441d-8407-28a39aef3839
+pipeline_transition_sequence: 21
+pipeline_transition_head: c9811b6b-d033-41f7-9712-0f024e15f93e
+pipeline_state_revision: 53
+pipeline_state_revision_id: 82ed4e30-a5d8-442f-98e2-f4bdc2b1a6fc
+pipeline_state_digest: 411da705fd71f50eaf0b4dfba842de8de56b5ac186b16bb920390f74c70088f2
+# tenon-internal-pre-verify-review-v1: eyJzY2hlbWFWZXJzaW9uIjoxLCJyZXZpc2lvbiI6NTMsInJldmlzaW9uSWQiOiI4MmVkNGUzMC1hNWQ4LTQ0MmYtOThlMi1mNGJkYzJiMWE2ZmMiLCJwYXlsb2FkRGlnZXN0IjoiNGU5MGViN2U0NDM4ZDMzY2I3MWY3ZDhmOTNkMGViMTE1MzgxOWY0NjUxNGFjNThjZjk3YjUzZmUyODI4ZGM3YiJ9
+# tenon-internal-transition-head-v1: eyJzY2hlbWFWZXJzaW9uIjoxLCJydW5JZCI6ImM2Mjc5ZjRiLWM3NmEtNDQxZC04NDA3LTI4YTM5YWVmMzgzOSIsInNlcXVlbmNlIjoyMSwicmVjb3JkSWQiOiJjOTgxMWI2Yi1kMDMzLTQxZjctOTcxMi0wZjAyNGUxNWY5M2UiLCJyZWNvcmREaWdlc3QiOiIzYjFhNjU3OWMzNmE4NjUwYzllNzMzZjdkODdmOGFmMmFiNGUyZmRiMDlhMTM3ODhmYmFhZjhmYWM4MDgyZmI4In0

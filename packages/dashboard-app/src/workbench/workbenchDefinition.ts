@@ -4,7 +4,7 @@ import type {
   WbSkillRef,
   WbStepAgents,
   WbStepDef,
-  WbStepTestPolicy,
+  WbTestLevel,
   WbWorkflowDef,
 } from '../api/governanceTypes'
 import { appendSkill, removeSkill } from './skillWaves'
@@ -106,12 +106,15 @@ export function setStepAgentsInDef(
   })
 }
 
-/** 步骤测试策略整份替换；undefined 删掉这个键（步骤没有策略）。策略没变时返回原对象。 */
-export function setStepTestPolicyInDef(def: WbWorkflowDef, stepId: string, policy: WbStepTestPolicy | undefined): WbWorkflowDef {
+/**
+ * 设置步骤的测试档位：写 `test`、删旧 `test_policy`（选档即替换，二者在同一步互斥）。
+ * 档位没变（同档位且没有旧策略，或没有任何声明时选「不要求」）时返回原对象，不制造无意义的草稿改动。
+ */
+export function setStepTestLevelInDef(def: WbWorkflowDef, stepId: string, level: WbTestLevel): WbWorkflowDef {
   return mapStep(def, stepId, (step) => {
-    const { test_policy: previous, ...rest } = step
-    if (policy === undefined) return previous === undefined ? step : rest
-    return JSON.stringify(previous) === JSON.stringify(policy) ? step : { ...rest, test_policy: policy }
+    const { test_policy: legacy, ...rest } = step
+    const unchanged = legacy === undefined && (step.test === level || (step.test === undefined && level === 'none'))
+    return unchanged ? step : { ...rest, test: level }
   })
 }
 

@@ -86,11 +86,11 @@ open → build → verify → done
 | 步骤 | 做什么 | 证据 |
 | --- | --- | --- |
 | `open` | 用一句话复述目标和验收检查；不调研、不加载访谈类技能 | 无 |
-| `build` | `test-driven-development`，然后单测（范围 `changed`；登记了 `typecheck` 就跑）和 `diff-risk` 探针 | 单测运行、测试文件已登记、探针通过 |
-| `verify`（评审门） | `verification-before-completion`，全量单测（登记了 `regression`、`typecheck`、`integration`、`e2e`、`playwright`、`a11y`、`visual` 也跑），必需评审者 `code-review` 与 `security`；用户只确认这一次 | 测试、评审者、人工确认 |
+| `build` | `test-driven-development`，然后本任务改动碰到的套件（`test: changed`）和 `diff-risk` 探针 | 被碰到的套件已运行、改动的测试文件已执行、探针通过 |
+| `verify`（评审门） | `verification-before-completion`，全量单测类套件加被改动碰到的其他类（`test: full`），必需评审者 `code-review` 与 `security`；用户只确认这一次 | 测试、评审者、人工确认 |
 | `done` / `escalated` | 终态；`done` 把任务目录移进 `openspec/changes/archive/` 并把整个工作区一次提交（`chore(tenon): finish <change>`）；`escalated` 同样归档，但不提交 | |
 
-测试策略与重型轨道的零豁免默认一致：只有 `unit` 必需，其余有就跑。`code-review` 必需，`block_at: medium`，它对照宿主写在提示末尾的目标与验收检查看 diff，不读规格。`security` 声明了 `attach_on: [auth, dependency, contract]`，只有任务的改动碰到这类路径才加入。轻量轨道不推送、不开 PR，由你决定。集成测试（`lite-track.integration.test.ts`，一个三文件缺陷修复）实测：不超过 25 次 `tenon` 调用、2 次用户回复（一次确认测试命令的信任、一次确认 `verify`）；重型轨道的后端小改动要 70–90 次调用、6 次以上回复。
+测试档位与重型轨道的实现、验证步一致（见[默认工作流](./default-workflow.md)）：只有单测类套件必需，其余类在改动碰到时才跑，改动过的测试文件由目录的 glob 认领、不逐个登记。`code-review` 必需，`block_at: medium`，它对照宿主写在提示末尾的目标与验收检查看 diff，不读规格。`security` 声明了 `attach_on: [auth, dependency, contract]`，只有任务的改动碰到这类路径才加入。轻量轨道不推送、不开 PR，由你决定。集成测试（`lite-track.integration.test.ts`，一个三文件缺陷修复）实测：不超过 25 次 `tenon` 调用、2 次用户回复（一次确认测试命令的信任、一次确认 `verify`）；重型轨道的后端小改动要 70–90 次调用、6 次以上回复。
 
 ### 风险升级
 

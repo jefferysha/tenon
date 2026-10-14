@@ -1,40 +1,36 @@
 /**
  * 一个步骤的测试策略判定（纯函数）：目录 × 计划 × 策略 × 运行记录 × diff × OpenSpec 场景 → 阻塞码。
  *
- * 顺序即阻塞的展示顺序：目录 → 计划 → 种类登记 → 文件登记 → 记录链 → 运行集里的每个套件 →
+ * 顺序即阻塞的展示顺序：目录 → 计划 → 种类 / 类 → 测试文件认领与孤儿 → 记录链 → 运行集里的每个套件（含认领文件的执行检查）→
  * 旧步骤内联测试 → 覆盖率 / flaky 汇总 → 场景追溯。前一项缺失时只跳过依赖它的检查，其余照查，
  * 一次列全要做的事。旧步骤测试（内联套件）的 v1 判定结果由调用方传入，这里只并入阻塞。
+ * 运行集由 stageRunSet 算（`tenon test run --stage` 用同一份）；档位策略与旧 `files: registered` 都按认领处理改动的测试文件。
  */
 import {
-  renderTestBlocker, shellQuote, testBlocker, testNotice, type TestBlocker, type TestNotice,
+  renderTestBlocker, shellQuote, testBlocker, testNotice,
 } from './blockers.js'
-import { catalogSuite } from './catalog.js'
-import { catalogNotApplicable } from './catalog-na.js'
 import type { CatalogSuite } from './catalog-types.js'
 import { formatCaseRef, fileRefMatches } from './covers.js'
+import { checkFiles, claimedNotExecuted, type ClaimedCheck, type ClaimedFiles } from './evaluate-files.js'
+import { checkKinds } from './evaluate-kinds.js'
 import {
   STALE_WORDS, evaluateSuiteResult, latestSuiteRuns, staleBindings, type FreshnessContext, type SuiteRunRef,
 } from './evaluate-suite.js'
 import { evaluateInline } from './evaluate-inline.js'
 import { evaluateTrace } from './evaluate-trace.js'
 import type {
-  NotApplicableStatus, SuiteVerdict, TestPolicyEvaluationInput, TestPolicyReport, TraceRow,
+  Collector, NotApplicableStatus, SuiteVerdict, TestPolicyEvaluationInput, TestPolicyReport, TraceRow,
 } from './evaluate-types.js'
 import {
   evaluateIntegrity, integrityRunSamples, integritySummary, unavailableIntegrity, type TestIntegrityReport,
 } from './integrity.js'
 import { planCatalogProblems, type TestPlan } from './plan.js'
 import { testPlanApprovalFreeDigest } from './plan-waivers.js'
-import { planKindsSatisfy, policyRequiredKinds, policyRunReason, testPolicyDigest } from './policy.js'
+import { testPolicyDigest } from './policy.js'
 import { protectedFileBlockers } from './protected-files.js'
-import { testFileRegistration, type UnregisteredTestFile } from './test-files.js'
+import { policyChecksChangedFiles } from './resolve-policy.js'
+import { stageRunSet, suitesWithoutCoversNotice, type StageRunItem, type StageRunSet } from './stage-run-set.js'
 import type { TestRunRecordV2 } from './record-v2-types.js'
-import type { TestKind } from './vocabulary.js'
-
-interface Collector {
-  readonly blockers: TestBlocker[]
-  readonly notices: TestNotice[]
-}
 
 function describeSuite(suite: Pick<CatalogSuite, 'id' | 'label'>): string {
   return suite.label === undefined ? suite.id : `${suite.label}（${suite.id}）`
@@ -66,13 +62,6 @@ function checkCatalogAndPlan(input: TestPolicyEvaluationInput, out: Collector): 
   }
 }
 
-/** 计划里登记的目录套件的种类（目录里已不存在的套件另由 planCatalogProblems 报）。 */
-function plannedKinds(plan: TestPlan, input: TestPolicyEvaluationInput): readonly TestKind[] {
-  if (input.catalog.state !== 'ok') return []
-  const catalog = input.catalog.catalog
-  return plan.suites.flatMap((item) => catalogSuite(catalog, item.suite)?.kind ?? [])
-}
-
 /** 目录里声明的不适用种类及其批准状态；目录不可用时没有声明可展示。 */
 function notApplicableStatuses(input: TestPolicyEvaluationInput): readonly NotApplicableStatus[] {
   if (input.catalog.state !== 'ok') return []
@@ -81,106 +70,45 @@ function notApplicableStatuses(input: TestPolicyEvaluationInput): readonly NotAp
   }))
 }
 
-function kindWaiver(plan: TestPlan, kind: TestKind): { readonly approved: boolean } | undefined {
-  const waiver = plan.waivers.find((item) => item.kind === kind)
-  return waiver === undefined ? undefined : { approved: waiver.approved_by !== null }
+/** 读不到改动列表按 undefined 处理（另出 files-diff-unavailable）。 */
+function changedFilesOf(input: TestPolicyEvaluationInput): readonly string[] | undefined {
+  return input.changedFilesError === undefined ? input.changedFiles : undefined
 }
 
-/**
- * 策略要求的每个种类，计划里要有该种类的套件（regression 可由全量跑的 unit 套件顶上），或有已批准的豁免，
- * 或目录里有已批准的项目级「不适用」声明（catalog.yaml 的 not_applicable）。豁免 / 声明未批准时给 waiver-unapproved，
- * 由评审确认一并批准；都没有才是 test-kind-missing。
- */
-function checkKinds(input: TestPolicyEvaluationInput, plan: TestPlan, reviewFix: string, out: Collector): void {
-  if (input.catalog.state !== 'ok') return
-  const catalog = input.catalog.catalog
-  const kinds = plannedKinds(plan, input)
-  for (const kind of policyRequiredKinds(input.policy)) {
-    if (planKindsSatisfy(input.policy, kinds, kind)) continue
-    const waiver = kindWaiver(plan, kind)
-    if (waiver?.approved === true) continue
-    const projectWide = catalogNotApplicable(catalog, kind)
-    if (projectWide !== undefined && projectWide.approved_by !== null) continue
-    if (waiver !== undefined) {
-      out.blockers.push(testBlocker('waiver-unapproved', `测试种类 ${kind} 的豁免尚未经评审批准`, { fix: reviewFix, subject: kind }))
-      continue
-    }
-    if (projectWide !== undefined) {
-      out.blockers.push(testBlocker('waiver-unapproved', `测试种类 ${kind} 在 catalog.yaml 里声明了「本项目不适用」，但尚未经评审批准`, { fix: reviewFix, subject: kind }))
-      continue
-    }
-    const candidate = catalog.suites.find((suite) => suite.kind === kind)
-    out.blockers.push(testBlocker('test-kind-missing', `本阶段要求 ${kind} 测试，计划里既没有该种类的套件也没有已批准的豁免${candidate === undefined ? '（目录里也没有这类套件；只有这个任务不适用用 tenon test waive，整个项目都不适用就在目录里声明 not_applicable）' : ''}`, {
-      fix: candidate === undefined
-        ? `tenon test catalog not-applicable ${kind} --reason ${shellQuote('<本项目为什么不适用>')}`
-        : `tenon test register ${input.change} --suite ${shellQuote(candidate.id)}`,
-      subject: kind,
-    }))
-  }
+/** 阶段运行集：计划与目录都可用才算（计划缺失另有 test-plan-missing）。 */
+function stageOf(input: TestPolicyEvaluationInput, plan: TestPlan | undefined): StageRunSet {
+  if (plan === undefined || input.catalog.state !== 'ok') return { items: [], missingClasses: [] }
+  return stageRunSet({ policy: input.policy, catalog: input.catalog.catalog, plan, changedFiles: changedFilesOf(input) })
 }
 
-function checkFiles(input: TestPolicyEvaluationInput, plan: TestPlan | undefined, out: Collector): TestPolicyReport['files'] {
-  const none: TestPolicyReport['files'] = { checked: false, unregistered: [], orphans: [] }
-  if (input.policy.files !== 'registered') return none
-  if (input.changedFilesError !== undefined) {
-    out.blockers.push(testBlocker('files-diff-unavailable', `无法读取本任务的改动文件列表（${input.changedFilesError}），不能确认测试文件都已登记`, {
-      fix: `tenon test sync ${input.change}`,
-    }))
-    return none
-  }
-  if (input.changedFiles === undefined) {
-    out.notices.push(testNotice('files-unchecked', '宿主没有提供本任务的 diff 文件列表，未检查未登记的测试文件'))
-    return none
-  }
-  if (input.catalog.state !== 'ok') return none
-  if (input.changedFilesTruncated !== undefined) {
-    const { found, limit } = input.changedFilesTruncated
-    out.notices.push(testNotice('files-truncated', `未跟踪文件有 ${found} 个，只检查了前 ${limit} 个；其余的测试文件没有核对是否已登记。把构建产物、依赖目录加入 .gitignore 后重新检查`))
-  }
-  const registration = testFileRegistration({ changedFiles: input.changedFiles, catalog: input.catalog.catalog, plan })
-  const register = (file: UnregisteredTestFile): string =>
-    `tenon test register ${input.change} --file ${shellQuote(file.path)}${file.suites.length === 1 ? ` --suite ${shellQuote(file.suites[0] ?? '')}` : ''}`
-  for (const file of registration.unregistered) {
-    out.blockers.push(testBlocker('test-file-unregistered', `测试文件 ${file.path} 在本任务里新增或修改，但没有登记进测试计划`, { fix: register(file), subject: file.path }))
-  }
-  for (const path of registration.orphans) {
-    out.blockers.push(testBlocker('test-file-orphan', `测试文件 ${path} 没有任何目录套件认领；把它并进对应套件的文件 glob 再登记（没有可用的套件就先在目录里加）`, {
-      fix: `tenon test register ${input.change} --auto`, subject: path,
-    }))
-  }
-  return { checked: true, unregistered: registration.unregistered, orphans: registration.orphans }
+/** 运行集真的算出来了（计划、目录都可用）才提示：算不出来时「没进运行集」不是套件自己的原因。 */
+function checkCoversNotice(input: TestPolicyEvaluationInput, plan: TestPlan | undefined, stage: StageRunSet, out: Collector): void {
+  if (plan === undefined || input.catalog.state !== 'ok') return
+  const notice = suitesWithoutCoversNotice({ policy: input.policy, catalog: input.catalog.catalog, changedFiles: changedFilesOf(input), runSet: stage })
+  if (notice !== undefined) out.notices.push(notice)
 }
 
-interface RunEntry {
-  readonly suite: CatalogSuite
-  readonly reason: 'run' | 'if-registered'
-}
-
-function runSet(input: TestPolicyEvaluationInput, plan: TestPlan | undefined): readonly RunEntry[] {
-  if (plan === undefined || input.catalog.state !== 'ok') return []
-  const catalog = input.catalog.catalog
-  const out: RunEntry[] = []
-  for (const item of plan.suites) {
-    const suite = catalogSuite(catalog, item.suite)
-    if (suite === undefined) continue
-    const reason = policyRunReason(input.policy, suite.kind)
-    if (reason !== undefined) out.push({ suite, reason })
-  }
-  return out
+interface RunSetEvaluation {
+  readonly verdicts: SuiteVerdict[]
+  readonly fresh: SuiteRunRef[]
+  /** 认领文件的核对结果（只含这次判过结果的套件）。 */
+  readonly claimedChecks: ClaimedCheck[]
 }
 
 function evaluateRunSet(
   input: TestPolicyEvaluationInput,
-  entries: readonly RunEntry[],
+  items: readonly StageRunItem[],
   latest: ReadonlyMap<string, SuiteRunRef>,
   freshness: FreshnessContext,
   plan: TestPlan | undefined,
   chainBroken: boolean,
+  claims: ClaimedFiles,
   out: Collector,
-): { readonly verdicts: SuiteVerdict[]; readonly fresh: SuiteRunRef[] } {
+): RunSetEvaluation {
   const verdicts: SuiteVerdict[] = []
   const fresh: SuiteRunRef[] = []
-  for (const { suite, reason } of entries) {
+  const claimedChecks: ClaimedCheck[] = []
+  for (const { suite, reason, scope } of items) {
     const base = { suite: suite.id, origin: 'catalog' as const, kind: suite.kind, ...(suite.label === undefined ? {} : { label: suite.label }), reason }
     const name = describeSuite(suite)
     const fix = `tenon test run ${input.change} --suite ${shellQuote(suite.id)}`
@@ -202,15 +130,20 @@ function evaluateRunSet(
       out.blockers.push(testBlocker('test-stale', `套件 ${name} 的运行已过期：${stale.map((item) => STALE_WORDS[item]).join('、')}`, { fix, subject: suite.id }))
       continue
     }
-    if (input.policy.scope === 'full' && ref.run.scope !== 'full') {
+    // 档位策略按运行集给出的范围要求（计划里显式登记的套件在 changed 档可以登记 full）；旧策略沿用策略自己的范围。
+    const wantsFull = input.policy.level === undefined ? input.policy.scope === 'full' : scope === 'full'
+    if (wantsFull && ref.run.scope !== 'full') {
       verdicts.push({ ...base, ...run, state: 'missing', detail: `只跑了 ${ref.run.scope} 范围` })
       out.blockers.push(testBlocker('test-not-run', `套件 ${name} 本阶段要求全量运行，最近一次只跑了 ${ref.run.scope} 范围`, { fix, subject: suite.id }))
       continue
     }
     fresh.push(ref)
+    const claimed = claims.bySuite.get(suite.id) ?? []
     const result = evaluateSuiteResult(suite, ref, {
       change: input.change, policy: input.policy, plan, knownFailures: input.knownFailures, baselines: input.baselines, today: input.today,
+      claimed,
     })
+    if (result.claimedChecked.length > 0) claimedChecks.push({ suite, checked: result.claimedChecked, missing: result.claimedMissing })
     out.blockers.push(...result.blockers)
     out.notices.push(...result.notices)
     verdicts.push({
@@ -223,12 +156,13 @@ function evaluateRunSet(
       ...(result.benchmark.length === 0 ? {} : { benchmark: result.benchmark }),
     })
   }
-  return { verdicts, fresh }
+  return { verdicts, fresh, claimedChecks }
 }
 
 function checkAggregates(
   input: TestPolicyEvaluationInput,
   plan: TestPlan | undefined,
+  claims: ClaimedFiles,
   fresh: readonly SuiteRunRef[],
   out: Collector,
 ): void {
@@ -240,7 +174,8 @@ function checkAggregates(
     out.blockers.push(testBlocker('flaky-over-limit', `本阶段 flaky 用例 ${total} 个，超过上限 ${flaky.max}`, { fix: stageFix }))
   }
   if (flaky.fail_on_new) {
-    const registered = (plan?.files ?? []).map((file) => file.path)
+    // 「本任务新增的用例」= 计划里登记的测试文件 + 本任务改动过、被套件认领的测试文件。
+    const registered = [...(plan?.files ?? []).map((file) => file.path), ...claims.byPath.map((file) => file.path)]
     for (const ref of fresh) {
       for (const item of ref.run.cases) {
         if (item.status !== 'flaky' || !registered.some((path) => fileRefMatches(path, item.file) || fileRefMatches(item.file, path))) continue
@@ -270,10 +205,10 @@ function checkProtected(input: TestPolicyEvaluationInput, reviewFix: string, out
   }
   if (!evidence.reviewGated) return
   if (evidence.changesError !== undefined) {
-    // 与登记检查同口径：策略要求 diff（`files: registered`）的步骤读不出就失败关闭；不要求 diff 的步骤（例如 spec）只提示，
-    // 否则不是版本库的项目连规格步骤都过不了。
+    // 与认领检查同口径：策略要求 diff（旧 `files: registered`、档位 changed / full）的步骤读不出就失败关闭；不要求 diff 的步骤
+    // （例如 spec）只提示，否则不是版本库的项目连规格步骤都过不了。
     const message = `无法读取本任务对测试配置（目录、基线、已知失败清单、工作流）的改动（${evidence.changesError}），不能确认它们已经过人工确认`
-    if (input.policy.files === 'registered') out.blockers.push(testBlocker('files-diff-unavailable', message, { fix: reviewFix }))
+    if (policyChecksChangedFiles(input.policy)) out.blockers.push(testBlocker('files-diff-unavailable', message, { fix: reviewFix }))
     else out.notices.push(testNotice('files-unchecked', message))
     return
   }
@@ -324,8 +259,10 @@ export function evaluateTestPolicy(input: TestPolicyEvaluationInput): TestPolicy
   const reviewFix = `tenon review request ${input.change}${input.exitEvent === undefined ? '' : ` --event ${input.exitEvent}`}`
   checkCatalogAndPlan(input, out)
   const plan = input.plan.state === 'ok' ? input.plan.plan : undefined
-  if (plan !== undefined) checkKinds(input, plan, reviewFix, out)
-  const files = checkFiles(input, plan, out)
+  const stage = stageOf(input, plan)
+  checkCoversNotice(input, plan, stage, out)
+  if (plan !== undefined) checkKinds(input, plan, stage.missingClasses, reviewFix, out)
+  const { files, claims } = checkFiles(input, plan, out)
   checkProtected(input, reviewFix, out)
   const unsealed = recordsUnsealed(input)
   const chainBroken = input.chain.state === 'broken' || unsealed
@@ -348,10 +285,11 @@ export function evaluateTestPolicy(input: TestPolicyEvaluationInput): TestPolicy
     ...(input.plan.state === 'ok' ? { planDigestApprovalFree: testPlanApprovalFreeDigest(input.plan.plan) } : {}),
     policyDigest: testPolicyDigest(input.policy),
   }
-  const entries = runSet(input, plan)
-  const evaluated = evaluateRunSet(input, entries, latest, freshness, plan, chainBroken, out)
+  const evaluated = evaluateRunSet(input, stage.items, latest, freshness, plan, chainBroken, claims, out)
+  const unexecuted = claimedNotExecuted(input.change, evaluated.claimedChecks, out)
+  const verdicts = evaluated.verdicts.map((verdict) => (unexecuted.has(verdict.suite) ? { ...verdict, state: 'failed' as const } : verdict))
   const inline = evaluateInline(input, plan, latest, freshness, reviewFix, out)
-  checkAggregates(input, plan, evaluated.fresh, out)
+  checkAggregates(input, plan, claims, evaluated.fresh, out)
   const integrity = checkIntegrity(input, records, out)
   let trace: readonly TraceRow[] = []
   if (plan !== undefined) {
@@ -368,8 +306,9 @@ export function evaluateTestPolicy(input: TestPolicyEvaluationInput): TestPolicy
     pass: !out.blockers.some((item) => item.blocking),
     blockers: out.blockers,
     notices: out.notices,
-    suites: [...evaluated.verdicts, ...inline],
+    suites: [...verdicts, ...inline],
     trace,
+    scenarios: input.policy.scenarios,
     files,
     chain: input.chain.state,
     notApplicable: notApplicableStatuses(input),

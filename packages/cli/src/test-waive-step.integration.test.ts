@@ -18,7 +18,10 @@ const ME = 'tester@tenon.test'
 const REASON = '迁移脚本一次性生成，规模超限属实'
 const CANDIDATE = /^workspace:sha256:[0-9a-f]{64}$/
 
-/** verify 是评审门：一个必需步骤测试 size（恒失败）、一个读它的必需评审者。 */
+/**
+ * verify 是评审门：一个必需步骤测试 size（恒失败：退出码 1，且把 lines.txt 里的行数当作 lines_added 指标输出，上限 2000）、
+ * 一个读它的必需评审者。行数写在仓库文件里，测试里改它就等于「代码继续增加」。
+ */
 const WORKFLOW = `name: waivewf
 tracks:
   backend:
@@ -42,9 +45,13 @@ tracks:
         tests:
           - id: size
             direction: unit
-            command: node -e 'process.exit(1)'
+            command: node -e "const n=Number(require('fs').readFileSync('lines.txt','utf8'));console.log(JSON.stringify({lines_added:n}));process.exit(1)"
             label: 规模
             timeout_s: 60
+            pass:
+              metrics:
+                - name: lines_added
+                  max: 2000
         agents:
           reviewers:
             - agent: security
@@ -82,6 +89,7 @@ beforeEach(async () => {
   await mkdir(join(h.cwd, '.pipeline', 'workflows'), { recursive: true })
   await writeFile(join(h.cwd, '.pipeline', 'workflows', 'waivewf.yaml'), WORKFLOW, 'utf8')
   await writeFile(join(h.cwd, 'package.json'), '{"name":"waive-fixture","private":true}\n', 'utf8')
+  await writeFile(join(h.cwd, 'lines.txt'), '2810\n', 'utf8')
   expect(await h.run(['init', CHANGE, '--track', 'backend', '--workflow', 'waivewf', '--preset', 'full']), h.err.join('\n')).toBe(0)
   expect(await h.run(['session', 'activate', CHANGE, '--host-session', SESSION]), h.err.join('\n')).toBe(0)
 })
@@ -297,4 +305,44 @@ describe('整条路径：失败的 size → 登记豁免 → 评审批准 → �
     expect(await h.run(['transition', CHANGE, 'verify-pass'])).not.toBe(0)
     expect(h.err.join('\n')).toContain('过期')
   }, 120_000)
+})
+
+describe('豁免旁的实测值：理由是登记时写的文字，数字每次从当前候选上最新的失败记录现读', () => {
+  const STALE_REASON = '新增 2100 行'
+
+  test('评审请求清单、验证报告、评审者提示三处都写「最新运行：lines_added=2810（上限 2000）」；理由仍是 2100 且标注为登记者自述', async () => {
+    await toVerify()
+    await writeFile(join(h.cwd, 'lines.txt'), '2100\n', 'utf8')
+    expect(await h.run(['test', 'run', CHANGE, 'size'])).toBe(2)
+    expect(await h.run(['test', 'waive', CHANGE, '--test', 'size', '--reason', STALE_REASON]), h.err.join('\n')).toBe(0)
+    // 登记之后代码继续增加：理由里的 2100 不会变，最新运行变成 2810。
+    await writeFile(join(h.cwd, 'lines.txt'), '2810\n', 'utf8')
+    expect(await h.run(['test', 'run', CHANGE, 'size'])).toBe(2)
+
+    const prompt = (await reviewerPasses()).split('\n')
+    const at = prompt.findIndex((line) => line.startsWith('- size 未通过 exit=1'))
+    expect(prompt.slice(at + 1, at + 3)).toEqual([
+      `  豁免（待评审批准，理由为登记者自述、未经核实）：${STALE_REASON}`,
+      '  最新运行：lines_added=2810（上限 2000）',
+    ])
+    expect(prompt.join('\n')).not.toContain('lines_added=2100')
+
+    expect(await h.run(['test', 'report', CHANGE]), h.err.join('\n')).toBe(0)
+    const report = h.out.join('\n').split('\n')
+    const reportAt = report.findIndex((line) => line.startsWith('- `size`：待评审批准（理由为登记者自述、未经核实）：'))
+    expect(reportAt).toBeGreaterThan(-1)
+    expect(report[reportAt]).toContain(STALE_REASON)
+    expect(report[reportAt + 1]).toBe('  最新运行：lines_added=2810（上限 2000）')
+
+    expect(await h.run(['review', 'request', CHANGE, '--event', 'verify-pass']), h.err.join('\n')).toBe(0)
+    const request = h.out.join('\n').split('\n')
+    const requestAt = request.findIndex((line) => line.includes(`test:size — ${STALE_REASON}`))
+    expect(requestAt).toBeGreaterThan(-1)
+    expect(request[requestAt + 1]).toBe('    最新运行：lines_added=2810（上限 2000）')
+
+    // 确认放行后，test-waived 提示也带着实测值（单行：实测值在不可信的理由之前）。
+    expect(await h.run(['review', 'acknowledge', CHANGE]), h.err.join('\n')).toBe(0)
+    expect(await h.run(['test', 'status', CHANGE, '--step', 'verify', '--json']), h.err.join('\n')).toBe(0)
+    expect(h.out.join('\n')).toContain(`最新运行：lines_added=2810（上限 2000），已按评审批准的豁免放行（理由为登记者自述、未经核实）：${STALE_REASON}`)
+  }, 180_000)
 })

@@ -13,10 +13,13 @@ export const TEST_BLOCKER_CODES = [
 ] as const
 export type TestBlockerCode = (typeof TEST_BLOCKER_CODES)[number]
 
-/** 不属于阻塞集的提示：已知失败已修好 / 已过期、基准噪声大、映射指向不存在的场景、未能检查 diff、未跟踪文件超过上限被截断、测试完整性信号、失败的步骤测试已按评审批准的豁免放行。 */
+/**
+ * 不属于阻塞集的提示：已知失败已修好 / 已过期、基准噪声大、映射指向不存在的场景、未能检查 diff、未跟踪文件超过上限被截断、
+ * 测试完整性信号、失败的步骤测试已按评审批准的豁免放行、没写 covers 的套件只改源码碰不到。
+ */
 export const TEST_NOTICE_CODES = [
   'known-failure-fixed', 'known-failure-expired', 'known-failure-too-long', 'benchmark-noisy', 'trace-mapping-stale',
-  'files-unchecked', 'files-truncated', 'test-integrity', 'test-waived',
+  'files-unchecked', 'files-truncated', 'test-integrity', 'test-waived', 'suites-without-covers',
 ] as const
 export type TestNoticeCode = (typeof TEST_NOTICE_CODES)[number]
 
@@ -27,7 +30,7 @@ export interface ShortLabel {
 
 export const TEST_BLOCKER_LABELS: Readonly<Record<TestBlockerCode, ShortLabel>> = {
   'test-catalog-missing': { zh: '目录缺失', en: 'No test catalog' },
-  'test-plan-missing': { zh: '未登记计划', en: 'No test plan' },
+  'test-plan-missing': { zh: '没有计划', en: 'No test plan' },
   'test-plan-tampered': { zh: '计划被改动', en: 'Plan tampered' },
   'test-kind-missing': { zh: '缺测试种类', en: 'Kind missing' },
   'test-file-unregistered': { zh: '文件未登记', en: 'Unregistered file' },
@@ -40,7 +43,7 @@ export const TEST_BLOCKER_LABELS: Readonly<Record<TestBlockerCode, ShortLabel>> 
   'report-missing': { zh: '缺报告', en: 'No report' },
   'report-unreadable': { zh: '报告无法解析', en: 'Unreadable report' },
   'exit-report-mismatch': { zh: '退出码与报告不符', en: 'Exit/report mismatch' },
-  'registered-test-not-executed': { zh: '登记用例未执行', en: 'Registered test not run' },
+  'registered-test-not-executed': { zh: '文件未执行', en: 'Test file not run' },
   'coverage-below': { zh: '覆盖率不足', en: 'Coverage below' },
   'benchmark-regression': { zh: '基准退化', en: 'Benchmark regression' },
   'baseline-missing': { zh: '缺基线', en: 'No baseline' },
@@ -68,6 +71,7 @@ export const TEST_NOTICE_LABELS: Readonly<Record<TestNoticeCode, ShortLabel>> = 
   'files-truncated': { zh: '文件检查被截断', en: 'File check truncated' },
   'test-integrity': { zh: '完整性提示', en: 'Integrity notice' },
   'test-waived': { zh: '失败已豁免', en: 'Failure waived' },
+  'suites-without-covers': { zh: '套件没写 covers', en: 'Suites without covers' },
 }
 
 export interface TestBlocker {

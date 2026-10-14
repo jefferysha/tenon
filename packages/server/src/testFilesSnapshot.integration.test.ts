@@ -1,7 +1,7 @@
 /**
- * Dashboard 快照 × 测试文件登记：`files: registered` 的策略判定读「自任务起点以来的改动文件」，
- * 快照扫描把它作为惰性输入传给测试证据投影（与 CLI / 转换同源），所以新增却没登记的测试文件在工作台上
- * 显示为 test-file-unregistered，登记之后消失；不是 git 仓库时以 files-diff-unavailable 阻塞而不是当作没有改动。
+ * Dashboard 快照 × 测试文件认领：`files: registered` 的策略判定读「自任务起点以来的改动文件」，
+ * 快照扫描把它作为惰性输入传给测试证据投影（与 CLI / 转换同源），所以新增的测试文件由套件 glob 认领、不再要求登记，
+ * 没人认领的在工作台上显示为 test-file-orphan；不是 git 仓库时以 files-diff-unavailable 阻塞而不是当作没有改动。
  * 真临时项目、真 git、真 CLI 建任务、真快照扫描，零 mock。
  */
 import { mkdir, rm, writeFile } from 'node:fs/promises'
@@ -71,7 +71,7 @@ async function project(options: { git: boolean }): Promise<Harness> {
   return h
 }
 
-async function policyOf(h: Harness): Promise<{ blockers: Array<{ code: string; subject?: string; fix?: string }>; files: { checked: boolean; unregistered: Array<{ path: string }> } } | undefined> {
+async function policyOf(h: Harness): Promise<{ blockers: Array<{ code: string; subject?: string; fix?: string }>; files: { checked: boolean; claimed: Array<{ path: string; suites: string[] }>; orphans: string[] } } | undefined> {
   const snapshot = await buildSnapshot({
     registry: () => [h.cwd], store: createStateStore(), version: '1', clock: () => FIXED, resolveUser: () => USER,
   })
@@ -80,20 +80,21 @@ async function policyOf(h: Harness): Promise<{ blockers: Array<{ code: string; s
 }
 
 describe('快照扫描把 changedFiles 接到策略判定', () => {
-  test('新增的测试文件没登记：工作台显示 test-file-unregistered 与修复命令；登记后消失', async () => {
+  test('新增的测试文件由套件 glob 认领，工作台不再显示 test-file-unregistered；没人认领的显示 test-file-orphan 与一条 --auto 修复命令', async () => {
     const h = await project({ git: true })
     await writeFiles(h.cwd, { 'src/new.test.ts': '// new in this task\n' })
-    const before = await policyOf(h)
-    expect(before?.files.checked).toBe(true)
-    expect(before?.files.unregistered.map((file) => file.path)).toEqual(['src/new.test.ts'])
-    const blocker = before?.blockers.find((item) => item.code === 'test-file-unregistered')
-    expect(blocker).toMatchObject({ subject: 'src/new.test.ts' })
-    expect(blocker?.fix).toBe('tenon test register demo --file src/new.test.ts --suite unit')
+    const claimed = await policyOf(h)
+    expect(claimed?.files.checked).toBe(true)
+    expect(claimed?.files.claimed).toEqual([{ path: 'src/new.test.ts', suites: ['unit'] }])
+    expect(claimed?.files.orphans).toEqual([])
+    expect(claimed?.files).not.toHaveProperty('unregistered')
+    expect(claimed?.blockers.map((item) => item.code)).not.toContain('test-file-unregistered')
+    expect(claimed?.blockers.map((item) => item.code)).not.toContain('test-file-orphan')
 
-    expect(await h.run(['test', 'register', 'demo', '--file', 'src/new.test.ts'], { env: { TENON_USER: USER.id, TENON_USER_NAME: USER.name } }), h.err.join('\n')).toBe(0)
-    const after = await policyOf(h)
-    expect(after?.files).toMatchObject({ checked: true, unregistered: [] })
-    expect(after?.blockers.map((item) => item.code)).not.toContain('test-file-unregistered')
+    await writeFiles(h.cwd, { 'tools/x.spec.js': '// nobody claims this\n' })
+    const orphan = (await policyOf(h))?.blockers.find((item) => item.code === 'test-file-orphan')
+    expect(orphan).toMatchObject({ subject: 'tools/x.spec.js' })
+    expect(orphan?.fix).toBe('tenon test register demo --auto')
   }, 120_000)
 
   test('不是 git 仓库：读不到 diff，以 files-diff-unavailable 阻塞，不当作没有改动', async () => {

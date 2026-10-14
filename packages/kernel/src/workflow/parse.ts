@@ -18,7 +18,8 @@ import { parseDecompositionPolicy, parseInteractionPolicy } from './parse-policy
 import { parseSkillRefs } from './parse-skill-refs.js'
 import { parseStepAgents } from './parse-agents.js'
 import { parseStepTests } from './parse-tests.js'
-import { parseInlineTestPolicy, parseStepTestPolicy } from './parse-test-policy.js'
+import { parseInlineTestPolicy, parseStepTestPolicy, stepTestLevelLine } from './parse-test-policy.js'
+import type { TestLevel } from './test-level.js'
 import { indentOf, parseInlineList, parsePromptBlock, parseFieldRefBlock, parseWhenBlock } from './parse-primitives.js'
 import { parseArtifactsBlock } from './parse-artifacts.js'
 import { parseBranchPolicyLine, parseTopLevelRoute, type BranchPolicyDraft } from './parse-track-branch.js'
@@ -190,6 +191,7 @@ function parseStep(cur: Cursor): StepDef {
   let artifacts: WorkflowArtifactConfig[] | undefined
   let tests: StepTestDef[] | undefined
   let testPolicy: StepTestPolicyDef | undefined
+  let testLevel: TestLevel | undefined
   let agents: StepAgentsDef | undefined
   let guards: WorkflowGuardConfig[] = []
   let transitions: StepTransition[] = []
@@ -247,6 +249,8 @@ function parseStep(cur: Cursor): StepDef {
         : parseInlineTestPolicy(policyLine[1] ?? '', id)
       continue
     }
+    const level = stepTestLevelLine(line, id, testLevel)
+    if (level !== undefined) { testLevel = level; cur.i++; continue }
     if (/^\s*agents:\s*$/.test(line)) {
       if (agents !== undefined) throw new Error(`workflow 解析错误：step '${id}' 重复声明 agents`)
       const keyIndent = indentOf(line)
@@ -268,6 +272,7 @@ function parseStep(cur: Cursor): StepDef {
     ...(artifacts !== undefined ? { artifacts } : {}),
     ...(tests !== undefined ? { tests } : {}),
     ...(testPolicy !== undefined ? { test_policy: testPolicy } : {}),
+    ...(testLevel !== undefined ? { test: testLevel } : {}),
     ...(agents !== undefined ? { agents } : {}),
   }
 }

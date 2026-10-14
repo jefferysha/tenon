@@ -220,6 +220,35 @@ already puts the running `tenon` first on `PATH` for the test process, so a requ
 still need it. Add the launcher directory (normally `~/.local/bin`) to `PATH`, or run
 `tenon setup --claude` / `tenon setup --codex` to install the launcher.
 
+### The `code-size` test blocks, or a large change is not blocked
+
+The default `code-size` test has no ceiling: it records `files_changed`, `lines_added`,
+`lines_deleted` and `largest_added_lines`, exits `0`, and the `code-size` reviewer judges whether
+the size is reasonable for the change. So a big change is not stopped by a line count, and
+the test needs no waiver. If your project's own workflow gives the test a `pass.metrics` ceiling, a
+run over it fails with `metric-threshold`; raise or remove the ceiling in that workflow, or, for a
+one-off, register `tenon test waive <change> --test code-size --reason …` (the review confirmation
+approves it and shows the measured value next to your reason). To turn a ceiling on, add under the
+test in the workflow YAML:
+
+```yaml
+pass:
+  metrics:
+    - name: lines_added
+      max: 3000
+```
+
+### A new test file is reported as an orphan, or a claimed file never ran
+
+Changed test files are claimed by the `files` globs of the catalog's suites; there is nothing to
+register one by one. A file no glob matches is an orphan (`test-file-orphan`): run
+`tenon test register <change> --auto`, which appends that file's exact path to a suitable suite
+and never widens a glob. A claimed file with no executed case (`registered-test-not-executed`)
+means the suite's `files` glob and the files the test command really runs disagree; fix the glob
+or the command in `.tenon/tests/catalog.yaml`. A path without a source extension (for example
+`fixtures/data.spec.json`) and anything under `openspec/`, `.tenon/` or `.pipeline/` is never
+treated as a test file.
+
 ### `env:platform` is red in `tenon doctor`
 
 You are on native Windows, which Tenon does not support (the hooks and installer are bash and test

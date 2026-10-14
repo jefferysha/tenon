@@ -1,0 +1,312 @@
+{
+  "schema": "tenon-spec-apply-v1",
+  "change": "simplify-test-settings",
+  "mode": "apply",
+  "result": "pass",
+  "openspec_version": "1.6.0",
+  "deltas": [
+    {
+      "path": "openspec/changes/simplify-test-settings/specs/step-test-waiver/spec.md",
+      "sha256": "a57003a3473e6bcaf082b112cd9c1a15bec982d37d28a7a1064a49ef0b82becf"
+    },
+    {
+      "path": "openspec/changes/simplify-test-settings/specs/workspace-verification-integrity/spec.md",
+      "sha256": "45fb9b7844240b7aa905808096b0303fd44273db667acebef1dc3b2d241f5b8e"
+    },
+    {
+      "path": "openspec/changes/simplify-test-settings/specs/test-settings/spec.md",
+      "sha256": "da6874e003f44010a023a86da6ee890a2789d004d506ec729d9439c3791d9d25"
+    }
+  ],
+  "targets": [
+    {
+      "path": "openspec/specs/automation-loop-init/spec.md",
+      "before_sha256": "cbe993a087d79692d0f6d77c1e4c54252638a7fa718a813d31647894b79146ff",
+      "after_sha256": "cbe993a087d79692d0f6d77c1e4c54252638a7fa718a813d31647894b79146ff",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/canonical-state-version-status/spec.md",
+      "before_sha256": "79d109346bcf7ee270e9b0d6a07698914887af87d77eeade7c675b1c0fc20636",
+      "after_sha256": "79d109346bcf7ee270e9b0d6a07698914887af87d77eeade7c675b1c0fc20636",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/codex-skill-receipt-current-turn/spec.md",
+      "before_sha256": "48d5fe66b8b377c681f0872e1e13d851e40b377173ada2f0fd44643905a95d69",
+      "after_sha256": "48d5fe66b8b377c681f0872e1e13d851e40b377173ada2f0fd44643905a95d69",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/context-bundle-budget-preview/spec.md",
+      "before_sha256": "63b4ffdc73dac17b4063e0aadc7c063d2312633ef8da6e5941711ac885ac045d",
+      "after_sha256": "63b4ffdc73dac17b4063e0aadc7c063d2312633ef8da6e5941711ac885ac045d",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/context-bundle-handoff/spec.md",
+      "before_sha256": "04f2ae3a0835f483ed2f9f512ea2cf6e7123332be631fb87d3fe56821823391e",
+      "after_sha256": "04f2ae3a0835f483ed2f9f512ea2cf6e7123332be631fb87d3fe56821823391e",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/dashboard-execution-provenance/spec.md",
+      "before_sha256": "4e8063efbbbff8ff5145c5aa4ac3df8817545ef8996a443ffd03cda012d41337",
+      "after_sha256": "4e8063efbbbff8ff5145c5aa4ac3df8817545ef8996a443ffd03cda012d41337",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/dashboard-project-selection/spec.md",
+      "before_sha256": "efe9fe2e95f748c3f8ef9ad6c9e1285482f6724741465cf75eeb739b0a838974",
+      "after_sha256": "efe9fe2e95f748c3f8ef9ad6c9e1285482f6724741465cf75eeb739b0a838974",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/dashboard-task-plan/spec.md",
+      "before_sha256": "0ceb8762d78ba91a3eb580dcf665ef75868367d0d949219b2fb11263b48306b6",
+      "after_sha256": "0ceb8762d78ba91a3eb580dcf665ef75868367d0d949219b2fb11263b48306b6",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/dashboard-ui-ux-system/spec.md",
+      "before_sha256": "db01e8b00eb934757656fa8a28afa649010495b49fcf19476db2b4c3b5aaf427",
+      "after_sha256": "db01e8b00eb934757656fa8a28afa649010495b49fcf19476db2b4c3b5aaf427",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/declarative-document-governance/spec.md",
+      "before_sha256": "fe6094cd2abb542d92f0e9c1cc04683c18c3bab463810ab1992732ed198cd17a",
+      "after_sha256": "fe6094cd2abb542d92f0e9c1cc04683c18c3bab463810ab1992732ed198cd17a",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/document-evidence-contract/spec.md",
+      "before_sha256": "07d398f1f05b40c1d92b7646603dfa64a71863b80dbb1d93f12a6aa8e1cbd69d",
+      "after_sha256": "07d398f1f05b40c1d92b7646603dfa64a71863b80dbb1d93f12a6aa8e1cbd69d",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/document-evidence-timeline/spec.md",
+      "before_sha256": "d939ebdec3392df9aaef15eefbbc9b1f4034675c58d6ed9ce5aa9fee4c524183",
+      "after_sha256": "d939ebdec3392df9aaef15eefbbc9b1f4034675c58d6ed9ce5aa9fee4c524183",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/effective-workflow-plan/spec.md",
+      "before_sha256": "927931d840f8183d804d89aa8528f3a9c6d0d58b41fb80345d81fc3ebb544060",
+      "after_sha256": "927931d840f8183d804d89aa8528f3a9c6d0d58b41fb80345d81fc3ebb544060",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/frozen-workflow-definition-status/spec.md",
+      "before_sha256": "de9460a96480cf6bc4388e6e27a1f38c9e45a99bbeb9713d2b33572fdb0724d7",
+      "after_sha256": "de9460a96480cf6bc4388e6e27a1f38c9e45a99bbeb9713d2b33572fdb0724d7",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/host-target-plan/spec.md",
+      "before_sha256": "0dd5b591ff968b0dea3fdff7636a5451b267ebe75ef77788dc25676ab46d27b0",
+      "after_sha256": "0dd5b591ff968b0dea3fdff7636a5451b267ebe75ef77788dc25676ab46d27b0",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/interaction-and-skill-provenance/spec.md",
+      "before_sha256": "fbb095491794573f76186d84f03821c674cbe5392d5ce8bd3d0baa4bc151edf0",
+      "after_sha256": "fbb095491794573f76186d84f03821c674cbe5392d5ce8bd3d0baa4bc151edf0",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/interaction-observability/spec.md",
+      "before_sha256": "f5decc970c7938931db27f9d7eee01d6ffb6fd6b9b5c1a0badb8235e3fb02d1f",
+      "after_sha256": "f5decc970c7938931db27f9d7eee01d6ffb6fd6b9b5c1a0badb8235e3fb02d1f",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/live-dashboard-project-anchor/spec.md",
+      "before_sha256": "a8f0972fafc4c255fd7b75b2422dea81dc0aad3433f1d5861966f30fef4dd906",
+      "after_sha256": "a8f0972fafc4c255fd7b75b2422dea81dc0aad3433f1d5861966f30fef4dd906",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/loop-scope-preview/spec.md",
+      "before_sha256": "65917ae9e1459e97216d9afb0a90f7bf3ed11ea7470199d6124ed7a5b9298692",
+      "after_sha256": "65917ae9e1459e97216d9afb0a90f7bf3ed11ea7470199d6124ed7a5b9298692",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/normal-chat-routing/spec.md",
+      "before_sha256": "b50008fb5ee8b56ded94ebe8aa4ab9be6a486aff6495b6db88adf5a81ef9895f",
+      "after_sha256": "b50008fb5ee8b56ded94ebe8aa4ab9be6a486aff6495b6db88adf5a81ef9895f",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/open-source-documentation-experience/spec.md",
+      "before_sha256": "e7b09028e939cc012434a1c36a4c22407210c66136e539a28597a4c10c4fe4eb",
+      "after_sha256": "e7b09028e939cc012434a1c36a4c22407210c66136e539a28597a4c10c4fe4eb",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/orchestration-graph/spec.md",
+      "before_sha256": "6f2519aff0f47344f9ad1496e385b2b3ffdde66011ae5e3ff08e492c53113f76",
+      "after_sha256": "6f2519aff0f47344f9ad1496e385b2b3ffdde66011ae5e3ff08e492c53113f76",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/plugin-distribution/spec.md",
+      "before_sha256": "dafd626b15ba3ac84b0836db3be05420fa7b97e4a16ae085afecfecdb7b0333d",
+      "after_sha256": "dafd626b15ba3ac84b0836db3be05420fa7b97e4a16ae085afecfecdb7b0333d",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/plugin-runtime/spec.md",
+      "before_sha256": "de417529edfdcd51012870c16b2e87e923bec824cf1b9802ed1948a7cf477226",
+      "after_sha256": "de417529edfdcd51012870c16b2e87e923bec824cf1b9802ed1948a7cf477226",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/prompt-routing-bypass/spec.md",
+      "before_sha256": "144b7b2f31a3f26e13a77e14f2c507bde0af5095ac692581341d8f4f3887731e",
+      "after_sha256": "144b7b2f31a3f26e13a77e14f2c507bde0af5095ac692581341d8f4f3887731e",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/related-session-memory/spec.md",
+      "before_sha256": "a042452d29cdccbd84915cb671e44d559f1b342ec9a05699a776d7037abd0dfc",
+      "after_sha256": "a042452d29cdccbd84915cb671e44d559f1b342ec9a05699a776d7037abd0dfc",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/repository-architecture-compliance/spec.md",
+      "before_sha256": "14191a059c5ca574847e923ecd08128a355853f405d5bb84081bd5de88302867",
+      "after_sha256": "14191a059c5ca574847e923ecd08128a355853f405d5bb84081bd5de88302867",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/review-attempt-budget/spec.md",
+      "before_sha256": "492ed3e2c26bd417457154a29db2dfadc7dc889f0a02c5d2eba716abcf77be36",
+      "after_sha256": "492ed3e2c26bd417457154a29db2dfadc7dc889f0a02c5d2eba716abcf77be36",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/review-handshake-status/spec.md",
+      "before_sha256": "01ee46e835b9f34d60d04ce585f841375e43d1a190749157ff603c6f487dce90",
+      "after_sha256": "01ee46e835b9f34d60d04ce585f841375e43d1a190749157ff603c6f487dce90",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/simple-task-routing/spec.md",
+      "before_sha256": "460014fcfcb3d2ff873d7336dcf192eec4a9c6d70a1a1f60669cfdcd6691eff5",
+      "after_sha256": "460014fcfcb3d2ff873d7336dcf192eec4a9c6d70a1a1f60669cfdcd6691eff5",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/skill-content-resolution/spec.md",
+      "before_sha256": "a86055796795e02add00cab9a595d89864d14d27728e2dbbced5d47ff9927f77",
+      "after_sha256": "a86055796795e02add00cab9a595d89864d14d27728e2dbbced5d47ff9927f77",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/skill-invocation-evidence/spec.md",
+      "before_sha256": "5a08c028776f49290b95ba3cfa4db03dbde34405b8e4e24884e05229b376d9c0",
+      "after_sha256": "5a08c028776f49290b95ba3cfa4db03dbde34405b8e4e24884e05229b376d9c0",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/step-output-lineage/spec.md",
+      "before_sha256": "b6fbaa6c211252e1b45b17786807103a2943122de5d26ac357c901833a506c58",
+      "after_sha256": "b6fbaa6c211252e1b45b17786807103a2943122de5d26ac357c901833a506c58",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/step-test-waiver/spec.md",
+      "before_sha256": "ee281775788cdd745ec03326966dc1a0e319805c77e6773000cd6baf62f8a635",
+      "after_sha256": "b97158ea2f47756a0fc5ab27887f843fd89c7884a612c7e5af1feee806023985",
+      "change": "changed"
+    },
+    {
+      "path": "openspec/specs/task-dag-scheduler/spec.md",
+      "before_sha256": "ca6c47d5f2dc225966339c6fe6a4d83f8f149cd8b4be547bf9dc1b6d150f4c55",
+      "after_sha256": "ca6c47d5f2dc225966339c6fe6a4d83f8f149cd8b4be547bf9dc1b6d150f4c55",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/task-plan-contract/spec.md",
+      "before_sha256": "f7ca2dae1a0547aeeed11e6c5f537015cbf275443f45252ce4857c3b733a2a91",
+      "after_sha256": "f7ca2dae1a0547aeeed11e6c5f537015cbf275443f45252ce4857c3b733a2a91",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/tenon-product-identity/spec.md",
+      "before_sha256": "9c50f5751c9ee22ee64602bb9214632284d5e23c3f48e0013c185cfe5609f920",
+      "after_sha256": "9c50f5751c9ee22ee64602bb9214632284d5e23c3f48e0013c185cfe5609f920",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/test-settings/spec.md",
+      "before_sha256": null,
+      "after_sha256": "b2d6b98377203584b92c9bf006b636060ff487596db28b30a8bcaea1f5af9b79",
+      "change": "created"
+    },
+    {
+      "path": "openspec/specs/trace-timeline/spec.md",
+      "before_sha256": "88f90150ca0f6ce4b5292ba6d4b0b1a13485b591b45e342aff78dab4c69b4eb5",
+      "after_sha256": "88f90150ca0f6ce4b5292ba6d4b0b1a13485b591b45e342aff78dab4c69b4eb5",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/trustworthy-build-revision/spec.md",
+      "before_sha256": "3ef807a8d8d3a2a98f8df6a0bb8270f80da0ac9bf4e9ae67e263dcf1ecf1a904",
+      "after_sha256": "3ef807a8d8d3a2a98f8df6a0bb8270f80da0ac9bf4e9ae67e263dcf1ecf1a904",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/verification-evidence-composer/spec.md",
+      "before_sha256": "4b5e91fadd9835bf3f4f0ffb49a8077766452d20774d87614bd84cc42bcfcfa4",
+      "after_sha256": "4b5e91fadd9835bf3f4f0ffb49a8077766452d20774d87614bd84cc42bcfcfa4",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/verify-round-limit/spec.md",
+      "before_sha256": "f1e3b39632960ead96d785a102b9f91261e8441033dc846955779224486433b6",
+      "after_sha256": "f1e3b39632960ead96d785a102b9f91261e8441033dc846955779224486433b6",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/versioned-plugin-release-lifecycle/spec.md",
+      "before_sha256": "bb8bc2736d8da46bc7208f98c0eb1cec2b6cb3c69af8e81eddafa67db16a94bc",
+      "after_sha256": "bb8bc2736d8da46bc7208f98c0eb1cec2b6cb3c69af8e81eddafa67db16a94bc",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/workflow-decomposition-policy/spec.md",
+      "before_sha256": "eef3f388c0432934783fe3586a8c7fdedee5f9ac195718765f75e45df7184080",
+      "after_sha256": "eef3f388c0432934783fe3586a8c7fdedee5f9ac195718765f75e45df7184080",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/workflow-definition/spec.md",
+      "before_sha256": "8228cc08c2da7daa1301aa45f930b5bd2e460ba295199146414a1dc6396a2517",
+      "after_sha256": "8228cc08c2da7daa1301aa45f930b5bd2e460ba295199146414a1dc6396a2517",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/workflow-skill-enforcement/spec.md",
+      "before_sha256": "81f26eee1d012e041a1d1dfb9150301035822cd1dc7c82780760184fe60ed9c1",
+      "after_sha256": "81f26eee1d012e041a1d1dfb9150301035822cd1dc7c82780760184fe60ed9c1",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/workflow-tracks/spec.md",
+      "before_sha256": "4f8b1a2366dc921ed293bcd7a18b726fc641790080f48507dc65b457ede9e2eb",
+      "after_sha256": "4f8b1a2366dc921ed293bcd7a18b726fc641790080f48507dc65b457ede9e2eb",
+      "change": "no-op"
+    },
+    {
+      "path": "openspec/specs/workspace-verification-integrity/spec.md",
+      "before_sha256": "d09163815dc9b437f72d4e0a84cd2293e18c3886cb56f60e92ad8add9cfcaa62",
+      "after_sha256": "46e698122764044f550e33cadbdb418339f1564b438a78b268b783f1a86698d2",
+      "change": "changed"
+    }
+  ],
+  "at": "2026-10-14T01:50:54Z"
+}

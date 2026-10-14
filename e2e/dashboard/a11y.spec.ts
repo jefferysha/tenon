@@ -1,5 +1,5 @@
 /**
- * 无障碍：主要页面（工作台与它的测试页签 / 完整性段 / 智能体运行抽屉、工作流总览与阶段 / 测试策略 / 评审者编辑器、
+ * 无障碍：主要页面（工作台与它的测试页签 / 完整性段 / 智能体运行抽屉、工作流总览与阶段 / 测试档位 / 评审者编辑器、
  * 项目、库、技能、新建项目向导，以及服务端渲染的匿名登录页 / 登录链接无效页的中英文）在真实浏览器里跑 axe-core，
  * serious / critical 违规必须为零（moderate / minor 只在报告里列出，不挡）。亮色、暗色各跑一遍——
  * 两套主题的对比度 token 不同，只测一套等于没测另一套。
@@ -88,10 +88,10 @@ const TARGETS: readonly Target[] = [
     },
   },
   {
-    name: '工作流 · 阶段 · 测试策略（完整性）',
+    name: '工作流 · 阶段 · 测试档位（门禁段的四选一）',
     open: async (page) => {
       await openView(page, 'workflow', { wf: 'default', step: 'verify' })
-      await expect(page.getByTestId('wb-policy-integrity')).toBeVisible()
+      await expect(page.getByTestId('wb-test-level')).toBeVisible()
     },
   },
   {
@@ -163,6 +163,7 @@ const TARGETS: readonly Target[] = [
       await openView(page, 'projects', { root: server.project })
       await page.getByTestId('proj-segment-tab-tests').click()
       await expect(page.getByTestId('proj-tests-table')).toBeVisible()
+      await expect(page.getByTestId('proj-levels')).toBeVisible()
       await page.getByTestId('proj-suite-open-demo-unit').click()
       await expect(page.getByTestId('proj-suite-detail')).toBeVisible()
     },

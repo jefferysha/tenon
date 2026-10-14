@@ -1,9 +1,9 @@
 import {
   Accessibility, AppWindow, FileCheck, FileJson, Flame, FlaskConical, Gauge, Globe, Layers, ListChecks,
-  MonitorPlay, Palette, Percent, RotateCcw, Ruler, Eye, Wrench, type LucideIcon,
+  MonitorPlay, Palette, Percent, RotateCcw, Ruler, ShieldCheck, Eye, Wrench, type LucideIcon,
 } from 'lucide-react'
 
-/** 种类 → 图标。种类名本身不翻译（协议标识），图标只是扫读辅助，名字始终在旁边。 */
+/** 种类（含测试类 static）→ 图标。种类名本身不翻译（协议标识），图标只是扫读辅助，名字始终在旁边。 */
 const ICONS: Readonly<Record<string, LucideIcon>> = {
   unit: FlaskConical,
   integration: Layers,
@@ -21,6 +21,7 @@ const ICONS: Readonly<Record<string, LucideIcon>> = {
   smoke: Flame,
   'code-size': Ruler,
   'design-system': Palette,
+  static: ShieldCheck,
   custom: Wrench,
 }
 

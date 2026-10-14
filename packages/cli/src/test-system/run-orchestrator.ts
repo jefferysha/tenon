@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import {
   appendTestRunRecordV2, baselineV2Path, claimRunningMarker, ensureTestEvidenceDirs, listRecordDirectory, parseRecordRetention, pruneRecordChain,
   pruneTestArtifacts, RECORD_RETENTION_ENV, readTestBaselineV2, releaseRunningMarker, testRunArtifactsDir, testRunRecordsDir, testRunningMarkerPath,
-  changedLinesSinceChangeStart, changeStartOfFields, testPlanApprovalFreeDigest,
+  changedLinesSinceChangeStart, changeStartOfFields, testPlanApprovalFreeDigest, claimChangedTestFiles, resolveStepTestPolicy, INERT_TEST_POLICY,
   type AppendResult, type KnownFailure, type MachineProfile, type ServiceRunV2, type StepIR, type SuiteReason, type SuiteRunV2,
   type TestBaselineV2, type TestCatalog, type TestPlanState,
 } from '@tenon/kernel'
@@ -21,6 +21,7 @@ import { candidateOf, newRunId } from '../commands/test-run.js'
 import { changedFilesFor } from '../testEvidenceContext.js'
 import type { ExecContext, RunItem, SuiteOutcome } from './exec-types.js'
 import { NODE_TEST_REPORTER_ENV, usesNodeTestReporter, writeNodeTestReporter } from './node-test-reporter.js'
+import { pathRootsFor } from './run-paths.js'
 import { applyRunLevelReasons, draftOf, evaluationShell, machineOf } from './run-record.js'
 import { serviceRecord, startService, stopService, type RunningService } from './services.js'
 import { executeSuite } from './suite-exec.js'
@@ -59,13 +60,6 @@ export interface RunResult {
   readonly outcomes: readonly SuiteOutcome[]
   readonly services: readonly ServiceRunV2[]
   readonly profile: MachineProfile
-}
-
-function defaultPolicy(): NonNullable<StepIR['test_policy']> {
-  return {
-    plan: 'optional', kinds: [], run: [], run_if_registered: [], scope: 'changed', files: 'any',
-    scenarios: 'off', benchmark: { require_baseline: false }, browsers: [],
-  }
 }
 
 async function claimMarkers(input: RunInput, runId: string, runningDir: string, startedAt: string, startedMs: number): Promise<string[]> {
@@ -132,14 +126,20 @@ export async function executeRun(input: RunInput): Promise<RunResult> {
     const candidateBefore = await candidateOf(deps, change)
     // 记录绑定的计划摘要：豁免的批准位一律当作未批准来算（评审确认只写批准位，不该让批准之前的运行过期）。
     const planDigest = input.planState.state === 'ok' ? testPlanApprovalFreeDigest(input.planState.plan) : null
+    // 记录入库、会被别的机器读到：写盘前把仓库根与主目录前缀改写掉（本机日志和判定用的原始运行不动）。
+    const pathRoots = await pathRootsFor(deps.cwd, deps.homeDir?.())
+    // 档位按目录求值（记录绑定的策略摘要是求值后的策略：改了目录里的档位定义，已有运行随之过期）；步骤没有测试声明时用中性策略执行。
+    const resolved = resolveStepTestPolicy(step, catalog)
     const base = {
       runId, change, workflowRunId, workflow: context.plan.id, track: str(context.state.fields.track), step: step.id,
-      workflowFingerprint: context.plan.workflowFingerprint, catalog, planDigest, policy: step.test_policy, profile,
-      actor: context.actor, host, gitHead, startedAt,
+      workflowFingerprint: context.plan.workflowFingerprint, catalog, planDigest, policy: resolved, profile,
+      actor: context.actor, host, gitHead, startedAt, paths: pathRoots,
     }
-    const policy = step.test_policy ?? defaultPolicy()
+    const policy = resolved ?? INERT_TEST_POLICY
     const plan = input.planState.state === 'ok' ? input.planState.plan : undefined
     const changedFiles = await changedFilesFor(deps, change)().catch(() => undefined)
+    // 本任务改动过、被套件认领的测试文件：套件执行时保留它们的用例，不然「认领文件必须执行过」无从判定；flaky 的 fail_on_new 也把它们当本任务新增。
+    const claimedPaths = changedFiles === undefined ? [] : [...claimChangedTestFiles(changedFiles, catalog).claimed.values()].flat()
     const baselines = new Map<string, TestBaselineV2 | undefined>()
     let lines: ReadonlyMap<string, ReadonlySet<number>> | undefined
     let linesRead = false
@@ -181,7 +181,7 @@ export async function executeRun(input: RunInput): Promise<RunResult> {
 
     const ordered = input.items.flatMap((item) => outcomes.get(item.suite.id) ?? [])
     const candidateAfter = await candidateOf(deps, change)
-    const runs: SuiteRunV2[] = applyRunLevelReasons(ordered.map((outcome) => outcome.run), { candidateBefore, candidateAfter, policy, plan })
+    const runs: SuiteRunV2[] = applyRunLevelReasons(ordered.map((outcome) => outcome.run), { candidateBefore, candidateAfter, policy, plan, claimedPaths })
     const services = running.map((service) => serviceRecord(service, `services/${service.service.id}.log`))
     const draft = draftOf({ ...base, candidate: candidateAfter, services, suites: runs, finishedAt: deps.clock(), durationMs: Date.now() - startedMs })
     const appended = await appendTestRunRecordV2(deps.cwd, context.slug, draft)

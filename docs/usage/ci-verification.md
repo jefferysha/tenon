@@ -136,7 +136,7 @@ Two things the abandon never skips or proves:
   the same limit the table above states for test records, and it is why the approval check above is not
   optional.
 
-Which step is judged: the Change's current step; if it declares no test policy, the closest earlier
+Which step is judged: the Change's current step; if it declares no test level (or legacy policy), the closest earlier
 step that does (a finished Change is therefore judged at verify). Which chain is judged: the
 Change owner's. If the owner has no records and exactly one other user has, that chain is used with
 the warning `owner-chain-missing`. Other users' chains are only checked for integrity.
@@ -223,7 +223,7 @@ output directories in the catalog. `--candidate warn` turns the finding into a w
 
 CI certifies the tree it checked out, so a finished (done or archived) Change is judged against that
 tree, not against the commit it finished on. When a later commit changed the code, added test files
-(`test-file-unregistered`) or edited the catalog, the finished Change fails with the ordinary findings
+that no suite claims (`test-file-orphan`) or edited the catalog, the finished Change fails with the ordinary findings
 (`candidate-mismatch`, `test-stale`, ...) and the report adds the note `finished-judged-at-head` to
 say why. This is deliberate. Judging each Change at its own delivery commit would let anything
 committed after it, with no governed Change behind it, pass unseen. In practice: the tip of a pull

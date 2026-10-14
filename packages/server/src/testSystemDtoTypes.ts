@@ -60,6 +60,21 @@ export interface CatalogServiceDto {
   readonly stop: string
 }
 
+/**
+ * 一个档位的生效定义（目录 `levels` 里写了的键 + 内建缺省）。required / touched 是测试类（unit、integration…）；
+ * source = catalog 表示目录写了这一档的任意键，default 表示整档来自内建缺省。
+ */
+export interface LevelDto {
+  readonly name: 'plan' | 'changed' | 'full'
+  readonly required: readonly string[]
+  readonly touched: readonly string[]
+  readonly scenarios: 'off' | 'required' | 'passing'
+  readonly coverage?: CoverageDto
+  readonly flaky?: { readonly max: number; readonly failOnNew: boolean }
+  readonly requireBaseline: boolean
+  readonly source: 'catalog' | 'default'
+}
+
 export type CatalogDto =
   | { readonly state: 'missing' }
   | { readonly state: 'invalid'; readonly issues: readonly string[] }
@@ -67,6 +82,8 @@ export type CatalogDto =
       readonly state: 'ok'
       readonly suites: readonly CatalogSuiteDto[]
       readonly services: readonly CatalogServiceDto[]
+      /** 三档（plan、changed、full）的生效定义，按这个顺序。 */
+      readonly levels: readonly LevelDto[]
     }
 
 export interface KnownFailureDto {
@@ -152,6 +169,16 @@ export interface PolicyDto {
   readonly flaky?: { readonly max: number; readonly failOnNew: boolean }
   readonly requireBaseline: boolean
   readonly browsers: readonly string[]
+  /** 只出现在档位（`test:`）派生的策略上；旧 `test_policy` 没有。 */
+  readonly level?: PolicyLevelDto
+}
+
+/** 步骤策略里的档位：名称、必需类、碰到才跑的类与定义来源（门槛已摊在策略的各字段上）。 */
+export interface PolicyLevelDto {
+  readonly name: 'plan' | 'changed' | 'full'
+  readonly required: readonly string[]
+  readonly touched: readonly string[]
+  readonly source: 'catalog' | 'default'
 }
 
 export interface BlockerDto {
@@ -248,7 +275,9 @@ export interface PolicyReportDto {
   readonly trace: readonly TraceRowDto[]
   readonly files: {
     readonly checked: boolean
-    readonly unregistered: readonly { readonly path: string; readonly suites: readonly string[] }[]
+    /** 本任务改动过、被套件 files glob 自动认领的测试文件（路径 + 认领它的套件）。 */
+    readonly claimed: readonly { readonly path: string; readonly suites: readonly string[] }[]
+    /** 像测试却没有任何套件认领的改动文件。 */
     readonly orphans: readonly string[]
   }
   readonly notApplicable: readonly NotApplicableDto[]

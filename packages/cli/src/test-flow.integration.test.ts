@@ -395,32 +395,35 @@ describe('目录里项目级「不适用」声明的评审批准', () => {
   })
 })
 
-describe('build：未登记的测试文件与运行', () => {
+describe('build：改动的测试文件按套件 glob 认领与运行', () => {
   async function buildWithUnitSuite(): Promise<void> {
     await writeCatalog()
     await writePlan({ suites: [{ suite: 'unit', scope: 'changed' }] })
     await toPhase('build')
   }
 
-  test('diff 里的测试文件没登记 → test-register-files；登记后 run-tests；运行通过才放行出口', async () => {
+  test('没有任何套件认领的测试文件是孤儿 → test-register-files，一条 register --auto 认领', async () => {
     await buildWithUnitSuite()
-    const files = ['src/login.test.ts', 'src/login.ts']
-    const register = (await readStep(files)).next
+    const register = (await readStep(['tools/x.test.mjs', 'tools/y.test.mjs'])).next
     expect(register).toEqual([{
       action: 'test-register-files',
-      files: [expect.objectContaining({
-        code: 'test-file-unregistered', subject: 'src/login.test.ts',
-        fix: `tenon test register ${CHANGE} --file src/login.test.ts --suite unit`,
-      })],
+      files: [
+        expect.objectContaining({ code: 'test-file-orphan', subject: 'tools/x.test.mjs', fix: `tenon test register ${CHANGE} --auto` }),
+        expect.objectContaining({ code: 'test-file-orphan', subject: 'tools/y.test.mjs', fix: `tenon test register ${CHANGE} --auto` }),
+      ],
     }])
+  })
 
-    await writePlan({ files: [{ path: 'src/login.test.ts', suite: 'unit' }] })
+  test('diff 里新增的测试文件被 unit 的 glob 认领，不用登记 → 直接 run-tests；运行通过且报告里有它的用例才放行出口', async () => {
+    await buildWithUnitSuite()
+    const files = ['src/login.test.ts', 'src/login.ts']
+    // 认领不写计划：计划里没有这个测试文件，next 也不下发 test-register-files。
     const run = (await readStep(files)).next
     expect(run).toEqual([expect.objectContaining({
       action: 'run-tests', command: `tenon test run ${CHANGE} --stage`, suites: [expect.objectContaining({ subject: 'unit', code: 'test-not-run' })],
     })])
 
-    // 运行了，但报告里没有登记的测试文件：不是「没跑」，是要改的失败，不再发 run-tests。
+    // 运行了，但报告里没有认领的测试文件：不是「没跑」，是要改的失败，不再发 run-tests。
     await appendFlowRecord(context('build'), ['unit'])
     const failed = (await readStep(files)).next
     expect(failed).toEqual([expect.objectContaining({

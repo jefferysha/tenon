@@ -6,11 +6,13 @@
  * 评审者波次。测试 = 旧的步骤测试（一项一个）+ 策略 `test_policy.run` 要求运行的种类（一个种类一个，
  * 旧测试已经覆盖的种类不再重复画）。技能排序取 skill-order 的唯一口径；执行者、评审者的波次与 agent-verdict 同一个 dependencyWaves。
  */
+import { DEFAULT_LEVELS } from '../test-system/levels.js'
 import { kindForDirection, type TestKind } from '../test-system/vocabulary.js'
 import { dependencyWaves, directDependencies, type DependencyRef } from './dag-waves.js'
 import { aliasesForSkill, TENON_PRODUCER } from './document-contract-validation.js'
 import type { WorkflowIoSlot } from './effective-io.js'
 import { orderSkillSlots, type SkillRefLike } from './skill-order.js'
+import type { TestLevel } from './test-level.js'
 
 export type OrchestrationKind = 'executor' | 'skill' | 'test' | 'reviewer'
 /** declared = 阶段里声明；openspec = 文档契约要求本阶段产出者登记、阶段却没声明；manifest = 轨道矩阵叠加。 */
@@ -71,6 +73,8 @@ export interface OrchestrationStepSource {
   readonly tests?: readonly { readonly id: string; readonly label?: string; readonly required?: boolean; readonly direction?: string }[]
   /** 策略要求本阶段运行的测试种类（`run`）；其余字段与编排无关。 */
   readonly test_policy?: { readonly run?: readonly string[] }
+  /** 测试档位：changed / full 要运行必需类的测试（编排图无目录可读，按内建缺省档位的必需类画）；plan / none 不运行。 */
+  readonly test?: TestLevel
   readonly transitions: readonly { readonly event: string; readonly to: string }[]
 }
 
@@ -178,7 +182,8 @@ function stageEntries(step: OrchestrationStepSource, input: OrchestrationInput):
     source: 'declared',
   }))
   const covered = new Set((step.tests ?? []).map((test) => kindForDirection(test.direction ?? test.id)))
-  const policyKinds = [...new Set(step.test_policy?.run ?? [])]
+  const levelKinds = step.test === 'changed' || step.test === 'full' ? DEFAULT_LEVELS[step.test].required : []
+  const policyKinds = [...new Set([...(step.test_policy?.run ?? []), ...levelKinds])]
     .map((kind) => kindForDirection(kind))
     .filter((kind, index, all) => all.indexOf(kind) === index && !covered.has(kind))
   const policyTests: OrchestrationEntry[] = policyKinds.map((kind) => ({

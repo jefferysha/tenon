@@ -15,8 +15,9 @@ import type { TestPlan } from './plan.js'
 import type { InlineSuite } from './policy.js'
 import type { ChainReport } from './record-chain.js'
 import type { CaseStatus, CaseTotals, CoverageResult } from './record-v2-types.js'
-import type { UnregisteredTestFile } from './test-files.js'
+import type { OwnedTestFile, UnregisteredTestFile } from './test-files.js'
 import type { TestKind } from './vocabulary.js'
+import type { WaiverMetric } from './waiver-metrics.js'
 import type { StepTestPolicyIR } from '../workflow/ir.js'
 
 export type CatalogInput =
@@ -36,6 +37,8 @@ export interface InlineSuiteStatus {
   readonly detail?: string
   /** 判出这个状态的 v1 记录绑定的代码候选（`failed` 时用来核对豁免批准绑定的是不是这份代码）；缺省 = 没有记录 / 不适用。 */
   readonly candidate?: string | null
+  /** `failed` 时：那条失败记录里的指标（实测值与门槛，`latestFailureMetrics`）；缺省 = 记录里没有可读的指标。豁免旁的「最新运行」一行读它。 */
+  readonly failedMetrics?: readonly WaiverMetric[]
 }
 
 export interface CurrentBindings {
@@ -140,6 +143,13 @@ export interface SuiteVerdict {
    * 确认时写成计划里的 `approved_candidate`。
    */
   readonly failedCandidate?: string
+  /**
+   * 仅 `waived` / `waiver-pending`：这条新鲜失败记录里的指标（实测值与门槛），每次判定现读，不随登记理由里的数字固定。
+   * 空数组 = 失败记录没有可读的指标。展示 `test:<id>` 豁免的地方在理由下方另起一行写它。
+   */
+  readonly failedMetrics?: readonly WaiverMetric[]
+  /** 仅 `waived` / `waiver-pending`：计划里豁免理由的展示文本（登记者自述，已单行化、截短、替换字符），报告读它。 */
+  readonly waiverReason?: string
 }
 
 export type TraceTestStatus = CaseStatus | 'not-run'
@@ -182,16 +192,30 @@ export interface TestPolicyReport {
   readonly notices: readonly TestNotice[]
   readonly suites: readonly SuiteVerdict[]
   readonly trace: readonly TraceRow[]
+  /**
+   * 本步对场景映射的要求（`off | required | passing`）：`off` 时追溯行都不要求映射，报告只列已映射的行；
+   * 缺省 = 按要求映射处理（旧形状的报告）。
+   */
+  readonly scenarios?: StepTestPolicyIR['scenarios']
   readonly files: {
     readonly checked: boolean
+    /** 旧报告字段：认领取代逐个登记后求值不再产生未登记的文件，恒为空；保留只为不破坏读取旧形状的调用方。 */
     readonly unregistered: readonly UnregisteredTestFile[]
     readonly orphans: readonly string[]
+    /** 本任务改动过、被某些套件 files glob 认领的测试文件（认领在求值时现算，不写进计划）。 */
+    readonly claimed: readonly OwnedTestFile[]
   }
   readonly chain: ChainReport['state']
   /** 目录里声明了、本项目不适用的种类（目录缺失或无效时为空）。 */
   readonly notApplicable: readonly NotApplicableStatus[]
   /** 测试完整性报告；宿主没有提供 diff 能力（输入缺席）时不存在。 */
   readonly integrity?: TestIntegrityReport
+}
+
+/** 判定过程中边算边收集的阻塞与提示（evaluate-v2 与它拆出的 evaluate-files / evaluate-kinds 共用）。 */
+export interface Collector {
+  readonly blockers: TestBlocker[]
+  readonly notices: TestNotice[]
 }
 
 export function baselineKey(suite: string, profile: string): string {

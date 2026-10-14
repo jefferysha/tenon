@@ -1,7 +1,14 @@
-/** 步骤 `test_policy` 的严格解码：闭集键、闭集取值；任何不认识的形状都拒绝整份定义，不静默丢弃。 */
+/** 步骤 `test`（档位）与旧 `test_policy` 的严格解码：闭集键、闭集取值；任何不认识的形状都拒绝整份定义，不静默丢弃。 */
 import { COVERAGE_METRICS, POLICY_SCOPES, isTestKind } from '@tenon/kernel/test-system/vocabulary'
-import type { WbCoverageMetric, WbStepTestPolicy } from './governanceTypes'
+import { isTestLevel } from '@tenon/kernel/workflow/test-level'
+import type { WbCoverageMetric, WbStepTestPolicy, WbTestLevel } from './governanceTypes'
 import { allowedKeys, exactKeys, record } from './governanceBaseDecoders'
+
+/** 档位键：四选一闭集；同一步不能同时有档位与旧策略（kernel 编译同样拒绝），任何不合形状返回 null。 */
+export function decodeStepTestLevel(level: unknown, legacyPolicy: unknown): WbTestLevel | null {
+  if (!isTestLevel(level) || legacyPolicy !== undefined) return null
+  return level
+}
 
 const POLICY_KEYS = [
   'plan', 'kinds', 'run', 'run_if_registered', 'scope', 'files', 'scenarios', 'integrity', 'coverage', 'flaky', 'benchmark', 'browsers',

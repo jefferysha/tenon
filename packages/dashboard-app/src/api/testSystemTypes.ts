@@ -2,23 +2,13 @@
  * 测试体系的客户端响应类型（camelCase）。与 server 的 testSystemDtoTypes.ts 是同一份契约的两端声明，
  * 由 testSystemDecoders.ts 的严格解码器保证：形状不合即拒绝，不猜测、不补默认值。
  */
+import type { TestClass } from '@tenon/kernel/test-system/vocabulary'
+import type { TestCoverage, TestTotals } from './testRunTypes'
 
-export interface TestCoverage {
-  readonly lines?: number
-  readonly branches?: number
-  readonly functions?: number
-  readonly statements?: number
-  readonly changedLines?: number
-}
-
-export interface TestTotals {
-  readonly cases: number
-  readonly pass: number
-  readonly fail: number
-  readonly skip: number
-  readonly flaky: number
-  readonly knownFail: number
-}
+export type {
+  CaseStatus, RecordDetail, RecordListResponse, RecordSummary, RunArtifact, RunCase, RunMetric, RunService, SuiteRun,
+  TestCoverage, TestTotals,
+} from './testRunTypes'
 
 export interface TestMetricSpec {
   readonly name: string
@@ -58,7 +48,30 @@ export interface CatalogService {
 export type TestCatalogView =
   | { readonly state: 'missing' }
   | { readonly state: 'invalid'; readonly issues: readonly string[] }
-  | { readonly state: 'ok'; readonly suites: readonly CatalogSuite[]; readonly services: readonly CatalogService[] }
+  | {
+      readonly state: 'ok'
+      readonly suites: readonly CatalogSuite[]
+      readonly services: readonly CatalogService[]
+      /** 三档（plan、changed、full）的生效定义，按这个顺序。 */
+      readonly levels: readonly CatalogLevel[]
+    }
+
+export type LevelName = 'plan' | 'changed' | 'full'
+
+/**
+ * 一个档位的生效定义：必需类 / 碰到才跑的类（测试类 id）与门槛。
+ * source = catalog 表示目录写了这一档的任意键，default 表示整档来自内建缺省。
+ */
+export interface CatalogLevel {
+  readonly name: LevelName
+  readonly required: readonly TestClass[]
+  readonly touched: readonly TestClass[]
+  readonly scenarios: 'off' | 'required' | 'passing'
+  readonly coverage?: TestCoverage
+  readonly flaky?: { readonly max: number; readonly failOnNew: boolean }
+  readonly requireBaseline: boolean
+  readonly source: 'catalog' | 'default'
+}
 
 export interface KnownFailure {
   readonly suite: string
@@ -155,6 +168,16 @@ export interface TestPolicyView {
   readonly flaky?: { readonly max: number; readonly failOnNew: boolean }
   readonly requireBaseline: boolean
   readonly browsers: readonly string[]
+  /** 只在档位（工作流 `test:`）派生的策略上有；旧 `test_policy` 没有。 */
+  readonly level?: PolicyLevel
+}
+
+/** 策略里的档位：名称、必需类、碰到才跑的类与定义来源（门槛已摊在策略的各字段上）。 */
+export interface PolicyLevel {
+  readonly name: LevelName
+  readonly required: readonly TestClass[]
+  readonly touched: readonly TestClass[]
+  readonly source: 'catalog' | 'default'
 }
 
 export interface TestBlocker {
@@ -258,124 +281,13 @@ export interface PolicyReport {
   readonly trace: readonly TraceRow[]
   readonly files: {
     readonly checked: boolean
-    readonly unregistered: readonly { readonly path: string; readonly suites: readonly string[] }[]
+    /** 本任务改动过、被套件 files glob 自动认领的测试文件。 */
+    readonly claimed: readonly { readonly path: string; readonly suites: readonly string[] }[]
+    /** 像测试却没有任何套件认领的改动文件。 */
     readonly orphans: readonly string[]
   }
   /** 服务端从目录读出的项目级不适用声明；展示只据此区分「不适用」与「缺」，不自己重新判定。 */
   readonly notApplicable: readonly NotApplicableKind[]
   /** 步骤会运行测试（或声明了 integrity: block）且服务端读到了改动行时才有。 */
   readonly integrity?: IntegrityReport
-}
-
-export interface RunArtifact {
-  readonly path: string
-  readonly bytes: number
-  readonly media: 'image' | 'video' | 'trace' | 'html' | 'json' | 'text' | 'other'
-  readonly entry: boolean
-  readonly present: boolean
-}
-
-export type CaseStatus = 'pass' | 'fail' | 'skip' | 'flaky' | 'known-fail'
-
-export interface RunCase {
-  readonly file: string
-  readonly line?: number
-  readonly name: string
-  readonly suitePath: readonly string[]
-  readonly project: string | null
-  readonly status: CaseStatus
-  readonly durationMs: number
-  readonly attempts: number
-  readonly failure?: { readonly message: string; readonly stack?: string; readonly expected?: string; readonly actual?: string }
-  readonly artifacts: readonly string[]
-}
-
-export interface RunMetric {
-  readonly name: string
-  readonly unit?: string
-  readonly better: 'lower' | 'higher'
-  readonly median: number
-  readonly p95: number
-  readonly mad: number
-  readonly samples: number
-}
-
-export interface SuiteRun {
-  readonly suite: string
-  readonly origin: 'catalog' | 'step'
-  readonly kind: string
-  readonly runner: string
-  readonly scope: string
-  readonly command: string
-  readonly cwd: string
-  readonly exitCode: number | null
-  readonly signal: string | null
-  readonly durationMs: number
-  readonly result: 'pass' | 'fail'
-  readonly reasons: readonly { readonly code: string; readonly detail?: string }[]
-  readonly totals: TestTotals
-  readonly cases: readonly RunCase[]
-  readonly casesTruncated: boolean
-  readonly projects: readonly string[]
-  readonly coverage: TestCoverage | null
-  readonly metrics: readonly RunMetric[]
-  readonly artifacts: readonly RunArtifact[]
-  readonly artifactsTruncated: boolean
-  readonly log: { readonly artifact: string; readonly bytesTotal: number; readonly bytesKept: number; readonly truncated: boolean; readonly present: boolean }
-}
-
-export interface RunService {
-  readonly id: string
-  readonly readyMs: number | null
-  readonly exit: string
-  readonly log: string | null
-  readonly logPresent: boolean
-  readonly leaked: number
-}
-
-export interface RecordDetail {
-  readonly user: string
-  readonly trusted: boolean
-  readonly runId: string
-  readonly change: string
-  readonly step: string
-  readonly workflow: string
-  readonly track: string
-  readonly result: 'pass' | 'fail'
-  readonly startedAt: string
-  readonly finishedAt: string
-  readonly durationMs: number
-  readonly machineProfile: string
-  readonly machineLabel: string
-  /** 本次运行的产物目录（相对项目根，正斜杠）。 */
-  readonly artifactsDir: string
-  readonly actor: { readonly id: string; readonly name: string }
-  readonly services: readonly RunService[]
-  readonly suites: readonly SuiteRun[]
-}
-
-export interface RecordSummary {
-  readonly user: string
-  readonly trusted: boolean
-  readonly runId: string
-  readonly step: string
-  readonly result: 'pass' | 'fail'
-  readonly startedAt: string
-  readonly finishedAt: string
-  readonly durationMs: number
-  readonly machineLabel: string
-  readonly actor: { readonly id: string; readonly name: string }
-  readonly suites: readonly {
-    readonly suite: string
-    readonly kind: string
-    readonly scope: string
-    readonly result: 'pass' | 'fail'
-    readonly totals: TestTotals
-    readonly coverage: TestCoverage | null
-  }[]
-}
-
-export interface RecordListResponse {
-  readonly users: readonly { readonly user: string; readonly chain: 'empty' | 'intact' | 'broken'; readonly reason?: string }[]
-  readonly runs: readonly RecordSummary[]
 }

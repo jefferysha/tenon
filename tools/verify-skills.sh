@@ -213,6 +213,11 @@ if [ -f "$HOOKS_JSON" ]; then
   N_PATH=$((N_PATH + 1))
   [ -f "$ROOT/hooks/lib/read-only-command.sh" ] \
     || add_fail "缺失 hook 辅助脚本: hooks/lib/read-only-command.sh" "hooks/gate.sh" "把 hooks/lib/read-only-command.sh 纳入发布包"
+  # protected-writes.sh 在命令段里出现信任 / 状态目录字样时才加载的识别（tenon test trust、TENON_TEST_TRUST=、改写状态目录）：
+  # 缺了它，门对出现这些字样的命令段一律失败关闭拒绝。
+  N_PATH=$((N_PATH + 1))
+  [ -f "$ROOT/hooks/lib/trust-command.sh" ] \
+    || add_fail "缺失 hook 辅助脚本: hooks/lib/trust-command.sh" "hooks/lib/protected-writes.sh" "把 hooks/lib/trust-command.sh 纳入发布包"
   while IFS= read -r shell_file; do
     [ -n "$shell_file" ] || continue
     N_PATH=$((N_PATH + 1))

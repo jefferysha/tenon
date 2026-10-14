@@ -5536,7 +5536,7 @@ import { lstat as lstat8, mkdir as mkdir6, opendir, realpath as realpath2 } from
 import { isAbsolute as isAbsolute2, join as join13, relative as relative2, sep as sep3 } from "node:path";
 
 // packages/kernel/dist/workflow/default-workflow.generated.js
-var DEFAULT_WORKFLOW_SOURCE = 'name: default\nopenspec: true\ntracks:\n  lite:\n    label: \u8F7B\u91CF\n    spec: none\n    route:\n      keywords: [\u4FEE\u590D, \u4FEE\u6B63, \u4FEE\u6539, \u8C03\u6574, \u65B0\u589E, \u6DFB\u52A0, \u5220\u9664, \u91CD\u6784, \u4F18\u5316, \u9519\u522B\u5B57, typo, \u6587\u6848, \u6CE8\u91CA]\n      exclude: [\u67B6\u6784, \u8DE8\u6A21\u5757, \u8FC1\u79FB, migration, schema, \u6570\u636E\u5E93, \u9274\u6743, \u8BA4\u8BC1, \u6743\u9650, auth, \u4F9D\u8D56\u5347\u7EA7, \u53D1\u5E03, \u90E8\u7F72, \u5168\u6808, \u524D\u540E\u7AEF, \u8C03\u7814, \u7ADE\u54C1, PRD, \u9700\u6C42\u6587\u6863]\n      priority: 500\n    automation:\n      eligible: false\n      enqueue_after_spec: false\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        prompt: |-\n          \u7528\u4E00\u53E5\u8BDD\u5411\u7528\u6237\u590D\u8FF0\u76EE\u6807\uFF0C\u5E76\u5199\u51FA\u53EF\u9A8C\u8BC1\u7684\u9A8C\u6536\u6807\u51C6\uFF08\u54EA\u4E2A\u5931\u8D25\u7684\u7528\u4F8B\u8BE5\u53D8\u6210\u901A\u8FC7\uFF09\u3002\u76EE\u6807\u5DF2\u7ECF\u6E05\u695A\u5C31\u4E0D\u63D0\u95EE\u3001\u4E0D\u5199\u6587\u6863\u3001\u4E0D\u52A0\u8F7D\u8BBF\u8C08\u7C7B\u6280\u80FD\uFF1B\u542B\u7CCA\u5230\u6CA1\u6CD5\u5F00\u5DE5\u624D\u95EE\u4E00\u4E2A\u95EE\u9898\u3002\n          \u4E00\u5F00\u59CB\u5C31\u80FD\u770B\u51FA\u8981\u52A8\u63A5\u53E3\u5951\u7EA6\u3001\u9274\u6743\u3001\u4F9D\u8D56\u3001\u6570\u636E\u8FC1\u79FB\u6216\u5341\u51E0\u4E2A\u6587\u4EF6\uFF0C\u4E0D\u8981\u5728\u8FD9\u91CC\u786C\u505A\uFF1A\u8D70 scope-expanded\uFF0C\u6539\u5F00 default \u7684\u91CD\u578B\u8F68\u9053\u4EFB\u52A1\u3002\n        skills: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: build\n          - event: scope-expanded\n            to: escalated\n            actions:\n              - type: archive-run\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        prompt: |-\n          \u5148\u5199\uFF08\u6216\u786E\u8BA4\u5DF2\u6709\uFF09\u80FD\u590D\u73B0\u95EE\u9898\u3001\u9A8C\u8BC1\u65B0\u884C\u4E3A\u7684\u6D4B\u8BD5\uFF0C\u518D\u6539\u4EE3\u7801\u5230\u6D4B\u8BD5\u901A\u8FC7\uFF1B\u53EA\u6539\u76EE\u6807\u9700\u8981\u7684\u6587\u4EF6\uFF0C\u4E0D\u987A\u624B\u91CD\u6784\u3002\n          \u6539\u5B8C\u7167 next \u8DD1\u672C\u9636\u6BB5\u6D4B\u8BD5\u548C\u6539\u52A8\u98CE\u9669\u63A2\u9488 diff-risk\u3002\u63A2\u9488\u4E0D\u8FC7\uFF08\u6539\u52A8\u6587\u4EF6\u592A\u591A\uFF0C\u6216\u78B0\u4E86\u5951\u7EA6\u3001\u9274\u6743\u3001\u4F9D\u8D56\u3001\u8FC1\u79FB\uFF0C\u6216\u5220\u4E86\u6D4B\u8BD5\u3001\u6539\u4E86\u53D7\u4FDD\u62A4\u7684\u6D4B\u8BD5\u914D\u7F6E\uFF09\u8BF4\u660E\u4EFB\u52A1\u8D85\u51FA\u8F7B\u91CF\u8F68\u9053\uFF1A\u7167 next \u8D70 scope-expanded\uFF0C\u518D\u65B0\u5EFA default \u7684\u91CD\u578B\u8F68\u9053\u4EFB\u52A1\u5E76 tenon set <\u65B0\u4EFB\u52A1> depends_on <\u672C\u4EFB\u52A1>\uFF1B\u4E0D\u8981\u4E3A\u4E86\u8BA9\u63A2\u9488\u901A\u8FC7\u53BB\u62C6\u6539\u52A8\u3001\u85CF\u6587\u4EF6\u3002\n        skills:\n          - id: test-driven-development\n        tests:\n          - id: diff-risk\n            direction: diff-risk\n            command: tenon test diff-risk --json\n            label: \u6539\u52A8\u98CE\u9669\n            timeout_s: 60\n            required: true\n            pass:\n              metrics:\n                - name: files_changed\n                  max: 8\n                - name: contract_files\n                  max: 0\n                - name: auth_files\n                  max: 0\n                - name: dependency_files\n                  max: 0\n                - name: migration_files\n                  max: 0\n                - name: deleted_tests\n                  max: 0\n                - name: protected_test_files\n                  max: 0\n        guards: []\n        test_policy:\n          plan: required\n          kinds: [unit]\n          run: [unit]\n          run_if_registered: [typecheck]\n          scope: changed\n          files: registered\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: scope-expanded\n            to: escalated\n            actions:\n              - type: archive-run\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        prompt: |-\n          \u5148\u52A0\u8F7D\u9A8C\u8BC1\u6280\u80FD\uFF0C\u518D\u7167 next \u8DD1\u5168\u91CF\u6D4B\u8BD5\u548C\u8BC4\u5BA1\u8005\u3002\u6D3E\u53D1\u8BC4\u5BA1\u8005\u65F6\uFF0C\u5728\u63D0\u793A\u672B\u5C3E\u5199\u660E\u7528\u6237\u7684\u539F\u59CB\u76EE\u6807\u548C\u9A8C\u6536\u6807\u51C6\uFF0C\u8BC4\u5BA1\u8005\u6CA1\u6709\u89C4\u683C\u6587\u6863\u53EF\u8BFB\u3002\n          \u8BC4\u5BA1\u8005\u7ED9\u51FA medium \u53CA\u4EE5\u4E0A\u7684\u95EE\u9898\u5C31\u8D70 verify-fail \u56DE\u5230\u5B9E\u73B0\u4FEE\u6389\uFF1B\u4E0D\u8981\u9760\u91CD\u8DD1\u8BC4\u5BA1\u8005\u6362\u7ED3\u8BBA\u3002\n        skills:\n          - id: verification-before-completion\n        agents:\n          reviewers:\n            - agent: code-review\n              required: true\n              block_at: medium\n            - agent: security\n              required: true\n              block_at: medium\n        guards: []\n        test_policy:\n          run: [unit]\n          run_if_registered: [regression, typecheck, integration, e2e, playwright, a11y, visual]\n          scope: full\n          files: registered\n        transitions:\n          - event: verify-pass\n            to: done\n            actions:\n              - type: mark-verification-passed\n              - type: archive-run\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n          - event: scope-expanded\n            to: escalated\n            actions:\n              - type: archive-run\n      - id: done\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        guards: []\n        transitions: []\n      - id: escalated\n        label: \u5DF2\u5347\u7EA7\n        gate: null\n        skills: []\n        guards: []\n        transitions: []\n  pm:\n    label: \u4EA7\u54C1\n    route:\n      keywords: [\u8C03\u7814, \u7ADE\u54C1, \u5E02\u573A, \u7ADE\u4E89\u5BF9\u624B, \u5BF9\u6807, \u5546\u4E1A\u6A21\u5F0F, PRD, \u9700\u6C42, \u7528\u6237\u65C5\u7A0B, \u539F\u578B, market, \u7ACB\u9879, \u4EA7\u54C1, user persona, \u6D41\u7A0B\u56FE]\n      priority: 100\n    automation:\n      eligible: true\n      enqueue_after_spec: true\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: openspec-propose\n        guards:\n          - type: required-output\n            path: openspec/changes/{change}/proposal.md\n          - type: tasks-through-step\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: brainstorming\n          - id: grilling\n          - id: domain-modeling\n        agents:\n          executors:\n            - agent: researcher\n        guards:\n          - type: required-output\n            path: docs/superpowers/specs/*.md\n          - type: tasks-through-step\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        skills:\n          - id: openspec-propose\n          - id: brainstorming\n          - id: writing-plans\n          - id: grilling\n          - id: domain-modeling\n        guards:\n          - type: required-output\n            path: openspec/changes/{change}/specs/*/spec.md\n          - type: tasks-at-least\n            n: 3\n          - type: tasks-through-step\n        test_policy:\n          plan: required\n          scenarios: required\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        prompt: |-\n          \u539F\u578B\u4E3A\u4EA4\u4ED8\u7EA7\u9AD8\u4FDD\u771F\uFF0C\u8986\u76D6\u5173\u952E\u5C4F\u4E0E\u7A7A\u3001\u52A0\u8F7D\u3001\u9519\u8BEF\u3001\u6210\u529F\u6001\uFF1B\u7528\u6237\u9009\u5B9A\u4E00\u4E2A\u65B9\u6848\u540E\u53EA\u7CBE\u4FEE\u8BE5\u65B9\u6848\u3002\n        skills:\n          - id: prototype\n          - id: frontend-design\n        agents:\n          executors:\n            - agent: builder\n          reviewers:\n            - agent: spec-consistency\n              required: true\n              block_at: medium\n        guards: []\n        transitions:\n          - event: build-complete\n            to: verify\n            guards:\n              - type: field-equals\n                field: pre_verify_review_result\n                value: pass\n              - type: tasks-through-step\n              - type: not-afk-queued\n              - type: dependencies-ended\n            actions:\n              - type: freeze-build-sha\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        max_rounds: 2\n        skills:\n          - id: browser-qa\n          - id: web-design-guidelines\n          - id: design-taste-frontend\n          - id: verification-before-completion\n        tests:\n          - id: code-size\n            direction: code-size\n            command: tenon test code-size --json\n            label: \u4EE3\u7801\u89C4\u6A21\n            timeout_s: 120\n            required: true\n            pass:\n              metrics:\n                - name: lines_added\n                  max: 2000\n        agents:\n          reviewers:\n            - agent: code-size\n              required: true\n              block_at: medium\n              reads_tests: [code-size]\n        guards: []\n        test_policy:\n          run_if_registered: [smoke]\n          scope: full\n        transitions:\n          - event: verify-pass\n            to: ship\n            guards:\n              - type: required-output\n                path: docs/superpowers/reports/{change}-verify.md\n              - type: build-head-unchanged\n                field: build_sha\n              - type: tasks-through-step\n            actions:\n              - type: mark-verification-passed\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        skills: []\n        guards:\n          - type: file-exists\n            field: prd_path\n          - type: spec-migration-applied\n          - type: tasks-through-step\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        guards:\n          - type: tasks-through-step\n        transitions: []\n  frontend:\n    label: \u524D\u7AEF\n    route:\n      keywords: [\u524D\u7AEF, UI, \u9875\u9762, \u7EC4\u4EF6, React, Vue, Next, Tailwind, \u6837\u5F0F, shadcn, .tsx, .jsx, .vue, web \u8BBE\u8BA1, \u54CD\u5E94\u5F0F, button, form, layout, \u767B\u5F55\u9875]\n      priority: 300\n    automation:\n      eligible: true\n      enqueue_after_spec: false\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: openspec-propose\n        guards:\n          - type: required-output\n            path: openspec/changes/{change}/proposal.md\n          - type: tasks-through-step\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: openspec-explore\n          - id: brainstorming\n          - id: grilling\n          - id: domain-modeling\n        agents:\n          executors:\n            - agent: researcher\n        guards:\n          - type: required-output\n            path: docs/superpowers/specs/*.md\n          - type: tasks-through-step\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        prompt: |-\n          \u9700\u8981\u65B0\u589E\u6216\u8C03\u6574\u8BBE\u8BA1\u65F6\u8FD0\u884C tenon design propose "$TENON_CHANGE_NAME"\uFF0C\u5728 openspec/changes/<change>/design-system.md \u5199\u6E05\u4FEE\u6539\u3001\u7406\u7531\u3001\u5F71\u54CD\uFF0C\u968F\u89C4\u683C\u8BC4\u5BA1\u3002\n          \u9009\u7528\u7EC4\u4EF6\u5E93\u3001\u56FE\u6807\u3001\u52A8\u753B\u3001DESIGN.md \u7B49\u524D\u7AEF\u8D44\u6E90\u65F6\u5148\u67E5\u8D44\u6E90\u76EE\u5F55\uFF1Atenon resources list --framework <\u6846\u67B6> --category <\u7C7B\u522B>\uFF0C\u518D\u7528 tenon resources show <id> \u770B\u8BB8\u53EF\u4E0E\u5B89\u88C5\u547D\u4EE4\uFF1B\u53EA\u7528\u76EE\u5F55\u5185\u6761\u76EE\uFF0C\u4E0D\u53EF\u518D\u5206\u53D1\u7684\u6761\u76EE\u53EA\u6309\u5B89\u88C5\u547D\u4EE4\u5F15\u7528\u3002\n        skills:\n          - id: openspec-propose\n          - id: writing-plans\n        guards:\n          - type: required-output\n            path: openspec/changes/{change}/specs/*/spec.md\n          - type: required-output\n            path: docs/superpowers/plans/*.md\n          - type: tasks-at-least\n            n: 3\n          - type: tasks-through-step\n        test_policy:\n          plan: required\n          kinds: [unit]\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        skills:\n          - id: test-driven-development\n          - id: frontend-design\n        agents:\n          executors:\n            - agent: builder\n        guards: []\n        test_policy:\n          run: [unit]\n          run_if_registered: [typecheck]\n          scope: changed\n          files: registered\n        transitions:\n          - event: build-complete\n            to: verify\n            guards:\n              - type: field-equals\n                field: pre_verify_review_result\n                value: pass\n              - type: tasks-through-step\n              - type: not-afk-queued\n              - type: dependencies-ended\n            actions:\n              - type: freeze-build-sha\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        max_rounds: 2\n        skills:\n          - id: browser-qa\n          - id: web-design-guidelines\n          - id: design-taste-frontend\n          - id: verification-before-completion\n          - id: e2e-testing\n        tests:\n          - id: code-size\n            direction: code-size\n            command: tenon test code-size --json\n            label: \u4EE3\u7801\u89C4\u6A21\n            timeout_s: 120\n            required: true\n            pass:\n              metrics:\n                - name: lines_added\n                  max: 2000\n        agents:\n          reviewers:\n            - agent: spec-consistency\n              required: true\n              block_at: medium\n            - agent: frontend-quality\n              required: true\n              block_at: medium\n            - agent: security\n              required: true\n              block_at: medium\n            - agent: e2e\n              required: true\n              block_at: medium\n            - agent: architecture\n              required: false\n              block_at: high\n              depends_on: [spec-consistency, frontend-quality, security, e2e]\n            - agent: code-size\n              required: true\n              block_at: medium\n              reads_tests: [code-size]\n        guards: []\n        test_policy:\n          run: [unit]\n          run_if_registered: [regression, e2e, playwright, a11y, visual]\n          scope: full\n          files: registered\n          coverage: { lines: 80 }\n        transitions:\n          - event: verify-pass\n            to: ship\n            guards:\n              - type: required-output\n                path: docs/superpowers/reports/{change}-verify.md\n              - type: build-head-unchanged\n                field: build_sha\n              - type: tasks-through-step\n            actions:\n              - type: mark-verification-passed\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        prompt: |-\n          \u5B58\u5728 openspec/changes/<change>/design-system.md \u65F6\uFF1A\u52A0\u8F7D hue\uFF0C\u5148\u6539 design/design-model.yaml\uFF0C\u518D\u53EA\u91CD\u65B0\u751F\u6210 DESIGN.md \u53D7\u5F71\u54CD\u7AE0\u8282\u4E0E\u9884\u89C8\uFF0C\u8DD1 tenon design validate \u5230\u901A\u8FC7\u3002\n        skills:\n          - id: finishing-a-development-branch\n        tests:\n          - id: design-system\n            direction: design-system\n            command: tenon design validate\n            label: \u8BBE\u8BA1\u4F53\u7CFB\n            timeout_s: 300\n            required: true\n        guards:\n          - type: field-nonempty\n            field: pr_url\n          - type: spec-migration-applied\n          - type: tasks-through-step\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        guards:\n          - type: tasks-through-step\n        transitions: []\n  backend:\n    label: \u540E\u7AEF\n    route:\n      keywords: [\u540E\u7AEF, backend, API, \u63A5\u53E3, \u6570\u636E\u5E93, Golang, Python, Java, Rust, NestJS, Postgres, endpoint, service, \u5FAE\u670D\u52A1, REST, GraphQL, gRPC, migration, server, controller, schema]\n      priority: 200\n      fallback: true\n    automation:\n      eligible: true\n      enqueue_after_spec: false\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: openspec-propose\n        guards:\n          - type: required-output\n            path: openspec/changes/{change}/proposal.md\n          - type: tasks-through-step\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: openspec-explore\n          - id: brainstorming\n          - id: grilling\n          - id: domain-modeling\n          - id: codebase-design\n        agents:\n          executors:\n            - agent: researcher\n        guards:\n          - type: required-output\n            path: docs/superpowers/specs/*.md\n          - type: tasks-through-step\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        skills:\n          - id: openspec-propose\n          - id: writing-plans\n        guards:\n          - type: required-output\n            path: openspec/changes/{change}/specs/*/spec.md\n          - type: required-output\n            path: docs/superpowers/plans/*.md\n          - type: tasks-at-least\n            n: 3\n          - type: tasks-through-step\n        test_policy:\n          plan: required\n          kinds: [unit]\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        skills:\n          - id: test-driven-development\n        agents:\n          executors:\n            - agent: builder\n        guards: []\n        test_policy:\n          run: [unit]\n          run_if_registered: [typecheck]\n          scope: changed\n          files: registered\n        transitions:\n          - event: build-complete\n            to: verify\n            guards:\n              - type: field-equals\n                field: pre_verify_review_result\n                value: pass\n              - type: tasks-through-step\n              - type: not-afk-queued\n              - type: dependencies-ended\n            actions:\n              - type: freeze-build-sha\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        max_rounds: 2\n        skills:\n          - id: verification-before-completion\n        tests:\n          - id: code-size\n            direction: code-size\n            command: tenon test code-size --json\n            label: \u4EE3\u7801\u89C4\u6A21\n            timeout_s: 120\n            required: true\n            pass:\n              metrics:\n                - name: lines_added\n                  max: 2000\n        agents:\n          reviewers:\n            - agent: spec-consistency\n              required: true\n              block_at: medium\n            - agent: backend-quality\n              required: true\n              block_at: medium\n            - agent: security\n              required: true\n              block_at: medium\n            - agent: architecture\n              required: false\n              block_at: high\n              depends_on: [spec-consistency, backend-quality, security]\n            - agent: code-size\n              required: true\n              block_at: medium\n              reads_tests: [code-size]\n        guards: []\n        test_policy:\n          run: [unit]\n          run_if_registered: [integration, regression, benchmark]\n          scope: full\n          files: registered\n          coverage: { lines: 80 }\n          benchmark: { require_baseline: false }\n        transitions:\n          - event: verify-pass\n            to: ship\n            guards:\n              - type: required-output\n                path: docs/superpowers/reports/{change}-verify.md\n              - type: build-head-unchanged\n                field: build_sha\n              - type: tasks-through-step\n            actions:\n              - type: mark-verification-passed\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        skills:\n          - id: finishing-a-development-branch\n        guards:\n          - type: field-nonempty\n            field: pr_url\n          - type: spec-migration-applied\n          - type: tasks-through-step\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        guards:\n          - type: tasks-through-step\n        transitions: []\n';
+var DEFAULT_WORKFLOW_SOURCE = 'name: default\nopenspec: true\ntracks:\n  lite:\n    label: \u8F7B\u91CF\n    spec: none\n    route:\n      keywords: [\u4FEE\u590D, \u4FEE\u6B63, \u4FEE\u6539, \u8C03\u6574, \u65B0\u589E, \u6DFB\u52A0, \u5220\u9664, \u91CD\u6784, \u4F18\u5316, \u9519\u522B\u5B57, typo, \u6587\u6848, \u6CE8\u91CA]\n      exclude: [\u67B6\u6784, \u8DE8\u6A21\u5757, \u8FC1\u79FB, migration, schema, \u6570\u636E\u5E93, \u9274\u6743, \u8BA4\u8BC1, \u6743\u9650, auth, \u4F9D\u8D56\u5347\u7EA7, \u53D1\u5E03, \u90E8\u7F72, \u5168\u6808, \u524D\u540E\u7AEF, \u8C03\u7814, \u7ADE\u54C1, PRD, \u9700\u6C42\u6587\u6863]\n      priority: 500\n    automation:\n      eligible: false\n      enqueue_after_spec: false\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        prompt: |-\n          \u7528\u4E00\u53E5\u8BDD\u5411\u7528\u6237\u590D\u8FF0\u76EE\u6807\uFF0C\u5E76\u5199\u51FA\u53EF\u9A8C\u8BC1\u7684\u9A8C\u6536\u6807\u51C6\uFF08\u54EA\u4E2A\u5931\u8D25\u7684\u7528\u4F8B\u8BE5\u53D8\u6210\u901A\u8FC7\uFF09\u3002\u76EE\u6807\u5DF2\u7ECF\u6E05\u695A\u5C31\u4E0D\u63D0\u95EE\u3001\u4E0D\u5199\u6587\u6863\u3001\u4E0D\u52A0\u8F7D\u8BBF\u8C08\u7C7B\u6280\u80FD\uFF1B\u542B\u7CCA\u5230\u6CA1\u6CD5\u5F00\u5DE5\u624D\u95EE\u4E00\u4E2A\u95EE\u9898\u3002\n          \u4E00\u5F00\u59CB\u5C31\u80FD\u770B\u51FA\u8981\u52A8\u63A5\u53E3\u5951\u7EA6\u3001\u9274\u6743\u3001\u4F9D\u8D56\u3001\u6570\u636E\u8FC1\u79FB\u6216\u5341\u51E0\u4E2A\u6587\u4EF6\uFF0C\u4E0D\u8981\u5728\u8FD9\u91CC\u786C\u505A\uFF1A\u8D70 scope-expanded\uFF0C\u6539\u5F00 default \u7684\u91CD\u578B\u8F68\u9053\u4EFB\u52A1\u3002\n        skills: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: build\n          - event: scope-expanded\n            to: escalated\n            actions:\n              - type: archive-run\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        prompt: |-\n          \u5148\u5199\uFF08\u6216\u786E\u8BA4\u5DF2\u6709\uFF09\u80FD\u590D\u73B0\u95EE\u9898\u3001\u9A8C\u8BC1\u65B0\u884C\u4E3A\u7684\u6D4B\u8BD5\uFF0C\u518D\u6539\u4EE3\u7801\u5230\u6D4B\u8BD5\u901A\u8FC7\uFF1B\u53EA\u6539\u76EE\u6807\u9700\u8981\u7684\u6587\u4EF6\uFF0C\u4E0D\u987A\u624B\u91CD\u6784\u3002\n          \u6539\u5B8C\u7167 next \u8DD1\u672C\u9636\u6BB5\u6D4B\u8BD5\u548C\u6539\u52A8\u98CE\u9669\u63A2\u9488 diff-risk\u3002\u63A2\u9488\u4E0D\u8FC7\uFF08\u6539\u52A8\u6587\u4EF6\u592A\u591A\uFF0C\u6216\u78B0\u4E86\u5951\u7EA6\u3001\u9274\u6743\u3001\u4F9D\u8D56\u3001\u8FC1\u79FB\uFF0C\u6216\u5220\u4E86\u6D4B\u8BD5\u3001\u6539\u4E86\u53D7\u4FDD\u62A4\u7684\u6D4B\u8BD5\u914D\u7F6E\uFF09\u8BF4\u660E\u4EFB\u52A1\u8D85\u51FA\u8F7B\u91CF\u8F68\u9053\uFF1A\u7167 next \u8D70 scope-expanded\uFF0C\u518D\u65B0\u5EFA default \u7684\u91CD\u578B\u8F68\u9053\u4EFB\u52A1\u5E76 tenon set <\u65B0\u4EFB\u52A1> depends_on <\u672C\u4EFB\u52A1>\uFF1B\u4E0D\u8981\u4E3A\u4E86\u8BA9\u63A2\u9488\u901A\u8FC7\u53BB\u62C6\u6539\u52A8\u3001\u85CF\u6587\u4EF6\u3002\n        skills:\n          - id: test-driven-development\n        tests:\n          - id: diff-risk\n            direction: diff-risk\n            command: tenon test diff-risk --json\n            label: \u6539\u52A8\u98CE\u9669\n            timeout_s: 60\n            required: true\n            pass:\n              metrics:\n                - name: files_changed\n                  max: 8\n                - name: contract_files\n                  max: 0\n                - name: auth_files\n                  max: 0\n                - name: dependency_files\n                  max: 0\n                - name: migration_files\n                  max: 0\n                - name: deleted_tests\n                  max: 0\n                - name: protected_test_files\n                  max: 0\n        guards: []\n        test: changed\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: scope-expanded\n            to: escalated\n            actions:\n              - type: archive-run\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        prompt: |-\n          \u5148\u52A0\u8F7D\u9A8C\u8BC1\u6280\u80FD\uFF0C\u518D\u7167 next \u8DD1\u5168\u91CF\u6D4B\u8BD5\u548C\u8BC4\u5BA1\u8005\u3002\u6D3E\u53D1\u8BC4\u5BA1\u8005\u65F6\uFF0C\u5728\u63D0\u793A\u672B\u5C3E\u5199\u660E\u7528\u6237\u7684\u539F\u59CB\u76EE\u6807\u548C\u9A8C\u6536\u6807\u51C6\uFF0C\u8BC4\u5BA1\u8005\u6CA1\u6709\u89C4\u683C\u6587\u6863\u53EF\u8BFB\u3002\n          \u8BC4\u5BA1\u8005\u7ED9\u51FA medium \u53CA\u4EE5\u4E0A\u7684\u95EE\u9898\u5C31\u8D70 verify-fail \u56DE\u5230\u5B9E\u73B0\u4FEE\u6389\uFF1B\u4E0D\u8981\u9760\u91CD\u8DD1\u8BC4\u5BA1\u8005\u6362\u7ED3\u8BBA\u3002\n        skills:\n          - id: verification-before-completion\n        agents:\n          reviewers:\n            - agent: code-review\n              required: true\n              block_at: medium\n            - agent: security\n              required: true\n              block_at: medium\n        guards: []\n        test: full\n        transitions:\n          - event: verify-pass\n            to: done\n            actions:\n              - type: mark-verification-passed\n              - type: archive-run\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n          - event: scope-expanded\n            to: escalated\n            actions:\n              - type: archive-run\n      - id: done\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        guards: []\n        transitions: []\n      - id: escalated\n        label: \u5DF2\u5347\u7EA7\n        gate: null\n        skills: []\n        guards: []\n        transitions: []\n  pm:\n    label: \u4EA7\u54C1\n    route:\n      keywords: [\u8C03\u7814, \u7ADE\u54C1, \u5E02\u573A, \u7ADE\u4E89\u5BF9\u624B, \u5BF9\u6807, \u5546\u4E1A\u6A21\u5F0F, PRD, \u9700\u6C42, \u7528\u6237\u65C5\u7A0B, \u539F\u578B, market, \u7ACB\u9879, \u4EA7\u54C1, user persona, \u6D41\u7A0B\u56FE]\n      priority: 100\n    automation:\n      eligible: true\n      enqueue_after_spec: true\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: openspec-propose\n        guards:\n          - type: required-output\n            path: openspec/changes/{change}/proposal.md\n          - type: tasks-through-step\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: brainstorming\n          - id: grilling\n          - id: domain-modeling\n        agents:\n          executors:\n            - agent: researcher\n        guards:\n          - type: required-output\n            path: docs/superpowers/specs/*.md\n          - type: tasks-through-step\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        skills:\n          - id: openspec-propose\n          - id: brainstorming\n          - id: writing-plans\n          - id: grilling\n          - id: domain-modeling\n        guards:\n          - type: required-output\n            path: openspec/changes/{change}/specs/*/spec.md\n          - type: tasks-at-least\n            n: 3\n          - type: tasks-through-step\n        test: none\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        prompt: |-\n          \u539F\u578B\u4E3A\u4EA4\u4ED8\u7EA7\u9AD8\u4FDD\u771F\uFF0C\u8986\u76D6\u5173\u952E\u5C4F\u4E0E\u7A7A\u3001\u52A0\u8F7D\u3001\u9519\u8BEF\u3001\u6210\u529F\u6001\uFF1B\u7528\u6237\u9009\u5B9A\u4E00\u4E2A\u65B9\u6848\u540E\u53EA\u7CBE\u4FEE\u8BE5\u65B9\u6848\u3002\n        skills:\n          - id: prototype\n          - id: frontend-design\n        agents:\n          executors:\n            - agent: builder\n          reviewers:\n            - agent: spec-consistency\n              required: true\n              block_at: medium\n        guards: []\n        transitions:\n          - event: build-complete\n            to: verify\n            guards:\n              - type: field-equals\n                field: pre_verify_review_result\n                value: pass\n              - type: tasks-through-step\n              - type: not-afk-queued\n              - type: dependencies-ended\n            actions:\n              - type: freeze-build-sha\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        max_rounds: 2\n        skills:\n          - id: browser-qa\n          - id: web-design-guidelines\n          - id: design-taste-frontend\n          - id: verification-before-completion\n        tests:\n          - id: code-size\n            direction: code-size\n            command: tenon test code-size --json\n            label: \u4EE3\u7801\u89C4\u6A21\n            timeout_s: 120\n            required: true\n        agents:\n          reviewers:\n            - agent: code-size\n              required: true\n              block_at: medium\n              reads_tests: [code-size]\n        guards: []\n        test: changed\n        transitions:\n          - event: verify-pass\n            to: ship\n            guards:\n              - type: required-output\n                path: docs/superpowers/reports/{change}-verify.md\n              - type: build-head-unchanged\n                field: build_sha\n              - type: tasks-through-step\n            actions:\n              - type: mark-verification-passed\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        skills: []\n        guards:\n          - type: file-exists\n            field: prd_path\n          - type: spec-migration-applied\n          - type: tasks-through-step\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        guards:\n          - type: tasks-through-step\n        transitions: []\n  frontend:\n    label: \u524D\u7AEF\n    route:\n      keywords: [\u524D\u7AEF, UI, \u9875\u9762, \u7EC4\u4EF6, React, Vue, Next, Tailwind, \u6837\u5F0F, shadcn, .tsx, .jsx, .vue, web \u8BBE\u8BA1, \u54CD\u5E94\u5F0F, button, form, layout, \u767B\u5F55\u9875]\n      priority: 300\n    automation:\n      eligible: true\n      enqueue_after_spec: false\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: openspec-propose\n        guards:\n          - type: required-output\n            path: openspec/changes/{change}/proposal.md\n          - type: tasks-through-step\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: openspec-explore\n          - id: brainstorming\n          - id: grilling\n          - id: domain-modeling\n        agents:\n          executors:\n            - agent: researcher\n        guards:\n          - type: required-output\n            path: docs/superpowers/specs/*.md\n          - type: tasks-through-step\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        prompt: |-\n          \u9700\u8981\u65B0\u589E\u6216\u8C03\u6574\u8BBE\u8BA1\u65F6\u8FD0\u884C tenon design propose "$TENON_CHANGE_NAME"\uFF0C\u5728 openspec/changes/<change>/design-system.md \u5199\u6E05\u4FEE\u6539\u3001\u7406\u7531\u3001\u5F71\u54CD\uFF0C\u968F\u89C4\u683C\u8BC4\u5BA1\u3002\n          \u9009\u7528\u7EC4\u4EF6\u5E93\u3001\u56FE\u6807\u3001\u52A8\u753B\u3001DESIGN.md \u7B49\u524D\u7AEF\u8D44\u6E90\u65F6\u5148\u67E5\u8D44\u6E90\u76EE\u5F55\uFF1Atenon resources list --framework <\u6846\u67B6> --category <\u7C7B\u522B>\uFF0C\u518D\u7528 tenon resources show <id> \u770B\u8BB8\u53EF\u4E0E\u5B89\u88C5\u547D\u4EE4\uFF1B\u53EA\u7528\u76EE\u5F55\u5185\u6761\u76EE\uFF0C\u4E0D\u53EF\u518D\u5206\u53D1\u7684\u6761\u76EE\u53EA\u6309\u5B89\u88C5\u547D\u4EE4\u5F15\u7528\u3002\n        skills:\n          - id: openspec-propose\n          - id: writing-plans\n        guards:\n          - type: required-output\n            path: openspec/changes/{change}/specs/*/spec.md\n          - type: required-output\n            path: docs/superpowers/plans/*.md\n          - type: tasks-at-least\n            n: 3\n          - type: tasks-through-step\n        test: plan\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        skills:\n          - id: test-driven-development\n          - id: frontend-design\n        agents:\n          executors:\n            - agent: builder\n        guards: []\n        test: changed\n        transitions:\n          - event: build-complete\n            to: verify\n            guards:\n              - type: field-equals\n                field: pre_verify_review_result\n                value: pass\n              - type: tasks-through-step\n              - type: not-afk-queued\n              - type: dependencies-ended\n            actions:\n              - type: freeze-build-sha\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        max_rounds: 2\n        skills:\n          - id: browser-qa\n          - id: web-design-guidelines\n          - id: design-taste-frontend\n          - id: verification-before-completion\n          - id: e2e-testing\n        tests:\n          - id: code-size\n            direction: code-size\n            command: tenon test code-size --json\n            label: \u4EE3\u7801\u89C4\u6A21\n            timeout_s: 120\n            required: true\n        agents:\n          reviewers:\n            - agent: spec-consistency\n              required: true\n              block_at: medium\n            - agent: frontend-quality\n              required: true\n              block_at: medium\n            - agent: security\n              required: true\n              block_at: medium\n            - agent: e2e\n              required: true\n              block_at: medium\n            - agent: architecture\n              required: false\n              block_at: high\n              depends_on: [spec-consistency, frontend-quality, security, e2e]\n            - agent: code-size\n              required: true\n              block_at: medium\n              reads_tests: [code-size]\n        guards: []\n        test: full\n        transitions:\n          - event: verify-pass\n            to: ship\n            guards:\n              - type: required-output\n                path: docs/superpowers/reports/{change}-verify.md\n              - type: build-head-unchanged\n                field: build_sha\n              - type: tasks-through-step\n            actions:\n              - type: mark-verification-passed\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        prompt: |-\n          \u5B58\u5728 openspec/changes/<change>/design-system.md \u65F6\uFF1A\u52A0\u8F7D hue\uFF0C\u5148\u6539 design/design-model.yaml\uFF0C\u518D\u53EA\u91CD\u65B0\u751F\u6210 DESIGN.md \u53D7\u5F71\u54CD\u7AE0\u8282\u4E0E\u9884\u89C8\uFF0C\u8DD1 tenon design validate \u5230\u901A\u8FC7\u3002\n        skills:\n          - id: finishing-a-development-branch\n        tests:\n          - id: design-system\n            direction: design-system\n            command: tenon design validate\n            label: \u8BBE\u8BA1\u4F53\u7CFB\n            timeout_s: 300\n            required: true\n        guards:\n          - type: field-nonempty\n            field: pr_url\n          - type: spec-migration-applied\n          - type: tasks-through-step\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        guards:\n          - type: tasks-through-step\n        transitions: []\n  backend:\n    label: \u540E\u7AEF\n    route:\n      keywords: [\u540E\u7AEF, backend, API, \u63A5\u53E3, \u6570\u636E\u5E93, Golang, Python, Java, Rust, NestJS, Postgres, endpoint, service, \u5FAE\u670D\u52A1, REST, GraphQL, gRPC, migration, server, controller, schema]\n      priority: 200\n      fallback: true\n    automation:\n      eligible: true\n      enqueue_after_spec: false\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: openspec-propose\n        guards:\n          - type: required-output\n            path: openspec/changes/{change}/proposal.md\n          - type: tasks-through-step\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: openspec-explore\n          - id: brainstorming\n          - id: grilling\n          - id: domain-modeling\n          - id: codebase-design\n        agents:\n          executors:\n            - agent: researcher\n        guards:\n          - type: required-output\n            path: docs/superpowers/specs/*.md\n          - type: tasks-through-step\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        skills:\n          - id: openspec-propose\n          - id: writing-plans\n        guards:\n          - type: required-output\n            path: openspec/changes/{change}/specs/*/spec.md\n          - type: required-output\n            path: docs/superpowers/plans/*.md\n          - type: tasks-at-least\n            n: 3\n          - type: tasks-through-step\n        test: plan\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        skills:\n          - id: test-driven-development\n        agents:\n          executors:\n            - agent: builder\n        guards: []\n        test: changed\n        transitions:\n          - event: build-complete\n            to: verify\n            guards:\n              - type: field-equals\n                field: pre_verify_review_result\n                value: pass\n              - type: tasks-through-step\n              - type: not-afk-queued\n              - type: dependencies-ended\n            actions:\n              - type: freeze-build-sha\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        max_rounds: 2\n        skills:\n          - id: verification-before-completion\n        tests:\n          - id: code-size\n            direction: code-size\n            command: tenon test code-size --json\n            label: \u4EE3\u7801\u89C4\u6A21\n            timeout_s: 120\n            required: true\n        agents:\n          reviewers:\n            - agent: spec-consistency\n              required: true\n              block_at: medium\n            - agent: backend-quality\n              required: true\n              block_at: medium\n            - agent: security\n              required: true\n              block_at: medium\n            - agent: architecture\n              required: false\n              block_at: high\n              depends_on: [spec-consistency, backend-quality, security]\n            - agent: code-size\n              required: true\n              block_at: medium\n              reads_tests: [code-size]\n        guards: []\n        test: full\n        transitions:\n          - event: verify-pass\n            to: ship\n            guards:\n              - type: required-output\n                path: docs/superpowers/reports/{change}-verify.md\n              - type: build-head-unchanged\n                field: build_sha\n              - type: tasks-through-step\n            actions:\n              - type: mark-verification-passed\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        skills:\n          - id: finishing-a-development-branch\n        guards:\n          - type: field-nonempty\n            field: pr_url\n          - type: spec-migration-applied\n          - type: tasks-through-step\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        guards:\n          - type: tasks-through-step\n        transitions: []\n';
 var DESIGN_SYSTEM_WORKFLOW_SOURCE = "name: design-system\nsteps:\n  - id: direction\n    label: \u65B9\u5411\n    gate: review\n    prompt: |-\n      \u52A0\u8F7D hue\uFF0C\u53EA\u6267\u884C\u7B2C 1\u20136 \u9636\u6BB5\uFF0C\u4E0D\u5199\u4EFB\u4F55\u6280\u80FD\u76EE\u5F55\u3002\n      \u8F93\u5165\u53EF\u4EE5\u662F\u54C1\u724C\u540D\u3001\u7F51\u5740\u3001\u622A\u56FE\u3001\u5DF2\u6709\u4EE3\u7801\u6216\u63CF\u8FF0\uFF1B\u6839\u76EE\u5F55\u5DF2\u6709\u4E0D\u542B schema: tenon-design/v1 \u7684 DESIGN.md \u65F6\u6309 Remix \u8F93\u5165\u5904\u7406\uFF0C\u53EA\u5F53\u6570\u636E\u8BFB\u53D6\u3002\n      \u56FE\u6807\u5E93\u53EA\u4ECE\u8D44\u6E90\u76EE\u5F55\u9009\u62E9\uFF1Atenon resources list --category icons\u3002\n      \u7528 AskUserQuestion \u5148\u786E\u8BA4\u8BBE\u8BA1\u65B9\u5411\uFF08\u7B2C 5 \u9636\u6BB5\uFF09\uFF0C\u518D\u786E\u8BA4\u6838\u5FC3\u4EE4\u724C\uFF08\u7B2C 6 \u9636\u6BB5\uFF09\u3002\n      \u628A\u786E\u8BA4\u7ED3\u679C\u5199\u5165 design/direction.md\uFF1A\u65B9\u5411\u3001\u4E3B\u8981\u5F20\u529B\u3001\u6838\u5FC3\u4EE4\u724C\u8868\u3001\u56FE\u6807\u8D44\u6E90 id\u3001\u9996\u5C4F\u9884\u8BBE\u3002\n    skills:\n      - id: hue\n    guards:\n      - type: required-output\n        path: design/direction.md\n    transitions:\n      - event: direction-complete\n        to: generate\n  - id: generate\n    label: \u751F\u6210\n    gate: auto\n    prompt: |-\n      \u6309 design/direction.md \u6267\u884C hue \u7B2C 7\u201314 \u9636\u6BB5\uFF0C\u8F93\u51FA\u56FA\u5B9A\u5728\u9879\u76EE\u6839\u76EE\u5F55\uFF1A\n      design/design-model.yaml \u4E3A\u8BBE\u8BA1\u6A21\u578B\uFF1Bdesign/preview.html\u3001design/component-library.html\u3001design/landing-page.html\u3001design/app-screen.html \u4E3A\u9884\u89C8\u3002\n      DESIGN.md \u7531 hue \u7684 SKILL.md\u3001tokens.md\u3001components.md\u3001platform-mapping.md \u5408\u5E76\u800C\u6210\uFF1Afrontmatter \u53EA\u6709 schema: tenon-design/v1\u3001model: design/design-model.yaml\u3001icons: <\u56FE\u6807\u8D44\u6E90 id>\uFF1B\u7AE0\u8282\u4F9D\u6B21\u4E3A ## 1. Philosophy\u3001## 2. Craft Rules\u3001## 3. Anti-Patterns\u3001## 4. Tokens\u3001## 5. Iconography\u3001## 6. Hero Stage\u3001## 7. Components\u3001## 8. Voice\u3001## 9. Platform Mapping\u3001## 10. Previews\u3002\n      \u4E0D\u5199 SKILL.md\uFF0C\u4E0D\u5199 ~/.claude/skills \u6216 ~/.agents/skills\uFF0C\u8DF3\u8FC7\u7B2C 16 \u9636\u6BB5\u3002\n      \u8FD0\u884C tenon design validate \u76F4\u5230\u901A\u8FC7\u3002\n    skills:\n      - id: hue\n    guards:\n      - type: required-output\n        path: DESIGN.md\n    transitions:\n      - event: generate-complete\n        to: review\n  - id: review\n    label: \u9884\u89C8\n    gate: review\n    prompt: |-\n      \u6253\u5F00 design/ \u4E0B\u56DB\u4E2A\u9884\u89C8\u9875\uFF0C\u6D45\u8272\u4E0E\u6DF1\u8272\u90FD\u68C0\u67E5\uFF1BCodex \u6CA1\u6709\u6D4F\u89C8\u5668\u65F6\u628A\u56DB\u4E2A\u7EDD\u5BF9\u8DEF\u5F84\u4EA4\u7ED9\u7528\u6237\u3002\n      \u9700\u8981\u8C03\u6574\u65F6\u53D1\u9001 review-changes \u56DE\u5230\u751F\u6210\uFF1A\u5148\u6539 design/design-model.yaml\uFF0C\u518D\u53EA\u91CD\u65B0\u751F\u6210\u53D7\u5F71\u54CD\u7684\u6587\u4EF6\u3002\n    skills: []\n    guards: []\n    transitions:\n      - event: review-changes\n        to: generate\n";
 var DEFAULT_WORKFLOW_STEPS = [
   { id: "open", label: "\u7ACB\u9879" },
@@ -7511,8 +7511,8 @@ function cadenceMinutes(cadence) {
 function budgetWarnThreshold(maxRuns) {
   return Math.ceil(maxRuns * 4 / 5);
 }
-function enforcementFor(level) {
-  return level === "L1" ? "report-only" : level === "L2" ? "assisted" : "unattended";
+function enforcementFor(level2) {
+  return level2 === "L1" ? "report-only" : level2 === "L2" ? "assisted" : "unattended";
 }
 
 // packages/kernel/dist/loops/budget.js
@@ -8701,7 +8701,7 @@ function evaluateCoverage(input2, failures, warnings) {
     return;
   const content = designDoc !== "" && designDoc !== "null" ? ctx.readFile(designDoc) : void 0;
   const lines2 = coverageBlockLines(content);
-  const touches = coverageTouches(lines2);
+  const touches2 = coverageTouches(lines2);
   const applicability = COVERAGE_PROFILE_APPLICABILITY[ctx.coverageProfile];
   const blockedLines = [];
   let lockViolations = 0;
@@ -8711,7 +8711,7 @@ function evaluateCoverage(input2, failures, warnings) {
       continue;
     const status2 = coverageBlockStatus(lines2, layer);
     const concern = COVERAGE_LOCK_CONCERN[layer];
-    const locked = concern !== void 0 && touches.includes(concern);
+    const locked = concern !== void 0 && touches2.includes(concern);
     if (locked) {
       if (status2 !== "filled") {
         blockedLines.push(`${layer} ${app} ${status2} BLOCKED LOCKVIOLATION`);
@@ -9959,27 +9959,30 @@ async function hasGitDirectory(root) {
     return false;
   }
 }
-async function hostLocalTracking(root) {
-  const caseInsensitive = await isCaseInsensitiveRoot(root);
+async function lsCachedFiles(root, pathspecs, icasePathspecs = false) {
   const gitDir = await hasGitDirectory(root) ? [`--git-dir=${join18(root, ".git")}`] : [];
   const args = [
     ...gitDir,
-    ...caseInsensitive ? ["--icase-pathspecs"] : [],
+    ...icasePathspecs ? ["--icase-pathspecs"] : [],
     "ls-files",
     "-z",
     "--cached",
     "--",
-    ...HOST_LOCAL_FILES,
-    ...HOST_LOCAL_DIRS
+    ...pathspecs
   ];
+  const { stdout } = await runGit("git", args, {
+    cwd: root,
+    timeout: GIT_TIMEOUT_MS,
+    maxBuffer: GIT_MAX_BUFFER,
+    env: gitEnvironment()
+  });
+  return stdout.split("\0").filter((path14) => path14 !== "");
+}
+async function hostLocalTracking(root) {
+  const caseInsensitive = await isCaseInsensitiveRoot(root);
   try {
-    const { stdout } = await runGit("git", args, {
-      cwd: root,
-      timeout: GIT_TIMEOUT_MS,
-      maxBuffer: GIT_MAX_BUFFER,
-      env: gitEnvironment()
-    });
-    return { tracked: new Set(stdout.split("\0").filter((path14) => path14 !== "")), caseInsensitive };
+    const tracked = await lsCachedFiles(root, [...HOST_LOCAL_FILES, ...HOST_LOCAL_DIRS], caseInsensitive);
+    return { tracked: new Set(tracked), caseInsensitive };
   } catch (error2) {
     const stderr = typeof error2 === "object" && error2 !== null ? Reflect.get(error2, "stderr") : void 0;
     const noRepository = typeof stderr === "string" && NO_REPOSITORY_MESSAGE.test(stderr) && !await hasGitEntry(root);
@@ -10008,6 +10011,55 @@ function skipUntrackedHostLocal(tracked, caseInsensitive = false) {
 var PROCESS_LOCAL_FD_PATH = /^\/(?:proc\/(?:self|[0-9]+)|dev)\/fd\/[0-9]+(?:\/|$)/u;
 function isProcessLocalFdPath(path14) {
   return PROCESS_LOCAL_FD_PATH.test(path14);
+}
+
+// packages/kernel/dist/workspace/test-evidence-files.js
+import { extname } from "node:path";
+var TEST_OUTPUT_DIR_SEGMENTS = ["test-results", "playwright-report", "coverage"];
+var EVIDENCE_EXTENSIONS = /* @__PURE__ */ new Set([
+  "log",
+  "txt",
+  "xml",
+  "md",
+  "csv",
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+  "webm",
+  "mp4",
+  "lcov",
+  "info"
+]);
+function evidenceScopeActive(scope) {
+  return scope?.tracked !== void 0;
+}
+function trackedKey(path14) {
+  return foldAsciiCase(path14.normalize("NFC"));
+}
+async function trackedUnder(root, dir) {
+  try {
+    const paths = await lsCachedFiles(root, [`:(literal,icase)${dir}`]);
+    return new Set(paths.map(trackedKey));
+  } catch {
+    return void 0;
+  }
+}
+async function enterEvidenceScope(root, relativePath, current) {
+  if (current !== void 0)
+    return current;
+  const name = relativePath.split("/").at(-1) ?? "";
+  if (!TEST_OUTPUT_DIR_SEGMENTS.includes(name))
+    return void 0;
+  return { tracked: await trackedUnder(root, relativePath) };
+}
+function isUntrackedEvidence(relativePath, scope) {
+  if (scope?.tracked === void 0)
+    return false;
+  if (!EVIDENCE_EXTENSIONS.has(extname(relativePath).slice(1).toLowerCase()))
+    return false;
+  return !scope.tracked.has(trackedKey(relativePath));
 }
 
 // packages/kernel/dist/state/markers.js
@@ -10122,7 +10174,6 @@ var EXCLUDED_ANY_SEGMENT = /* @__PURE__ */ new Set([
   ".pytest_cache",
   "__pycache__"
 ]);
-var TEST_OUTPUT_DIR_SEGMENTS = ["test-results", "playwright-report", "coverage"];
 var METRIC_EXCLUDED_ANY_SEGMENT = /* @__PURE__ */ new Set([
   ...EXCLUDED_ANY_SEGMENT,
   ...TEST_OUTPUT_DIR_SEGMENTS,
@@ -10194,14 +10245,21 @@ async function holdsOnlyExcluded(root, relativePath, exclusions, skip) {
     const child = `${relativePath}/${name}`;
     if (isExcludedFor(child, exclusions, skip))
       continue;
-    if (!exclusions.ancestors.has(child))
+    const info = await lstat11(join20(root, ...child.split("/")));
+    if (info.isFile() && isUntrackedEvidence(child, exclusions.evidence))
+      continue;
+    if (!info.isDirectory())
       return false;
-    if (!(await lstat11(join20(root, ...child.split("/")))).isDirectory())
+    if (!exclusions.ancestors.has(child) && !evidenceScopeActive(exclusions.evidence))
       return false;
     if (!await holdsOnlyExcluded(root, child, exclusions, skip))
       return false;
   }
   return true;
+}
+async function enterDirectory(root, relativePath, exclusions) {
+  const evidence = await enterEvidenceScope(root, relativePath, exclusions.evidence);
+  return evidence === exclusions.evidence ? exclusions : { ...exclusions, evidence };
 }
 function portableModeOf(kind, mode) {
   if (kind === "F")
@@ -10263,11 +10321,12 @@ async function fingerprintEntry(root, relativePath, sinks, exclusions, streams) 
   const before = await lstat11(absolutePath2);
   if (before.isDirectory()) {
     const names = sortNames(await readdir(absolutePath2));
+    const inside3 = await enterDirectory(root, relativePath, exclusions);
     const keep = [];
     for (const sink of live) {
-      if (isExcludedHostConfigShell(relativePath, names, exclusions, sink.skip))
+      if (isExcludedHostConfigShell(relativePath, names, inside3, sink.skip))
         continue;
-      if (exclusions.ancestors.has(relativePath) && await holdsOnlyExcluded(root, relativePath, exclusions, sink.skip))
+      if ((inside3.ancestors.has(relativePath) || evidenceScopeActive(inside3.evidence)) && await holdsOnlyExcluded(root, relativePath, inside3, sink.skip))
         continue;
       keep.push(sink);
     }
@@ -10275,10 +10334,12 @@ async function fingerprintEntry(root, relativePath, sinks, exclusions, streams) 
       return;
     emit(streams, keep, (sink) => recordText("D", relativePath, recordedMode(sink, "D", before)));
     for (const name of names)
-      await fingerprintEntry(root, `${relativePath}/${name}`, keep, exclusions, streams);
+      await fingerprintEntry(root, `${relativePath}/${name}`, keep, inside3, streams);
     return;
   }
   if (before.isFile()) {
+    if (isUntrackedEvidence(relativePath, exclusions.evidence))
+      return;
     const content = await readFile10(absolutePath2);
     emit(streams, live, (sink) => recordText("F", relativePath, `${recordedMode(sink, "F", before)}:${before.size}`));
     streams.update(content, live.length === 2 ? "both" : live[0]?.id ?? "both");
@@ -10560,6 +10621,43 @@ function compileStepTests(raw, path14) {
   return tests.length === 0 ? void 0 : tests;
 }
 
+// packages/kernel/dist/test-system/test-paths.js
+var TEST_CONTROL_DIRS = ["openspec", ".tenon", ".pipeline"];
+var TEST_SOURCE_EXTENSIONS = [
+  "js",
+  "jsx",
+  "ts",
+  "tsx",
+  "mjs",
+  "cjs",
+  "mts",
+  "cts",
+  "py",
+  "go",
+  "rs",
+  "java",
+  "kt",
+  "rb",
+  "php",
+  "cs",
+  "swift",
+  "scala",
+  "vue",
+  "svelte"
+];
+var CONTROL_DIRS = new Set(TEST_CONTROL_DIRS);
+var SOURCE_EXTENSIONS = new Set(TEST_SOURCE_EXTENSIONS);
+function withoutControlPaths(paths) {
+  return paths.filter((path14) => !CONTROL_DIRS.has(path14.split("/", 1)[0] ?? ""));
+}
+function hasTestSourceExtension(path14) {
+  const base = path14.slice(path14.lastIndexOf("/") + 1);
+  const dot = base.lastIndexOf(".");
+  if (dot <= 0)
+    return false;
+  return SOURCE_EXTENSIONS.has(base.slice(dot + 1).toLowerCase());
+}
+
 // packages/kernel/dist/test-system/vocabulary.js
 var NODE_TEST_REPORTER_ENV = "TENON_NODE_TEST_REPORTER";
 var TEST_KINDS = [
@@ -10579,8 +10677,33 @@ var TEST_KINDS = [
   "smoke",
   "code-size",
   "design-system",
+  "static",
   "custom"
 ];
+var TEST_CLASSES = ["unit", "integration", "e2e", "static", "benchmark", "custom"];
+var CLASS_OF_KIND = {
+  unit: "unit",
+  coverage: "unit",
+  integration: "integration",
+  regression: "integration",
+  contract: "integration",
+  smoke: "integration",
+  e2e: "e2e",
+  playwright: "e2e",
+  browser: "e2e",
+  a11y: "e2e",
+  visual: "e2e",
+  typecheck: "static",
+  lint: "static",
+  "code-size": "static",
+  "design-system": "static",
+  static: "static",
+  benchmark: "benchmark",
+  custom: "custom"
+};
+function testClassOf(kind) {
+  return CLASS_OF_KIND[kind];
+}
 var TEST_RUNNERS = [
   "vitest",
   "jest",
@@ -10623,7 +10746,7 @@ var ENV_NAME_RE2 = /^[A-Za-z_][A-Za-z0-9_]{0,127}$/;
 var TAG_RE = /^[a-z0-9][a-z0-9_-]{0,31}$/;
 var BROWSER_PROJECT_RE = /^[A-Za-z0-9][A-Za-z0-9 _.-]{0,63}$/;
 var METRIC_NAME_RE2 = /^[A-Za-z0-9_.-]{1,128}$/;
-var EXIT_CODE_KINDS = /* @__PURE__ */ new Set(["typecheck", "lint", "code-size", "custom"]);
+var EXIT_CODE_KINDS = /* @__PURE__ */ new Set(["typecheck", "lint", "code-size", "static", "custom"]);
 var BENCHMARK_FORMATS = /* @__PURE__ */ new Set(["benchmark-json", "k6-summary", "lighthouse-json"]);
 var CASE_FORMATS = /* @__PURE__ */ new Set([
   "junit",
@@ -10658,14 +10781,15 @@ var RUNNER_KINDS = {
   hyperfine: ["benchmark"],
   k6: ["benchmark"],
   lighthouse: ["benchmark", "a11y"],
-  tsc: ["typecheck", "custom"],
-  eslint: ["lint", "a11y", "custom"]
+  tsc: ["typecheck", "static", "custom"],
+  eslint: ["lint", "static", "a11y", "custom"]
 };
 function member(values) {
   const set = new Set(values);
   return (value) => typeof value === "string" && set.has(value);
 }
 var isTestKind = member(TEST_KINDS);
+var isTestClass = member(TEST_CLASSES);
 var isTestRunner = member(TEST_RUNNERS);
 var isReportFormat = member(REPORT_FORMATS);
 var isCoverageFormat = member(COVERAGE_FORMATS);
@@ -10717,10 +10841,24 @@ var TEST_FILE_LIKE_PATTERNS = [
   /(?:^|\/)e2e\//
 ];
 function looksLikeTestFile(path14) {
-  return TEST_FILE_LIKE_PATTERNS.some((pattern) => pattern.test(path14));
+  return hasTestSourceExtension(path14) && TEST_FILE_LIKE_PATTERNS.some((pattern) => pattern.test(path14));
 }
 function kindForDirection(direction) {
   return isTestKind(direction) ? direction : "custom";
+}
+
+// packages/kernel/dist/workflow/test-level.js
+var TEST_LEVELS = ["none", "plan", "changed", "full"];
+var LEVELS2 = new Set(TEST_LEVELS);
+function isTestLevel(value) {
+  return typeof value === "string" && LEVELS2.has(value);
+}
+function stepDeclaresTests(step) {
+  if (step.test !== void 0 && step.test !== "none")
+    return true;
+  if (step.test_policy !== void 0)
+    return true;
+  return step.tests !== void 0 && step.tests.length > 0;
 }
 
 // packages/kernel/dist/workflow/compile-test-policy.js
@@ -10832,6 +10970,16 @@ function browsers(value, path14) {
     out.push(item2);
   }
   return out;
+}
+function compileStepTestLevel(raw, policy2, path14, stepId) {
+  if (raw === void 0)
+    return void 0;
+  if (!isTestLevel(raw)) {
+    compileError5(path14, `step '${stepId}' \u7684 test \u53EA\u652F\u6301 ${TEST_LEVELS.join(" | ")}\uFF08\u5B9E\u9645 ${JSON.stringify(raw)}\uFF09`);
+  }
+  if (policy2 !== void 0)
+    compileError5(path14, `step '${stepId}' \u7684 test \u4E0E test_policy \u53EA\u80FD\u5199\u4E00\u4E2A`);
+  return raw;
 }
 function compileStepTestPolicy(raw, path14) {
   if (raw === void 0)
@@ -11252,6 +11400,7 @@ var STEP_KEYS = /* @__PURE__ */ new Set([
   "artifacts",
   "tests",
   "test_policy",
+  "test",
   "agents",
   "guards",
   "transitions"
@@ -11373,6 +11522,7 @@ function compileStep(step, index, allowedPolicies, pathPrefix = "steps") {
   const artifacts = compileArtifacts(rec.artifacts, `${path14}.artifacts`, outputs2, `${path14}.outputs`, allowedPolicies);
   const tests = compileStepTests(rec.tests, `${path14}.tests`);
   const testPolicy = compileStepTestPolicy(rec.test_policy, `${path14}.test_policy`);
+  const testLevel = compileStepTestLevel(rec.test, rec.test_policy, `${path14}.test`, id2);
   const agents = compileStepAgents(rec.agents, `${path14}.agents`);
   const transitions = asArray5(rec.transitions, `${path14}.transitions`).map((t, j) => compileTransition(t, `${path14}.transitions[${j}]`, outputs2, id2));
   const transitionEvents = /* @__PURE__ */ new Set();
@@ -11395,6 +11545,7 @@ function compileStep(step, index, allowedPolicies, pathPrefix = "steps") {
     artifacts,
     ...tests === void 0 ? {} : { tests },
     ...testPolicy === void 0 ? {} : { test_policy: testPolicy },
+    ...testLevel === void 0 ? {} : { test: testLevel },
     ...agents === void 0 ? {} : { agents },
     transitions
   };
@@ -12485,6 +12636,19 @@ function parseNestedBlock(cur, keyIndent, where) {
   }
   return out;
 }
+function parseStepTestLevel(raw, stepId) {
+  if (!isTestLevel(raw))
+    fail3(`step '${stepId}' \u7684 test \u53EA\u652F\u6301 ${TEST_LEVELS.join(" | ")}\uFF08\u5B9E\u9645 '${raw}'\uFF09`);
+  return raw;
+}
+function stepTestLevelLine(line, stepId, previous) {
+  const match = /^\s*test:\s*(.*?)\s*$/.exec(line);
+  if (match === null)
+    return void 0;
+  if (previous !== void 0)
+    throw new Error(`workflow \u89E3\u6790\u9519\u8BEF\uFF1Astep '${stepId}' \u91CD\u590D\u58F0\u660E test`);
+  return parseStepTestLevel(match[1] ?? "", stepId);
+}
 function parseInlineTestPolicy(raw, stepId) {
   const where = `step '${stepId}' \u7684 test_policy`;
   const policy2 = {};
@@ -12925,6 +13089,7 @@ function parseStep(cur) {
   let artifacts;
   let tests;
   let testPolicy;
+  let testLevel;
   let agents;
   let guards = [];
   let transitions = [];
@@ -13030,6 +13195,12 @@ function parseStep(cur) {
       testPolicy = (policyLine[1] ?? "") === "" ? parseStepTestPolicy(cur, keyIndent, id2) : parseInlineTestPolicy(policyLine[1] ?? "", id2);
       continue;
     }
+    const level2 = stepTestLevelLine(line, id2, testLevel);
+    if (level2 !== void 0) {
+      testLevel = level2;
+      cur.i++;
+      continue;
+    }
     if (/^\s*agents:\s*$/.test(line)) {
       if (agents !== void 0)
         throw new Error(`workflow \u89E3\u6790\u9519\u8BEF\uFF1Astep '${id2}' \u91CD\u590D\u58F0\u660E agents`);
@@ -13073,6 +13244,7 @@ function parseStep(cur) {
     ...artifacts !== void 0 ? { artifacts } : {},
     ...tests !== void 0 ? { tests } : {},
     ...testPolicy !== void 0 ? { test_policy: testPolicy } : {},
+    ...testLevel !== void 0 ? { test: testLevel } : {},
     ...agents !== void 0 ? { agents } : {}
   };
 }
@@ -17172,8 +17344,8 @@ function renderLayoutInstruction(instruction, catalog2, locale, variables) {
   }
   const heading = /^h([1-4])(-pending)?$/u.exec(operation);
   if (heading) {
-    const level = Number(heading[1]);
-    return [`${"#".repeat(level)} ${value}${heading[2] ? `: ${pending}` : ""}`];
+    const level2 = Number(heading[1]);
+    return [`${"#".repeat(level2)} ${value}${heading[2] ? `: ${pending}` : ""}`];
   }
   if (operation === "quote")
     return [`> ${value}`];
@@ -20732,14 +20904,14 @@ function parseInstructionBlock(text13, expected) {
   };
 }
 function checkBody(lines2, start, category, known, errors) {
-  const level = categoryHeadingLevel(category);
+  const level2 = categoryHeadingLevel(category);
   const first = lines2.findIndex((text13, index) => index >= start && text13.trim() !== "");
   if (first < 0) {
     errors.push({ code: "heading", detail: "\u6B63\u6587\u4E3A\u7A7A" });
     return "";
   }
-  if (!(lines2[first] ?? "").startsWith(`${"#".repeat(level)} `)) {
-    errors.push({ code: "heading", line: first + 1, detail: `\u6B63\u6587\u7B2C\u4E00\u884C\u5FC5\u987B\u662F ${"#".repeat(level)} \u6807\u9898` });
+  if (!(lines2[first] ?? "").startsWith(`${"#".repeat(level2)} `)) {
+    errors.push({ code: "heading", line: first + 1, detail: `\u6B63\u6587\u7B2C\u4E00\u884C\u5FC5\u987B\u662F ${"#".repeat(level2)} \u6807\u9898` });
   }
   let fenced = false;
   for (let index = first; index < lines2.length; index += 1) {
@@ -22622,11 +22794,12 @@ var TEST_NOTICE_CODES = [
   "files-unchecked",
   "files-truncated",
   "test-integrity",
-  "test-waived"
+  "test-waived",
+  "suites-without-covers"
 ];
 var TEST_BLOCKER_LABELS = {
   "test-catalog-missing": { zh: "\u76EE\u5F55\u7F3A\u5931", en: "No test catalog" },
-  "test-plan-missing": { zh: "\u672A\u767B\u8BB0\u8BA1\u5212", en: "No test plan" },
+  "test-plan-missing": { zh: "\u6CA1\u6709\u8BA1\u5212", en: "No test plan" },
   "test-plan-tampered": { zh: "\u8BA1\u5212\u88AB\u6539\u52A8", en: "Plan tampered" },
   "test-kind-missing": { zh: "\u7F3A\u6D4B\u8BD5\u79CD\u7C7B", en: "Kind missing" },
   "test-file-unregistered": { zh: "\u6587\u4EF6\u672A\u767B\u8BB0", en: "Unregistered file" },
@@ -22639,7 +22812,7 @@ var TEST_BLOCKER_LABELS = {
   "report-missing": { zh: "\u7F3A\u62A5\u544A", en: "No report" },
   "report-unreadable": { zh: "\u62A5\u544A\u65E0\u6CD5\u89E3\u6790", en: "Unreadable report" },
   "exit-report-mismatch": { zh: "\u9000\u51FA\u7801\u4E0E\u62A5\u544A\u4E0D\u7B26", en: "Exit/report mismatch" },
-  "registered-test-not-executed": { zh: "\u767B\u8BB0\u7528\u4F8B\u672A\u6267\u884C", en: "Registered test not run" },
+  "registered-test-not-executed": { zh: "\u6587\u4EF6\u672A\u6267\u884C", en: "Test file not run" },
   "coverage-below": { zh: "\u8986\u76D6\u7387\u4E0D\u8DB3", en: "Coverage below" },
   "benchmark-regression": { zh: "\u57FA\u51C6\u9000\u5316", en: "Benchmark regression" },
   "baseline-missing": { zh: "\u7F3A\u57FA\u7EBF", en: "No baseline" },
@@ -22665,7 +22838,8 @@ var TEST_NOTICE_LABELS = {
   "files-unchecked": { zh: "\u672A\u68C0\u67E5\u6587\u4EF6", en: "Files unchecked" },
   "files-truncated": { zh: "\u6587\u4EF6\u68C0\u67E5\u88AB\u622A\u65AD", en: "File check truncated" },
   "test-integrity": { zh: "\u5B8C\u6574\u6027\u63D0\u793A", en: "Integrity notice" },
-  "test-waived": { zh: "\u5931\u8D25\u5DF2\u8C41\u514D", en: "Failure waived" }
+  "test-waived": { zh: "\u5931\u8D25\u5DF2\u8C41\u514D", en: "Failure waived" },
+  "suites-without-covers": { zh: "\u5957\u4EF6\u6CA1\u5199 covers", en: "Suites without covers" }
 };
 function testBlocker(code, message, options3 = {}) {
   return {
@@ -22689,6 +22863,81 @@ function renderTestBlocker(blocker3) {
 }
 function shellQuote(value) {
   return /^[A-Za-z0-9_./:@%+=-]+$/.test(value) ? value : `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+// packages/kernel/dist/test-system/covers.js
+var CASE_REF_SEPARATOR = " \u203A ";
+var CAPABILITY_RE = /^[a-z0-9][a-z0-9._-]{0,127}$/;
+var TASK_ID_RE = /^\d+(?:\.\d+)*$/;
+function parseCovers(value) {
+  if (/[\r\n]/.test(value))
+    return void 0;
+  if (value.startsWith("spec:")) {
+    const body2 = value.slice("spec:".length);
+    const slash = body2.indexOf("/");
+    if (slash <= 0)
+      return void 0;
+    const capability = body2.slice(0, slash);
+    const title = body2.slice(slash + 1).trim();
+    if (!CAPABILITY_RE.test(capability) || title === "" || title !== body2.slice(slash + 1))
+      return void 0;
+    return { kind: "spec", capability, title };
+  }
+  if (value.startsWith("task:")) {
+    const id2 = value.slice("task:".length);
+    return TASK_ID_RE.test(id2) ? { kind: "task", id: id2 } : void 0;
+  }
+  return void 0;
+}
+function scenarioCoversKey(capability, title) {
+  return `spec:${capability}/${title}`;
+}
+function taskCoversKey(id2) {
+  return `task:${id2}`;
+}
+function parseCaseRef(value) {
+  if (value.trim() === "" || /[\r\n]/.test(value))
+    return void 0;
+  const parts = value.split(CASE_REF_SEPARATOR).map((part) => part.trim());
+  const file = parts[0] ?? "";
+  if (file === "" || file.startsWith("/") || file.split("/").includes("..") || parts.slice(1).some((part) => part === "")) {
+    return void 0;
+  }
+  return { file, title: parts.slice(1) };
+}
+function fileRefMatches(ref, path14) {
+  return path14 === ref || path14.endsWith(`/${ref}`);
+}
+var UNKNOWN_CASE_FILE = "(unknown)";
+function isUnknownCaseFile(file) {
+  return file === UNKNOWN_CASE_FILE;
+}
+function caseTitleMatchesRef(ref, identity) {
+  if (ref.title.length === 0)
+    return false;
+  const full = [...identity.suite_path, identity.name];
+  if (ref.title.length > full.length)
+    return false;
+  const tail = full.slice(full.length - ref.title.length);
+  return tail.every((segment, index) => segment === ref.title[index]);
+}
+function caseMatchesRef(ref, identity) {
+  if (!fileRefMatches(ref.file, identity.file))
+    return false;
+  return ref.title.length === 0 || caseTitleMatchesRef(ref, identity);
+}
+function casesMatchingRef(ref, cases) {
+  const direct = cases.filter((item2) => caseMatchesRef(ref, item2));
+  if (direct.length > 0)
+    return direct;
+  if (ref.title.length === 0)
+    return [];
+  const named = cases.filter((item2) => caseTitleMatchesRef(ref, item2));
+  const only = named.length === 1 ? named[0] : void 0;
+  return only !== void 0 && isUnknownCaseFile(only.file) ? [only] : [];
+}
+function formatCaseRef(identity) {
+  return [identity.file, ...identity.suite_path, identity.name].join(CASE_REF_SEPARATOR);
 }
 
 // packages/kernel/dist/test-system/catalog-types.js
@@ -23314,6 +23563,172 @@ function canonicalJson(value) {
   return JSON.stringify(value) ?? "null";
 }
 
+// packages/kernel/dist/test-system/levels.js
+var LEVEL_NAMES = ["plan", "changed", "full"];
+function level(name, required3, touched) {
+  return Object.freeze({
+    name,
+    required: Object.freeze([...required3]),
+    touched: Object.freeze([...touched]),
+    scenarios: "off",
+    require_baseline: false,
+    source: "default"
+  });
+}
+var DEFAULT_LEVELS = Object.freeze({
+  plan: level("plan", ["unit"], []),
+  changed: level("changed", ["unit"], ["static"]),
+  full: level("full", ["unit"], ["integration", "e2e", "static", "benchmark"])
+});
+function resolveLevel(name, catalog2) {
+  const base = DEFAULT_LEVELS[name];
+  const declared = catalog2?.levels?.[name];
+  if (declared === void 0 || Object.keys(declared).length === 0)
+    return base;
+  const coverage3 = declared.coverage ?? base.coverage;
+  const flaky2 = declared.flaky ?? base.flaky;
+  return {
+    name,
+    required: declared.required ?? base.required,
+    touched: name === "plan" ? [] : declared.touched ?? base.touched,
+    scenarios: declared.scenarios ?? base.scenarios,
+    ...coverage3 === void 0 ? {} : { coverage: coverage3 },
+    ...flaky2 === void 0 ? {} : { flaky: flaky2 },
+    require_baseline: declared.require_baseline ?? base.require_baseline,
+    source: "catalog"
+  };
+}
+
+// packages/kernel/dist/test-system/levels-codec.js
+var SCENARIO_MODES = ["off", "required", "passing"];
+var TIER_KEYS = ["required", "touched", "scenarios", "coverage", "flaky", "require_baseline"];
+var PLAN_KEYS = ["required", "scenarios"];
+function isScenarioMode(value) {
+  return SCENARIO_MODES.includes(value);
+}
+function classList(node, sink, what) {
+  const items = asSeq(node, sink, what);
+  if (items === void 0)
+    return void 0;
+  const out = [];
+  for (const item2 of items) {
+    const value = oneOf(item2, sink, `${what} \u7684\u4E00\u9879`, isTestClass, TEST_CLASSES);
+    if (value === void 0)
+      continue;
+    if (out.includes(value))
+      sink.add(item2.line, `${what} \u91CD\u590D\u5217\u51FA '${value}'`);
+    else
+      out.push(value);
+  }
+  return out;
+}
+function decodeCoverage2(node, sink, what) {
+  const map = asMap(node, sink, what);
+  if (map === void 0)
+    return void 0;
+  checkKeys(map, COVERAGE_METRICS, sink, what);
+  if (map.entries.length === 0)
+    return sink.add(map.line, `${what} \u81F3\u5C11\u58F0\u660E ${COVERAGE_METRICS.join("/")} \u4E4B\u4E00`);
+  const out = {};
+  for (const metric4 of COVERAGE_METRICS) {
+    const value = num(field(map, metric4), sink, `${what}.${metric4}`, 0, 100);
+    if (value !== void 0)
+      out[metric4] = value;
+  }
+  return Object.keys(out).length === 0 ? void 0 : out;
+}
+function decodeFlaky(node, sink, what) {
+  const map = asMap(node, sink, what);
+  if (map === void 0)
+    return void 0;
+  checkKeys(map, ["max", "fail_on_new"], sink, what);
+  const maxNode = field(map, "max");
+  const max = maxNode === void 0 ? sink.add(map.line, `${what}.max \u7F3A\u5931`) : int(maxNode, sink, `${what}.max`, 0, 1e3);
+  const failOnNew = bool2(field(map, "fail_on_new"), sink, `${what}.fail_on_new`) ?? false;
+  return max === void 0 ? void 0 : { max, fail_on_new: failOnNew };
+}
+function decodeTier(name, node, sink) {
+  const what = `levels.${name}`;
+  const map = asMap(node, sink, what);
+  if (map === void 0)
+    return void 0;
+  checkKeys(map, name === "plan" ? PLAN_KEYS : TIER_KEYS, sink, what);
+  const tier = {};
+  const declared = (key) => field(map, key);
+  if (declared("required") !== void 0) {
+    const required3 = classList(declared("required"), sink, `${what}.required`);
+    if (required3 !== void 0)
+      tier.required = required3;
+  }
+  if (name !== "plan" && declared("touched") !== void 0) {
+    const touched = classList(declared("touched"), sink, `${what}.touched`);
+    if (touched !== void 0)
+      tier.touched = touched;
+  }
+  if (declared("scenarios") !== void 0) {
+    const scenarios = oneOf(declared("scenarios"), sink, `${what}.scenarios`, isScenarioMode, SCENARIO_MODES);
+    if (scenarios !== void 0)
+      tier.scenarios = scenarios;
+  }
+  if (name !== "plan" && declared("coverage") !== void 0) {
+    const coverage3 = decodeCoverage2(declared("coverage"), sink, `${what}.coverage`);
+    if (coverage3 !== void 0)
+      tier.coverage = coverage3;
+  }
+  if (name !== "plan" && declared("flaky") !== void 0) {
+    const flaky2 = decodeFlaky(declared("flaky"), sink, `${what}.flaky`);
+    if (flaky2 !== void 0)
+      tier.flaky = flaky2;
+  }
+  if (name !== "plan" && declared("require_baseline") !== void 0) {
+    const requireBaseline = bool2(declared("require_baseline"), sink, `${what}.require_baseline`);
+    if (requireBaseline !== void 0)
+      tier.require_baseline = requireBaseline;
+  }
+  return tier;
+}
+function decodeCatalogLevels(node, sink) {
+  if (node === void 0)
+    return void 0;
+  const map = asMap(node, sink, "levels");
+  if (map === void 0)
+    return void 0;
+  checkKeys(map, LEVEL_NAMES, sink, "levels");
+  const out = {};
+  for (const name of LEVEL_NAMES) {
+    const tierNode = field(map, name);
+    if (tierNode === void 0)
+      continue;
+    const tier = decodeTier(name, tierNode, sink);
+    if (tier !== void 0 && Object.keys(tier).length > 0)
+      out[name] = tier;
+  }
+  return Object.keys(out).length === 0 ? void 0 : out;
+}
+function tierValue(tier) {
+  const coverage3 = tier.coverage;
+  const flaky2 = tier.flaky;
+  return {
+    required: tier.required === void 0 ? void 0 : [...tier.required],
+    touched: tier.touched === void 0 ? void 0 : [...tier.touched],
+    scenarios: tier.scenarios,
+    coverage: coverage3 === void 0 ? void 0 : Object.fromEntries(COVERAGE_METRICS.map((metric4) => [metric4, coverage3[metric4]])),
+    flaky: flaky2 === void 0 ? void 0 : { max: flaky2.max, fail_on_new: flaky2.fail_on_new },
+    require_baseline: tier.require_baseline
+  };
+}
+function levelsValue(levels) {
+  if (levels === void 0)
+    return void 0;
+  const out = {};
+  for (const name of LEVEL_NAMES) {
+    const tier = levels[name];
+    if (tier !== void 0 && Object.keys(tier).length > 0)
+      out[name] = tierValue(tier);
+  }
+  return Object.keys(out).length === 0 ? void 0 : out;
+}
+
 // packages/kernel/dist/test-system/paths.js
 import { join as join42 } from "node:path";
 var TEST_SYSTEM_DIR = "tests";
@@ -23795,7 +24210,7 @@ function parseTestCatalog(text13) {
   const map = asMap(root, sink, "\u76EE\u5F55");
   if (map === void 0)
     return { ok: false, issues: sink.issues };
-  checkKeys(map, ["schema", "profile", "profiles_env", "suites", "services", "not_applicable"], sink, "\u76EE\u5F55");
+  checkKeys(map, ["schema", "profile", "profiles_env", "suites", "services", "not_applicable", "levels"], sink, "\u76EE\u5F55");
   const schema = str(field(map, "schema"), sink, "schema", map.line);
   if (schema !== void 0 && schema !== TEST_CATALOG_SCHEMA) {
     sink.add(field(map, "schema")?.line ?? map.line, `schema \u5FC5\u987B\u662F ${TEST_CATALOG_SCHEMA}\uFF08\u5B9E\u9645 '${schema}'\uFF09`);
@@ -23835,6 +24250,7 @@ function parseTestCatalog(text13) {
     }
   }
   const notApplicable = decodeNotApplicable(field(map, "not_applicable"), sink);
+  const levels = decodeCatalogLevels(field(map, "levels"), sink);
   if (sink.issues.length > 0)
     return { ok: false, issues: sink.issues };
   return {
@@ -23845,7 +24261,8 @@ function parseTestCatalog(text13) {
       profiles_env: profilesEnv,
       suites,
       services,
-      ...notApplicable.length === 0 ? {} : { not_applicable: notApplicable }
+      ...notApplicable.length === 0 ? {} : { not_applicable: notApplicable },
+      ...levels === void 0 ? {} : { levels }
     }
   };
 }
@@ -23863,10 +24280,19 @@ function catalogSuitesDigest(catalog2, suiteIds) {
   const suites = ids2.map((id2) => catalogSuite(catalog2, id2) ?? { id: id2, missing: true });
   const serviceIds = new Set(ids2.flatMap((id2) => catalogSuite(catalog2, id2)?.services ?? []));
   const services = catalog2.services.filter((service2) => serviceIds.has(service2.id));
-  return digestOf({ ...catalog2.profile === "coarse" ? { profile: "coarse" } : {}, profiles_env: catalog2.profiles_env, suites, services });
+  return digestOf({
+    ...catalog2.profile === "coarse" ? { profile: "coarse" } : {},
+    profiles_env: catalog2.profiles_env,
+    suites,
+    services,
+    ...catalog2.levels === void 0 ? {} : { levels: catalog2.levels }
+  });
 }
 function suiteFileGlobs(suite2) {
   return suite2.files.map((glob) => repoGlob(suite2.cwd, glob));
+}
+function suiteCoverGlobs(suite2) {
+  return suite2.covers.map((glob) => repoGlob(suite2.cwd, glob));
 }
 function suiteValue(suite2) {
   return {
@@ -23913,90 +24339,61 @@ function serviceValue(service2) {
     env: service2.env.length === 0 ? void 0 : service2.env
   };
 }
-function serializeTestCatalog(catalog2) {
-  return emitYaml({
+function catalogValue(catalog2) {
+  return {
     schema: catalog2.schema,
     profile: catalog2.profile === "coarse" ? "coarse" : void 0,
     profiles_env: catalog2.profiles_env.length === 0 ? void 0 : catalog2.profiles_env,
     suites: catalog2.suites.map(suiteValue),
     services: catalog2.services.length === 0 ? void 0 : catalog2.services.map(serviceValue),
-    not_applicable: notApplicableValue(catalog2.not_applicable)
-  });
+    not_applicable: notApplicableValue(catalog2.not_applicable),
+    levels: levelsValue(catalog2.levels)
+  };
+}
+function serializeTestCatalog(catalog2) {
+  return emitYaml(catalogValue(catalog2));
 }
 
-// packages/kernel/dist/test-system/covers.js
-var CASE_REF_SEPARATOR = " \u203A ";
-var CAPABILITY_RE = /^[a-z0-9][a-z0-9._-]{0,127}$/;
-var TASK_ID_RE = /^\d+(?:\.\d+)*$/;
-function parseCovers(value) {
-  if (/[\r\n]/.test(value))
-    return void 0;
-  if (value.startsWith("spec:")) {
-    const body2 = value.slice("spec:".length);
-    const slash = body2.indexOf("/");
-    if (slash <= 0)
-      return void 0;
-    const capability = body2.slice(0, slash);
-    const title = body2.slice(slash + 1).trim();
-    if (!CAPABILITY_RE.test(capability) || title === "" || title !== body2.slice(slash + 1))
-      return void 0;
-    return { kind: "spec", capability, title };
+// packages/kernel/dist/test-system/test-files.js
+function normalizeRepoPath(path14) {
+  return path14.replace(/\\/g, "/").replace(/^\.\//, "");
+}
+function suitesOwningFile(catalog2, path14) {
+  return catalog2.suites.filter((suite2) => matchesAnyGlob(path14, suiteFileGlobs(suite2))).map((suite2) => suite2.id);
+}
+
+// packages/kernel/dist/test-system/claim.js
+function changedRepoPaths(changedFiles) {
+  return [...new Set(withoutControlPaths(changedFiles.map(normalizeRepoPath)))].filter((path14) => path14 !== "").sort();
+}
+function claimChangedTestFiles(changedFiles, catalog2) {
+  const byPath = /* @__PURE__ */ new Map();
+  const orphans = [];
+  for (const path14 of changedRepoPaths(changedFiles)) {
+    const owners = suitesOwningFile(catalog2, path14);
+    if (owners.length > 0)
+      byPath.set(path14, owners);
+    else if (looksLikeTestFile(path14))
+      orphans.push(path14);
   }
-  if (value.startsWith("task:")) {
-    const id2 = value.slice("task:".length);
-    return TASK_ID_RE.test(id2) ? { kind: "task", id: id2 } : void 0;
+  const claimed = /* @__PURE__ */ new Map();
+  for (const suite2 of catalog2.suites) {
+    const files = [...byPath].filter(([, owners]) => owners.includes(suite2.id)).map(([path14]) => path14);
+    if (files.length > 0)
+      claimed.set(suite2.id, files);
   }
-  return void 0;
+  return { claimed, orphans };
 }
-function scenarioCoversKey(capability, title) {
-  return `spec:${capability}/${title}`;
+function claimedByPath(claimed) {
+  const owners = /* @__PURE__ */ new Map();
+  for (const [suite2, files] of claimed)
+    for (const path14 of files)
+      owners.set(path14, [...owners.get(path14) ?? [], suite2]);
+  return [...owners].map(([path14, suites]) => ({ path: path14, suites })).sort((left, right) => left.path < right.path ? -1 : 1);
 }
-function taskCoversKey(id2) {
-  return `task:${id2}`;
-}
-function parseCaseRef(value) {
-  if (value.trim() === "" || /[\r\n]/.test(value))
-    return void 0;
-  const parts = value.split(CASE_REF_SEPARATOR).map((part) => part.trim());
-  const file = parts[0] ?? "";
-  if (file === "" || file.startsWith("/") || file.split("/").includes("..") || parts.slice(1).some((part) => part === "")) {
-    return void 0;
-  }
-  return { file, title: parts.slice(1) };
-}
-function fileRefMatches(ref, path14) {
-  return path14 === ref || path14.endsWith(`/${ref}`);
-}
-var UNKNOWN_CASE_FILE = "(unknown)";
-function isUnknownCaseFile(file) {
-  return file === UNKNOWN_CASE_FILE;
-}
-function caseTitleMatchesRef(ref, identity) {
-  if (ref.title.length === 0)
-    return false;
-  const full = [...identity.suite_path, identity.name];
-  if (ref.title.length > full.length)
-    return false;
-  const tail = full.slice(full.length - ref.title.length);
-  return tail.every((segment, index) => segment === ref.title[index]);
-}
-function caseMatchesRef(ref, identity) {
-  if (!fileRefMatches(ref.file, identity.file))
-    return false;
-  return ref.title.length === 0 || caseTitleMatchesRef(ref, identity);
-}
-function casesMatchingRef(ref, cases) {
-  const direct = cases.filter((item2) => caseMatchesRef(ref, item2));
-  if (direct.length > 0)
-    return direct;
-  if (ref.title.length === 0)
-    return [];
-  const named = cases.filter((item2) => caseTitleMatchesRef(ref, item2));
-  const only = named.length === 1 ? named[0] : void 0;
-  return only !== void 0 && isUnknownCaseFile(only.file) ? [only] : [];
-}
-function formatCaseRef(identity) {
-  return [identity.file, ...identity.suite_path, identity.name].join(CASE_REF_SEPARATOR);
+function orphansNotInPlan(orphans, plan) {
+  const resources = new Set((plan?.files ?? []).map((file) => normalizeRepoPath(file.path)));
+  return orphans.filter((path14) => !resources.has(path14));
 }
 
 // packages/kernel/dist/test-system/benchmark.js
@@ -24214,6 +24611,12 @@ var ADVISORY_REASONS = /* @__PURE__ */ new Set([
   "log-truncated",
   "artifact-truncated"
 ]);
+function claimedInScope(claimed, run2) {
+  if (run2.scope === "full" || run2.selection.length === 0)
+    return claimed;
+  const selected = new Set(run2.selection);
+  return claimed.filter((path14) => selected.has(path14));
+}
 var NODE_TEST_FILE_HINT = `\uFF08\u82E5\u62A5\u544A\u91CC\u7684\u7528\u4F8B\u6CA1\u6709\u6587\u4EF6\u5F52\u5C5E\u2014\u2014Node 22 \u53CA\u4EE5\u524D\u5185\u7F6E\u7684 junit reporter \u4E0D\u5199 file \u5C5E\u6027\u2014\u2014\u547D\u4EE4\u91CC\u6539\u7528 --test-reporter="\${${NODE_TEST_REPORTER_ENV}:-junit}"\uFF0C\u7531 tenon test run \u63D0\u4F9B\u5E26 file \u7684 reporter\uFF09`;
 function reportCopyProblem(run2) {
   if (run2.report.path === null || run2.report.digest === null)
@@ -24340,6 +24743,8 @@ function evaluateSuiteResult(suite2, ref, context) {
   const missingRefs = refs.filter(({ ref: ref2 }) => !refRan(ref2)).map(({ test }) => test);
   const fileRan = (path14) => executed.some((item2) => fileRefMatches(path14, item2.file) || fileRefMatches(item2.file, path14)) || refs.some(({ ref: ref2 }) => fileRefMatches(ref2.file, path14) && refRan(ref2));
   const missingFiles = files.filter((path14) => !fileRan(path14));
+  const claimedChecked = caseFormat ? claimedInScope(context.claimed ?? [], run2) : [];
+  const claimedMissing = claimedChecked.filter((path14) => !fileRan(path14));
   if (caseFormat && (missingFiles.length > 0 || missingRefs.length > 0)) {
     const list7 = [...missingFiles, ...missingRefs];
     const hint = suite2.runner === "node-test" ? NODE_TEST_FILE_HINT : "";
@@ -24376,7 +24781,212 @@ function evaluateSuiteResult(suite2, ref, context) {
       blockers.push(testBlocker("browser-project-missing", `\u5957\u4EF6 ${name} \u7684\u62A5\u544A\u7F3A\u5C11\u6D4F\u89C8\u5668 project\uFF1A${missing4.join("\u3001")}`, { fix, subject: suite2.id }));
     }
   }
-  return { blockers, notices, failing, flaky: flaky2, benchmark: benchmark2 };
+  return { blockers, notices, failing, flaky: flaky2, benchmark: benchmark2, claimedChecked, claimedMissing };
+}
+
+// packages/kernel/dist/test-system/resolve-policy.js
+function levelPolicy(level2) {
+  return {
+    plan: "required",
+    kinds: [],
+    run: [],
+    run_if_registered: [],
+    scope: level2.name === "full" ? "full" : "changed",
+    files: "any",
+    scenarios: level2.scenarios,
+    ...level2.coverage === void 0 ? {} : { coverage: level2.coverage },
+    ...level2.flaky === void 0 ? {} : { flaky: level2.flaky },
+    benchmark: { require_baseline: level2.require_baseline },
+    browsers: [],
+    level: level2
+  };
+}
+function resolveStepTestPolicy(step, catalog2) {
+  if (step.test_policy !== void 0)
+    return step.test_policy;
+  if (step.test === void 0 || step.test === "none")
+    return void 0;
+  return levelPolicy(resolveLevel(step.test, catalog2));
+}
+function stepHasTestPolicy(step) {
+  return step.test_policy !== void 0 || step.test !== void 0 && step.test !== "none";
+}
+function policyChecksChangedFiles(policy2) {
+  return policy2.files === "registered" || policy2.level !== void 0 && policy2.level.name !== "plan";
+}
+function policyRunsSuites(policy2) {
+  return policy2.run.length > 0 || policy2.run_if_registered.length > 0 || policy2.level !== void 0 && policy2.level.name !== "plan";
+}
+var INERT_TEST_POLICY = Object.freeze({
+  plan: "optional",
+  kinds: Object.freeze([]),
+  run: Object.freeze([]),
+  run_if_registered: Object.freeze([]),
+  scope: "changed",
+  files: "any",
+  scenarios: "off",
+  benchmark: Object.freeze({ require_baseline: false }),
+  browsers: Object.freeze([])
+});
+
+// packages/kernel/dist/test-system/evaluate-files.js
+var NOT_CHECKED = { checked: false, unregistered: [], orphans: [], claimed: [] };
+var NO_CLAIMS = { byPath: [], bySuite: /* @__PURE__ */ new Map() };
+function checkFiles(input2, plan, out) {
+  const skipped = { files: NOT_CHECKED, claims: NO_CLAIMS };
+  if (!policyChecksChangedFiles(input2.policy))
+    return skipped;
+  if (input2.changedFilesError !== void 0) {
+    out.blockers.push(testBlocker("files-diff-unavailable", `\u65E0\u6CD5\u8BFB\u53D6\u672C\u4EFB\u52A1\u7684\u6539\u52A8\u6587\u4EF6\u5217\u8868\uFF08${input2.changedFilesError}\uFF09\uFF0C\u4E0D\u80FD\u786E\u8BA4\u6539\u52A8\u7684\u6D4B\u8BD5\u6587\u4EF6\u90FD\u88AB\u5957\u4EF6\u8BA4\u9886`, {
+      fix: `tenon test sync ${input2.change}`
+    }));
+    return skipped;
+  }
+  if (input2.changedFiles === void 0) {
+    out.notices.push(testNotice("files-unchecked", "\u5BBF\u4E3B\u6CA1\u6709\u63D0\u4F9B\u672C\u4EFB\u52A1\u7684 diff \u6587\u4EF6\u5217\u8868\uFF0C\u672A\u68C0\u67E5\u6539\u52A8\u7684\u6D4B\u8BD5\u6587\u4EF6"));
+    return skipped;
+  }
+  if (input2.catalog.state !== "ok")
+    return skipped;
+  if (input2.changedFilesTruncated !== void 0) {
+    const { found, limit } = input2.changedFilesTruncated;
+    out.notices.push(testNotice("files-truncated", `\u672A\u8DDF\u8E2A\u6587\u4EF6\u6709 ${found} \u4E2A\uFF0C\u53EA\u68C0\u67E5\u4E86\u524D ${limit} \u4E2A\uFF1B\u5176\u4F59\u7684\u6D4B\u8BD5\u6587\u4EF6\u6CA1\u6709\u6838\u5BF9\u662F\u5426\u88AB\u5957\u4EF6\u8BA4\u9886\u3002\u628A\u6784\u5EFA\u4EA7\u7269\u3001\u4F9D\u8D56\u76EE\u5F55\u52A0\u5165 .gitignore \u540E\u91CD\u65B0\u68C0\u67E5`));
+  }
+  const claim2 = claimChangedTestFiles(input2.changedFiles, input2.catalog.catalog);
+  const orphans = orphansNotInPlan(claim2.orphans, plan);
+  for (const path14 of orphans) {
+    out.blockers.push(testBlocker("test-file-orphan", `\u6D4B\u8BD5\u6587\u4EF6 ${path14} \u6CA1\u6709\u4EFB\u4F55\u76EE\u5F55\u5957\u4EF6\u8BA4\u9886\uFF1B\u628A\u5B83\u5E76\u8FDB\u5BF9\u5E94\u5957\u4EF6\u7684\u6587\u4EF6 glob\uFF08tenon test register --auto \u8FFD\u52A0\u8BE5\u6587\u4EF6\u7684\u7CBE\u786E\u8DEF\u5F84\uFF1B\u6CA1\u6709\u53EF\u7528\u7684\u5957\u4EF6\u5C31\u5148\u5728\u76EE\u5F55\u91CC\u52A0\uFF09`, {
+      fix: `tenon test register ${input2.change} --auto`,
+      subject: path14
+    }));
+  }
+  const byPath = claimedByPath(claim2.claimed);
+  return { files: { checked: true, unregistered: [], orphans, claimed: byPath }, claims: { byPath, bySuite: claim2.claimed } };
+}
+function claimedNotExecuted(change, checks, out) {
+  const executed = new Set(checks.flatMap((check) => check.checked.filter((path14) => !check.missing.includes(path14))));
+  const reported = /* @__PURE__ */ new Set();
+  const failed2 = /* @__PURE__ */ new Set();
+  for (const check of checks) {
+    const lost = check.missing.filter((path14) => !executed.has(path14) && !reported.has(path14));
+    if (lost.length === 0)
+      continue;
+    for (const path14 of lost)
+      reported.add(path14);
+    failed2.add(check.suite.id);
+    const name = check.suite.label === void 0 ? check.suite.id : `${check.suite.label}\uFF08${check.suite.id}\uFF09`;
+    const hint = check.suite.runner === "node-test" ? NODE_TEST_FILE_HINT : "";
+    out.blockers.push(testBlocker("registered-test-not-executed", `\u5957\u4EF6 ${name} \u7684\u62A5\u544A\u91CC\u6CA1\u6709\u672C\u4EFB\u52A1\u6539\u52A8\u7684\u6D4B\u8BD5\u6587\u4EF6\uFF08\u76EE\u5F55 glob \u8BA4\u9886\u4E86\u5B83\uFF0C\u8FD0\u884C\u5668\u5374\u6CA1\u6536\u5F55\uFF09\uFF1A${lost.slice(0, 5).join("\uFF1B")}${lost.length > 5 ? " \u2026" : ""}${hint}`, {
+      fix: `tenon test run ${change} --suite ${shellQuote(check.suite.id)}`,
+      subject: check.suite.id
+    }));
+  }
+  return failed2;
+}
+
+// packages/kernel/dist/test-system/policy.js
+function inlineSuiteId(testId) {
+  return `${INLINE_SUITE_PREFIX}${testId}`;
+}
+function inlineSuiteFromTest(test) {
+  return {
+    id: inlineSuiteId(test.id),
+    testId: test.id,
+    kind: kindForDirection(test.direction),
+    ...test.label === void 0 ? {} : { label: test.label },
+    required: test.required,
+    command: test.command,
+    cwd: test.cwd
+  };
+}
+function testPolicyDigest(policy2) {
+  return `sha256:${sha256Hex(canonicalJson(policy2))}`;
+}
+function policyRequiredKinds(policy2) {
+  return [.../* @__PURE__ */ new Set([...policy2.kinds, ...policy2.run])];
+}
+function unitServesRegression(policy2, suiteKind) {
+  return suiteKind === "unit" && policy2.scope === "full" && policy2.run.includes("regression");
+}
+function policyRunReason(policy2, suiteKind) {
+  if (policy2.run.includes(suiteKind) || unitServesRegression(policy2, suiteKind))
+    return "run";
+  return policy2.run_if_registered.includes(suiteKind) ? "if-registered" : void 0;
+}
+function planKindsSatisfy(policy2, suiteKinds, required3) {
+  if (suiteKinds.includes(required3))
+    return true;
+  if (required3 !== "regression" || !suiteKinds.includes("unit"))
+    return false;
+  return !policy2.run.includes("regression") || policy2.scope === "full";
+}
+
+// packages/kernel/dist/test-system/evaluate-kinds.js
+function plannedKinds(plan, catalog2) {
+  return plan.suites.flatMap((item2) => catalogSuite(catalog2, item2.suite)?.kind ?? []);
+}
+function kindWaiver(plan, kind) {
+  const waiver = plan.waivers.find((item2) => item2.kind === kind);
+  return waiver === void 0 ? void 0 : { approved: waiver.approved_by !== null };
+}
+var NOT_APPLICABLE_HELP = "\u53EA\u6709\u8FD9\u4E2A\u4EFB\u52A1\u4E0D\u9002\u7528\u7528 tenon test waive\uFF0C\u6574\u4E2A\u9879\u76EE\u90FD\u4E0D\u9002\u7528\u5C31\u5728\u76EE\u5F55\u91CC\u58F0\u660E not_applicable";
+function legacyKinds(input2, catalog2, plan, reviewFix, out) {
+  const kinds2 = plannedKinds(plan, catalog2);
+  for (const kind of policyRequiredKinds(input2.policy)) {
+    if (planKindsSatisfy(input2.policy, kinds2, kind))
+      continue;
+    const waiver = kindWaiver(plan, kind);
+    if (waiver?.approved === true)
+      continue;
+    const projectWide = catalogNotApplicable(catalog2, kind);
+    if (projectWide !== void 0 && projectWide.approved_by !== null)
+      continue;
+    if (waiver !== void 0) {
+      out.blockers.push(testBlocker("waiver-unapproved", `\u6D4B\u8BD5\u79CD\u7C7B ${kind} \u7684\u8C41\u514D\u5C1A\u672A\u7ECF\u8BC4\u5BA1\u6279\u51C6`, { fix: reviewFix, subject: kind }));
+      continue;
+    }
+    if (projectWide !== void 0) {
+      out.blockers.push(testBlocker("waiver-unapproved", `\u6D4B\u8BD5\u79CD\u7C7B ${kind} \u5728 catalog.yaml \u91CC\u58F0\u660E\u4E86\u300C\u672C\u9879\u76EE\u4E0D\u9002\u7528\u300D\uFF0C\u4F46\u5C1A\u672A\u7ECF\u8BC4\u5BA1\u6279\u51C6`, { fix: reviewFix, subject: kind }));
+      continue;
+    }
+    const candidate2 = catalog2.suites.find((suite2) => suite2.kind === kind);
+    out.blockers.push(testBlocker("test-kind-missing", `\u672C\u9636\u6BB5\u8981\u6C42 ${kind} \u6D4B\u8BD5\uFF0C\u8BA1\u5212\u91CC\u65E2\u6CA1\u6709\u8BE5\u79CD\u7C7B\u7684\u5957\u4EF6\u4E5F\u6CA1\u6709\u5DF2\u6279\u51C6\u7684\u8C41\u514D${candidate2 === void 0 ? `\uFF08\u76EE\u5F55\u91CC\u4E5F\u6CA1\u6709\u8FD9\u7C7B\u5957\u4EF6\uFF1B${NOT_APPLICABLE_HELP}\uFF09` : ""}`, {
+      fix: candidate2 === void 0 ? `tenon test catalog not-applicable ${kind} --reason ${shellQuote("<\u672C\u9879\u76EE\u4E3A\u4EC0\u4E48\u4E0D\u9002\u7528>")}` : `tenon test register ${input2.change} --suite ${shellQuote(candidate2.id)}`,
+      subject: kind
+    }));
+  }
+}
+function classNotApplicable(catalog2, cls) {
+  return (catalog2.not_applicable ?? []).find((entry2) => testClassOf(entry2.kind) === cls);
+}
+function levelClasses(input2, catalog2, plan, missing4, reviewFix, out) {
+  const level2 = input2.policy.level?.name ?? "changed";
+  for (const cls of missing4) {
+    const waiver = kindWaiver(plan, cls);
+    if (waiver?.approved === true)
+      continue;
+    if (waiver !== void 0) {
+      out.blockers.push(testBlocker("waiver-unapproved", `\u6D4B\u8BD5\u79CD\u7C7B ${cls} \u7684\u8C41\u514D\u5C1A\u672A\u7ECF\u8BC4\u5BA1\u6279\u51C6`, { fix: reviewFix, subject: cls }));
+      continue;
+    }
+    const projectWide = classNotApplicable(catalog2, cls);
+    if (projectWide !== void 0) {
+      out.blockers.push(testBlocker("waiver-unapproved", `\u6D4B\u8BD5\u79CD\u7C7B ${projectWide.kind} \u5728 catalog.yaml \u91CC\u58F0\u660E\u4E86\u300C\u672C\u9879\u76EE\u4E0D\u9002\u7528\u300D\uFF0C\u4F46\u5C1A\u672A\u7ECF\u8BC4\u5BA1\u6279\u51C6`, { fix: reviewFix, subject: projectWide.kind }));
+      continue;
+    }
+    out.blockers.push(testBlocker("test-kind-missing", `\u672C\u9636\u6BB5\uFF08\u6863\u4F4D ${level2}\uFF09\u8981\u6C42 ${cls} \u7C7B\u6D4B\u8BD5\uFF0C\u76EE\u5F55\u91CC\u6CA1\u6709\u8FD9\u7C7B\u5957\u4EF6\uFF0C\u4E5F\u6CA1\u6709\u5DF2\u6279\u51C6\u7684\u8C41\u514D\uFF08\u8865\u5957\u4EF6\u7528 tenon test catalog add\uFF1B${NOT_APPLICABLE_HELP}\uFF09`, {
+      fix: `tenon test catalog not-applicable ${cls} --reason ${shellQuote("<\u672C\u9879\u76EE\u4E3A\u4EC0\u4E48\u4E0D\u9002\u7528>")}`,
+      subject: cls
+    }));
+  }
+}
+function checkKinds(input2, plan, missingClasses, reviewFix, out) {
+  if (input2.catalog.state !== "ok")
+    return;
+  if (input2.policy.level === void 0)
+    legacyKinds(input2, input2.catalog.catalog, plan, reviewFix, out);
+  else
+    levelClasses(input2, input2.catalog.catalog, plan, missingClasses, reviewFix, out);
 }
 
 // packages/kernel/dist/test-system/step-test-waivers.js
@@ -24404,12 +25014,97 @@ function isUnsafeDisplayChar(char) {
 function hasUnsafeDisplayChars(text13) {
   return [...text13].some(isUnsafeDisplayChar);
 }
+function foldDisplayText(text13) {
+  const folded = text13.replace(/\s+/gu, " ");
+  return [...folded].filter((char) => !isUnsafeDisplayChar(char)).join("").replace(/ {2,}/gu, " ").trim();
+}
+function displaySafeText(text13) {
+  return foldDisplayText(text13).replace(/`/gu, "\uFF40").replace(/</gu, "\uFF1C").replace(/>/gu, "\uFF1E");
+}
 function waiverReasonText(reason3) {
-  const folded = reason3.replace(/\s+/gu, " ");
-  const stripped = [...folded].filter((char) => !isUnsafeDisplayChar(char)).join("").replace(/ {2,}/gu, " ");
-  const safe = stripped.trim().replace(/`/gu, "\uFF40").replace(/</gu, "\uFF1C").replace(/>/gu, "\uFF1E");
-  const chars = [...safe];
-  return chars.length > WAIVER_REASON_MAX ? `${chars.slice(0, WAIVER_REASON_MAX).join("")}\u2026` : safe;
+  const chars = [...displaySafeText(reason3)];
+  return chars.length > WAIVER_REASON_MAX ? `${chars.slice(0, WAIVER_REASON_MAX).join("")}\u2026` : chars.join("");
+}
+
+// packages/kernel/dist/test-system/waiver-metrics.js
+var WAIVER_METRICS_MAX_LISTED = 8;
+var METRIC_NAME_MAX = 64;
+function runOrder(left, right) {
+  if (left.finished_at !== right.finished_at)
+    return left.finished_at < right.finished_at ? -1 : 1;
+  return left.run_id < right.run_id ? -1 : left.run_id > right.run_id ? 1 : 0;
+}
+function toMetric(record12) {
+  if (record12.value === null)
+    return void 0;
+  return {
+    name: record12.name,
+    value: record12.value,
+    ...record12.max === void 0 ? {} : { max: record12.max },
+    ...record12.min === void 0 ? {} : { min: record12.min }
+  };
+}
+function runMetrics(record12) {
+  const ordered = [...record12.metrics.filter((item2) => !item2.ok), ...record12.metrics.filter((item2) => item2.ok)];
+  return ordered.flatMap((item2) => {
+    const metric4 = toMetric(item2);
+    return metric4 === void 0 ? [] : [metric4];
+  });
+}
+function latestFailureMetrics(change, testId, records, candidate2) {
+  const latest = records.filter((record12) => record12.change === change && record12.test_id === testId && (candidate2 === void 0 || record12.candidate === candidate2)).sort(runOrder).at(-1);
+  if (latest === void 0 || latest.result !== "fail")
+    return void 0;
+  return runMetrics(latest);
+}
+function shownName(name) {
+  const safe = [...waiverReasonText(name)];
+  const text13 = safe.length > METRIC_NAME_MAX ? `${safe.slice(0, METRIC_NAME_MAX).join("")}\u2026` : safe.join("");
+  return text13 === "" ? "?" : text13;
+}
+function shownNumber(value) {
+  return String(Number.isInteger(value) ? value : Number(value.toFixed(4)));
+}
+var WORDS = {
+  "zh-CN": {
+    none: "\u5F53\u524D\u5019\u9009\u4E0A\u6CA1\u6709\u5931\u8D25\u8BB0\u5F55",
+    latest: "\u6700\u65B0\u8FD0\u884C\uFF1A",
+    noMetrics: "\u6CA1\u6709\u8BB0\u5F55\u5230\u6307\u6807",
+    max: "\u4E0A\u9650 ",
+    min: "\u4E0B\u9650 ",
+    separator: "\uFF0C",
+    more: (count4) => `\u7B49 ${count4} \u9879`,
+    limit: (parts) => `\uFF08${parts}\uFF09`
+  },
+  en: {
+    none: "No failing run on the current candidate",
+    latest: "Latest run: ",
+    noMetrics: "no metrics recorded",
+    max: "limit ",
+    min: "floor ",
+    separator: ", ",
+    more: (count4) => `and ${count4} more`,
+    limit: (parts) => ` (${parts})`
+  }
+};
+function formatWaiverMetrics(metrics, locale = "zh-CN", nameText = (shown) => shown) {
+  const words = WORDS[locale];
+  if (metrics === void 0)
+    return words.none;
+  const listable = metrics.filter((metric4) => Number.isFinite(metric4.value));
+  if (listable.length === 0)
+    return `${words.latest}${words.noMetrics}`;
+  const parts = listable.slice(0, WAIVER_METRICS_MAX_LISTED).map((metric4) => {
+    const limits = [
+      ...metric4.max === void 0 || !Number.isFinite(metric4.max) ? [] : [`${words.max}${shownNumber(metric4.max)}`],
+      ...metric4.min === void 0 || !Number.isFinite(metric4.min) ? [] : [`${words.min}${shownNumber(metric4.min)}`]
+    ];
+    return `${nameText(shownName(metric4.name))}=${shownNumber(metric4.value)}${limits.length === 0 ? "" : words.limit(limits.join(words.separator))}`;
+  });
+  const rest = listable.length - parts.length;
+  if (rest > 0)
+    parts.push(words.more(rest));
+  return `${words.latest}${parts.join(words.separator)}`;
 }
 
 // packages/kernel/dist/test-system/evaluate-inline.js
@@ -24432,11 +25127,13 @@ function evaluateInline(input2, plan, latest, freshness, reviewFix, out) {
     }
     const waiver = suite2.required && state === "failed" ? stepTestWaiver(plan, suite2.testId, failedCandidate, freshness) : void 0;
     const verdictState = waiver === void 0 ? state : waiver.approved ? "waived" : "waiver-pending";
+    const failedMetrics = item2.failedMetrics ?? [];
     verdicts.push({
       ...base,
       state: verdictState,
       ...detail === void 0 || detail === "" ? {} : { detail },
-      ...waiver !== void 0 && typeof failedCandidate === "string" ? { failedCandidate } : {}
+      ...waiver !== void 0 && typeof failedCandidate === "string" ? { failedCandidate } : {},
+      ...waiver === void 0 ? {} : { failedMetrics, waiverReason: waiverReasonText(waiver.reason) }
     });
     if (!suite2.required || state === "passed")
       continue;
@@ -24445,7 +25142,7 @@ function evaluateInline(input2, plan, latest, freshness, reviewFix, out) {
       const failed2 = `\u6D4B\u8BD5 ${name} \u5931\u8D25${detail === void 0 || detail === "" ? "" : `\uFF08${detail}\uFF09`}`;
       const subject2 = `test:${suite2.testId}`;
       if (waiver.approved) {
-        out.notices.push(testNotice("test-waived", `${failed2}\uFF0C\u5DF2\u6309\u8BC4\u5BA1\u6279\u51C6\u7684\u8C41\u514D\u653E\u884C\uFF08\u7406\u7531\u4E3A\u767B\u8BB0\u8005\u81EA\u8FF0\u3001\u672A\u7ECF\u6838\u5B9E\uFF09\uFF1A${waiverReasonText(waiver.reason)}`, { subject: subject2 }));
+        out.notices.push(testNotice("test-waived", `${failed2}\uFF0C${formatWaiverMetrics(failedMetrics)}\uFF0C\u5DF2\u6309\u8BC4\u5BA1\u6279\u51C6\u7684\u8C41\u514D\u653E\u884C\uFF08\u7406\u7531\u4E3A\u767B\u8BB0\u8005\u81EA\u8FF0\u3001\u672A\u7ECF\u6838\u5B9E\uFF09\uFF1A${waiverReasonText(waiver.reason)}`, { subject: subject2 }));
       } else
         out.blockers.push(testBlocker("waiver-unapproved", `${failed2}\uFF0C\u8C41\u514D\u5C1A\u672A\u7ECF\u8BC4\u5BA1\u6279\u51C6`, { fix: reviewFix, subject: subject2 }));
     } else if (state === "running")
@@ -24506,17 +25203,18 @@ function evaluateTrace(context) {
     const waiver = waivers.get(source2.covers);
     const approved = waiver?.approved_by !== null && waiver?.approved_by !== void 0;
     const state = rowState(tests, approved);
+    const required3 = source2.required && requirement2 !== "off";
     rows.push({
       covers: source2.covers,
       kind: source2.kind,
       title: source2.title,
       ...source2.stage === null ? {} : { stage: source2.stage },
-      required: source2.required,
+      required: required3,
       tests,
       ...waiver === void 0 ? {} : { waiver: { approved, reason: waiver.reason } },
       state
     });
-    if (!source2.required || requirement2 === "off" || approved)
+    if (!required3 || approved)
       continue;
     const noun = source2.kind === "spec" ? "\u573A\u666F" : "\u4EFB\u52A1";
     const register = `tenon test register ${context.change} --case ${shellQuote(source2.covers)} --test ${shellQuote("<\u6587\u4EF6> \u203A <\u7528\u4F8B\u540D>")}`;
@@ -25080,43 +25778,6 @@ function testPlanApprovalFreeDigest(plan) {
     ...plan,
     waivers: plan.waivers.map((waiver) => ({ ...waiver, approved_by: null, approved_candidate: void 0 }))
   });
-}
-
-// packages/kernel/dist/test-system/policy.js
-function inlineSuiteId(testId) {
-  return `${INLINE_SUITE_PREFIX}${testId}`;
-}
-function inlineSuiteFromTest(test) {
-  return {
-    id: inlineSuiteId(test.id),
-    testId: test.id,
-    kind: kindForDirection(test.direction),
-    ...test.label === void 0 ? {} : { label: test.label },
-    required: test.required,
-    command: test.command,
-    cwd: test.cwd
-  };
-}
-function testPolicyDigest(policy2) {
-  return `sha256:${sha256Hex(canonicalJson(policy2))}`;
-}
-function policyRequiredKinds(policy2) {
-  return [.../* @__PURE__ */ new Set([...policy2.kinds, ...policy2.run])];
-}
-function unitServesRegression(policy2, suiteKind) {
-  return suiteKind === "unit" && policy2.scope === "full" && policy2.run.includes("regression");
-}
-function policyRunReason(policy2, suiteKind) {
-  if (policy2.run.includes(suiteKind) || unitServesRegression(policy2, suiteKind))
-    return "run";
-  return policy2.run_if_registered.includes(suiteKind) ? "if-registered" : void 0;
-}
-function planKindsSatisfy(policy2, suiteKinds, required3) {
-  if (suiteKinds.includes(required3))
-    return true;
-  if (required3 !== "regression" || !suiteKinds.includes("unit"))
-    return false;
-  return !policy2.run.includes("regression") || policy2.scope === "full";
 }
 
 // packages/kernel/dist/test-system/protected-files.js
@@ -25769,27 +26430,100 @@ function protectedFileBlockers(input2) {
   return out;
 }
 
-// packages/kernel/dist/test-system/test-files.js
-function normalizeRepoPath(path14) {
-  return path14.replace(/\\/g, "/").replace(/^\.\//, "");
+// packages/kernel/dist/test-system/stage-run-set.js
+function touches(suite2, changed) {
+  const globs = [...suiteFileGlobs(suite2), ...suiteCoverGlobs(suite2)];
+  return changedRepoPaths(changed).some((path14) => matchesAnyGlob(path14, globs));
 }
-function suitesOwningFile(catalog2, path14) {
-  return catalog2.suites.filter((suite2) => matchesAnyGlob(path14, suiteFileGlobs(suite2))).map((suite2) => suite2.id);
+function missingClassesOf(level2, catalog2) {
+  return level2.required.filter((cls) => !catalog2.suites.some((suite2) => testClassOf(suite2.kind) === cls) && !(catalog2.not_applicable ?? []).some((entry2) => entry2.approved_by !== null && testClassOf(entry2.kind) === cls));
 }
-function testFileRegistration(input2) {
-  const registered2 = new Set((input2.plan?.files ?? []).map((file) => normalizeRepoPath(file.path)));
-  const unregistered = [];
-  const orphans = [];
-  for (const path14 of [...new Set(input2.changedFiles.map(normalizeRepoPath))].sort()) {
-    if (path14 === "" || registered2.has(path14))
+function planned(plan, catalog2) {
+  const out = /* @__PURE__ */ new Map();
+  for (const entry2 of plan?.suites ?? []) {
+    const suite2 = catalog2.suites.find((item2) => item2.id === entry2.suite);
+    if (suite2 === void 0)
       continue;
-    const suites = suitesOwningFile(input2.catalog, path14);
-    if (suites.length > 0)
-      unregistered.push({ path: path14, suites });
-    else if (looksLikeTestFile(path14))
-      orphans.push(path14);
+    out.set(suite2.id, {
+      suite: suite2,
+      scope: entry2.scope,
+      reason: "run",
+      ...entry2.pattern === void 0 ? {} : { pattern: entry2.pattern },
+      ...entry2.files === void 0 ? {} : { files: entry2.files }
+    });
   }
-  return { unregistered, orphans };
+  return out;
+}
+function derivedByLevel(level2, catalog2, changed) {
+  const out = /* @__PURE__ */ new Map();
+  const full = level2.name === "full";
+  for (const suite2 of catalog2.suites) {
+    const cls = testClassOf(suite2.kind);
+    const required3 = level2.required.includes(cls);
+    if (!required3 && !level2.touched.includes(cls))
+      continue;
+    const hit = changed !== void 0 && touches(suite2, changed);
+    if (!(full && required3) && !hit)
+      continue;
+    out.set(suite2.id, { suite: suite2, scope: full ? "full" : "changed", reason: required3 ? "run" : "if-registered" });
+  }
+  return out;
+}
+function levelRunSet(level2, input2) {
+  const missingClasses = missingClassesOf(level2, input2.catalog);
+  if (level2.name === "plan")
+    return { items: [], missingClasses };
+  const merged = new Map(derivedByLevel(level2, input2.catalog, input2.changedFiles));
+  for (const [id2, item2] of planned(input2.plan, input2.catalog)) {
+    merged.set(id2, level2.name === "full" ? { suite: item2.suite, scope: "full", reason: "run" } : item2);
+  }
+  return { items: input2.catalog.suites.flatMap((suite2) => merged.get(suite2.id) ?? []), missingClasses };
+}
+function legacyRunSet(input2) {
+  const { policy: policy2, catalog: catalog2 } = input2;
+  const merged = /* @__PURE__ */ new Map();
+  for (const [id2, item2] of planned(input2.plan, catalog2)) {
+    const reason3 = policyRunReason(policy2, item2.suite.kind);
+    if (reason3 === void 0)
+      continue;
+    merged.set(id2, policy2.scope === "full" ? { suite: item2.suite, scope: "full", reason: reason3 } : { ...item2, reason: reason3 });
+  }
+  if (policy2.files === "registered" && input2.changedFiles !== void 0) {
+    for (const id2 of claimChangedTestFiles(input2.changedFiles, catalog2).claimed.keys()) {
+      const suite2 = catalog2.suites.find((item2) => item2.id === id2);
+      const reason3 = suite2 === void 0 ? void 0 : policyRunReason(policy2, suite2.kind);
+      if (suite2 === void 0 || reason3 === void 0 || merged.has(id2))
+        continue;
+      merged.set(id2, { suite: suite2, scope: policy2.scope === "full" ? "full" : "changed", reason: reason3 });
+    }
+  }
+  return { items: catalog2.suites.flatMap((suite2) => merged.get(suite2.id) ?? []), missingClasses: [] };
+}
+function stageRunSet(input2) {
+  const level2 = input2.policy.level;
+  return level2 === void 0 ? legacyRunSet(input2) : levelRunSet(level2, input2);
+}
+function changedSourceFiles(changed) {
+  return changedRepoPaths(changed).some((path14) => hasTestSourceExtension(path14) && !looksLikeTestFile(path14));
+}
+function suitesWithoutCovers(input2) {
+  const level2 = input2.policy.level;
+  if (level2 === void 0 || level2.name === "plan" || input2.changedFiles === void 0)
+    return [];
+  if (!changedSourceFiles(input2.changedFiles))
+    return [];
+  const running = new Set(input2.runSet.items.map((item2) => item2.suite.id));
+  return input2.catalog.suites.filter((suite2) => {
+    const cls = testClassOf(suite2.kind);
+    return (level2.required.includes(cls) || level2.touched.includes(cls)) && suite2.covers.length === 0 && !running.has(suite2.id);
+  }).map((suite2) => suite2.id);
+}
+function suitesWithoutCoversNotice(input2) {
+  const ids2 = suitesWithoutCovers(input2);
+  const first = ids2[0];
+  if (first === void 0)
+    return void 0;
+  return testNotice("suites-without-covers", `\u5957\u4EF6 ${ids2.join("\u3001")} \u6CA1\u5199 covers\uFF1A\u53EA\u6539\u6E90\u7801\u78B0\u4E0D\u5230\u5B83\u4EEC\uFF0C\u672C\u6B65\u6CA1\u6709\u8FD0\u884C\uFF1B\u9700\u8981\u6E90\u7801\u6539\u52A8\u89E6\u53D1\u65F6\uFF0C\u5728 .tenon/tests/catalog.yaml \u7ED9\u5B83\u4EEC\u5199\u4E0A covers`, { fix: `tenon test catalog set ${shellQuote(first)} --cover-glob "<glob>"` });
 }
 
 // packages/kernel/dist/test-system/evaluate-v2.js
@@ -25822,12 +26556,6 @@ function checkCatalogAndPlan(input2, out) {
     }
   }
 }
-function plannedKinds(plan, input2) {
-  if (input2.catalog.state !== "ok")
-    return [];
-  const catalog2 = input2.catalog.catalog;
-  return plan.suites.flatMap((item2) => catalogSuite(catalog2, item2.suite)?.kind ?? []);
-}
 function notApplicableStatuses(input2) {
   if (input2.catalog.state !== "ok")
     return [];
@@ -25837,91 +26565,26 @@ function notApplicableStatuses(input2) {
     approved: entry2.approved_by !== null
   }));
 }
-function kindWaiver(plan, kind) {
-  const waiver = plan.waivers.find((item2) => item2.kind === kind);
-  return waiver === void 0 ? void 0 : { approved: waiver.approved_by !== null };
+function changedFilesOf(input2) {
+  return input2.changedFilesError === void 0 ? input2.changedFiles : void 0;
 }
-function checkKinds(input2, plan, reviewFix, out) {
-  if (input2.catalog.state !== "ok")
-    return;
-  const catalog2 = input2.catalog.catalog;
-  const kinds2 = plannedKinds(plan, input2);
-  for (const kind of policyRequiredKinds(input2.policy)) {
-    if (planKindsSatisfy(input2.policy, kinds2, kind))
-      continue;
-    const waiver = kindWaiver(plan, kind);
-    if (waiver?.approved === true)
-      continue;
-    const projectWide = catalogNotApplicable(catalog2, kind);
-    if (projectWide !== void 0 && projectWide.approved_by !== null)
-      continue;
-    if (waiver !== void 0) {
-      out.blockers.push(testBlocker("waiver-unapproved", `\u6D4B\u8BD5\u79CD\u7C7B ${kind} \u7684\u8C41\u514D\u5C1A\u672A\u7ECF\u8BC4\u5BA1\u6279\u51C6`, { fix: reviewFix, subject: kind }));
-      continue;
-    }
-    if (projectWide !== void 0) {
-      out.blockers.push(testBlocker("waiver-unapproved", `\u6D4B\u8BD5\u79CD\u7C7B ${kind} \u5728 catalog.yaml \u91CC\u58F0\u660E\u4E86\u300C\u672C\u9879\u76EE\u4E0D\u9002\u7528\u300D\uFF0C\u4F46\u5C1A\u672A\u7ECF\u8BC4\u5BA1\u6279\u51C6`, { fix: reviewFix, subject: kind }));
-      continue;
-    }
-    const candidate2 = catalog2.suites.find((suite2) => suite2.kind === kind);
-    out.blockers.push(testBlocker("test-kind-missing", `\u672C\u9636\u6BB5\u8981\u6C42 ${kind} \u6D4B\u8BD5\uFF0C\u8BA1\u5212\u91CC\u65E2\u6CA1\u6709\u8BE5\u79CD\u7C7B\u7684\u5957\u4EF6\u4E5F\u6CA1\u6709\u5DF2\u6279\u51C6\u7684\u8C41\u514D${candidate2 === void 0 ? "\uFF08\u76EE\u5F55\u91CC\u4E5F\u6CA1\u6709\u8FD9\u7C7B\u5957\u4EF6\uFF1B\u53EA\u6709\u8FD9\u4E2A\u4EFB\u52A1\u4E0D\u9002\u7528\u7528 tenon test waive\uFF0C\u6574\u4E2A\u9879\u76EE\u90FD\u4E0D\u9002\u7528\u5C31\u5728\u76EE\u5F55\u91CC\u58F0\u660E not_applicable\uFF09" : ""}`, {
-      fix: candidate2 === void 0 ? `tenon test catalog not-applicable ${kind} --reason ${shellQuote("<\u672C\u9879\u76EE\u4E3A\u4EC0\u4E48\u4E0D\u9002\u7528>")}` : `tenon test register ${input2.change} --suite ${shellQuote(candidate2.id)}`,
-      subject: kind
-    }));
-  }
-}
-function checkFiles(input2, plan, out) {
-  const none = { checked: false, unregistered: [], orphans: [] };
-  if (input2.policy.files !== "registered")
-    return none;
-  if (input2.changedFilesError !== void 0) {
-    out.blockers.push(testBlocker("files-diff-unavailable", `\u65E0\u6CD5\u8BFB\u53D6\u672C\u4EFB\u52A1\u7684\u6539\u52A8\u6587\u4EF6\u5217\u8868\uFF08${input2.changedFilesError}\uFF09\uFF0C\u4E0D\u80FD\u786E\u8BA4\u6D4B\u8BD5\u6587\u4EF6\u90FD\u5DF2\u767B\u8BB0`, {
-      fix: `tenon test sync ${input2.change}`
-    }));
-    return none;
-  }
-  if (input2.changedFiles === void 0) {
-    out.notices.push(testNotice("files-unchecked", "\u5BBF\u4E3B\u6CA1\u6709\u63D0\u4F9B\u672C\u4EFB\u52A1\u7684 diff \u6587\u4EF6\u5217\u8868\uFF0C\u672A\u68C0\u67E5\u672A\u767B\u8BB0\u7684\u6D4B\u8BD5\u6587\u4EF6"));
-    return none;
-  }
-  if (input2.catalog.state !== "ok")
-    return none;
-  if (input2.changedFilesTruncated !== void 0) {
-    const { found, limit } = input2.changedFilesTruncated;
-    out.notices.push(testNotice("files-truncated", `\u672A\u8DDF\u8E2A\u6587\u4EF6\u6709 ${found} \u4E2A\uFF0C\u53EA\u68C0\u67E5\u4E86\u524D ${limit} \u4E2A\uFF1B\u5176\u4F59\u7684\u6D4B\u8BD5\u6587\u4EF6\u6CA1\u6709\u6838\u5BF9\u662F\u5426\u5DF2\u767B\u8BB0\u3002\u628A\u6784\u5EFA\u4EA7\u7269\u3001\u4F9D\u8D56\u76EE\u5F55\u52A0\u5165 .gitignore \u540E\u91CD\u65B0\u68C0\u67E5`));
-  }
-  const registration = testFileRegistration({ changedFiles: input2.changedFiles, catalog: input2.catalog.catalog, plan });
-  const register = (file) => `tenon test register ${input2.change} --file ${shellQuote(file.path)}${file.suites.length === 1 ? ` --suite ${shellQuote(file.suites[0] ?? "")}` : ""}`;
-  for (const file of registration.unregistered) {
-    out.blockers.push(testBlocker("test-file-unregistered", `\u6D4B\u8BD5\u6587\u4EF6 ${file.path} \u5728\u672C\u4EFB\u52A1\u91CC\u65B0\u589E\u6216\u4FEE\u6539\uFF0C\u4F46\u6CA1\u6709\u767B\u8BB0\u8FDB\u6D4B\u8BD5\u8BA1\u5212`, { fix: register(file), subject: file.path }));
-  }
-  for (const path14 of registration.orphans) {
-    out.blockers.push(testBlocker("test-file-orphan", `\u6D4B\u8BD5\u6587\u4EF6 ${path14} \u6CA1\u6709\u4EFB\u4F55\u76EE\u5F55\u5957\u4EF6\u8BA4\u9886\uFF1B\u628A\u5B83\u5E76\u8FDB\u5BF9\u5E94\u5957\u4EF6\u7684\u6587\u4EF6 glob \u518D\u767B\u8BB0\uFF08\u6CA1\u6709\u53EF\u7528\u7684\u5957\u4EF6\u5C31\u5148\u5728\u76EE\u5F55\u91CC\u52A0\uFF09`, {
-      fix: `tenon test register ${input2.change} --auto`,
-      subject: path14
-    }));
-  }
-  return { checked: true, unregistered: registration.unregistered, orphans: registration.orphans };
-}
-function runSet(input2, plan) {
+function stageOf(input2, plan) {
   if (plan === void 0 || input2.catalog.state !== "ok")
-    return [];
-  const catalog2 = input2.catalog.catalog;
-  const out = [];
-  for (const item2 of plan.suites) {
-    const suite2 = catalogSuite(catalog2, item2.suite);
-    if (suite2 === void 0)
-      continue;
-    const reason3 = policyRunReason(input2.policy, suite2.kind);
-    if (reason3 !== void 0)
-      out.push({ suite: suite2, reason: reason3 });
-  }
-  return out;
+    return { items: [], missingClasses: [] };
+  return stageRunSet({ policy: input2.policy, catalog: input2.catalog.catalog, plan, changedFiles: changedFilesOf(input2) });
 }
-function evaluateRunSet(input2, entries2, latest, freshness, plan, chainBroken, out) {
+function checkCoversNotice(input2, plan, stage, out) {
+  if (plan === void 0 || input2.catalog.state !== "ok")
+    return;
+  const notice = suitesWithoutCoversNotice({ policy: input2.policy, catalog: input2.catalog.catalog, changedFiles: changedFilesOf(input2), runSet: stage });
+  if (notice !== void 0)
+    out.notices.push(notice);
+}
+function evaluateRunSet(input2, items, latest, freshness, plan, chainBroken, claims, out) {
   const verdicts = [];
   const fresh = [];
-  for (const { suite: suite2, reason: reason3 } of entries2) {
+  const claimedChecks = [];
+  for (const { suite: suite2, reason: reason3, scope } of items) {
     const base = { suite: suite2.id, origin: "catalog", kind: suite2.kind, ...suite2.label === void 0 ? {} : { label: suite2.label }, reason: reason3 };
     const name = describeSuite(suite2);
     const fix = `tenon test run ${input2.change} --suite ${shellQuote(suite2.id)}`;
@@ -25944,20 +26607,25 @@ function evaluateRunSet(input2, entries2, latest, freshness, plan, chainBroken, 
       out.blockers.push(testBlocker("test-stale", `\u5957\u4EF6 ${name} \u7684\u8FD0\u884C\u5DF2\u8FC7\u671F\uFF1A${stale.map((item2) => STALE_WORDS[item2]).join("\u3001")}`, { fix, subject: suite2.id }));
       continue;
     }
-    if (input2.policy.scope === "full" && ref.run.scope !== "full") {
+    const wantsFull = input2.policy.level === void 0 ? input2.policy.scope === "full" : scope === "full";
+    if (wantsFull && ref.run.scope !== "full") {
       verdicts.push({ ...base, ...run2, state: "missing", detail: `\u53EA\u8DD1\u4E86 ${ref.run.scope} \u8303\u56F4` });
       out.blockers.push(testBlocker("test-not-run", `\u5957\u4EF6 ${name} \u672C\u9636\u6BB5\u8981\u6C42\u5168\u91CF\u8FD0\u884C\uFF0C\u6700\u8FD1\u4E00\u6B21\u53EA\u8DD1\u4E86 ${ref.run.scope} \u8303\u56F4`, { fix, subject: suite2.id }));
       continue;
     }
     fresh.push(ref);
+    const claimed = claims.bySuite.get(suite2.id) ?? [];
     const result2 = evaluateSuiteResult(suite2, ref, {
       change: input2.change,
       policy: input2.policy,
       plan,
       knownFailures: input2.knownFailures,
       baselines: input2.baselines,
-      today: input2.today
+      today: input2.today,
+      claimed
     });
+    if (result2.claimedChecked.length > 0)
+      claimedChecks.push({ suite: suite2, checked: result2.claimedChecked, missing: result2.claimedMissing });
     out.blockers.push(...result2.blockers);
     out.notices.push(...result2.notices);
     verdicts.push({
@@ -25971,9 +26639,9 @@ function evaluateRunSet(input2, entries2, latest, freshness, plan, chainBroken, 
       ...result2.benchmark.length === 0 ? {} : { benchmark: result2.benchmark }
     });
   }
-  return { verdicts, fresh };
+  return { verdicts, fresh, claimedChecks };
 }
-function checkAggregates(input2, plan, fresh, out) {
+function checkAggregates(input2, plan, claims, fresh, out) {
   const stageFix = `tenon test run ${input2.change} --stage`;
   const flaky2 = input2.policy.flaky;
   if (flaky2 === void 0)
@@ -25983,7 +26651,7 @@ function checkAggregates(input2, plan, fresh, out) {
     out.blockers.push(testBlocker("flaky-over-limit", `\u672C\u9636\u6BB5 flaky \u7528\u4F8B ${total} \u4E2A\uFF0C\u8D85\u8FC7\u4E0A\u9650 ${flaky2.max}`, { fix: stageFix }));
   }
   if (flaky2.fail_on_new) {
-    const registered2 = (plan?.files ?? []).map((file) => file.path);
+    const registered2 = [...(plan?.files ?? []).map((file) => file.path), ...claims.byPath.map((file) => file.path)];
     for (const ref of fresh) {
       for (const item2 of ref.run.cases) {
         if (item2.status !== "flaky" || !registered2.some((path14) => fileRefMatches(path14, item2.file) || fileRefMatches(item2.file, path14)))
@@ -26009,7 +26677,7 @@ function checkProtected(input2, reviewFix, out) {
     return;
   if (evidence.changesError !== void 0) {
     const message = `\u65E0\u6CD5\u8BFB\u53D6\u672C\u4EFB\u52A1\u5BF9\u6D4B\u8BD5\u914D\u7F6E\uFF08\u76EE\u5F55\u3001\u57FA\u7EBF\u3001\u5DF2\u77E5\u5931\u8D25\u6E05\u5355\u3001\u5DE5\u4F5C\u6D41\uFF09\u7684\u6539\u52A8\uFF08${evidence.changesError}\uFF09\uFF0C\u4E0D\u80FD\u786E\u8BA4\u5B83\u4EEC\u5DF2\u7ECF\u8FC7\u4EBA\u5DE5\u786E\u8BA4`;
-    if (input2.policy.files === "registered")
+    if (policyChecksChangedFiles(input2.policy))
       out.blockers.push(testBlocker("files-diff-unavailable", message, { fix: reviewFix }));
     else
       out.notices.push(testNotice("files-unchecked", message));
@@ -26059,9 +26727,11 @@ function evaluateTestPolicy(input2) {
   const reviewFix = `tenon review request ${input2.change}${input2.exitEvent === void 0 ? "" : ` --event ${input2.exitEvent}`}`;
   checkCatalogAndPlan(input2, out);
   const plan = input2.plan.state === "ok" ? input2.plan.plan : void 0;
+  const stage = stageOf(input2, plan);
+  checkCoversNotice(input2, plan, stage, out);
   if (plan !== void 0)
-    checkKinds(input2, plan, reviewFix, out);
-  const files = checkFiles(input2, plan, out);
+    checkKinds(input2, plan, stage.missingClasses, reviewFix, out);
+  const { files, claims } = checkFiles(input2, plan, out);
   checkProtected(input2, reviewFix, out);
   const unsealed = recordsUnsealed(input2);
   const chainBroken = input2.chain.state === "broken" || unsealed;
@@ -26082,10 +26752,11 @@ function evaluateTestPolicy(input2) {
     ...input2.plan.state === "ok" ? { planDigestApprovalFree: testPlanApprovalFreeDigest(input2.plan.plan) } : {},
     policyDigest: testPolicyDigest(input2.policy)
   };
-  const entries2 = runSet(input2, plan);
-  const evaluated = evaluateRunSet(input2, entries2, latest, freshness, plan, chainBroken, out);
+  const evaluated = evaluateRunSet(input2, stage.items, latest, freshness, plan, chainBroken, claims, out);
+  const unexecuted = claimedNotExecuted(input2.change, evaluated.claimedChecks, out);
+  const verdicts = evaluated.verdicts.map((verdict) => unexecuted.has(verdict.suite) ? { ...verdict, state: "failed" } : verdict);
   const inline = evaluateInline(input2, plan, latest, freshness, reviewFix, out);
-  checkAggregates(input2, plan, evaluated.fresh, out);
+  checkAggregates(input2, plan, claims, evaluated.fresh, out);
   const integrity = checkIntegrity(input2, records, out);
   let trace = [];
   if (plan !== void 0) {
@@ -26108,8 +26779,9 @@ function evaluateTestPolicy(input2) {
     pass: !out.blockers.some((item2) => item2.blocking),
     blockers: out.blockers,
     notices: out.notices,
-    suites: [...evaluated.verdicts, ...inline],
+    suites: [...verdicts, ...inline],
     trace,
+    scenarios: input2.policy.scenarios,
     files,
     chain: input2.chain.state,
     notApplicable: notApplicableStatuses(input2),
@@ -27141,9 +27813,8 @@ async function loadBaselines(repoRoot, catalog2, chain) {
   }
   return out;
 }
-async function loadIntegrity(input2, catalog2) {
-  const policy2 = input2.policy;
-  const wanted = policy2.integrity === "block" || policy2.run.length > 0 || policy2.run_if_registered.length > 0;
+async function loadIntegrity(input2, policy2, catalog2) {
+  const wanted = policy2.integrity === "block" || policyRunsSuites(policy2);
   if (!wanted || input2.integrityDiff === void 0)
     return void 0;
   const known = catalog2.state === "ok" ? catalog2.catalog : void 0;
@@ -27166,6 +27837,7 @@ async function evaluateStepTestPolicy(input2) {
     loadDeltaScenarios(input2.changeDir),
     loadTaskItems(input2.changeDir, input2.stages)
   ]);
+  const policy2 = resolveStepTestPolicy(input2.step, catalog2.state === "ok" ? catalog2.catalog : void 0) ?? INERT_TEST_POLICY;
   const planInput = plan.state === "ok" ? { state: "ok", plan: plan.plan, digest: plan.digest } : plan;
   const hasRecords = chain.state === "intact" && chain.active.length > 0;
   const candidate2 = hasRecords ? await input2.candidate() : void 0;
@@ -27173,7 +27845,7 @@ async function evaluateStepTestPolicy(input2) {
   let changedFiles;
   let changedFilesTruncated;
   let changedFilesError;
-  if (input2.policy.files === "registered" && input2.changedFiles !== void 0) {
+  if (policyChecksChangedFiles(policy2) && input2.changedFiles !== void 0) {
     try {
       const source2 = await input2.changedFiles();
       const report = Array.isArray(source2) ? { files: source2 } : source2;
@@ -27194,11 +27866,11 @@ async function evaluateStepTestPolicy(input2) {
       protectedChangesError = error2 instanceof Error ? error2.message.slice(0, 200) : "\u8BFB\u53D6\u5931\u8D25";
     }
   }
-  const integrity = await loadIntegrity(input2, catalog2);
+  const integrity = await loadIntegrity(input2, policy2, catalog2);
   return evaluateTestPolicy({
     change: input2.changeName,
     stepId: input2.stepId,
-    policy: input2.policy,
+    policy: policy2,
     inline: input2.inline,
     catalog: catalog2,
     plan: planInput,
@@ -27467,8 +28139,9 @@ function blockerFor2(item2, changeName) {
 }
 async function evaluateTestEvidence(input2) {
   const tests = stepTests(input2.plan, input2.stepId);
-  const policy2 = input2.plan.workflow.steps.find((step) => step.id === input2.stepId)?.test_policy;
-  if (tests.length === 0 && policy2 === void 0)
+  const stepDef = input2.plan.workflow.steps.find((item2) => item2.id === input2.stepId);
+  const policyStep = stepDef !== void 0 && stepHasTestPolicy(stepDef) ? stepDef : void 0;
+  if (tests.length === 0 && policyStep === void 0)
     return { stepId: input2.stepId, pass: true, blockers: [], items: [] };
   if (input2.context === void 0) {
     return {
@@ -27523,7 +28196,7 @@ async function evaluateTestEvidence(input2) {
     }
     items.push({ test, status: record12.result === "pass" ? "passed" : "failed", run: record12 });
   }
-  if (policy2 !== void 0) {
+  if (policyStep !== void 0) {
     const event = exitEvent(input2.plan, input2.stepId);
     const report = await evaluateStepTestPolicy({
       repoRoot: input2.repoRoot,
@@ -27531,9 +28204,9 @@ async function evaluateTestEvidence(input2) {
       changeName: input2.changeName,
       slug,
       stepId: input2.stepId,
-      policy: policy2,
+      step: policyStep,
       stages: input2.plan.workflow.steps.map((step) => ({ id: step.id, label: step.label })),
-      inline: items.map((item2) => ({ suite: inlineSuiteFromTest(item2.test), status: item2.status, ...inlineDetail(item2) })),
+      inline: items.map((item2) => ({ suite: inlineSuiteFromTest(item2.test), status: item2.status, ...inlineDetail(item2, input2.changeName) })),
       workflowFingerprint: input2.plan.workflowFingerprint,
       workflowRunId: runId,
       candidate: currentCandidate,
@@ -27543,7 +28216,7 @@ async function evaluateTestEvidence(input2) {
       ...input2.context.protectedChanges === void 0 ? {} : { protectedChanges: input2.context.protectedChanges },
       ...input2.context.seal === void 0 ? {} : { seal: input2.context.seal },
       ...input2.context.integrityDiff === void 0 ? {} : { integrityDiff: input2.context.integrityDiff },
-      reviewGated: input2.plan.workflow.steps.find((step) => step.id === input2.stepId)?.gate === "review",
+      reviewGated: policyStep.gate === "review",
       now,
       ...event === void 0 ? {} : { exitEvent: event }
     });
@@ -27566,7 +28239,12 @@ function withWaiver(item2, report) {
   const verdict = report.suites.find((suite2) => suite2.origin === "step" && suite2.suite === inlineSuiteId(item2.test.id));
   if (verdict?.state !== "waived" && verdict?.state !== "waiver-pending")
     return item2;
-  return { ...item2, waiver: verdict.state, ...verdict.failedCandidate === void 0 ? {} : { failedCandidate: verdict.failedCandidate } };
+  return {
+    ...item2,
+    waiver: verdict.state,
+    ...verdict.failedCandidate === void 0 ? {} : { failedCandidate: verdict.failedCandidate },
+    ...verdict.failedMetrics === void 0 ? {} : { failedMetrics: verdict.failedMetrics }
+  };
 }
 function policyBlockerDetail(blocker3) {
   if (blocker3.code === "test-integrity")
@@ -27575,13 +28253,15 @@ function policyBlockerDetail(blocker3) {
     return { state: "diff-unavailable" };
   return void 0;
 }
-function inlineDetail(item2) {
+function inlineDetail(item2, changeName) {
   if (item2.status === "stale")
     return { detail: staleWord(item2.staleBecause) };
   if (item2.status === "failed") {
+    const metrics = item2.run === void 0 ? void 0 : latestFailureMetrics(changeName, item2.test.id, [item2.run], item2.run.candidate);
     return {
       detail: (item2.run?.reasons ?? []).map((reason3) => reason3.code).join(", "),
-      ...item2.run === void 0 ? {} : { candidate: item2.run.candidate }
+      ...item2.run === void 0 ? {} : { candidate: item2.run.candidate },
+      ...metrics === void 0 ? {} : { failedMetrics: metrics }
     };
   }
   return {};
@@ -27612,27 +28292,252 @@ async function rejectOnTestEvidence(input2) {
 
 // packages/kernel/dist/test-system/catalog-file.js
 import { mkdir as mkdir23, readFile as readFile37 } from "node:fs/promises";
+
+// packages/kernel/dist/test-system/catalog-patch-lines.js
+function splitSegments(text13) {
+  const out = [];
+  let from = 0;
+  while (from < text13.length) {
+    const newline = text13.indexOf("\n", from);
+    if (newline < 0) {
+      out.push({ text: text13.slice(from), eol: "" });
+      break;
+    }
+    const crlf = newline > from && text13[newline - 1] === "\r";
+    out.push({ text: text13.slice(from, crlf ? newline - 1 : newline), eol: crlf ? "\r\n" : "\n" });
+    from = newline + 1;
+  }
+  return out;
+}
+function applyLineEdits(segments2, edits) {
+  const dominant = segments2.find((segment) => segment.eol !== "")?.eol ?? "\n";
+  const sorted = [...edits].sort((left, right) => left.start - right.start || left.end - right.end);
+  const out = [];
+  let cursor = 0;
+  for (const edit of sorted) {
+    if (edit.start < cursor)
+      throw new Error(`\u76EE\u5F55\u6539\u52A8\u533A\u95F4\u91CD\u53E0\uFF08\u7B2C ${edit.start + 1} \u884C\u9644\u8FD1\uFF09`);
+    for (const segment of segments2.slice(cursor, edit.start))
+      out.push(segment);
+    for (const line of edit.lines)
+      out.push({ text: line, eol: dominant });
+    cursor = edit.end;
+  }
+  for (const segment of segments2.slice(cursor))
+    out.push(segment);
+  const unterminated = segments2.at(-1)?.eol === "";
+  return out.map((segment, index) => {
+    if (!unterminated)
+      return segment.text + segment.eol;
+    return segment.text + (index === out.length - 1 ? "" : segment.eol === "" ? dominant : segment.eol);
+  }).join("");
+}
+function isBlankOrComment(text13) {
+  const trimmed = text13.trim();
+  return trimmed === "" || trimmed.startsWith("#");
+}
+function leadingSpaces(text13) {
+  return text13.length - text13.trimStart().length;
+}
+function contentColumn(text13) {
+  const indent = leadingSpaces(text13);
+  const rest = text13.slice(indent);
+  if (rest !== "-" && !rest.startsWith("- "))
+    return indent;
+  let column = indent + 1;
+  while (text13[column] === " ")
+    column++;
+  return column;
+}
+function isDashLine(text13) {
+  return /^ *-(?: |$)/.test(text13);
+}
+function lastContentLine(segments2, from, limit) {
+  for (let line = Math.min(limit - 1, segments2.length); line > from; line--) {
+    if (!isBlankOrComment(segments2[line - 1]?.text ?? ""))
+      return line;
+  }
+  return from;
+}
+
+// packages/kernel/dist/test-system/catalog-patch.js
+var LIST_IDENTITY = { suites: "id", services: "id", not_applicable: "kind" };
+function isSeq2(value) {
+  return Array.isArray(value);
+}
+function isMap2(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function same2(left, right) {
+  return left === void 0 || right === void 0 ? left === right : canonicalJson(left) === canonicalJson(right);
+}
+function textOf(ctx, line) {
+  return ctx.segments[line - 1]?.text ?? "";
+}
+function limitAfter(site, entry2) {
+  return site.entries[site.entries.indexOf(entry2) + 1]?.line ?? site.limit;
+}
+function entryRange(ctx, site, entry2) {
+  return { start: entry2.line - 1, end: lastContentLine(ctx.segments, entry2.line, limitAfter(site, entry2)) };
+}
+function replaceEntry(ctx, site, entry2, key, value) {
+  const [first = "", ...rest] = emitEntries({ [key]: value }, " ".repeat(site.column));
+  const head = entry2.line === site.dashLine ? textOf(ctx, entry2.line).slice(0, site.column) + first.slice(site.column) : first;
+  return { ...entryRange(ctx, site, entry2), lines: [head, ...rest] };
+}
+function patchMap(ctx, site, was, now, hook) {
+  const appended = [];
+  for (const key of [...Object.keys(now), ...Object.keys(was).filter((name) => !(name in now))]) {
+    const before = was[key];
+    const after = now[key];
+    if (same2(before, after))
+      continue;
+    const entry2 = site.entries.find((item2) => item2.key === key);
+    if (after === void 0) {
+      if (entry2 !== void 0)
+        ctx.edits.push({ ...entryRange(ctx, site, entry2), lines: [] });
+    } else if (entry2 === void 0) {
+      appended.push(...emitEntries({ [key]: after }, " ".repeat(site.column)));
+    } else if (!hook(ctx, site, entry2, key, before, after)) {
+      ctx.edits.push(replaceEntry(ctx, site, entry2, key, after));
+    }
+  }
+  if (appended.length > 0)
+    ctx.edits.push({ start: site.appendAt, end: site.appendAt, lines: appended });
+}
+var appendToList = (ctx, _site, entry2, _key, was, now) => {
+  const node = entry2.value;
+  if (!isSeq2(was) || !isSeq2(now) || node.kind !== "seq" || node.items.length !== was.length || was.length === 0)
+    return false;
+  const scalar18 = (item2) => typeof item2 === "string" || typeof item2 === "number" || typeof item2 === "boolean";
+  if (now.length <= was.length || !now.every(scalar18) || !was.every((item2, index) => same2(item2, now[index])))
+    return false;
+  const last = node.items.at(-1);
+  if (last === void 0 || (node.items[0]?.line ?? 0) <= entry2.line)
+    return false;
+  if (!node.items.every((item2, index) => item2.kind === "scalar" && item2.value === was[index] && isDashLine(textOf(ctx, item2.line))))
+    return false;
+  const pad = " ".repeat(leadingSpaces(textOf(ctx, last.line)));
+  ctx.edits.push({ start: last.line, end: last.line, lines: emitItems(now.slice(was.length), pad) });
+  return true;
+};
+function idOf(value, idKey) {
+  const id2 = isMap2(value) ? value[idKey] : void 0;
+  return typeof id2 === "string" ? id2 : void 0;
+}
+function textIdOf(item2, idKey) {
+  const node = item2.entries.find((entry2) => entry2.key === idKey)?.value;
+  return node?.kind === "scalar" ? node.value : void 0;
+}
+function replaceItem(ctx, item2, limit, value) {
+  const pad = " ".repeat(leadingSpaces(textOf(ctx, item2.line)));
+  ctx.edits.push({ start: item2.line - 1, end: lastContentLine(ctx.segments, item2.line, limit), lines: emitItems([value], pad) });
+}
+function patchItem(ctx, item2, limit, was, now) {
+  if (now === void 0)
+    return;
+  const dashText = textOf(ctx, item2.line);
+  const first = item2.entries[0];
+  if (!isMap2(was) || !isMap2(now) || first === void 0 || /^ *-\s*\{/.test(dashText) || now[first.key] === void 0 && was[first.key] !== void 0) {
+    replaceItem(ctx, item2, limit, now);
+    return;
+  }
+  const site = {
+    entries: item2.entries,
+    limit,
+    column: contentColumn(dashText),
+    dashLine: item2.line,
+    appendAt: lastContentLine(ctx.segments, item2.line, limit)
+  };
+  patchMap(ctx, site, was, now, appendToList);
+}
+var patchObjectList = (ctx, site, entry2, key, was, now) => {
+  const idKey = LIST_IDENTITY[key];
+  const node = entry2.value;
+  if (idKey === void 0 || !isSeq2(was) || !isSeq2(now) || now.length === 0 || was.length === 0)
+    return false;
+  if (node.kind !== "seq" || node.items.length !== was.length || (node.items[0]?.line ?? 0) <= entry2.line)
+    return false;
+  const oldIds = was.map((item2) => idOf(item2, idKey));
+  const newIds = now.map((item2) => idOf(item2, idKey));
+  const items = [];
+  for (const [index, item2] of node.items.entries()) {
+    if (item2.kind !== "map" || textIdOf(item2, idKey) !== oldIds[index] || !isDashLine(textOf(ctx, item2.line)))
+      return false;
+    items.push(item2);
+  }
+  if (oldIds.includes(void 0) || newIds.includes(void 0))
+    return false;
+  const added = newIds.filter((id2) => !oldIds.includes(id2));
+  if (canonicalJson([...oldIds.filter((id2) => newIds.includes(id2)), ...added]) !== canonicalJson(newIds))
+    return false;
+  const limit = limitAfter(site, entry2);
+  for (const [index, item2] of items.entries()) {
+    const itemLimit = items[index + 1]?.line ?? limit;
+    const at = newIds.indexOf(oldIds[index]);
+    if (at < 0)
+      ctx.edits.push({ start: item2.line - 1, end: lastContentLine(ctx.segments, item2.line, itemLimit), lines: [] });
+    else if (!same2(was[index], now[at]))
+      patchItem(ctx, item2, itemLimit, was[index], now[at]);
+  }
+  const last = items.at(-1);
+  if (added.length > 0 && last !== void 0) {
+    const at = lastContentLine(ctx.segments, last.line, limit);
+    const pad = " ".repeat(leadingSpaces(textOf(ctx, last.line)));
+    ctx.edits.push({ start: at, end: at, lines: emitItems(added.flatMap((id2) => now.filter((item2) => idOf(item2, idKey) === id2)), pad) });
+  }
+  return true;
+};
+var patchTopLevel = (ctx, site, entry2, key, was, now) => patchObjectList(ctx, site, entry2, key, was, now) || appendToList(ctx, site, entry2, key, was, now);
+function patchCatalogText(text13, before, after) {
+  const current = parseTestCatalog(text13);
+  if (!current.ok)
+    throw new Error(`\u76EE\u5F55\u539F\u6587\u65E0\u6CD5\u89E3\u6790\uFF1A${formatCatalogIssues(current.issues).slice(0, 3).join("\uFF1B")}`);
+  if (canonicalJson(current.catalog) !== canonicalJson(before))
+    throw new Error("\u76EE\u5F55\u539F\u6587\u4E0E\u6539\u52A8\u524D\u7684\u76EE\u5F55\u4E0D\u4E00\u81F4\uFF08\u6587\u4EF6\u5728\u8BFB\u53D6\u4E4B\u540E\u53C8\u88AB\u6539\u8FC7\uFF09\uFF0C\u62D2\u7EDD\u6539\u5199");
+  const root = parseYamlSubset(text13);
+  if (root.kind !== "map")
+    throw new Error("\u76EE\u5F55\u539F\u6587\u65E0\u6CD5\u89E3\u6790\uFF1A\u9876\u5C42\u4E0D\u662F\u6620\u5C04");
+  const segments2 = splitSegments(text13);
+  const ctx = { segments: segments2, edits: [] };
+  const site = { entries: root.entries, limit: segments2.length + 1, column: 0, appendAt: segments2.length };
+  patchMap(ctx, site, catalogValue(before), catalogValue(after), patchTopLevel);
+  if (ctx.edits.length === 0)
+    return text13;
+  const patched = applyLineEdits(segments2, ctx.edits);
+  const reparsed = parseTestCatalog(patched);
+  if (!reparsed.ok)
+    throw new Error(`\u6539\u52A8\u540E\u7684\u76EE\u5F55\u4E0D\u5408\u6CD5\uFF1A${formatCatalogIssues(reparsed.issues).slice(0, 3).join("\uFF1B")}`);
+  if (canonicalJson(reparsed.catalog) !== canonicalJson(after))
+    throw new Error("\u6539\u52A8\u540E\u7684\u76EE\u5F55\u4E0E\u9884\u671F\u4E0D\u4E00\u81F4\uFF0C\u62D2\u7EDD\u5199\u76D8");
+  return patched;
+}
+
+// packages/kernel/dist/test-system/catalog-file.js
 function emptyCatalog() {
   return { schema: TEST_CATALOG_SCHEMA, profiles_env: [], suites: [], services: [] };
 }
-async function readCatalogFile(repoRoot) {
+async function loadCatalog(repoRoot) {
   let text13;
   try {
     text13 = await readFile37(testSystemPaths(repoRoot).catalog, "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT")
-      return { state: "missing" };
+      return { file: { state: "missing" } };
     throw error2;
   }
   const parsed2 = parseTestCatalog(text13);
-  return parsed2.ok ? { state: "ok", catalog: parsed2.catalog } : { state: "invalid", issues: formatCatalogIssues(parsed2.issues) };
+  return { file: parsed2.ok ? { state: "ok", catalog: parsed2.catalog } : { state: "invalid", issues: formatCatalogIssues(parsed2.issues) }, text: text13 };
+}
+async function readCatalogFile(repoRoot) {
+  return (await loadCatalog(repoRoot)).file;
 }
 async function updateCatalog(repoRoot, mutate, observe) {
   const paths = testSystemPaths(repoRoot);
   await mkdir23(paths.root, { recursive: true });
   return withLock(paths.root, async () => {
     const seen = observe === void 0 ? void 0 : await observe();
-    const current = await readCatalogFile(repoRoot);
+    const { file: current, text: original } = await loadCatalog(repoRoot);
     if (current.state === "invalid")
       return { ok: false, message: `catalog.yaml \u65E0\u6548\uFF0C\u5148\u4FEE\u597D\u518D\u6539\uFF1A${current.issues.slice(0, 3).join("\uFF1B")}` };
     const base = current.state === "ok" ? current.catalog : emptyCatalog();
@@ -27641,10 +28546,21 @@ async function updateCatalog(repoRoot, mutate, observe) {
       return { ok: false, message: result2 };
     if (result2.catalog === base)
       return { ok: true, value: result2.value };
-    const text13 = serializeTestCatalog(result2.catalog);
-    const check = parseTestCatalog(text13);
-    if (!check.ok)
-      return { ok: false, message: `\u6539\u52A8\u540E\u7684\u76EE\u5F55\u4E0D\u5408\u6CD5\uFF1A${formatCatalogIssues(check.issues).slice(0, 3).join("\uFF1B")}` };
+    let text13;
+    if (original === void 0) {
+      text13 = serializeTestCatalog(result2.catalog);
+      const check = parseTestCatalog(text13);
+      if (!check.ok)
+        return { ok: false, message: `\u6539\u52A8\u540E\u7684\u76EE\u5F55\u4E0D\u5408\u6CD5\uFF1A${formatCatalogIssues(check.issues).slice(0, 3).join("\uFF1B")}` };
+    } else {
+      try {
+        text13 = patchCatalogText(original, base, result2.catalog);
+      } catch (error2) {
+        return { ok: false, message: error2 instanceof Error ? error2.message : "\u6539\u52A8\u540E\u7684\u76EE\u5F55\u5199\u56DE\u5931\u8D25" };
+      }
+      if (text13 === original)
+        return { ok: true, value: result2.value };
+    }
     await atomicReplaceFile(paths.catalog, text13);
     return { ok: true, value: result2.value };
   });
@@ -28032,6 +28948,9 @@ async function acceptResidual(input2, selection) {
   return added;
 }
 
+// packages/kernel/dist/test-system/trust-store.js
+var MAX_STORE_BYTES = 8 * 1024 * 1024;
+
 // packages/kernel/dist/ci-verify/rules.js
 var CI_ONLY = [
   {
@@ -28168,12 +29087,12 @@ var CI_ONLY = [
     help: "There is nothing to verify at this step; this is not evidence that tests passed."
   }
 ];
-function policyRule(id2, short2, level) {
+function policyRule(id2, short2, level2) {
   return {
     id: id2,
     name: id2.split("-").map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`).join(""),
     short: short2,
-    level,
+    level: level2,
     help: "Reported by the Tenon test policy of the evaluated workflow step; the message names the exact object and the command that fixes it."
   };
 }
@@ -31976,11 +32895,11 @@ function insertPointAtBlockEnd(lines2, start, end) {
 // packages/kernel/dist/loops/graduation.js
 var MIN_L2_RUNS_FOR_L3 = 5;
 var ORDER2 = ["L1", "L2", "L3"];
-function nextUp(level) {
-  return required(ORDER2[Math.min(ORDER2.indexOf(level) + 1, ORDER2.length - 1)]);
+function nextUp(level2) {
+  return required(ORDER2[Math.min(ORDER2.indexOf(level2) + 1, ORDER2.length - 1)]);
 }
-function nextDown(level) {
-  return required(ORDER2[Math.max(ORDER2.indexOf(level) - 1, 0)]);
+function nextDown(level2) {
+  return required(ORDER2[Math.max(ORDER2.indexOf(level2) - 1, 0)]);
 }
 var HIST_TS_RE = /^(?:\d{4}-)?\d{2}-\d{2}T\d{2}:\d{2}$/;
 var HIST_RESULT_RE = /result=(ok|fail|dry|skip)/;
@@ -32104,7 +33023,7 @@ function planLevelChange(current, target, verdict) {
   }
   return { ...base, to, kind: "promote", allowed: true, reason: `\u9010\u7EA7\u6BD5\u4E1A ${current} \u2192 ${to}`, blockers: [] };
 }
-function setAutonomyLevelInYaml(text13, loopId, level) {
+function setAutonomyLevelInYaml(text13, loopId, level2) {
   const lines2 = text13.split("\n");
   const block = locateLoop(lines2, loopId);
   if (block === null)
@@ -32113,11 +33032,11 @@ function setAutonomyLevelInYaml(text13, loopId, level) {
   for (let i = block.start; i < block.end; i++) {
     const m = required(lines2[i]).match(levelRe);
     if (m) {
-      lines2[i] = `${m[1]}autonomy_level: ${level}`;
+      lines2[i] = `${m[1]}autonomy_level: ${level2}`;
       return { text: lines2.join("\n"), error: null };
     }
   }
-  lines2.splice(insertPointAtBlockEnd(lines2, block.start, block.end), 0, `${" ".repeat(block.dashIndent + 2)}autonomy_level: ${level}`);
+  lines2.splice(insertPointAtBlockEnd(lines2, block.start, block.end), 0, `${" ".repeat(block.dashIndent + 2)}autonomy_level: ${level2}`);
   return { text: lines2.join("\n"), error: null };
 }
 function gatherInputs(loop, registry, runLog, doc, now) {
@@ -36899,17 +37818,17 @@ function judgedRun(input2, agent, role, blockAt, host) {
     return { row: found, reruns: 0, flipped: false, reason: null, wrongHost: false };
   }
   const finished = input2.runs.filter((row) => row.agent === agent && row.step_visit === input2.stepVisit && row.status === "finished" && row.candidate === input2.candidate);
-  const same2 = finished.filter((row) => hostRunValid(host, row.host));
-  const latest = same2[same2.length - 1];
+  const same3 = finished.filter((row) => hostRunValid(host, row.host));
+  const latest = same3[same3.length - 1];
   if (latest === void 0)
     return { row: found, reruns: 0, flipped: false, reason: null, wrongHost: true };
-  const reruns = Math.max(0, same2.length - 1);
+  const reruns = Math.max(0, same3.length - 1);
   const failed2 = (row) => blockAt !== void 0 && blockingFindings(row, blockAt).length > 0;
-  const flipped = reruns > 0 && !failed2(latest) && same2.slice(0, -1).some(failed2);
+  const flipped = reruns > 0 && !failed2(latest) && same3.slice(0, -1).some(failed2);
   const reason3 = latest.rerun_reason ?? null;
   if (reruns === 0 || reason3 !== null)
     return { row: latest, reruns, flipped, reason: reason3, wrongHost: false };
-  const severest = same2.reduce((worst, row) => worstRank(row) > worstRank(worst) ? row : worst, latest);
+  const severest = same3.reduce((worst, row) => worstRank(row) > worstRank(worst) ? row : worst, latest);
   return { row: severest, reruns, flipped, reason: null, wrongHost: false };
 }
 function stateOf(row, role, candidate2, wrongHost = false) {
@@ -37636,7 +38555,8 @@ function stageEntries(step, input2) {
     source: "declared"
   }));
   const covered = new Set((step.tests ?? []).map((test) => kindForDirection(test.direction ?? test.id)));
-  const policyKinds = [...new Set(step.test_policy?.run ?? [])].map((kind) => kindForDirection(kind)).filter((kind, index, all) => all.indexOf(kind) === index && !covered.has(kind));
+  const levelKinds = step.test === "changed" || step.test === "full" ? DEFAULT_LEVELS[step.test].required : [];
+  const policyKinds = [.../* @__PURE__ */ new Set([...step.test_policy?.run ?? [], ...levelKinds])].map((kind) => kindForDirection(kind)).filter((kind, index, all) => all.indexOf(kind) === index && !covered.has(kind));
   const policyTests = policyKinds.map((kind) => ({
     kind: "test",
     id: `kind:${kind}`,
@@ -37814,6 +38734,7 @@ function planStepSources(plan) {
     ...step.agents === void 0 ? {} : { agents: step.agents },
     ...step.tests === void 0 ? {} : { tests: step.tests },
     ...step.test_policy === void 0 ? {} : { test_policy: step.test_policy },
+    ...step.test === void 0 ? {} : { test: step.test },
     transitions: step.transitions
   }));
 }
@@ -37880,6 +38801,9 @@ function serializeBranchPolicy(branch, pad) {
 }
 
 // packages/kernel/dist/workflow/serialize-test-policy.js
+function serializeStepTestLevel(level2) {
+  return level2 === void 0 ? [] : [`    test: ${level2}`];
+}
 function inlineMap(value) {
   const entries2 = Object.entries(value).filter(([, item2]) => item2 !== void 0).map(([key, item2]) => `${key}: ${String(item2)}`);
   return `{ ${entries2.join(", ")} }`;
@@ -38028,6 +38952,7 @@ function serializeStep(step) {
     lines2.push(...step.prompt.split("\n").map((line) => `      ${line}`));
   }
   lines2.push(...serializeBlockField("skills", step.skills, serializeSkill));
+  lines2.push(...serializeStepTestLevel(step.test));
   lines2.push(...serializeStepTests(step.tests));
   lines2.push(...serializeStepTestPolicy(step.test_policy));
   lines2.push(...serializeStepAgents(step.agents));
@@ -45235,12 +46160,12 @@ function newestFirst(left, right) {
   return left.archivedDir < right.archivedDir ? 1 : left.archivedDir > right.archivedDir ? -1 : 0;
 }
 async function archiveRootOf(readRoot) {
-  let level = readRoot;
+  let level2 = readRoot;
   for (const segment of ARCHIVE_SEGMENTS2) {
-    level = join80(level, segment);
-    if (!await isPlainDirectory(level)) return void 0;
+    level2 = join80(level2, segment);
+    if (!await isPlainDirectory(level2)) return void 0;
   }
-  return level;
+  return level2;
 }
 var MOVED_DOCUMENT = /^openspec\/changes\/([^/]+)\/(.+)$/u;
 function staysBelowTaskDir(rest) {
@@ -45801,6 +46726,32 @@ function planBriefDto(plan, kindOf) {
 }
 
 // packages/server/src/testPolicyDto.ts
+function thresholdFields(source2) {
+  const { coverage: coverage3, flaky: flaky2 } = source2;
+  return {
+    ...coverage3 === void 0 ? {} : {
+      coverage: coverageDto({
+        ...coverage3.lines === void 0 ? {} : { lines: coverage3.lines },
+        ...coverage3.branches === void 0 ? {} : { branches: coverage3.branches },
+        ...coverage3.functions === void 0 ? {} : { functions: coverage3.functions },
+        ...coverage3.statements === void 0 ? {} : { statements: coverage3.statements },
+        ...coverage3.changed_lines === void 0 ? {} : { changed_lines: coverage3.changed_lines }
+      })
+    },
+    ...flaky2 === void 0 ? {} : { flaky: { max: flaky2.max, failOnNew: flaky2.fail_on_new } }
+  };
+}
+function levelDto(level2) {
+  return {
+    name: level2.name,
+    required: level2.required,
+    touched: level2.touched,
+    scenarios: level2.scenarios,
+    ...thresholdFields(level2),
+    requireBaseline: level2.require_baseline,
+    source: level2.source
+  };
+}
 function policyDto(policy2) {
   return {
     plan: policy2.plan,
@@ -45811,18 +46762,12 @@ function policyDto(policy2) {
     files: policy2.files,
     scenarios: policy2.scenarios,
     integrity: policy2.integrity ?? "notice",
-    ...policy2.coverage === void 0 ? {} : {
-      coverage: coverageDto({
-        ...policy2.coverage.lines === void 0 ? {} : { lines: policy2.coverage.lines },
-        ...policy2.coverage.branches === void 0 ? {} : { branches: policy2.coverage.branches },
-        ...policy2.coverage.functions === void 0 ? {} : { functions: policy2.coverage.functions },
-        ...policy2.coverage.statements === void 0 ? {} : { statements: policy2.coverage.statements },
-        ...policy2.coverage.changed_lines === void 0 ? {} : { changed_lines: policy2.coverage.changed_lines }
-      })
-    },
-    ...policy2.flaky === void 0 ? {} : { flaky: { max: policy2.flaky.max, failOnNew: policy2.flaky.fail_on_new } },
+    ...thresholdFields(policy2),
     requireBaseline: policy2.benchmark.require_baseline,
-    browsers: policy2.browsers
+    browsers: policy2.browsers,
+    ...policy2.level === void 0 ? {} : {
+      level: { name: policy2.level.name, required: policy2.level.required, touched: policy2.level.touched, source: policy2.level.source }
+    }
   };
 }
 function blockerDto(item2) {
@@ -45919,7 +46864,7 @@ function policyReportDto(report, policy2) {
     trace: report.trace.slice(0, MAX_DTO_TRACE_ROWS).map(traceDto),
     files: {
       checked: report.files.checked,
-      unregistered: report.files.unregistered.map((file) => ({ path: file.path, suites: file.suites })),
+      claimed: report.files.claimed.slice(0, MAX_DTO_BLOCKERS).map((file) => ({ path: file.path, suites: file.suites })),
       orphans: report.files.orphans
     },
     notApplicable: report.notApplicable.map((entry2) => ({ kind: entry2.kind, reason: entry2.reason, approved: entry2.approved })),
@@ -45956,7 +46901,8 @@ function catalogView(input2) {
   return {
     state: "ok",
     suites: input2.catalog.suites.map(catalogSuiteDto),
-    services: input2.catalog.services.map(catalogServiceDto)
+    services: input2.catalog.services.map(catalogServiceDto),
+    levels: LEVEL_NAMES.map((name) => levelDto(resolveLevel(name, input2.catalog)))
   };
 }
 async function readKnownFailuresView(readRoot, today) {
@@ -46198,8 +47144,9 @@ async function readRecordDetail(readRoot, user, change, runId) {
 // packages/server/src/testEvidenceSnapshot.ts
 var MAX_DIAGNOSTICS = 20;
 async function projectTestEvidence(input2) {
-  const declared = input2.plan.workflow.steps.filter((step) => (step.tests ?? []).length > 0 || step.test_policy !== void 0);
+  const declared = input2.plan.workflow.steps.filter(stepDeclaresTests);
   if (declared.length === 0) return {};
+  const catalog2 = declared.some((step) => step.test_policy === void 0 && stepHasTestPolicy(step)) ? catalogOf(await loadCatalogInput(input2.root)) : void 0;
   const user = input2.user;
   const readCandidate = input2.candidate;
   const context = user === void 0 ? void 0 : {
@@ -46248,9 +47195,9 @@ async function projectTestEvidence(input2) {
       }
     }));
     if (items.length > 0) tests.push({ stepId: step.id, items });
-    if (report.policy !== void 0) policies.push(policyReportDto(report.policy, step.test_policy));
+    if (report.policy !== void 0) policies.push(policyReportDto(report.policy, resolveStepTestPolicy(step, catalog2)));
   }
-  const hasPolicy = declared.some((step) => step.test_policy !== void 0);
+  const hasPolicy = declared.some(stepHasTestPolicy);
   const corrupt = user === void 0 ? [] : await corruptTestRunFiles(input2.root, input2.changeName, userSlug(user.id));
   return {
     ...tests.length === 0 ? {} : { tests },
@@ -48664,10 +49611,10 @@ function captureChangeParentPathAnchor(root) {
 }
 function captureChangePathAnchor(root, change, area = "active") {
   const chainPaths = [];
-  let level = root.path;
+  let level2 = root.path;
   for (const segment of [...changeAreaSegments(area), change]) {
-    level = join96(level, segment);
-    chainPaths.push(level);
+    level2 = join96(level2, segment);
+    chainPaths.push(level2);
   }
   const chain = [];
   for (const path14 of chainPaths) {
@@ -50856,7 +51803,7 @@ async function handleTestDirectionGet(path14, deps) {
     return { status: 500, body: { ok: false, error: error2 instanceof Error ? error2.message : String(error2) } };
   }
 }
-function idOf(path14) {
+function idOf2(path14) {
   const match = /^\/api\/test-directions\/([^/]+)$/u.exec(path14);
   return match === null ? null : decodeURIComponent(match[1] ?? "");
 }
@@ -50869,7 +51816,7 @@ async function isBuiltin(configRoot, id2) {
   }
 }
 async function handleTestDirectionMutation(method, path14, body2, deps) {
-  const id2 = idOf(path14);
+  const id2 = idOf2(path14);
   if (id2 === null || method !== "PUT" && method !== "DELETE") return null;
   if (!deps.authorized()) return { status: 401, body: { ok: false, error: "\u7F3A\u5C11\u5199\u5165\u51ED\u8BC1" } };
   if (!ID_RE3.test(id2)) return { status: 400, body: { ok: false, error: "id \u975E\u6CD5\uFF08\u4EC5\u5141\u8BB8 a-zA-Z0-9_-\uFF0C\u226464\uFF09" } };
@@ -51803,7 +52750,7 @@ function applyInstructions(scope, rawText, targets) {
   if (ids2.length === 0 || new Set(ids2).size !== ids2.length) return fail11(400, "invalid-target", "\u76EE\u6807\u6587\u4EF6\u4E0D\u5408\u6CD5");
   const unknown = ids2.find((id2) => !targetIdsFor(scope).includes(id2));
   if (unknown !== void 0) return fail11(400, "invalid-target", `\u672A\u77E5\u76EE\u6807\uFF1A${unknown}`);
-  const planned = [];
+  const planned2 = [];
   try {
     for (const target of targets) {
       const checked = withLocation(scope, target.id, false, (location) => {
@@ -51812,7 +52759,7 @@ function applyInstructions(scope, rawText, targets) {
         if (current.digest !== target.base_digest) {
           return fail11(409, "instruction-file-changed", "\u6587\u4EF6\u5DF2\u88AB\u5916\u90E8\u4FEE\u6539", { id: target.id, digest: current.digest });
         }
-        planned.push({ id: target.id, base: current.digest, next: mergeManagedBlocks(text13, current.blocks) });
+        planned2.push({ id: target.id, base: current.digest, next: mergeManagedBlocks(text13, current.blocks) });
         return "ok";
       });
       if (checked === null) return fail11(400, "invalid-target", `\u672A\u77E5\u76EE\u6807\uFF1A${target.id}`);
@@ -51822,7 +52769,7 @@ function applyInstructions(scope, rawText, targets) {
     return trustedFsFailure(error2);
   }
   const written = [];
-  for (const plan of planned) {
+  for (const plan of planned2) {
     try {
       const result2 = withLocation(scope, plan.id, true, (location) => {
         if (!location.root) throw new Error("\u53D7\u4FE1\u6839\u76EE\u5F55\u4E0D\u53EF\u7528");
@@ -52150,8 +53097,8 @@ function removeCreated(root, anchor) {
 }
 function writeFile22(anchor, request, id2, baseDigest) {
   const preview = previewProjectFile(anchor, request, id2);
-  const planned = Reflect.get(Object(preview.body), "files");
-  const current = Array.isArray(planned) ? Reflect.get(Object(planned[0]), "current") : null;
+  const planned2 = Reflect.get(Object(preview.body), "files");
+  const current = Array.isArray(planned2) ? Reflect.get(Object(planned2[0]), "current") : null;
   const text13 = preview.status === 200 ? effectiveText(request, id2, typeof current === "string" ? current : null) : request.text;
   const applied = applyInstructions({ level: "project", anchor }, text13, [{ id: id2, base_digest: baseDigest }]);
   if (applied.status !== 200) {
@@ -52335,11 +53282,11 @@ function directoryProblem(path14, missing4) {
 }
 var registered = (deps, root) => readProjectRegistry(deps.paths.registryPath).includes(root);
 async function planProjectCreate(plan, deps) {
-  const planned = await planLocation(plan, deps);
-  if (planned.status !== 200) return planned;
+  const planned2 = await planLocation(plan, deps);
+  if (planned2.status !== 200) return planned2;
   const design = await planDesign(plan, deps);
-  if (design === null) return planned;
-  return "status" in design ? design : { status: 200, body: Object.assign({}, planned.body, { design }) };
+  if (design === null) return planned2;
+  return "status" in design ? design : { status: 200, body: Object.assign({}, planned2.body, { design }) };
 }
 async function planDesign(plan, deps) {
   const id2 = plan.designSeed ?? null;
@@ -52473,14 +53420,14 @@ async function postInstructions(req, action, deps) {
   }
   const targets = body2.targets.map((item2) => objectBody(item2, ["id", "base_digest"])).map((item2) => item2 && typeof item2.id === "string" && typeof item2.base_digest === "string" ? { id: item2.id, base_digest: item2.base_digest } : null);
   if (targets.some((item2) => item2 === null)) return failure2(400, "invalid-target", "targets \u5FC5\u987B\u662F { id, base_digest } \u5217\u8868");
-  const planned = targets.filter((item2) => item2 !== null);
+  const planned2 = targets.filter((item2) => item2 !== null);
   const actor3 = actorFor(deps, body2.root);
   if (!isActor(actor3)) return actor3;
-  const applied = applyInstructions(scope, body2.text, planned);
+  const applied = applyInstructions(scope, body2.text, planned2);
   if (applied.status === 200) {
     const root = body2.root;
     for (const file of applied.body.files) {
-      const before = planned.find((item2) => item2.id === file.id)?.base_digest ?? "absent";
+      const before = planned2.find((item2) => item2.id === file.id)?.base_digest ?? "absent";
       audit(deps, actor3, "instruction-apply", instructionTarget(root, file.id), before, file.digest);
     }
   }
@@ -54335,8 +55282,12 @@ function testStatus(item2) {
   return "waiting";
 }
 var WORST = { passed: 0, waived: 0, missing: 1, "waiver-pending": 1, running: 2, stale: 3, failed: 4 };
+function suiteMatchesKind(suiteKind, kind) {
+  if (suiteKind === kind) return true;
+  return isTestClass(kind) && isTestKind(suiteKind) && testClassOf(suiteKind) === kind;
+}
 function kindStatus(report, kind) {
-  const states = (report?.suites ?? []).filter((suite2) => suite2.kind === kind).map((suite2) => suite2.state);
+  const states = (report?.suites ?? []).filter((suite2) => suiteMatchesKind(suite2.kind, kind)).map((suite2) => suite2.state);
   if (states.length === 0) return "waiting";
   const worst = states.reduce((acc, state) => WORST[state] > WORST[acc] ? state : acc);
   return worst === "passed" || worst === "waived" ? "done" : worst === "missing" || worst === "waiver-pending" ? "waiting" : worst;
@@ -57120,16 +58071,16 @@ async function handlePostOperationsRoutes(req, res, path14, deps) {
     const body2 = raw;
     const root = typeof body2.root === "string" ? body2.root : "";
     const selector = typeof body2.selector === "string" ? body2.selector.trim() : "";
-    const level = typeof body2.level === "string" ? body2.level : "L1";
+    const level2 = typeof body2.level === "string" ? body2.level : "L1";
     const dryRun = body2.dry_run !== false;
     const commit = body2.commit === true;
-    if (selector === "" || !["L1", "L2", "L3"].includes(level)) {
+    if (selector === "" || !["L1", "L2", "L3"].includes(level2)) {
       return sendJson(res, 400, { ok: false, error: "selector \u5FC5\u586B\uFF0Clevel \u4EC5\u5141\u8BB8 L1/L2/L3" });
     }
     if (!dryRun && body2.confirm_run !== true) {
       return sendJson(res, 400, { ok: false, error: "\u771F\u5B9E\u8FD0\u884C\u987B\u663E\u5F0F confirm_run=true" });
     }
-    if (!dryRun && level === "L3" && body2.confirm_l3 !== true) {
+    if (!dryRun && level2 === "L3" && body2.confirm_l3 !== true) {
       return sendJson(res, 400, { ok: false, error: "L3 \u81EA\u52A8\u5408\u5E76\u987B\u989D\u5916 confirm_l3=true" });
     }
     const args = [
@@ -57138,7 +58089,7 @@ async function handlePostOperationsRoutes(req, res, path14, deps) {
       selector,
       ...dryRun ? ["--dry-run"] : [],
       "--level",
-      level,
+      level2,
       ...!dryRun && commit ? ["--commit"] : [],
       "--json"
     ];
@@ -57524,8 +58475,8 @@ function createFreezeHandlers(deps) {
     const effectiveWorkflow = branch === void 0 ? workflow : { ...workflow, steps: branch.steps };
     const blueprint = pipelineBlueprintFromWorkflowDef(effectiveWorkflow, { id: track.id, ...typeof track.revision === "string" ? { revision: track.revision } : {}, ...track.source === "builtin" || track.source === "project" || track.source === "user" || track.source === "automatic" ? { source: track.source } : {} }, { ...mapping, workItemIdsByStep: resolvedWorkItems });
     if (blueprint.stages.length === 0) throw new Error("workflow blueprint \u4E3A\u7A7A");
-    const planned = planDevelopmentV2({ request, context, assessment, catalog: catalog2.catalog, graph_id: typeof input2.graph_id === "string" ? input2.graph_id : `graph:${request.change_id}`, plan_revision_id: typeof input2.plan_revision_id === "string" ? input2.plan_revision_id : `revision:${request.change_id}`, now: context.created_at, pipeline_blueprint: blueprint });
-    if (!planned.ok || planned.pipeline === void 0 || planned.resolution.status !== "resolved") throw new Error(planned.ok ? `pipeline \u65E0\u6CD5\u51BB\u7ED3: ${planned.resolution.blockers.join(", ")}` : planned.issues.join(", "));
+    const planned2 = planDevelopmentV2({ request, context, assessment, catalog: catalog2.catalog, graph_id: typeof input2.graph_id === "string" ? input2.graph_id : `graph:${request.change_id}`, plan_revision_id: typeof input2.plan_revision_id === "string" ? input2.plan_revision_id : `revision:${request.change_id}`, now: context.created_at, pipeline_blueprint: blueprint });
+    if (!planned2.ok || planned2.pipeline === void 0 || planned2.resolution.status !== "resolved") throw new Error(planned2.ok ? `pipeline \u65E0\u6CD5\u51BB\u7ED3: ${planned2.resolution.blockers.join(", ")}` : planned2.issues.join(", "));
     let snapshot = await orchestrationLedger.initialize(changeDir2, { project_id: request.project_id, change_id: request.change_id, correlation_id: request.correlation_id, updated_at: context.created_at });
     const append2 = async (type, payload, key, identity) => {
       const commandId = `server:freeze:${key}:${digestAggregate(identity).slice(7, 39)}`;
@@ -57545,10 +58496,10 @@ function createFreezeHandlers(deps) {
     };
     await append2("accept-request", { request }, "accept-request", request);
     await append2("record-context", { context }, "record-context", context);
-    await append2("record-assessment", { assessment: planned.assessment }, "assessment", planned.assessment);
-    await append2("freeze-pipeline", { pipeline: planned.pipeline }, "pipeline", planned.pipeline);
-    await append2("freeze-work-graph", { graph: planned.graph }, "graph", planned.graph);
-    await append2("resolve-capabilities", { resolution: planned.resolution }, "resolution", planned.resolution);
+    await append2("record-assessment", { assessment: planned2.assessment }, "assessment", planned2.assessment);
+    await append2("freeze-pipeline", { pipeline: planned2.pipeline }, "pipeline", planned2.pipeline);
+    await append2("freeze-work-graph", { graph: planned2.graph }, "graph", planned2.graph);
+    await append2("resolve-capabilities", { resolution: planned2.resolution }, "resolution", planned2.resolution);
     return snapshot;
   };
   return { freezePipeline, freezeWorkflow };

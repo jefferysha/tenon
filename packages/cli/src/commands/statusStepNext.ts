@@ -94,7 +94,7 @@ export interface StepNextInput {
   /** 用完后「回到规格」的真实路径（statusStepRoundsRoute.ts，来自计划）；缺席 = 回退边取自 exits、回规格的事件不点名。 */
   readonly roundsRoute?: RoundsRoute | null
   /**
-   * 本步声明了 test_policy 时，策略判定（kernel TestPolicyReport）归档出的测试体系动作；
+   * 本步声明了测试档位（test:）或 test_policy 时，策略判定（kernel TestPolicyReport）归档出的测试体系动作；
    * 缺席 = 本步没有策略，行为与没有测试体系时逐字相同。
    */
   readonly testFlow?: StepTestFlow

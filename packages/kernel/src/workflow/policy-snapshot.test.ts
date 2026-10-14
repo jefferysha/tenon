@@ -117,10 +117,11 @@ describe('workflow policy snapshot v4', () => {
     const legacyWorkflow = {
       ...currentWithoutPolicies,
       // Historical V2 bytes predate issue #43; default phase Skills were not persisted.
-      // Historical bytes also predate step tests (2026-09 per-step test evidence), step test policies and step prompts
-      // (the frontend branch gained them with DESIGN.md) and the verification-round limit (max_rounds).
+      // Historical bytes also predate step tests (2026-09 per-step test evidence), step test policies, the step test
+      // level (`test:`) and step prompts (the frontend branch gained them with DESIGN.md) and the verification-round
+      // limit (max_rounds).
       steps: currentWithoutPolicies.steps.map(({
-        tests: _tests, test_policy: _testPolicy, prompt: _prompt, agents: _agents, maxRounds: _maxRounds, ...step
+        tests: _tests, test_policy: _testPolicy, test: _test, prompt: _prompt, agents: _agents, maxRounds: _maxRounds, ...step
       }) => ({
         ...step,
         label: step.id === 'archive' ? '归档' : step.label,

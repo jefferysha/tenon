@@ -262,6 +262,11 @@ export interface CliDeps {
    * 当前宿主生成 `tenon-<name>` 子代理文件；缺省 undefined = 终端，不生成。
    */
   hostKind?: () => 'claude-code' | 'codex' | 'terminal'
+  /**
+   * 当前用户的主目录。`tenon test run` 写运行记录前据此把记录字符串里的主目录前缀改写成 `~`；
+   * 缺省 undefined = 不改写主目录（仓库根照常改写为相对路径）。
+   */
+  homeDir?: () => string | undefined
   /** 插件里存在的技能 id（上游来源 + 自带技能）；`tenon agent validate` 据此核对 agent 的技能。 */
   knownSkillIds?: () => ReadonlySet<string>
   /**

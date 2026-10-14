@@ -74,7 +74,7 @@ describe('diff 文件列表提供者', () => {
       changeName: 'demo',
       slug: 'tester-at-tenon.test',
       stepId: 'build',
-      policy,
+      step: { test_policy: policy },
       inline: [],
       workflowFingerprint: FIXTURE_FINGERPRINT,
       workflowRunId: 'run-1',

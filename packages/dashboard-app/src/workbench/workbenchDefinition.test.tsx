@@ -20,7 +20,7 @@ import {
   setOpenspecInDef,
   setStepAgentsInDef,
   setStepSkillsInDef,
-  setStepTestPolicyInDef,
+  setStepTestLevelInDef,
   workflowNameFromYaml,
   writeBranchDef,
   type WbStepDef,
@@ -435,32 +435,48 @@ describe('setStepAgentsInDef', () => {
   })
 })
 
-describe('setStepTestPolicyInDef', () => {
+describe('setStepTestLevelInDef', () => {
   const base = pipeline(stage('a'), stage('b'))
+  const legacy = { plan: 'required' as const, run: ['unit'], flaky: { max: 1, fail_on_new: true } }
 
-  it('给一个阶段写入策略；别的阶段与入参都不动', () => {
-    const next = setStepTestPolicyInDef(base, 'a', { plan: 'required', run: ['unit'] })
-    expect(next.steps[0]?.test_policy).toEqual({ plan: 'required', run: ['unit'] })
+  it('给一个阶段写入档位；别的阶段与入参都不动', () => {
+    const next = setStepTestLevelInDef(base, 'a', 'changed')
+    expect(next.steps[0]?.test).toBe('changed')
+    expect(next.steps[0]).not.toHaveProperty('test_policy')
     expect(next.steps[1]).toBe(base.steps[1])
-    expect(base.steps[0]).not.toHaveProperty('test_policy')
+    expect(base.steps[0]).not.toHaveProperty('test')
   })
 
-  it('内容没变时返回原对象（不制造无意义的草稿改动）', () => {
-    const withPolicy = setStepTestPolicyInDef(base, 'a', { plan: 'required', kinds: ['unit'] })
-    expect(setStepTestPolicyInDef(withPolicy, 'a', { plan: 'required', kinds: ['unit'] })).toBe(withPolicy)
-    expect(setStepTestPolicyInDef(base, 'a', undefined)).toBe(base)
-    expect(setStepTestPolicyInDef(base, 'ghost', { plan: 'required' })).toBe(base)
+  it('换档位：新档位替换旧档位', () => {
+    const changed = setStepTestLevelInDef(base, 'a', 'changed')
+    expect(setStepTestLevelInDef(changed, 'a', 'full').steps[0]?.test).toBe('full')
+    expect(setStepTestLevelInDef(changed, 'a', 'none').steps[0]?.test).toBe('none')
   })
 
-  it('undefined 删键；写回前整形（definitionForWrite）仍带着策略', () => {
-    const withPolicy = setStepTestPolicyInDef(base, 'a', { plan: 'required', flaky: { max: 1, fail_on_new: true } })
-    expect(definitionForWrite(withPolicy).steps[0]?.test_policy).toEqual({ plan: 'required', flaky: { max: 1, fail_on_new: true } })
-    const cleared = setStepTestPolicyInDef(withPolicy, 'a', undefined)
-    expect(cleared.steps[0]).not.toHaveProperty('test_policy')
+  it('选档即替换旧 test_policy：写 test、删 test_policy，旧策略的任何键都不留', () => {
+    const withLegacy = mapLegacy(base, 'a', legacy)
+    const next = setStepTestLevelInDef(withLegacy, 'a', 'full')
+    expect(next.steps[0]).toMatchObject({ test: 'full' })
+    expect(next.steps[0]).not.toHaveProperty('test_policy')
+    const none = setStepTestLevelInDef(withLegacy, 'a', 'none')
+    expect(none.steps[0]).toMatchObject({ test: 'none' })
+    expect(none.steps[0]).not.toHaveProperty('test_policy')
   })
 
-  it('复制工作流保留每个阶段的策略（深拷贝不丢键）', () => {
-    const withPolicy = setStepTestPolicyInDef(base, 'b', { plan: 'optional', files: 'registered' })
-    expect(cloneWorkflowDef(withPolicy, 'copy').steps[1]?.test_policy).toEqual({ plan: 'optional', files: 'registered' })
+  it('内容没变时返回原对象（不制造无意义的草稿改动）：同档位、没有声明时选「不要求」、不存在的阶段', () => {
+    const changed = setStepTestLevelInDef(base, 'a', 'changed')
+    expect(setStepTestLevelInDef(changed, 'a', 'changed')).toBe(changed)
+    expect(setStepTestLevelInDef(base, 'a', 'none')).toBe(base)
+    expect(setStepTestLevelInDef(base, 'ghost', 'full')).toBe(base)
+  })
+
+  it('写回前整形（definitionForWrite）仍带着档位；复制工作流保留每个阶段的档位', () => {
+    const withLevel = setStepTestLevelInDef(base, 'b', 'plan')
+    expect(definitionForWrite(withLevel).steps[1]?.test).toBe('plan')
+    expect(cloneWorkflowDef(withLevel, 'copy').steps[1]?.test).toBe('plan')
   })
 })
+
+function mapLegacy(def: WbWorkflowDef, stepId: string, policy: NonNullable<WbStepDef['test_policy']>): WbWorkflowDef {
+  return { ...def, steps: def.steps.map((item) => (item.id === stepId ? { ...item, test_policy: policy } : item)) }
+}

@@ -5,6 +5,7 @@
  */
 import type { WorkflowParseCursor as Cursor } from './parse-document-contract.js'
 import { indentOf, parseInlineList, parseInlineMap } from './parse-primitives.js'
+import { TEST_LEVELS, isTestLevel, type TestLevel } from './test-level.js'
 import type { StepTestPolicyDef } from './types.js'
 
 const SCALAR_KEYS = ['plan', 'scope', 'files', 'scenarios', 'integrity'] as const
@@ -68,6 +69,20 @@ function parseNestedBlock(cur: Cursor, keyIndent: number, where: string): Record
     cur.i++
   }
   return out
+}
+
+/** 步骤档位 `test: <档位>` 的标量；值域在解析时就收窄（定义层类型是 TestLevel），与 test_policy 的互斥由编译判。 */
+function parseStepTestLevel(raw: string, stepId: string): TestLevel {
+  if (!isTestLevel(raw)) fail(`step '${stepId}' 的 test 只支持 ${TEST_LEVELS.join(' | ')}（实际 '${raw}'）`)
+  return raw
+}
+
+/** 步骤块里的一行：是 `test: <档位>` 就解析（同一步重复声明报错），不是返回 undefined（`tests:`、`test_policy:` 不算）。 */
+export function stepTestLevelLine(line: string, stepId: string, previous: TestLevel | undefined): TestLevel | undefined {
+  const match = /^\s*test:\s*(.*?)\s*$/.exec(line)
+  if (match === null) return undefined
+  if (previous !== undefined) throw new Error(`workflow 解析错误：step '${stepId}' 重复声明 test`)
+  return parseStepTestLevel(match[1] ?? '', stepId)
 }
 
 /** 单行形态：`test_policy: { run: [smoke], scope: full }`。 */

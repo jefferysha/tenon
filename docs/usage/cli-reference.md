@@ -298,36 +298,81 @@ and artifact paths must sit under `test-results/`, `playwright-report/` or `cove
 (a declaration can never hide source). The workspace fingerprint that binds a run record to
 the code ignores exactly the paths the catalog declares (report, coverage and `artifacts`,
 resolved against the suite `cwd`) and the `outputs` of the inline tests in the frozen
-workflow of open changes: an undeclared `coverage/` or `test-results/` directory, at any
-depth, is part of the candidate. The per-change **plan**
-(`openspec/changes/<change>/test-plan.yaml`) lists the suites this change uses, the test
-files it added or changed, the scenario/task → case mapping
-(`spec:<capability>/<Scenario title>` or `task:<number>`) and waivers. Only the `tenon test`
-commands write it: every write records a digest in a change-local ledger, so a hand-edited
-plan becomes `test-plan-tampered`. The workflow **policy** (`steps[].test_policy`) says what a step
-needs: kinds to register, kinds to run, minimum scope, coverage thresholds, flaky limit,
-benchmark baseline requirement, browsers, scenario coverage and `files: registered`.
+workflow of open changes, plus one general rule: a file under a directory named `test-results`,
+`playwright-report` or `coverage` (at any depth) that git does not track and whose extension is
+an evidence format (log, txt, xml, md, csv, png, jpg, jpeg, gif, webp, webm, mp4, lcov, info) is
+not part of the candidate, so a server that writes a log during an e2e run does not invalidate the
+frozen build. Tracked files, source or script extensions (js, ts, mjs, sh, py, …), files without an
+extension, and formats that code or a browser can load or unpack straight from those directories
+(json, html, htm, zip, gz, har) still count, so a directory name cannot hide code or a page; a
+suite that really produces such a file declares it as an output in the catalog. When git cannot
+be read every file in those directories counts. The per-change **plan**
+(`openspec/changes/<change>/test-plan.yaml`) lists only the choices made by hand: suites added with
+`register --suite`, resource files registered with `--file --kind`, the scenario/task → case
+mapping (`spec:<capability>/<Scenario title>` or `task:<number>`) and waivers. Test files the change
+added or changed are claimed, when a step is evaluated, by the suites whose `files` glob matches
+them; they are not written to the plan. Only the `tenon test` commands write the plan: every
+write records a digest in a change-local ledger, so a hand-edited plan becomes `test-plan-tampered`.
+The workflow's **level** (`steps[].test`) says what a step needs from all this: one of `none`, `plan`,
+`changed` and `full`. What each level requires is defined by the optional top-level `levels` key
+of the catalog, in this file, and falls back to built-in defaults:
+
+```yaml
+levels:
+  plan:    { required: [unit] }
+  changed: { required: [unit], touched: [static] }
+  full:    { required: [unit], touched: [integration, e2e, static, benchmark] }
+```
+
+Each level accepts six keys: `required` and `touched` (test classes), `scenarios` (`off`, the
+default, `required` or `passing`), `coverage` (`lines`, `branches`, `functions`, `statements`,
+`changed_lines`, 0–100), `flaky` (`{ max, fail_on_new }`) and `require_baseline` (default `false`);
+`plan` takes only `required` and `scenarios`. A level runs the suites of its `required` classes (all of
+them, in full, at `full`; only those the change touches, on the changed scope, at `changed`) and the
+suites of its `touched` classes that the change touches; a suite is touched when a changed file matches
+its `files` or `covers` glob. A suite without `covers` counts as touched only when one of its own
+test files changed. When a change edits only source files, such a suite does not run at `changed`
+(as a `required` or `touched` suite) or at `full` (as a `touched` one), and `tenon test status` and
+`test run --stage` print the non-blocking notice `suites-without-covers` naming it. To make source
+changes trigger the suite, write its `covers` with
+`tenon test catalog set <id> --cover-glob "<glob>"`. A level that finds nothing to run
+is satisfied: `test run --stage` says so and exits `0`. An invalid `levels` block (unknown level, key
+or class, a coverage value outside 0–100) makes the catalog invalid and blocks every test exit; the
+`levels` key counts toward the catalog digest. The classes are `unit` (kinds `unit`, `coverage`),
+`integration` (`integration`, `regression`, `contract`, `smoke`), `e2e` (`e2e`, `playwright`, `browser`,
+`a11y`, `visual`), `static` (`typecheck`, `lint`, `code-size`, `design-system`), `benchmark` and
+`custom` (runs only when named); a suite's `kind` can be a class or an older kind name, which is an
+alias. The older multi-field `steps[].test_policy` is the previous spelling: a frozen change that holds
+one is still read and judged by its kind names, and a step cannot declare it together with `test`.
 Steps that still declare inline `tests[]` keep working: they run as before and are
-judged together with the policy. The default workflow is zero-waiver: only `unit`
-is mandatory and every other kind is `run_if_registered` (see the
-[default workflow](default-workflow.md)).
+judged together with the level (see the [default workflow](default-workflow.md)).
 
 A kind that does not apply to the whole project is declared in the catalog instead of waived
 per change: `test catalog not-applicable <kind> --reason <text>` writes
-`not_applicable: [{kind, reason, approved_by}]` into `catalog.yaml` (`--rm` withdraws it). It
+`not_applicable: [{kind, reason, approved_by}]` into `catalog.yaml` (`--rm` withdraws it), and
+the declaration also satisfies the test class that kind belongs to. It
 takes effect only after one human confirmation: `review request` lists it as
 `not-applicable:<kind>` next to the plan's pending waivers, `review acknowledge` (not
-`--delegated`) approves it and records the approver in `approved_by`; until then the policy
-still requires the kind and reports `waiver-unapproved`. Changing the reason clears the
+`--delegated`) approves it and records the approver in `approved_by`; until then the level
+still requires the class and reports `waiver-unapproved`. Changing the reason clears the
 approval.
 
-When a required step test (for example `code-size`) has failed and the user decides to let it
-through, register a step-test waiver with
-`tenon test waive <change> --test <step-test-id> --reason <text>`. The id must be a test declared by a step of the change's workflow, otherwise
-the command exits 2 and lists the available ids; the step must declare a `test_policy` for the
+When a required step test has failed and the user decides to let it through, register a
+step-test waiver with
+`tenon test waive <change> --test <step-test-id> --reason <text>`. (The default `code-size` test has
+no ceiling and does not fail on size; this applies once a project writes a `pass.metrics` ceiling
+under it in its workflow.) The id must be a test declared by a step of the change's workflow, otherwise
+the command exits 2 and lists the available ids; the step must declare a test level (or a legacy
+policy) for the
 waiver to be judged. It is the same mechanism as a kind waiver: it is written into the plan,
 listed with its reason as `test:<id>` by `review request`, and approved together by the human
-confirmation of that review gate; until then `waiver-unapproved` still blocks the exit. After
+confirmation of that review gate; until then `waiver-unapproved` still blocks the exit. Wherever a
+`test:<id>` waiver is listed (the `review request` checklist, the verification report, the reviewer
+prompt and the `test-waived` hint), a second line gives the measured value read from the latest
+failed record on the current candidate, such as `最新运行：lines_added=2810（上限 2000）` (latest run,
+limit in brackets), or `当前候选上没有失败记录` (no failed record on the current candidate) when there
+is none. It is read again each time, while the reason you wrote stays labelled as the registrant's
+own claim and is never checked. After
 registration `step.next` stops issuing `run-test` and goes on to the reviewers and
 `request-review` as usual; the reviewer prompt (rendered in Chinese) carries a
 `豁免（已批准|待评审批准）：<reason>` line (waiver, approved or awaiting review approval) under that
@@ -338,7 +383,7 @@ or is stale keeps blocking, and a code change means running it again.
 `test discover` scans package scripts and tool configs (vitest, jest, mocha, node:test,
 Playwright, tsc, eslint, pytest, go) and prints suggested suites with reporter flags that
 produce parseable reports; `--write` appends the ones whose id is not yet in the catalog.
-`tenon init` runs it for you when a workflow with a `test_policy` finds no catalog and says
+`tenon init` runs it for you when a workflow with a test level finds no catalog and says
 so on stderr (nothing is written when no tool is recognised, and an existing catalog is never
 touched). For JavaScript unit suites without an `include` in the tool config, the test-file
 globs cover `src/`, `test/`, `tests/`, `__tests__/` and root-level `*.test.*` / `*.spec.*`
@@ -379,25 +424,42 @@ discover does not write the suite either: it prints a note naming those files an
 `bench(name, options, fn)`). Migrate the files and run `tenon test discover` again.
 `catalog add --from <direction>` starts a suite from a test direction (bare tool
 invocations are replaced by the runner's recommended invocation); `catalog validate`
-lists every problem as `catalog.yaml:<line>: …` (exit `2`). `test plan --seed` adds the
-suites that own or cover the files this change touched, one suite per policy-required
-kind, and the changed test files, and lists the scenarios and tasks still to map with
-ready-to-run `register --case` commands; it also registers the catalog suites of the kinds a
-step lists in `run_if_registered` (benchmarks excepted). Only scenarios and the tasks under the
+lists every problem as `catalog.yaml:<line>: …` (exit `2`). `test plan --seed` creates the change's
+plan when it is missing. For a step with a test level it writes no suites and no test files (the
+level, the catalog and the change's diff decide what runs when the step is evaluated) and only
+reports the required classes the catalog has no suite for, plus the scenarios and tasks still to map
+when the level asks for mapping, with ready-to-run `register --case` commands. For a legacy policy it
+still adds the suites that own or cover the files this change touched and one suite per required
+kind, but no longer registers test files. Only scenarios and the tasks under the
 implementation (`build`) section of `tasks.md` must be mapped (`scenarios: required|passing`
 blocks on them); tasks in any other stage section are listed separately as optional (shown as
 "optional", not "uncovered", in the verification report) and never block. The scaffold prompt
 "break this stage into verifiable tasks" is not a task the author wrote: the seed, `test sync` and
 `test plan` no longer list it, and the traceability matrix shows it as optional.
-`test register <change> --auto` is the one-command form: it discovers a missing catalog, widens the
-`files` globs of a suite so that test files no suite claims are claimed (a `test/**/*.test.js`
-glob for `test/x.test.js`; `e2e/` specs go to a Playwright suite, helpers and `*.bench.*`
-files are never claimed automatically), then seeds the plan and registers those files. It only
-adds, so it is safe to repeat. `test sync` diffs the change against its start
-and lists unregistered test files, files no suite claims, registrations whose file is
+When the level does not ask for mapping (`scenarios: off`, the default), the matrix lists only the
+rows already mapped and one line, "N more scenarios / tasks are not mapped (this step does not
+require mapping)", and no `scenario-uncovered` blocker is raised.
+`test register <change> --auto` is the one-command form for orphan test files: it discovers a
+missing catalog, then looks only at test-like files this change added or changed (never the whole
+repository, and never anything under `openspec/`, `.tenon/` or `.pipeline/`) that no suite's `files`
+glob claims, and appends the exact path of each to the suite that fits (`e2e/` specs go to a Playwright
+suite; helpers and `*.bench.*` files are not claimed automatically). It does not widen any glob, so
+`tools/x.test.mjs` is added as that one path and no `tools/**` appears, and a file the change did
+not touch stays untouched. It only adds, so it is safe to repeat; with no suitable suite it stops
+with the `catalog add` command and writes nothing. `test sync` diffs the change against its start
+and lists orphan test files (no suite claims them), registrations whose file is
 gone, and registrations the catalog no longer claims (the suite left the catalog, or no
 suite's `files` glob matches the path anymore; `--json` field `registeredButUnclaimed`); it
 uses the same computation as the gate (exit `2` when something is pending).
+
+Every command that writes the catalog (`catalog add|set|rm`, `catalog not-applicable`,
+`register --auto`, and `init` into an existing catalog) edits only the lines of the nodes that
+changed, at three levels: top-level keys, `suites` entries and keys inside an entry. New nodes are
+appended at the end of their list or map, a removed node loses only its own lines (the comment
+above it stays with what follows), and every other byte, comments and blank lines included, is kept.
+An inline comment on a key you changed is the only thing lost. The new text is parsed again and must
+equal the intended catalog, otherwise nothing is written. `discover --write` into a missing catalog
+writes a new file as before.
 
 Registrations only ever grow (`register` and `plan --seed` add, `sync` reports), and the
 suite exit check expects every registration that names a suite to be executed whatever the
@@ -432,7 +494,12 @@ unstaged and untracked files. When that diff cannot be read the gate blocks with
 
 `test run` writes one v2 record per invocation (`.tenon/users/<slug>/tests/<change>/<run-id>.json`)
 chained by `prev_digest`; editing a record breaks the chain and every v2 record of that
-change counts as not run until a new run starts a fresh chain. Records are tracked in the
+change counts as not run until a new run starts a fresh chain. Before a record's digest is computed, the
+repository root (its logical and its real path, also as a `file://` URL, so `/var/…` and `/private/var/…`
+spellings alike) in every string field, failed-case messages and stacks included, is rewritten to a
+repository-relative path and your home directory to `~/`, so a committed record carries no
+machine-specific absolute path. Local logs under `local/artifacts/` are not committed and stay as they were,
+and records written by earlier releases are not rewritten. Records are tracked in the
 repository by design (they are the evidence other people and CI read), so their number can be capped:
 set `TENON_RECORD_RETENTION=<n>` and after each run only the newest `n` per user and Change are kept
 (inline step tests always keep the newest 20 per test). By default nothing is pruned, because the previous
@@ -449,11 +516,13 @@ root `coverage/`, and the generated `tenon-<name>` host agent files plus those o
 added to the clone's `.git/info/exclude` (the project `.gitignore` is not touched). Selection: `--suite`,
 `--kind`, `--all` (every plan suite, full), `--changed` (narrow to changed test files when
 the suite has a `select.files` template, otherwise the whole suite), `--stage [<step>]`
-(the step policy's `run` kinds, plus `run_if_registered` kinds that the plan registered;
-policy `scope: full` forces full runs). With no selection flag `--stage` is implied.
+(the step's stage run set: the suites its level runs for this change's diff, plus any suite the plan
+adds explicitly with `register --suite`; `test: full` forces full runs and the same set is what
+`status` and `check` evaluate). With no selection flag `--stage` is implied.
 `--stage` runs catalog suites only: inline `tests[]` (suites whose id starts with `step:`)
 stay on `tenon test run <change> <test-id>` and the summary lists the commands still to
-run; a step whose policy has nothing to run says so and exits `0`.
+run; a step whose level has nothing to run for this change says so and exits `0`, without
+writing a record.
 Declared services start once per invocation in their own process group, are probed
 (URL, port or log text) and are reaped afterwards including grandchild processes;
 a URL or port that already answers before start is refused, because the tests would
@@ -465,8 +534,9 @@ Reports are parsed per case: `junit`, `playwright-json`, `vitest-json`, `jest-js
 `cobertura`, and `changed_lines` is computed from the diff. A stale report from an earlier
 run is deleted before each execution. A run fails on: no report (`report-missing`),
 an unparseable report (`report-unreadable`), zero or all-skipped cases (`no-tests-ran`),
-exit code and report disagreeing (`exit-report-mismatch`), a registered file or mapped case
-that never ran (`registered-test-not-executed`), coverage below the step policy
+exit code and report disagreeing (`exit-report-mismatch`), a claimed or registered file or mapped case
+that never ran (`registered-test-not-executed`; a file claimed by several suites only has to run in one of them),
+coverage below the step's level
 (`coverage-below`), a benchmark regression beyond the metric threshold
 (`benchmark-regression`), flaky cases over the policy limit (`flaky-over-limit`), a required
 browser project missing from the report (`browser-project-missing`) and a service that did
@@ -542,9 +612,10 @@ from getting one:
   `report-untrusted` too. Exit-code/report cross-checking is unchanged.
 - *Local seal.* Per user and gitignored, `<user-dir>/local/test-seal.json` is signed with an
   HMAC key in `local/env.key`. It holds the head digest of each change's record chain, the
-  digests of baselines and `known-failures.yaml` as written by Tenon commands, your review
-  approvals, and your trust decisions. A chain whose head is not the sealed head (records
-  written around `tenon test run`) is `record-unsealed`, has no approval path, and the next
+  digests of baselines and `known-failures.yaml` as written by Tenon commands, and your review
+  approvals (trust decisions made before this release also live here and are honored only in a
+  project that is not a git repository; in a git repository trust lives only in the trust store
+  below). A chain whose head is not the sealed head (records written around `tenon test run`) is `record-unsealed`, has no approval path, and the next
   `tenon test run` starts a new chain over it. A missing, damaged or edited seal reads as
   empty, never as permissive.
 - *Human confirmation.* Changes to `.tenon/tests/catalog.yaml`, `.tenon/tests/baselines/**`,
@@ -556,16 +627,36 @@ from getting one:
   digests, `--delegated` is refused while any is pending, and a later edit needs a new
   confirmation. A baseline or known-failures file that no longer matches what Tenon last wrote
   is `protected-file-tampered` and is labeled as changed outside a Tenon command.
-- *First-run trust.* `tenon test run` refuses to execute a catalog (and, for inline step tests,
-  the frozen workflow's test commands) whose executable text you have not trusted on this
-  machine: suite `command`, `select` templates, `cwd`, declared env names and service start,
-  ready and stop settings, keyed by digest (a label or `covers` edit does not ask again; any
-  command edit does). `tenon test trust [<change>]` lists the commands and asks `[y/N]` in an
-  interactive terminal (`--yes` for your own scripts, `--status` to only check, exit `2` if
-  untrusted, `--json`). CI sets `TENON_TEST_TRUST=1` explicitly; every run then prints a line
+- *First-run trust.* `tenon test run` refuses to execute a command you have not trusted on this
+  machine. Trust is recorded per user, per repository and per command: every executable command
+  has its own digest (a suite's `command`, `cwd`, `select.files` / `select.grep`, sorted `env` and the
+  services it uses; for an inline step test its `command` and `cwd`), so editing one command asks
+  again for that command only, and a label or `covers` edit asks for nothing. Only the commands a
+  run is about to execute are checked, and the refusal (exit `1`, no record) lists just the untrusted
+  ones, which is also what the `trust` object of `run-tests` shows. The repository identity is the real
+  path of `git rev-parse --git-common-dir`, so every worktree of one repository shares the trust, and
+  the checkout must appear in `git worktree list --porcelain`: a copied tree whose `.git` file points
+  at a trusted repository gets nothing. The entries live in the user-level state directory
+  (`<state>/test-trust/<user>.json`, signed with an HMAC key beside it, mode `0600`, at most 2000
+  entries with the oldest dropped first), never in the repository, and an unreadable or tampered file
+  counts as no trust. Only a checkout with no `.git` in its directory or any parent (not a git repository) falls back to
+  the old seal in the checkout, and a `trusted[]` entry written there by an earlier release still trusts a catalog whose
+  whole digest it lists; `tenon test trust` writes there too. A git repository never honors the old seal in the checkout,
+  tracked or not: any file in a checkout, the seal and its HMAC key included, can arrive with the repository or an archive,
+  and could carry a seal computed to trust itself, so any check that only looks at checkout content (such as "is it
+  tracked by git") can be forged. Re-run `tenon test trust` once in your own terminal for commands you trusted in a checkout
+  before; when the old seal lists the current whole digest, `tenon test run` prints one more line saying so. In a git
+  repository with no user-level state directory `tenon test trust` fails instead of writing a checkout seal.
+  A checkout that has a `.git` but whose repository identity cannot be read (git fails or times out, or the `.git` is a forged
+  pointer) is untrusted: neither the user-level entries nor the old seal count, `tenon test run` tells you to
+  fix git first, and `tenon test trust` refuses to write anything. `tenon test trust [<change>]` lists the untrusted commands and asks `[y/N]` in an
+  interactive terminal (`--yes` for your own scripts, `--status` to show each command, exit `2` if
+  any is untrusted, `--json`). CI sets `TENON_TEST_TRUST=1` explicitly; every run then prints a line
   saying trust came from the environment. The Tenon hook refuses an agent's shell call that
-  contains `tenon test trust` or a `TENON_TEST_TRUST=` assignment, so the decision stays with
-  you.
+  contains `tenon test trust` or a `TENON_TEST_TRUST=` assignment, and any write into a
+  `test-trust/` path, so the decision stays with you. Trust names a path, not file contents: a
+  different repository cloned later at the same path inherits the command-level trust, the same
+  level as pulling new commits into a trusted one.
 
 **Test integrity.** `tenon test integrity <change>` answers one question: is the evidence weaker
 than at the start of the change? It compares the change with its start (the same start as the
@@ -586,25 +677,25 @@ changed-files list) and reports ten signals, each with a subject and a one-line 
 
 All of them are text heuristics over `git diff -U0` and the run records: a signal says "worth a
 look", not "tampered", and a renamed case or a swapped assertion library can still show up.
-The policy key `test_policy.integrity` decides what a signal does: `notice` (the default,
-also what every Track of the default workflow uses) lists the signals as one
+What a signal does is set per step: `notice` (the default, and the only mode a test level can have, so
+every Track of the default workflow uses it) lists the signals as one
 `test-integrity` notice in `test status`, `status` and the Dashboard Tests tab and never blocks;
 `block` turns the same signals into one `test-integrity` blocker at that step, and an
-unreadable diff then fails closed (`files-diff-unavailable`). `block` has no per-signal waiver:
-restore the test, or change the policy. Writing `integrity: notice` is the same as omitting it
-(it does not enter the compiled workflow, so existing fingerprints and run records stay valid).
-The check runs only on steps that run tests (`run` / `run_if_registered`) or declare
-`integrity: block`. `tenon test integrity` exits `0` unless the step's policy is `block` and
+unreadable diff then fails closed (`files-diff-unavailable`). Only a frozen legacy policy can still
+say `integrity: block`; it has no per-signal waiver: restore the test.
+The check runs only on steps whose level runs tests (`changed`, `full`) or whose legacy policy
+runs tests or declares `integrity: block`. `tenon test integrity` exits `0` unless the step's mode is `block` and
 there is a signal (or the diff cannot be read): then `2`. `--step` picks another step's policy;
 `--json` prints `{ change, step, pass, mode, state, signals[], truncated? }`. At most 400 relevant
 files are read; beyond that a `files-truncated` notice says so.
 
 `test status` reports each declared test of the step with the same evaluation the
 transition uses, so a status pass is a transition pass; with `--json` a step that declares
-`test_policy` also carries a `policy` object (blockers with fix commands, notices, suites,
-the scenario/task trace, file registration and the record chain state). It exits `2` while
+a test level also carries a `policy` object (the level and its effective requirements, blockers with
+fix commands, notices, suites, the scenario/task trace, claimed files and orphans, and the record chain
+state). It exits `2` while
 anything blocks. A record goes stale when the candidate code, the catalog entries of the
-suites it ran, the plan, the step policy or the workflow fingerprint changes; a record
+suites it ran, the plan, the step's level definition or the workflow fingerprint changes; a record
 binds the plan digest with every waiver's `approved_by` treated as empty, so approving a
 waiver in review does not make the runs before it stale (any other plan change does). `test
 report` generates the tests section of the verification report and, with `--write`,
@@ -616,9 +707,15 @@ workflow has inline tests) and the v2 block (between `<!-- tenon:test-report:beg
 blockers left. Bytes outside the markers are never touched, and `tenon status` decides
 whether the report still needs regenerating by looking for the latest run ids inside the v2
 block. `test code-size` is the deterministic probe behind the builtin
-`code-size` direction and prints one JSON line of metrics. It counts source files only: the
+`code-size` direction and prints one JSON line of metrics (`files_changed`, `lines_added`,
+`lines_deleted`, `largest_added_lines`). It counts source files only: the
 same path scope as the workspace candidate (no `openspec/`, `.tenon/`, `.pipeline/`,
-`docs/`, dependencies or test caches) and no Markdown files. `test diff-risk` is the
+`docs/`, dependencies or test caches) and no Markdown files. The direction and the default workflow
+set no ceiling, so exit code `0` is a pass and the `code-size` reviewer judges the numbers; the
+measured values are recorded in the run record even without a ceiling, and the reviewer reads them
+in its prompt. A project that wants a limit adds `pass.metrics` (for example `lines_added` with a
+`max`) under the test in its workflow YAML, and a run over it fails with `metric-threshold`.
+`test diff-risk` is the
 probe behind the builtin `diff-risk` direction, the risk gate of the `lite` Track
 ([Routing and execution modes](routing-and-workflows.md#the-lightweight-track)). It only reads
 the repository and prints one JSON line measured from the task's starting point (committed
@@ -648,8 +745,11 @@ inline tests: `0` pass, `2` fail (the record is written), `1` usage or environme
 single `tenon` skill needs for the current step — its skills, executors,
 reviewers, tests, documents, fields, review receipt, exits with blockers, and a
 closed `next` action list to execute in order. `run-tests` and `run-test` carry a
-`trust` object when the commands they will run have not been trusted by the user yet
-(ask the user to run `trust.command` in their own terminal first). A `transition`
+`trust` object when some of the commands they are about to run have not been trusted by the user
+yet (it lists only those; trust is shared by every worktree of the repository; ask the user to run
+`trust.command` in their own terminal first). `test-register-files` appears only when orphan test
+files exist, with one `tenon test register <change> --auto`, and `test-plan-map` only for a required
+class the catalog has no suite for or a level that asks for scenario mapping. A `transition`
 carrying `escalate` means the task has outgrown its Track: the lightweight Track's risk probe
 failed, `escalate.reasons` names the breached limits, and `escalate.then` gives the heavy-Track
 `tenon init` command to run after the transition, followed by `tenon set <new> depends_on <old>`.

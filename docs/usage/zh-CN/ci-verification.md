@@ -116,7 +116,7 @@ Action 输入：
 - **放弃这个判断没有封存。** 它依据作者提交的转换链：CI 校验它自洽（canonical 运行状态的 revision 摘要），但证明不了它出自真的
   `tenon transition`——能写 Change 目录的人就能写出一条自洽的链。这和上面表格对测试记录写明的限制相同，也是上面那条批准检查不可省的原因。
 
-判定哪个步骤：Change 的当前步骤；它没有声明测试策略时，取它之前最近一个声明了的步骤（所以已完结的 Change 落在 verify）。
+判定哪个步骤：Change 的当前步骤；它没有声明测试档位（或旧策略）时，取它之前最近一个声明了的步骤（所以已完结的 Change 落在 verify）。
 判定哪条链：Change 负责人的链。负责人没有记录、恰好只有另一个用户有记录时，用那一条并给出警告 `owner-chain-missing`。
 其他用户的链只检查完整性。
 
@@ -171,7 +171,7 @@ Tenon 0.3.1 及之后写下的记录绑的是不含这些文件的指纹，所�
 ### 已完结的 Change 对本次检出的树判定
 
 CI 证明的是它检出的那棵树，所以已完结（done 或已归档）的 Change 也是对这棵树判定，不是对它完结时的提交。之后的提交改了代码、
-新增了测试文件（`test-file-unregistered`）或改了测试目录，已完结的 Change 就会带着普通发现（`candidate-mismatch`、`test-stale` ……）失败，
+新增了没有套件认领的测试文件（`test-file-orphan`）或改了测试目录，已完结的 Change 就会带着普通发现（`candidate-mismatch`、`test-stale` ……）失败，
 报告再加一条提示 `finished-judged-at-head` 说明原因。这是有意的：若按每个 Change 自己的交付提交判定，之后提交的、没有任何受治理 Change
 背书的改动就会悄悄过关。实际用法：PR 的末端必须由最后动过它的 Change 覆盖，所以一个 PR 带一个受治理的 Change（或一条最后一个 Change
 交付最终树的链）；用 `--since <合并基点>` 只选这个 PR 带来的 Change；要按交付时的样子校验较早的 Change，检出它的交付提交，在那里运行

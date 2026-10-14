@@ -148,6 +148,76 @@ step can only require a file by path. Read "Retired and migration" before you up
    `tenon transition <name> verify-fail` succeeds on its own, and a request that already exists is still accepted.
    Nothing changes for forward edges.
 
+### Simplified test settings
+
+A step now declares its testing with one level instead of a dozen policy fields, and the manual
+bookkeeping around tests is gone.
+
+- Levels. A workflow step takes `test: none | plan | changed | full`; it replaces the multi-field `test_policy`
+  (a step cannot carry both, and a frozen `test_policy` is still read). `default` uses `changed` at Build and `full`
+  at Verify (lite, frontend, backend), `plan` at Spec of frontend and backend, and `none` at Spec of pm, which no
+  longer asks for scenario mapping. The default `full` no longer runs every integration and e2e suite: it runs the unit
+  class in full and the other classes the change touches.
+- `levels`. The catalog (`.tenon/tests/catalog.yaml`) takes an optional top-level `levels` key that defines
+  `plan`, `changed` and `full` with six keys (`required`, `touched`, `scenarios`, `coverage`, `flaky`, `require_baseline`);
+  what you leave out keeps the built-in default (`required: [unit]`, no coverage threshold, `scenarios: off`). The
+  default workflow's old frontend and backend 80% line-coverage threshold is now `levels.full.coverage`, written by
+  the projects that want it. The catalog is still protected test configuration: when a task changes `levels`, the
+  change summary in `tenon review request` marks each loosened or tightened key per level, ahead of suite changes.
+- Five test classes. `unit`, `integration`, `e2e`, `static` and `benchmark` (plus `custom`, run only when named) group the
+  17 kinds; a suite's `kind` may be a class or an old kind name (an alias), and a frozen `test_policy` still matches the old
+  names literally.
+- Claiming, not registering. A test file the change adds or modifies is claimed by the suite whose `files` glob matches
+  it when the step is evaluated and is never written to `test-plan.yaml`; `test-file-unregistered` is no longer issued.
+  A file no suite claims is an orphan (`test-file-orphan`), and `tenon test register <change> --auto` fixes it by
+  appending that file's exact path to a suitable suite (it no longer widens a glob or scans the whole repository). Paths
+  under `openspec/`, `.tenon/` and `.pipeline/`, and files without a source extension (`.spec.report`, `data.spec.json`),
+  are never test files. `step.next` issues `test-register-files` only for orphans and `test-plan-map` only for a missing
+  required class or a level that asks for mapping.
+- Suites without `covers`. A suite is touched when a changed file matches its `files` or `covers` glob, so one that has
+  no `covers` is touched only by its own test files. When a change edits only source files, `changed` and `full` skip
+  such a suite and `tenon test status` and `tenon test run --stage` print the non-blocking notice `suites-without-covers`
+  naming it; write `covers` with `tenon test catalog set <id> --cover-glob "<glob>"` to have source changes run it.
+- Catalog writes keep your comments. `catalog add|set|rm|not-applicable` and `register --auto` rewrite only the lines
+  that changed; comments, blank lines and layout stay (an inline comment on a key you changed is the only loss).
+- Scenario mapping is off by default. With `scenarios: off` no scenario blocks an exit, and the traceability matrix
+  lists the mapped rows plus one "N more … not mapped" line instead of a row of "uncovered" each.
+- Test trust is per user, repository and command. `tenon test trust` stores the decision in your user state directory
+  (`<state>/test-trust/`), every worktree of the same repository shares it, and editing one command asks again for that
+  command only. The checkout must be listed by `git worktree list`, and the hook refuses an agent writing to a
+  `test-trust/` path. Trust you gave earlier in a checkout seal keeps counting only in a project that is not a git
+  repository (new trust is written there too); nothing is migrated. A git repository never honors the old seal in the
+  checkout, tracked or not, because the seal and its key can arrive with the repository or an archive and trust the
+  repository for itself. A checkout is treated as "not a git repository" only when neither it nor any parent has a
+  `.git`. One that has a `.git` whose repository
+  identity cannot be read (git fails or times out, or a forged pointer) is untrusted: `tenon test run` says to fix git
+  first and `tenon test trust` refuses to write.
+- `code-size` has no ceiling by default. The 2000-line `lines_added` limit is removed from the default workflow and the
+  `code-size` direction; the probe still reports its metrics, exits `0` and records the measured values in the run
+  record, and the `code-size` reviewer reads them in its prompt and judges them. A project that wants a limit writes `pass.metrics` under the test in its workflow. A `test:<id>`
+  waiver listed in `review request`, the report or a reviewer prompt now shows the latest measured value next to your
+  reason.
+- Run records carry relative paths. New records rewrite the repository root to a relative path and your home directory
+  to `~/` before the digest is computed; existing records are not rewritten.
+- Test output no longer invalidates the candidate. An untracked file with an evidence extension (log, txt, xml, md, csv,
+  png, jpg, jpeg, gif, webp, webm, mp4, lcov, info) under `test-results/`, `playwright-report/` or `coverage/` is not part
+  of the candidate fingerprint, so an e2e server writing a log does not make the frozen build stale. Tracked files,
+  scripts, extension-less files and formats that code or a browser can load or unpack (json, html, htm, zip, gz, har) still
+  count; a suite that really produces them declares them as outputs in the catalog.
+- Dashboard. The workflow page picks a step's level with one choice; the project Tests page shows the effective level
+  definitions; the task Tests tab marks claimed files and collapses the scenario trace.
+
+Rolling back (N-1). The previous release cannot read the step `test` key or the catalog `levels` key: reading such a
+workflow fails and such a catalog is reported with an unknown key. Before rolling back, finish or terminate the tasks you
+created with the new `test` key, and remove `levels` from `.tenon/tests/catalog.yaml`. Fingerprint rule change: a task in
+flight whose workspace holds an undeclared test output (for example an untracked `test-results/**/*.log`) can show a
+one-time `revision-stale` on its first check after the upgrade, because the file is no longer counted; the remedy is the
+usual one for a stale build revision, return to Build and capture the current revision again. Tasks without such files are
+unaffected.
+
+Upgrade note. After upgrading, the first test run in a git repository asks you to run `tenon test trust` once in your own
+terminal: trust stored in the checkout's seal no longer counts there.
+
 ### Verify
 
 ```bash

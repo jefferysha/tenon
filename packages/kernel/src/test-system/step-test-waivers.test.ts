@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { emptyTestPlan, type TestPlan } from './plan.js'
-import { WAIVER_REASON_MAX, stepTestWaiver, waiverReasonText } from './step-test-waivers.js'
+import { WAIVER_REASON_MAX, displaySafeText, foldDisplayText, stepTestWaiver, waiverReasonText } from './step-test-waivers.js'
 
 const A = `workspace:sha256:${'a'.repeat(64)}`
 const B = `workspace:sha256:${'b'.repeat(64)}`
@@ -91,5 +91,25 @@ describe('waiverReasonText：豁免理由是登记者自述，展示前折成单
     const bidi = [0x202a, 0x202b, 0x202c, 0x202d, 0x202e, 0x2066, 0x2067, 0x2068, 0x2069].map((code) => String.fromCodePoint(code))
     for (const mark of bidi) expect(waiverReasonText(`高${mark}危`), mark.codePointAt(0)?.toString(16)).toBe('高危')
     expect(waiverReasonText('前 \u001b 后')).toBe('前 后')
+  })
+})
+
+describe('foldDisplayText / displaySafeText：waiverReasonText 的不截短部分（标题、套件名、命令也要折行去控制字符）', () => {
+  const long = '长'.repeat(WAIVER_REASON_MAX + 60)
+
+  it('foldDisplayText：折成单行、去控制字符与双向字符；反引号、尖括号原样（命令里的 <日期> 占位要能照抄）；不截短', () => {
+    const rlo = String.fromCodePoint(0x202e)
+    expect(foldDisplayText(`  a\n\tb${rlo}c\u001b[2K <日期> \`x\`  `)).toBe('a bc[2K <日期> `x`')
+    expect(foldDisplayText(long)).toBe(long)
+  })
+
+  it('displaySafeText：在 foldDisplayText 之上把反引号与尖括号换成全角；不截短', () => {
+    expect(displaySafeText('a\n`b` <c>')).toBe('a ｀b｀ ＜c＞')
+    expect(displaySafeText(long)).toBe(long)
+  })
+
+  it('waiverReasonText = displaySafeText 再截短：超长部分只在这一层被截', () => {
+    expect(waiverReasonText(long)).toBe(`${'长'.repeat(WAIVER_REASON_MAX)}…`)
+    expect(waiverReasonText('a\n`b` <c>')).toBe(displaySafeText('a\n`b` <c>'))
   })
 })

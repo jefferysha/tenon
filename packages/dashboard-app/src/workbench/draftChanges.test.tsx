@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { WbStepDef, WbWorkflowDef } from '../api/governanceTypes'
 import { countDraftChanges } from './draftChanges'
-import { setStepTestPolicyInDef } from './workbenchDefinition'
+import { setStepTestLevelInDef } from './workbenchDefinition'
 
 function stage(id: string, extra: Partial<WbStepDef> = {}): WbStepDef {
   return { id, label: id, gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [], ...extra }
@@ -114,13 +114,20 @@ describe('countDraftChanges · 轨道设置', () => {
   })
 })
 
-describe('countDraftChanges · 测试策略', () => {
-  it('改策略算所属阶段的 1 处，改回去就不算', () => {
+describe('countDraftChanges · 测试档位', () => {
+  it('改档位算所属阶段的 1 处，换档位仍是 1 处', () => {
     const flat: WbWorkflowDef = { name: 'flat', steps: [stage('s')] }
-    const edited = setStepTestPolicyInDef(flat, 's', { plan: 'required' })
+    const edited = setStepTestLevelInDef(flat, 's', 'changed')
     expect(countDraftChanges(flat, edited)).toBe(1)
-    expect(countDraftChanges(flat, setStepTestPolicyInDef(edited, 's', undefined))).toBe(0)
-    const twice = setStepTestPolicyInDef(edited, 's', { plan: 'required', kinds: ['unit'] })
+    const twice = setStepTestLevelInDef(edited, 's', 'full')
     expect(countDraftChanges(edited, twice)).toBe(1)
+    expect(countDraftChanges(flat, twice)).toBe(1)
+  })
+
+  it('选档替换旧策略也是 1 处；选回不要求的原状（没有声明）不产生草稿改动', () => {
+    const flat: WbWorkflowDef = { name: 'flat', steps: [stage('s')] }
+    expect(countDraftChanges(flat, setStepTestLevelInDef(flat, 's', 'none'))).toBe(0)
+    const legacy: WbWorkflowDef = { name: 'flat', steps: [{ ...stage('s'), test_policy: { plan: 'required' } }] }
+    expect(countDraftChanges(legacy, setStepTestLevelInDef(legacy, 's', 'plan'))).toBe(1)
   })
 })

@@ -59,13 +59,7 @@ tracks:
                 - name: protected_test_files
                   max: 0
         guards: []
-        test_policy:
-          plan: required
-          kinds: [unit]
-          run: [unit]
-          run_if_registered: [typecheck]
-          scope: changed
-          files: registered
+        test: changed
         transitions:
           - event: build-complete
             to: verify
@@ -90,11 +84,7 @@ tracks:
               required: true
               block_at: medium
         guards: []
-        test_policy:
-          run: [unit]
-          run_if_registered: [regression, typecheck, integration, e2e, playwright, a11y, visual]
-          scope: full
-          files: registered
+        test: full
         transitions:
           - event: verify-pass
             to: done
@@ -174,9 +164,7 @@ tracks:
           - type: tasks-at-least
             n: 3
           - type: tasks-through-step
-        test_policy:
-          plan: required
-          scenarios: required
+        test: none
         transitions:
           - event: spec-complete
             to: build
@@ -230,10 +218,6 @@ tracks:
             label: 代码规模
             timeout_s: 120
             required: true
-            pass:
-              metrics:
-                - name: lines_added
-                  max: 2000
         agents:
           reviewers:
             - agent: code-size
@@ -241,9 +225,7 @@ tracks:
               block_at: medium
               reads_tests: [code-size]
         guards: []
-        test_policy:
-          run_if_registered: [smoke]
-          scope: full
+        test: changed
         transitions:
           - event: verify-pass
             to: ship
@@ -335,9 +317,7 @@ tracks:
           - type: tasks-at-least
             n: 3
           - type: tasks-through-step
-        test_policy:
-          plan: required
-          kinds: [unit]
+        test: plan
         transitions:
           - event: spec-complete
             to: build
@@ -353,11 +333,7 @@ tracks:
           executors:
             - agent: builder
         guards: []
-        test_policy:
-          run: [unit]
-          run_if_registered: [typecheck]
-          scope: changed
-          files: registered
+        test: changed
         transitions:
           - event: build-complete
             to: verify
@@ -391,10 +367,6 @@ tracks:
             label: 代码规模
             timeout_s: 120
             required: true
-            pass:
-              metrics:
-                - name: lines_added
-                  max: 2000
         agents:
           reviewers:
             - agent: spec-consistency
@@ -418,12 +390,7 @@ tracks:
               block_at: medium
               reads_tests: [code-size]
         guards: []
-        test_policy:
-          run: [unit]
-          run_if_registered: [regression, e2e, playwright, a11y, visual]
-          scope: full
-          files: registered
-          coverage: { lines: 80 }
+        test: full
         transitions:
           - event: verify-pass
             to: ship
@@ -524,9 +491,7 @@ tracks:
           - type: tasks-at-least
             n: 3
           - type: tasks-through-step
-        test_policy:
-          plan: required
-          kinds: [unit]
+        test: plan
         transitions:
           - event: spec-complete
             to: build
@@ -541,11 +506,7 @@ tracks:
           executors:
             - agent: builder
         guards: []
-        test_policy:
-          run: [unit]
-          run_if_registered: [typecheck]
-          scope: changed
-          files: registered
+        test: changed
         transitions:
           - event: build-complete
             to: verify
@@ -575,10 +536,6 @@ tracks:
             label: 代码规模
             timeout_s: 120
             required: true
-            pass:
-              metrics:
-                - name: lines_added
-                  max: 2000
         agents:
           reviewers:
             - agent: spec-consistency
@@ -599,13 +556,7 @@ tracks:
               block_at: medium
               reads_tests: [code-size]
         guards: []
-        test_policy:
-          run: [unit]
-          run_if_registered: [integration, regression, benchmark]
-          scope: full
-          files: registered
-          coverage: { lines: 80 }
-          benchmark: { require_baseline: false }
+        test: full
         transitions:
           - event: verify-pass
             to: ship

@@ -22,17 +22,22 @@ function dedupe(reasons: readonly SuiteReason[]): SuiteReason[] {
   return reasons.filter((reason) => (seen.has(reason.code) ? false : (seen.add(reason.code), true)))
 }
 
+/**
+ * `claimed` = 本任务改动过、被本套件 glob 认领的测试文件。认领文件是否执行过要跨套件汇总（一个文件可被多个套件认领），
+ * 所以这里不据此判失败，只把本套件报告里没有执行过的认领文件交还调用方做提示；门禁重算时才出阻塞。
+ */
 export async function judgeSuite(
   suite: CatalogSuite,
   run: SuiteRunV2,
   context: ExecContext,
-): Promise<{ readonly run: SuiteRunV2; readonly notices: readonly TestNotice[] }> {
+  claimed: readonly string[] = [],
+): Promise<{ readonly run: SuiteRunV2; readonly notices: readonly TestNotice[]; readonly claimedMissing: readonly string[] }> {
   const baselines = new Map<string, TestBaselineV2>()
   const baseline = suite.benchmark === undefined ? undefined : await context.baseline(suite.id)
   if (baseline !== undefined) baselines.set(baselineKey(suite.id, context.evalRecord.machine_profile), baseline)
   const evaluation = evaluateSuiteResult(suite, { record: context.evalRecord, run }, {
     change: context.change, policy: context.policy, plan: context.plan,
-    knownFailures: context.knownFailures, baselines, today: context.today,
+    knownFailures: context.knownFailures, baselines, today: context.today, claimed,
   })
   const extra = evaluation.blockers.flatMap((blocker) => {
     const reason = reasonOf(blocker)
@@ -45,6 +50,7 @@ export async function judgeSuite(
       result: evaluation.blockers.some((blocker) => blocker.blocking) ? 'fail' : 'pass',
     },
     notices: evaluation.notices,
+    claimedMissing: evaluation.claimedMissing,
   }
 }
 

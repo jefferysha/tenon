@@ -1,6 +1,6 @@
 /**
  * `tenon test register|unregister|waive <change> …` —— 任务测试计划的登记入口（计划只经这里写入）。
- *   register --auto                                            识别缺的目录、认领没人管的测试文件（扩展套件 glob）、生成计划初稿并登记文件
+ *   register --auto                                            识别缺的目录、把本任务改动里没人管的测试文件的精确路径追加进套件 files、生成计划初稿
  *   register --suite <id> [--scope full|changed|files|grep] [--pattern p] [--select-file path…]
  *   register --file <path>… [--suite <id>] [--kind <k>]         登记本任务新增 / 修改的测试文件
  *   register --case <covers> --test "<文件> › <用例名>"…         场景 / 任务 → 用例映射
@@ -30,7 +30,7 @@ export interface RegisterOptions {
   readonly kind?: string
   readonly case?: string
   readonly test?: readonly string[]
-  /** 一条命令登记到能往下走：缺目录先识别、没套件认领的测试文件并进套件 glob、生成计划初稿并登记文件。 */
+  /** 一条命令登记到能往下走：缺目录先识别、本任务里没套件认领的测试文件的精确路径追加进套件 files、生成计划初稿。 */
   readonly auto?: boolean
 }
 

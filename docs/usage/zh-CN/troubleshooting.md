@@ -96,6 +96,27 @@ Platform API Key 按用量计费。Tenon 不会替你登录，也不会读取凭
 `tenon` 放到 `PATH` 最前，所以必需测试 `tenon test code-size --json` 在没有启动器的环境里也能跑；宿主自己的 Bash 和你的 CI
 仍然需要它。把启动器目录（通常是 `~/.local/bin`）加进 `PATH`，或运行 `tenon setup --claude` / `tenon setup --codex` 装上启动器。
 
+#### `code-size` 测试挡住出口，或大改动没被挡住
+
+默认的 `code-size` 测试没有上限：它记录 `files_changed`、`lines_added`、`lines_deleted`、`largest_added_lines`，退出码 0，
+由 `code-size` 评审者按实测值判断规模是否合理。所以大改动不会被行数挡住，这条测试也不需要豁免。如果项目自己的工作流给这条测试写了
+`pass.metrics` 上限，超限的运行以 `metric-threshold` 失败：在那份工作流里调高或去掉上限；只此一次放行就
+`tenon test waive <change> --test code-size --reason …`（评审确认时批准它，并把实测值显示在你的理由旁边）。要启用上限，在工作流 YAML 的该测试下加：
+
+```yaml
+pass:
+  metrics:
+    - name: lines_added
+      max: 3000
+```
+
+#### 新测试文件被报为孤儿，或被认领的文件没有执行
+
+改动过的测试文件由目录里套件的 `files` glob 认领，不用逐个登记。没有任何 glob 匹配的文件是孤儿（`test-file-orphan`）：运行
+`tenon test register <change> --auto`，它把该文件的精确路径追加进合适的套件，从不放宽 glob。被认领的文件没有执行过的用例
+（`registered-test-not-executed`），说明套件的 `files` glob 与测试命令实际跑的文件不一致：到 `.tenon/tests/catalog.yaml`
+改 glob 或命令。没有源码扩展名的路径（例如 `fixtures/data.spec.json`）和 `openspec/`、`.tenon/`、`.pipeline/` 下的任何路径都不会被当成测试文件。
+
 #### `tenon doctor` 的 `env:platform` 是红灯
 
 你在原生 Windows 上，Tenon 不支持（hooks 与安装脚本是 bash，测试服务的启停走 `/bin/sh`）。装 WSL 2（管理员 PowerShell

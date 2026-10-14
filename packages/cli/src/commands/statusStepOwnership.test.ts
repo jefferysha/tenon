@@ -18,6 +18,17 @@ describe('stepOwnership —— 观察模式：从 YAML 推出本步负责什么�
     expect(ownershipOf(plan, 'spec', 'backend')).toEqual({ ownsDeltaSpec: true, ownsAppliedSpec: false, planning: true })
   })
 
+  test('计划步按测试档位判定：plan / changed / full 都要求测试计划，none 与未声明不要求', () => {
+    const plan = defaultPlan('backend')
+    const build = plan.workflow.steps.find((candidate) => candidate.id === 'build')
+    if (build === undefined) throw new Error('fixture: 没有步骤 build')
+    const planningOf = (step: typeof build) => stepOwnership(plan, step, mockState({ track: 'backend' }), emptyStepDocuments('observed')).planning
+    const { test: _declared, ...undeclared } = build
+    for (const level of ['plan', 'changed', 'full'] as const) expect(planningOf({ ...build, test: level }), level).toBe(true)
+    expect(planningOf({ ...build, test: 'none' }), 'none').toBe(false)
+    expect(planningOf(undeclared), '未声明').toBe(false)
+  })
+
   test('交付步：离开条件含 spec-migration-applied → 负责应用规格；不负责 delta spec', () => {
     for (const track of ['pm', 'frontend', 'backend']) {
       expect(ownershipOf(defaultPlan(track), 'ship', track), track).toMatchObject({ ownsDeltaSpec: false, ownsAppliedSpec: true })

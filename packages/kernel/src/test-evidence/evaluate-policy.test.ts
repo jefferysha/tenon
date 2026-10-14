@@ -14,11 +14,16 @@ import { writeTestPlan } from '../test-system/plan-ledger.js'
 import { emptyTestPlan, testPlanDigest, type TestPlan } from '../test-system/plan.js'
 import { testPolicyDigest } from '../test-system/policy.js'
 import { appendTestRunRecordV2 } from '../test-system/record-chain.js'
+import { resolveStepTestPolicy } from '../test-system/resolve-policy.js'
 import { fixtureCase, fixtureRecordDraft, fixtureSuiteRun } from '../test-system/test-support.js'
 import { compileEffectiveWorkflowPlan } from '../workflow/effective-plan.js'
 import type { EffectiveWorkflowPlan } from '../workflow/effective-plan-types.js'
+import type { TestLevel } from '../workflow/test-level.js'
 import type { StepTestPolicyDef } from '../workflow/types.js'
-import { evaluateTestEvidence, stepTestFailuresOf, testItemSettled, type TestEvidenceContext } from './evaluate.js'
+import { evaluateTestEvidence, stepTestFailuresOf, stepTestMetricsOf, testDigest, testItemSettled, type TestEvidenceContext } from './evaluate.js'
+import { ensureTestEvidenceDirs, testRunRecordPath } from './paths.js'
+import { publishTestRunRecord } from './record.js'
+import { TEST_RUN_SCHEMA, type TestRunRecordV1 } from './types.js'
 import { rejectOnTestEvidence } from './transition-gate.js'
 
 const CHANGE = 'policy-flow'
@@ -45,6 +50,20 @@ function plan(policy: StepTestPolicyDef | undefined, withTests = false): Effecti
         id: 'build', label: '实现', gate: null, skills: [], inputs: [], outputs: [],
         ...(withTests ? { tests: [{ id: 'legacy', direction: 'unit', command: 'npm test' }] } : {}),
         ...(policy === undefined ? {} : { test_policy: policy }),
+        guards: [], transitions: [{ event: 'build-done', to: 'verify' }],
+      },
+      { id: 'verify', label: '验证', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [] },
+    ],
+  })
+}
+
+/** 只有档位（`test:`）、没有 test_policy 的步骤；档位的含义在求值时读目录。 */
+function levelPlan(test: TestLevel): EffectiveWorkflowPlan {
+  return compileEffectiveWorkflowPlan('tested', {
+    name: 'tested',
+    steps: [
+      {
+        id: 'build', label: '实现', gate: null, skills: [], inputs: [], outputs: [], test,
         guards: [], transitions: [{ event: 'build-done', to: 'verify' }],
       },
       { id: 'verify', label: '验证', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [] },
@@ -105,7 +124,7 @@ describe('evaluateTestEvidence × test_policy', () => {
     ])
   })
 
-  test('登记计划、写入绑定当前代码的 v2 记录 → 放行；diff 里的未登记测试文件 → 挡', async () => {
+  test('登记计划、写入绑定当前代码的 v2 记录 → 放行；diff 里新增的测试文件按 glob 认领，不用登记，但报告里必须执行过', async () => {
     await seedCatalog()
     const current = plan({ run: ['unit'], scope: 'changed', files: 'registered' })
     const testPlan: TestPlan = { ...emptyTestPlan(CHANGE), suites: [{ suite: 'unit', scope: 'changed' }], files: [{ path: 'src/a.test.ts', suite: 'unit' }] }
@@ -134,7 +153,67 @@ describe('evaluateTestEvidence × test_policy', () => {
     expect(passing.pass).toBe(true)
     expect(passing.policy?.suites[0]).toMatchObject({ suite: 'unit', state: 'passed' })
     const blocked = await evaluate(current, ['src/a.test.ts', 'src/b.test.ts'])
-    expect(blocked.policy?.blockers.map((item) => [item.code, item.subject])).toEqual([['test-file-unregistered', 'src/b.test.ts']])
+    // src/b.test.ts 被 unit 套件的 glob 认领（不出 test-file-unregistered），但这次运行的报告里没有它的用例。
+    expect(blocked.policy?.blockers.map((item) => [item.code, item.subject])).toEqual([['registered-test-not-executed', 'unit']])
+    expect(blocked.policy?.blockers[0]?.message).toContain('src/b.test.ts')
+  })
+
+  test('档位步骤（test: changed）：读目录求值，运行集按改动算；改目录里的档位定义让已有运行过期', async () => {
+    await seedCatalog()
+    const current = levelPlan('changed')
+    const digest = await seedPlan({ ...emptyTestPlan(CHANGE) })
+    const catalogResult = parseTestCatalog(CATALOG)
+    if (!catalogResult.ok) throw new Error('catalog')
+    const policy = resolveStepTestPolicy({ test: 'changed' }, catalogResult.catalog)
+    if (policy === undefined) throw new Error('policy')
+    // 步骤只记档位名：没有 test_policy，求值前不需要目录。
+    expect(current.workflow.steps[0]?.test_policy).toBeUndefined()
+    await appendTestRunRecordV2(repoRoot, SLUG, fixtureRecordDraft({
+      change: CHANGE,
+      workflow: 'tested',
+      workflow_run_id: 'run-1',
+      actor: ACTOR,
+      bindings: {
+        candidate: CANDIDATE,
+        workflow_fingerprint: current.workflowFingerprint,
+        catalog_digest: catalogSuitesDigest(catalogResult.catalog, ['unit']),
+        plan_digest: digest,
+        policy_digest: testPolicyDigest(policy),
+      },
+      suites: [fixtureSuiteRun({
+        suite: 'unit', scope: 'changed', selection: ['src/a.test.ts'], cases: [fixtureCase({ file: 'src/a.test.ts', name: 'works' })],
+      })],
+    }))
+    const passing = await evaluate(current, ['src/a.test.ts', 'src/a.ts'])
+    expect(passing.policy?.blockers).toEqual([])
+    expect(passing.pass).toBe(true)
+    expect(passing.policy?.suites[0]).toMatchObject({ suite: 'unit', state: 'passed', reason: 'run' })
+    expect(passing.policy?.files).toMatchObject({ checked: true, unregistered: [], claimed: [{ path: 'src/a.test.ts', suites: ['unit'] }] })
+    // 改动没碰到任何套件：零运行即满足。
+    const docsOnly = await evaluate(current, ['README.md'])
+    expect(docsOnly.policy?.suites).toEqual([])
+    expect(docsOnly.pass).toBe(true)
+    // 读不到改动列表（宿主给了能力却抛错）：失败关闭。
+    const unreadable = await evaluateTestEvidence({
+      repoRoot, changeDir, changeName: CHANGE, plan: current, stepId: 'build',
+      context: { ...context(), changedFiles: async () => { throw new Error('git 不可用') } },
+    })
+    expect(unreadable.policy?.blockers.map((item) => item.code)).toEqual(['files-diff-unavailable'])
+    // 档位定义写进目录：策略摘要与目录摘要都变，已有运行过期，工作流不用动。
+    await writeFile(testSystemPaths(repoRoot).catalog, `${CATALOG}levels:\n  changed: { coverage: { lines: 50 } }\n`, 'utf8')
+    const stale = await evaluate(current, ['src/a.test.ts'])
+    expect(stale.policy?.blockers.map((item) => [item.code, item.subject])).toEqual([['test-stale', 'unit']])
+    expect(stale.policy?.suites[0]?.staleBecause).toEqual(expect.arrayContaining(['policy']))
+  })
+
+  test('档位步骤、目录缺失：档位用缺省求值，照旧出 test-catalog-missing', async () => {
+    const report = await evaluate(levelPlan('full'), ['src/a.ts'])
+    expect(report.pass).toBe(false)
+    expect(report.policy?.blockers.map((item) => item.code)).toEqual(['test-catalog-missing', 'test-plan-missing'])
+  })
+
+  test('test: none 与没写 test 一样：没有测试要求，不产出策略报告', async () => {
+    expect(await evaluate(levelPlan('none'))).toEqual({ stepId: 'build', pass: true, blockers: [], items: [] })
   })
 
   test('旧 tests[] 与策略并存：v1 判定结果并入策略阻塞（step: 内联套件）', async () => {
@@ -207,6 +286,41 @@ describe('evaluateTestEvidence × test_policy', () => {
     expect(approved.policy?.notices.map((item) => item.code)).toEqual(['test-waived'])
     expect(stepTestFailuresOf(approved.items)).toEqual(new Map([['legacy', { state: 'waived', candidate: CANDIDATE }]]))
     expect(stepTestFailuresOf(none.items).size).toBe(0)
+  })
+
+  test('豁免旁的实测值取自当前候选上最新的失败记录：item、verdict、stepTestMetricsOf 一致；代码变了不再有失败记录，不残留旧数字', async () => {
+    await seedCatalog()
+    const current = plan({ plan: 'optional' }, true)
+    const legacy = current.workflow.steps[0]?.tests?.[0]
+    if (legacy === undefined) throw new Error('fixture')
+    await seedPlan({ ...emptyTestPlan(CHANGE), waivers: [{ test: 'legacy', reason: '新增 2100 行', approved_by: null }] })
+    const failure: TestRunRecordV1 = {
+      schema: TEST_RUN_SCHEMA, run_id: '20260929T095500Z-ab12cd', change: CHANGE, workflow_run_id: 'run-1', workflow: 'tested',
+      workflow_fingerprint: current.workflowFingerprint, track: '', step: 'build', step_visit: { run_id: 'run-1', transition_sequence: 1 },
+      test_id: 'legacy', test_digest: testDigest(legacy), direction: 'unit', command: 'npm test', cwd: '.', timeout_s: 900, required: true,
+      actor: ACTOR, host: { kind: 'terminal', sandbox: null }, candidate_before: CANDIDATE, candidate: CANDIDATE, git_head: null, build_sha: null,
+      started_at: '2026-09-29T09:55:00Z', finished_at: '2026-09-29T09:55:05Z', duration_ms: 5000, exit_code: 1, signal: null, result: 'fail',
+      reasons: [{ code: 'metric-threshold' }], inputs: [], outputs: [],
+      metrics: [{ name: 'lines_added', value: 2810, baseline: null, delta_pct: null, max: 2000, better: 'lower', ok: false }],
+      log: { artifact: 'output.log', bytes_total: 1, bytes_kept: 1, truncated: false, digest: `sha256:${'f'.repeat(64)}` },
+    }
+    const paths = await ensureTestEvidenceDirs(repoRoot, SLUG, CHANGE, failure.run_id)
+    await publishTestRunRecord(testRunRecordPath(repoRoot, SLUG, CHANGE, failure.run_id), paths.runsDir, failure)
+
+    const report = await evaluate(current)
+    const metrics = [{ name: 'lines_added', value: 2810, max: 2000 }]
+    expect(report.items[0]).toMatchObject({ status: 'failed', waiver: 'waiver-pending', failedMetrics: metrics })
+    expect(report.policy?.suites[0]).toMatchObject({ state: 'waiver-pending', failedMetrics: metrics, waiverReason: '新增 2100 行' })
+    expect(stepTestMetricsOf(report.items)).toEqual(new Map([['legacy', metrics]]))
+
+    // 代码变了：记录绑的是旧候选，判过期；没有当前候选上的失败记录，也就没有数字可展示。
+    const moved = await evaluateTestEvidence({
+      repoRoot, changeDir, changeName: CHANGE, plan: current, stepId: 'build',
+      context: { ...context(), currentCandidate: async () => `workspace:sha256:${'b'.repeat(64)}` },
+    })
+    expect(moved.items[0]).toMatchObject({ status: 'stale' })
+    expect(moved.items[0]).not.toHaveProperty('failedMetrics')
+    expect(stepTestMetricsOf(moved.items).size).toBe(0)
   })
 
   test('完整性 / 读不到改动 两类策略阻断带结构化状态（不带 subject），其余策略阻断没有；与渲染后的阻塞一一对齐', async () => {

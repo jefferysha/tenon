@@ -1,14 +1,68 @@
 import { describe, expect, it } from 'vitest'
-import type { StepTestPolicyIR, TestIntegrityReport, TestPolicyReport } from '@tenon/kernel'
+import { resolveStepTestPolicy, type StepTestPolicyIR, type TestCatalog, type TestIntegrityReport, type TestPolicyReport } from '@tenon/kernel'
 import { policyDto, policyReportDto } from './testPolicyDto.js'
 
 function report(integrity?: TestIntegrityReport): TestPolicyReport {
   return {
     stepId: 'verify', pass: true, blockers: [], notices: [], suites: [], trace: [],
-    files: { checked: false, unregistered: [], orphans: [] }, chain: 'empty', notApplicable: [],
+    files: { checked: false, unregistered: [], orphans: [], claimed: [] }, chain: 'empty', notApplicable: [],
     ...(integrity === undefined ? {} : { integrity }),
   }
 }
+
+describe('policyDto —— 档位', () => {
+  it('档位派生的策略带 level（名称、必需类、碰到才跑的类、来源）；没有目录时来源是内建缺省', () => {
+    const policy = resolveStepTestPolicy({ test: 'full' }, undefined)
+    if (policy === undefined) throw new Error('fixture policy missing')
+    expect(policyDto(policy).level).toEqual({
+      name: 'full', required: ['unit'], touched: ['integration', 'e2e', 'static', 'benchmark'], source: 'default',
+    })
+  })
+
+  it('目录写了这一档的任意键：来源是目录，类按目录的定义', () => {
+    const catalog = { levels: { changed: { required: ['unit', 'integration'], touched: ['e2e'] } } } as unknown as TestCatalog
+    const policy = resolveStepTestPolicy({ test: 'changed' }, catalog)
+    if (policy === undefined) throw new Error('fixture policy missing')
+    expect(policyDto(policy).level).toEqual({ name: 'changed', required: ['unit', 'integration'], touched: ['e2e'], source: 'catalog' })
+  })
+
+  it('档位的门槛进策略：覆盖率、不稳定上限、要求基线、场景', () => {
+    const catalog = {
+      levels: { full: { coverage: { lines: 80 }, flaky: { max: 2, fail_on_new: true }, require_baseline: true, scenarios: 'required' } },
+    } as unknown as TestCatalog
+    const policy = resolveStepTestPolicy({ test: 'full' }, catalog)
+    if (policy === undefined) throw new Error('fixture policy missing')
+    expect(policyDto(policy)).toMatchObject({
+      scenarios: 'required', coverage: { lines: 80 }, flaky: { max: 2, failOnNew: true }, requireBaseline: true, scope: 'full',
+    })
+  })
+
+  it('旧策略没有 level 键', () => {
+    const legacy: StepTestPolicyIR = {
+      plan: 'required', kinds: [], run: ['unit'], run_if_registered: [], scope: 'full', files: 'any', scenarios: 'off',
+      benchmark: { require_baseline: false }, browsers: [],
+    }
+    expect(policyDto(legacy)).not.toHaveProperty('level')
+  })
+})
+
+describe('policyReportDto —— 认领文件', () => {
+  it('files 带 claimed（路径 + 认领它的套件）与孤儿，不再有 unregistered', () => {
+    const dto = policyReportDto({
+      ...report(),
+      files: {
+        checked: true, unregistered: [], orphans: ['tools/x.test.mjs'],
+        claimed: [{ path: 'src/a.test.ts', suites: ['unit'] }, { path: 'src/b.test.ts', suites: ['unit', 'docs-unit'] }],
+      },
+    }, undefined)
+    expect(dto.files).toEqual({
+      checked: true,
+      claimed: [{ path: 'src/a.test.ts', suites: ['unit'] }, { path: 'src/b.test.ts', suites: ['unit', 'docs-unit'] }],
+      orphans: ['tools/x.test.mjs'],
+    })
+    expect(dto.files).not.toHaveProperty('unregistered')
+  })
+})
 
 describe('policyDto / policyReportDto —— 测试完整性', () => {
   it('策略：缺省（notice 不进 IR）显示为 notice，block 显示为 block', () => {

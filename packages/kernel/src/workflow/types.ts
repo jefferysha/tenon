@@ -13,6 +13,7 @@
 import type { ReviewerHost } from '../agents/types.js'
 import type { FieldName } from '../types.js'
 import type { TrackPredicate } from './predicates.js'
+import type { TestLevel } from './test-level.js'
 
 export type FieldType = 'string' | 'file_path' | 'boolean'
 export type GateKind = 'review' | 'auto' | null
@@ -316,6 +317,11 @@ export interface StepDef {
   readonly tests?: readonly StepTestDef[]
   /** 本步的测试策略；缺省 = 无策略（编译后不出现 test_policy 键，指纹逐字不变）。 */
   readonly test_policy?: StepTestPolicyDef
+  /**
+   * 本步的测试档位（YAML 键 `test`）：none | plan | changed | full。档位含义在求值时读项目测试目录的 `levels`。
+   * 与 `test_policy` 互斥（编译报错）；缺省 = 未声明（编译后不出现 test 键，指纹逐字不变）。
+   */
+  readonly test?: TestLevel
   /** 本步的执行者与评审者；两个列表都空时等同缺省。 */
   readonly agents?: StepAgentsDef
   readonly guards: readonly WorkflowGuardConfig[]

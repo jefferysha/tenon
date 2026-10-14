@@ -12,6 +12,7 @@ import { errMsg, type CliDeps } from '../deps.js'
 import { localeOf, msg } from '../i18n/messages.js'
 import { str } from '../render.js'
 import { integrityDiffFor } from '../testEvidenceContext.js'
+import { stepPolicyFor } from '../test-system/plan-context.js'
 import { resolveTestCommand } from './test-context.js'
 
 function lines(deps: CliDeps, change: string, stepId: string, report: TestIntegrityReport): readonly string[] {
@@ -42,7 +43,7 @@ export async function cmdTestIntegrity(
     deps.io.err(`ERROR: ${msg(deps, 'integrity.stepNotInWorkflow', { step: stepId, workflow: context.plan.id })}`)
     return 1
   }
-  const mode: IntegrityMode = step.test_policy?.integrity === 'block' ? 'block' : 'notice'
+  const mode: IntegrityMode = (await stepPolicyFor(deps, step))?.integrity === 'block' ? 'block' : 'notice'
   let report: TestIntegrityReport
   try {
     report = await loadIntegrityReport({

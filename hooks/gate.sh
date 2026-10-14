@@ -56,6 +56,7 @@ json_command_short() { pipeline_json_get_command_bounded "$INPUT" 65536; }
 # 可能，所以在 marker 逻辑之前就拒。受保护的路径：
 #   · .tenon/users/<u>/{tests,baselines}：按用户的运行记录（v1 / v2 哈希链）与旧基线；
 #   · .tenon/users/<u>/local/{test-seal.json,env.key}：本机封存文件（记录链头、批准、信任）与它的密钥；
+#   · <任意>/test-trust/**：用户级测试信任存储（<stateRoot>/test-trust/<u>.json 与密钥 <u>.key），路径里含 /test-trust/ 段即受保护；
 #   · openspec/changes/<c>/test-plan.yaml 及其摘要台账 .pipeline-test-plan.json、评审冻结的待批准清单
 #     .pipeline-review-waivers.json：任务测试计划；
 #   · .tenon/tests/baselines/**、.tenon/tests/known-failures.yaml：项目共享的基线与已知失败清单。
@@ -72,8 +73,11 @@ json_command_short() { pipeline_json_get_command_bounded "$INPUT" 65536; }
 #   干净的 git 跟踪文件；9 xargs / parallel 接非只读命令、find 带 -exec|-delete 等；10 cp/mv/install/rsync/ln 的目标；
 #   11 tee（含 sudo tee、>(tee f)）；12 各种重定向（>| &> 1> : > exec 3> { …; } >，含 heredoc 喂给解释器的正文）；
 #   13 sed -i / perl -pi / awk -i inplace / truncate / dd of= / rm / shred / touch。
-# 另有两条文字规则（只在命令位置匹配，grep 文档里的字样不算）：`tenon test trust` 与 `TENON_TEST_TRUST=` 前缀赋值
-# 只能由用户在自己的终端里做（R6 的信任），agent 的 shell 调用一律拒。
+# 另有文字规则（只在命令位置匹配，grep 文档里的字样不算）：`tenon test trust` 与 `TENON_TEST_TRUST=` 前缀赋值
+# 只能由用户在自己的终端里做（R6 的信任），agent 的 shell 调用一律拒。信任存储在 Tenon 的状态目录里，所以 agent 也不能改写这个目录：
+# 两个 `TENON_RUNTIME_*` 根目录变量（前缀赋值与 export 等，不论后面跑什么）一律拒；`HOME=` / `XDG_STATE_HOME=` 的 export
+# 与单独赋值一律拒，作为前缀赋值只在同段的命令头是 tenon / tenon.mjs 时拒（`HOME=/tmp/x npm run check:docs` 照常放行）。
+# 这几条文字规则的识别在 hooks/lib/trust-command.sh（由 lib/protected-writes.sh 按需加载，缺失时对相关命令段失败关闭）。
 # 无法静态认出的（路径由字符串拼接出来、变量来自别处、脚本被间接构造）在转换时检出：记录链头对不上本机封存、共享受保护
 # 文件相对封存的写入记录被改动，见 kernel evaluate-v2。AFK 也照拒：它免除的是交互拦截，不是写入边界。
 # 原始输入不含任何相关字样就不解析；解析全走 json-input.sh 的线性 helper（bash 3.2 下大补丁也不超时）。
@@ -181,11 +185,20 @@ if [ "$ACK_CANDIDATE" = 1 ]; then
 fi
 
 case "$INPUT" in
-  *.tenon*|*test-plan*|*known-failures*|*review-waivers*|*baselines*|*test-seal*|*env.key*|*trust*|*TRUST*|*bash*|*sh\ *|*zsh*|*"$PIPELINE_PY"*|*node*|*ruby*|*perl*|*php*|*deno*|*bun*|*source*|*apply*|*patch*|*'./'*)
-    # 与 json-input.sh 同目录的 lib/：只在这里（原始输入名了相关字样）才解析这份识别逻辑；缺失按本文件的 fail-open 约定放行，
+  *.tenon*|*test-plan*|*known-failures*|*review-waivers*|*baselines*|*test-seal*|*env.key*|*test-trust*|*trust*|*TRUST*|*RUNTIME_HOME*|*RUNTIME_ROOTS*|*HOME=*|*XDG_STATE_HOME*|*bash*|*sh\ *|*zsh*|*"$PIPELINE_PY"*|*node*|*ruby*|*perl*|*php*|*deno*|*bun*|*source*|*apply*|*patch*|*'./'*)
+    # 与 json-input.sh 同目录的 lib/：只在这里（原始输入名了相关字样）才解析这份识别逻辑。缺失是安装缺陷：这个库同时保护测试信任存储与
+    # Tenon 的状态目录，所以输入名了信任 / 状态目录字样时失败关闭；其余按本文件的 fail-open 约定放行。
     # 发布时由 tools/verify-skills.sh 保证它随插件一起交付。
     PIPELINE_PROTECTED_LIB="${JSON_INPUT_HELPER%/*}/lib/protected-writes.sh"
-    [ -r "$PIPELINE_PROTECTED_LIB" ] || exit 0
+    if [ ! -r "$PIPELINE_PROTECTED_LIB" ]; then
+      case "$INPUT" in
+        *trust*|*TRUST*|*RUNTIME_HOME*|*RUNTIME_ROOTS*|*HOME=*|*XDG_STATE_HOME*)
+          printf '【Tenon 门】hooks/lib/protected-writes.sh 缺失（%s），无法核实这次调用是否在替你做测试信任决定或改写 Tenon 的状态目录，按失败关闭拒绝。请重新安装或更新 Tenon 插件（tenon update），让 hooks/lib/ 随插件一起安装。\n' "$PIPELINE_PROTECTED_LIB" >&2
+          exit 2
+          ;;
+      esac
+      exit 0
+    fi
     # shellcheck source=lib/protected-writes.sh
     . "$PIPELINE_PROTECTED_LIB"
     RECORD_TOOL="$(json_get tool_name || true)"

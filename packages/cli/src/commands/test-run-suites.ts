@@ -9,11 +9,14 @@
  * 退出码：0 全部通过（或本阶段没有目录套件要跑），2 有失败（记录已写），1 用法 / 环境错误（没有记录）。
  */
 import { relative } from 'node:path'
-import { readTestPlanState, type TestCatalog } from '@tenon/kernel'
+import {
+  policyChecksChangedFiles, readTestPlanState, resolveStepTestPolicy, stageRunSet, suitesWithoutCoversNotice, type TestCatalog, type TestNotice,
+} from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
 import { str } from '../render.js'
 import { testEvidenceContextFor, testEvidenceReaderFor } from '../testEvidenceContext.js'
 import type { RunItem } from '../test-system/exec-types.js'
+import { tryChangedFiles } from '../test-system/plan-context.js'
 import { readCatalogFile, readKnownFailuresFile } from '../test-system/project-files.js'
 import { RunBusyError, executeRun, type RunResult } from '../test-system/run-orchestrator.js'
 import { planRunSet } from '../test-system/run-set.js'
@@ -57,7 +60,7 @@ async function gateAfter(deps: CliDeps, context: TestCommandContext, change: str
   }
 }
 
-function printResult(deps: CliDeps, change: string, result: RunResult, gate: Gate, recordPath: string): void {
+function printResult(deps: CliDeps, change: string, result: RunResult, gate: Gate, recordPath: string, notices: readonly TestNotice[]): void {
   const { record } = result.appended
   deps.io.out(`[TEST] ${change} 结果：${record.result === 'pass' ? '通过' : '失败'}（${(record.duration_ms / 1000).toFixed(1)}s，机器画像 ${result.profile.label}）`)
   for (const outcome of result.outcomes) {
@@ -65,7 +68,7 @@ function printResult(deps: CliDeps, change: string, result: RunResult, gate: Gat
     for (const note of outcome.notes) deps.io.out(`         注：${note}`)
   }
   for (const line of serviceLines(result.services)) deps.io.out(line)
-  for (const line of noticeLines(result.outcomes.flatMap((outcome) => outcome.notices))) deps.io.out(line)
+  for (const line of noticeLines([...result.outcomes.flatMap((outcome) => outcome.notices), ...notices])) deps.io.out(line)
   if (result.appended.chain === 'reset') deps.io.out('  注意：旧记录链已断或来源不明（记录被改动、损坏，或不是本机 tenon test run 写下的），已另起新链，旧记录视为未运行')
   deps.io.out(`  记录：${recordPath}`)
   deps.io.out(`  产物：${relative(deps.cwd, result.runDir)}/`)
@@ -96,20 +99,37 @@ export async function cmdTestRunSuites(deps: CliDeps, change: string, opts: RunS
 
   const legacy = step.tests ?? []
   const legacyHint = legacy.length === 0 ? '' : `旧的步骤测试不在 --stage 里，逐个执行：${legacy.map((test) => `tenon test run ${change} ${test.id}`).join('；')}`
-  if (stageMode && step.test_policy === undefined) {
-    return fail(deps, `步骤 ${stepId} 没有 test_policy，没有目录套件的阶段运行集；用 --suite / --kind / --all 指定要跑的套件${legacyHint === '' ? '' : `。${legacyHint}`}`)
+  const policy = resolveStepTestPolicy(step, catalog)
+  if (stageMode && policy === undefined) {
+    return fail(deps, `步骤 ${stepId} 没有测试档位（test:）或 test_policy，没有目录套件的阶段运行集；用 --suite / --kind / --all 指定要跑的套件${legacyHint === '' ? '' : `。${legacyHint}`}`)
   }
-  const set = planRunSet({ catalog, plan: planState.state === 'ok' ? planState.plan : undefined, policy: step.test_policy, flags, stepId, change })
+  // 档位（changed / full）与旧 files: registered 的运行集要看本任务改动的文件；读不到按「读不到改动」算（出口检查另出 files-diff-unavailable）。
+  let changedFiles: readonly string[] | undefined
+  if (stageMode && policy !== undefined && policyChecksChangedFiles(policy)) {
+    const diff = await tryChangedFiles(deps, change)
+    if (diff.ok) changedFiles = diff.files
+    else deps.io.err(`WARN: 读不到本任务的改动文件列表（${diff.reason}）；阶段运行集只含计划里显式登记的套件${policy.level?.name === 'full' ? '和必需类套件' : ''}`)
+  }
+  const set = planRunSet({ catalog, plan: planState.state === 'ok' ? planState.plan : undefined, policy, flags, stepId, change, changedFiles })
   if ('error' in set) return fail(deps, set.error)
+  // 没写 covers 的套件只改源码碰不到：与 tenon status 求值是同一份提示，运行集空与非空都告知。
+  const coversNotice = stageMode && policy !== undefined && planState.state === 'ok'
+    ? suitesWithoutCoversNotice({ policy, catalog, changedFiles, runSet: stageRunSet({ policy, catalog, plan: planState.plan, changedFiles }) })
+    : undefined
+  const notices: readonly TestNotice[] = coversNotice === undefined ? [] : [coversNotice]
   if (set.items.length === 0) {
-    const note = `${stepId} 阶段的策略没有要运行的目录套件${legacyHint === '' ? '' : `；${legacyHint}`}`
-    if (opts.json === true) deps.io.out(JSON.stringify({ change, step: stepId, result: 'nothing-to-run', legacy: legacy.map((test) => test.id) }, null, 2))
-    else deps.io.out(`[TEST] ${change} ${note}`)
+    const why = policy?.level === undefined ? '阶段的策略没有要运行的目录套件' : `阶段按档位（${policy.level.name}）没有需要运行的套件`
+    const note = `${stepId} ${why}${legacyHint === '' ? '' : `；${legacyHint}`}`
+    if (opts.json === true) deps.io.out(JSON.stringify({ change, step: stepId, result: 'nothing-to-run', legacy: legacy.map((test) => test.id), notices }, null, 2))
+    else {
+      deps.io.out(`[TEST] ${change} ${note}`)
+      for (const line of noticeLines(notices)) deps.io.out(line)
+    }
     return 0
   }
 
-  // 目录里的命令来自仓库：首次执行前需要用户在本机确认（R6）。未信任不执行任何命令、不写记录。
-  if (!(await ensureTrusted(deps, context.slug, catalogTrustTarget(catalog), change))) return 1
+  // 目录里的命令来自仓库：首次执行前需要用户在本机确认（R6）。只校验本次要执行的套件；未信任不执行任何命令、不写记录。
+  if (!(await ensureTrusted(deps, context.slug, catalogTrustTarget(catalog, set.items.map((item) => item.suite.id)), change))) return 1
 
   let result: RunResult
   try {
@@ -131,11 +151,11 @@ export async function cmdTestRunSuites(deps: CliDeps, change: string, opts: RunS
     deps.io.out(JSON.stringify({
       run_id: result.runId, change, step: stepId, result: result.appended.record.result, chain: result.appended.chain,
       record_path: recordPath, artifacts_dir: relative(deps.cwd, result.runDir), legacy: legacy.map((test) => test.id),
-      gate: { pass: gate.pass, blockers: gate.blockers }, record: result.appended.record,
+      gate: { pass: gate.pass, blockers: gate.blockers }, notices, record: result.appended.record,
     }, null, 2))
     return exitCode
   }
-  printResult(deps, change, result, gate, recordPath)
+  printResult(deps, change, result, gate, recordPath, notices)
   if (stageMode && legacyHint !== '') deps.io.out(`  ${legacyHint}`)
   const denied = result.outcomes.find((outcome) => outcome.sandboxDenied)
   if (denied !== undefined) deps.io.err(`可能被宿主沙箱拦截：Codex 中用 sandbox_permissions=require_escalated 重新执行 tenon test run ${change}`)

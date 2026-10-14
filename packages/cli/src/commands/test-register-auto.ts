@@ -1,20 +1,21 @@
 /**
- * `tenon test register <change> --auto` —— 一条命令把任务的测试计划登记到能往下走：
+ * `tenon test register <change> --auto` —— 一条命令把本任务的测试配置补到能往下走：
  *   1. 目录还不存在就先自动识别写入（同 `tenon init`）；
- *   2. 找出仓库里没有任何套件认领的测试文件，把它们并进合适套件的 `files` glob（写回 catalog.yaml，扩展 glob）；
- *   3. 生成 / 补全计划初稿（同 `tenon test plan <change> --seed`），认领来的文件与 diff 里未登记的测试文件一并登记。
+ *   2. 只看本任务改动里没有任何套件认领的测试文件（孤儿），把**精确路径**追加进合适套件的 `files`
+ *      （写回 catalog.yaml 只改那几行，注释与排版保留；不放宽 glob、不扫全仓、不碰没改动的文件）。
+ *      没有合适的套件就报错并给出补套件的命令，目录一个字节都不写；
+ *   3. 生成 / 补全计划初稿（同 `tenon test plan <change> --seed`）。
  * 只增不减，重复运行幂等。场景 / 任务到用例的映射不在这里猜：仍按 `test-plan-map` 逐条 `--case … --test …`。
  */
 import { lstat } from 'node:fs/promises'
 import { join } from 'node:path'
-import { emptyTestPlan, updateTestPlan } from '@tenon/kernel'
+import { emptyTestPlan, foldDisplayText, updateTestPlan } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
 import { autoDiscoverCatalog } from '../test-system/auto-discover.js'
-import { claimOrphans, isClaimableTestFile } from '../test-system/claim-orphans.js'
+import { changedTestCandidates, claimOrphans, type OrphanClaim } from '../test-system/claim-orphans.js'
 import { loadPlanInputs, policiesOf, tryChangedFiles } from '../test-system/plan-context.js'
-import { seedPlan, withSuite, type SeedResult } from '../test-system/plan-edit.js'
+import { seedPlan, type SeedResult } from '../test-system/plan-edit.js'
 import { readCatalogFile, updateCatalog } from '../test-system/project-files.js'
-import { listRepoFiles } from '../test-system/repo-files.js'
 import { printSeed } from './test-plan.js'
 import type { TestCommandContext } from './test-context.js'
 
@@ -28,6 +29,21 @@ async function regularFile(deps: CliDeps, path: string): Promise<boolean> {
     return (await lstat(join(deps.cwd, path))).isFile()
   } catch {
     return false
+  }
+}
+
+/** 路径是仓库里的文件名，会被 agent 读到：去掉控制与双向字符、折成单行。 */
+function unresolvedMessage(change: string, unresolved: readonly string[]): string {
+  return `${unresolved.length} 个测试文件没有合适的套件可认领（目录里没有 cwd 覆盖它们所在位置的 unit / integration / e2e / benchmark 套件，或路径里有 glob 元字符、精确写不进 files）：`
+    + `${unresolved.map(foldDisplayText).join('、')}；目录没有改动。先补套件：tenon test catalog add <id> --kind <unit|integration|playwright|…> --command '<跑它们的命令>' --file-glob '<它们所在位置的 glob>'，`
+    + `再重跑 tenon test register ${change} --auto`
+}
+
+function reportClaims(deps: CliDeps, claims: readonly OrphanClaim[]): void {
+  const bySuite = new Map<string, string[]>()
+  for (const claim of claims) bySuite.set(claim.suite, [...(bySuite.get(claim.suite) ?? []), claim.file])
+  for (const [suite, files] of bySuite) {
+    deps.io.out(`[TEST] 套件 ${suite} 的 files 增加 ${files.join('、')}（本任务里原先没有套件认领的测试文件 ${files.length} 个）`)
   }
 }
 
@@ -47,54 +63,42 @@ export async function cmdTestRegisterAuto(deps: CliDeps, change: string, context
   }
   if (catalogFile.state !== 'ok') return fail(deps, '读不到测试目录')
 
-  // 2. 没有套件认领的测试文件 → 扩展套件的 files glob（锁内以当前目录为准认领，没有改动就不重写文件）。
+  // 2. 本任务改动里没有套件认领的测试文件 → 追加精确路径（锁内以当前目录为准认领，没有改动就不重写文件）。
+  const diff = await tryChangedFiles(deps, change)
   const candidates: string[] = []
-  for (const path of await listRepoFiles(deps.cwd)) {
-    if (isClaimableTestFile(path) && await regularFile(deps, path)) candidates.push(path)
+  for (const path of changedTestCandidates(diff.ok ? diff.files : [])) {
+    if (await regularFile(deps, path)) candidates.push(path)
   }
   const outcome = await updateCatalog(deps.cwd, (current) => {
     const result = claimOrphans(current, candidates)
-    return { catalog: result.catalog, value: result }
+    return result.unresolved.length > 0 ? unresolvedMessage(change, result.unresolved) : { catalog: result.catalog, value: result }
   })
   if (!outcome.ok) return fail(deps, outcome.message)
   const claimed = outcome.value
   const catalog = claimed.catalog
-  const byGlob = new Map<string, number>()
-  for (const claim of claimed.claims) byGlob.set(`${claim.suite}\u0000${claim.glob}`, (byGlob.get(`${claim.suite}\u0000${claim.glob}`) ?? 0) + 1)
-  for (const [key, count] of byGlob) {
-    const [suite = '', glob = ''] = key.split('\u0000')
-    deps.io.out(`[TEST] 套件 ${suite} 的文件 glob 增加 ${glob}（认领 ${count} 个原先没有套件认领的测试文件）`)
-  }
-  const claimedPaths = claimed.claims.map((claim) => claim.path)
+  reportClaims(deps, claimed.claims)
 
-  // 3. 计划初稿 + 登记（认领来的文件按 diff 里的未登记文件同样处理）。
+  // 3. 计划初稿（同 tenon test plan --seed）。认领来的文件与它们的套件不写进计划：认领在求值时按改动现算，
+  // 认领文件所属的套件随之进入阶段运行集（stageRunSet），不需要在计划里登记或升成全量。
   const inputs = await loadPlanInputs(deps, context)
-  const diff = await tryChangedFiles(deps, change)
   const seen: { result?: SeedResult; resetTampered?: boolean } = {}
   const written = await updateTestPlan(context.dir, change, { actor: context.actor, recordedAt: deps.clock(), op: 'register' }, (state) => {
     seen.resetTampered = state.state === 'tampered'
     const seeded = seedPlan({
       catalog, plan: state.state === 'ok' ? state.plan : emptyTestPlan(change),
-      changedFiles: [...new Set([...(diff.ok ? diff.files : []), ...claimedPaths])],
-      policies: policiesOf(context), scenarios: inputs.scenarios, tasks: inputs.tasks,
+      changedFiles: diff.ok ? diff.files : [],
+      policies: policiesOf(context, catalog), scenarios: inputs.scenarios, tasks: inputs.tasks,
     })
-    // 认领来的文件里有任务之前就存在、这次没改的：changed 范围只跑 diff 里的测试文件，会漏掉它们
-    // （登记了却没执行）。认领了文件的套件因此按全量登记；用户自己选过 files / grep 的不动。
-    let plan = seeded.plan
-    for (const id of new Set(claimed.claims.map((claim) => claim.suite))) {
-      const entry = plan.suites.find((item) => item.suite === id)
-      if (entry === undefined || entry.scope === 'changed') plan = withSuite(plan, { suite: id, scope: 'full' })
-    }
-    seen.result = { ...seeded, plan }
-    return { plan }
+    seen.result = seeded
+    return { plan: seeded.plan }
   })
   const result = seen.result
   if ('rejected' in written || result === undefined) return fail(deps, 'rejected' in written ? written.rejected : '计划登记失败')
   if (seen.resetTampered === true) deps.io.out('  注意：旧计划文件被手工改动过，已丢弃并重新生成')
   printSeed(deps, change, result)
-  for (const path of claimed.unresolved) {
-    deps.io.out(`  ! 测试文件 ${path} 没有合适的套件可认领（目录里没有覆盖它所在位置的 unit / e2e 套件）：tenon test catalog add …，再重跑 tenon test register ${change} --auto`)
+  if (!diff.ok) deps.io.out(`  注意：读不到 diff（${diff.reason}），没有认领任何测试文件；解决后重跑 tenon test register ${change} --auto`)
+  else if (diff.untrackedTruncated !== undefined) {
+    deps.io.out(`  注意：未跟踪文件有 ${diff.untrackedTruncated.found} 个，只检查了前 ${diff.untrackedTruncated.limit} 个；把构建产物、依赖目录加入 .gitignore 后重跑 tenon test register ${change} --auto`)
   }
-  if (!diff.ok) deps.io.out(`  注意：读不到 diff（${diff.reason}），只登记了认领来的文件；解决后重跑 tenon test register ${change} --auto`)
   return 0
 }

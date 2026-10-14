@@ -7,7 +7,9 @@
  */
 import { sha256Hex } from '../sha256.js'
 import type { StepIR, StepTestIR, StepTestPolicyIR } from '../workflow/ir.js'
+import type { TestCatalog } from './catalog-types.js'
 import { canonicalJson } from './canonical.js'
+import { resolveStepTestPolicy } from './resolve-policy.js'
 import { INLINE_SUITE_PREFIX, kindForDirection, type TestKind } from './vocabulary.js'
 
 export interface InlineSuite {
@@ -43,10 +45,15 @@ export function inlineSuiteFromTest(test: StepTestIR): InlineSuite {
   }
 }
 
-export function stepTestRequirements(step: Pick<StepIR, 'id' | 'tests' | 'test_policy'>): StepTestRequirements {
+/** 目录为 undefined（缺失或无效）时档位按内建缺省求值。 */
+export function stepTestRequirements(
+  step: Pick<StepIR, 'id' | 'tests' | 'test' | 'test_policy'>,
+  catalog?: TestCatalog,
+): StepTestRequirements {
+  const policy = resolveStepTestPolicy(step, catalog)
   return {
     stepId: step.id,
-    ...(step.test_policy === undefined ? {} : { policy: step.test_policy }),
+    ...(policy === undefined ? {} : { policy }),
     inline: (step.tests ?? []).map(inlineSuiteFromTest),
   }
 }
