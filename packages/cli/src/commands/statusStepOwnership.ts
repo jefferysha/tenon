@@ -8,7 +8,7 @@
  *   · 负责应用规格   = 本步的离开条件含 `spec-migration-applied`；
  *   · 计划步         = 本步测试策略的 `plan` 为 required。
  */
-import { stepRequiredOutputs, type EffectiveWorkflowPlan, type PipelineState, type StepIR } from '@tenon/kernel'
+import { resolveStepTestPolicy, stepRequiredOutputs, type EffectiveWorkflowPlan, type PipelineState, type StepIR } from '@tenon/kernel'
 import { str } from '../render.js'
 import { leaveGuards } from './exitGuards.js'
 import type { StepDocumentsView } from './statusStepParts.js'
@@ -40,6 +40,7 @@ export function stepOwnership(
   return {
     ownsDeltaSpec: stepRequiredOutputs(plan, step.id, str(state.fields.track)).some((pattern) => pattern.startsWith(DELTA_SPEC_PREFIX)),
     ownsAppliedSpec: leaveGuards(plan, step, state).some((guard) => guard.type === 'spec-migration-applied'),
-    planning: step.test_policy?.plan === 'required',
+    // 档位（`test: plan|changed|full`）派生的策略恒要求测试计划，旧 `test_policy` 看自己的 plan；档位的 plan 不依赖目录，所以传 undefined。
+    planning: resolveStepTestPolicy(step, undefined)?.plan === 'required',
   }
 }

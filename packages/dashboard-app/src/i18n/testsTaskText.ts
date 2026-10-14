@@ -3,7 +3,7 @@ import type { Dict } from './translations'
 /** 工作台任务「测试」页签（tests.task.*）。页面只出词；说明放 Tooltip。 */
 export const zh: Dict = {
   section: {
-    files: '未登记文件',
+    files: '测试文件',
     matrix: '策略',
     trace: '场景/任务',
     blockers: '阻塞',
@@ -21,18 +21,21 @@ export const zh: Dict = {
   },
   matrix: {
     requirement: '要求',
-    registered: '已登记',
     result: '最近结果',
     blocker: '缺项',
     fix_show: '展开修复命令',
     fix_hide: '收起修复命令',
   },
   requirement: {
+    required: '必需',
+    touched: '碰到才跑',
     register: '登记',
     run: '运行',
     if_registered: '有则跑',
   },
   requirement_hint: {
+    required: '目录里必须有这一类套件，或已批准的豁免；运行的套件须通过',
+    touched: '改动碰到这一类套件才运行',
     register: '计划里必须有这个种类的套件或已批准的豁免',
     run: '本阶段必须在当前代码上运行并通过',
     if_registered: '计划里登记了才需要运行',
@@ -47,6 +50,8 @@ export const zh: Dict = {
     uncovered: '未覆盖',
     optional: '可选',
     mapped: '未运行',
+    unmapped: '未映射',
+    unmapped_hint: '本步不要求映射',
   },
   blockers: {
     label: '阻塞',
@@ -55,6 +60,8 @@ export const zh: Dict = {
     notice: '提示',
   },
   files: {
+    status: '状态',
+    claimed: '自动认领',
     orphan_hint: '没有任何目录套件认领这个文件',
   },
   summary: '概览',
@@ -69,7 +76,7 @@ export const zh: Dict = {
 
 export const en: Dict = {
   section: {
-    files: 'Unregistered files',
+    files: 'Test files',
     matrix: 'Policy',
     trace: 'Scenario/Task',
     blockers: 'Blockers',
@@ -87,18 +94,21 @@ export const en: Dict = {
   },
   matrix: {
     requirement: 'Requirement',
-    registered: 'Registered',
     result: 'Latest result',
     blocker: 'Missing',
     fix_show: 'Show fix command',
     fix_hide: 'Hide fix command',
   },
   requirement: {
+    required: 'Required',
+    touched: 'Touched',
     register: 'Register',
     run: 'Run',
     if_registered: 'If registered',
   },
   requirement_hint: {
+    required: 'The catalog needs a suite of this class, or an approved waiver; suites that run must pass',
+    touched: 'Runs only when the change touches a suite of this class',
     register: 'The plan needs a suite of this kind or an approved waiver',
     run: 'Must run and pass on the current code in this stage',
     if_registered: 'Only needs to run when the plan registers it',
@@ -113,6 +123,8 @@ export const en: Dict = {
     uncovered: 'Uncovered',
     optional: 'Optional',
     mapped: 'Not run',
+    unmapped: 'Unmapped',
+    unmapped_hint: 'Mapping is not required in this step',
   },
   blockers: {
     label: 'Blocker',
@@ -121,6 +133,8 @@ export const en: Dict = {
     notice: 'Notice',
   },
   files: {
+    status: 'Status',
+    claimed: 'Auto-claimed',
     orphan_hint: 'No catalog suite claims this file',
   },
   summary: 'Summary',

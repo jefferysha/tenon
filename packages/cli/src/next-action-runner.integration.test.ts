@@ -181,6 +181,11 @@ describe('照着 next 做事的运行器：open → 完结', { timeout: 120_000 
     expect(mainSpec).toContain('## Purpose\nThe runner flow needs a durable capability.\n\n## Requirements')
     // 测试体系（design §11）：init 已按 package.json 自动识别出目录（所以没有 test-discover 动作）；spec 依次 计划 → 映射；
     // 默认策略只强制目录里的 unit：build / verify 不再有缺的种类要登记，直接运行；verify 运行完把追溯矩阵写进验证报告。
+    // 本用例的任务是升级前创建、冻结着旧 `test_policy` 的 default（initLegacyDefault），simplify-test-settings 的规格要求
+    // 冻结的旧策略照旧求值（种类按名逐字匹配，只有 `files: registered` 改按认领），所以这里仍是旧口径：
+    //   · spec 的 `kinds: [unit]`：计划里没有 unit 套件 → test-kind-missing → test-plan-map；
+    //   · build 的 `run: [unit]`：unit 本阶段没运行过 → test-not-run → run-tests。
+    // 现行 default 的档位语义（场景映射默认不要求、changed 档零运行即满足）由 test-levels.integration.test.ts 断言。
     // 每条都是运行器照做就推进的动作（夹具替作者做 T2 命令做的事）。
     const flowActions = ['test-discover', 'test-plan-seed', 'test-plan-map', 'test-register-files', 'run-tests', 'test-report']
     expect(actions.filter(({ action }) => flowActions.includes(action.action))

@@ -7,6 +7,7 @@ import {
   type MachineProfile, type RecordActor, type ServiceRunV2, type StepTestPolicyIR, type SuiteReason, type SuiteRunV2, type TestCatalog,
   type TestHostKind, type TestPlan, type TestRunRecordV2, type TestRunRecordV2Draft,
 } from '@tenon/kernel'
+import { relativizeRunStrings, type PathRoots } from './run-paths.js'
 
 /** 画像口径取自目录的 `profile:`（缺省细口径）；同一份目录在每台机器上用同一口径，基线才可比。 */
 export function machineOf(catalog: TestCatalog, env: NodeJS.ProcessEnv): MachineProfile {
@@ -27,11 +28,13 @@ export function applyRunLevelReasons(
     readonly candidateAfter: string | null
     readonly policy: StepTestPolicyIR
     readonly plan: TestPlan | undefined
+    /** 本任务改动过、被套件 glob 认领的测试文件：与计划里登记的测试文件一起算「本任务新增的用例」（flaky 的 fail_on_new）。 */
+    readonly claimedPaths?: readonly string[]
   },
 ): SuiteRunV2[] {
   const limit = input.policy.flaky
   const flakyTotal = runs.reduce((sum, run) => sum + run.totals.flaky, 0)
-  const registered = (input.plan?.files ?? []).map((file) => file.path)
+  const registered = [...(input.plan?.files ?? []).map((file) => file.path), ...(input.claimedPaths ?? [])]
   return runs.map((run) => {
     let next = run
     if (input.candidateAfter === null) next = withReason(next, { code: 'candidate-unavailable' }, true)
@@ -62,6 +65,8 @@ export function draftOf(input: {
   readonly profile: MachineProfile
   readonly services: readonly ServiceRunV2[]
   readonly suites: readonly SuiteRunV2[]
+  /** 记录入库前改写本机路径用：仓库根 → 相对路径，主目录 → `~`（见 run-paths.ts）；套件运行是唯一带自由文本的部分。 */
+  readonly paths: PathRoots
   readonly actor: RecordActor
   readonly host: { readonly kind: TestHostKind; readonly sandbox: string | null }
   readonly gitHead: string | null
@@ -70,6 +75,7 @@ export function draftOf(input: {
   /** 实测耗时（时钟可被注入，时间戳相减不可靠）。 */
   readonly durationMs: number
 }): TestRunRecordV2Draft {
+  const suites = relativizeRunStrings(input.suites, input.paths)
   return {
     schema: TEST_RUN_V2_SCHEMA,
     run_id: input.runId,
@@ -81,15 +87,15 @@ export function draftOf(input: {
     bindings: {
       candidate: input.candidate,
       workflow_fingerprint: input.workflowFingerprint,
-      catalog_digest: input.suites.length === 0 ? null : catalogSuitesDigest(input.catalog, input.suites.map((run) => run.suite)),
+      catalog_digest: suites.length === 0 ? null : catalogSuitesDigest(input.catalog, suites.map((run) => run.suite)),
       plan_digest: input.planDigest,
       policy_digest: input.policy === undefined ? null : testPolicyDigest(input.policy),
     },
     machine_profile: input.profile.id,
     machine_label: input.profile.label,
     services: input.services,
-    suites: input.suites,
-    result: input.suites.every((run) => run.result === 'pass') ? 'pass' : 'fail',
+    suites,
+    result: suites.every((run) => run.result === 'pass') ? 'pass' : 'fail',
     actor: input.actor,
     host: input.host,
     git_head: input.gitHead,

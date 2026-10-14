@@ -15,8 +15,8 @@ import { cn } from '@/lib/utils'
 import type { MatrixRow, MatrixSuite } from './testsTabModel'
 
 /**
- * 种类 · 要求 · 已登记 · 结果 · 缺项。种类（图标 + 内置种类名）、要求、结果（圆点 + 词）、缺项（短标签 + 展开箭头）
- * 都是固定词，各按最长的格子定宽（中英文各取各的，不会被截成「Integr…」）；已登记是可变长内容，
+ * 类 · 要求 · 套件 · 结果 · 缺项。类（图标 + 内置类名 / 种类名）、要求、结果（圆点 + 词）、缺项（短标签 + 展开箭头）
+ * 都是固定词，各按最长的格子定宽（中英文各取各的，不会被截成「Integr…」）；套件是可变长内容，
  * 是唯一吃剩余宽度的列，先让位、截断（完整内容在 title）。
  */
 const COLUMNS = 'grid-cols-[auto_auto_minmax(0,1fr)_auto_auto]'
@@ -82,7 +82,7 @@ function SuiteCell({ row, openable, activeSuite, onOpen }: {
 }
 
 /**
- * 一行 = 一个种类。缺项只写短标签（红字）；修复命令收进行展开——点标签旁的箭头才在行下显示可复制的命令，
+ * 一行 = 一个测试类（旧策略：一个种类）。缺项只写短标签（红字）；修复命令收进行展开——点标签旁的箭头才在行下显示可复制的命令，
  * 表里不再堆截断的命令。
  */
 function MatrixRowView({ row, openable, activeSuite, onOpen }: {
@@ -146,9 +146,14 @@ function MatrixRowView({ row, openable, activeSuite, onOpen }: {
   )
 }
 
-/** 策略矩阵：要求的种类 × 是否登记 × 最近结果；缺项给短标签，可复制的修复命令收在行展开里。 */
-export function TestsTabMatrix({ rows, openable, activeSuite, onOpen }: {
+/**
+ * 策略矩阵：要求的测试类（档位策略）或种类（旧策略）× 本阶段的套件 × 最近结果；
+ * 缺项给短标签，可复制的修复命令收在行展开里。
+ */
+export function TestsTabMatrix({ rows, byClass, openable, activeSuite, onOpen }: {
   rows: readonly MatrixRow[]
+  /** 档位策略的行是测试类，表头写「测试类」；旧策略的行是种类。 */
+  byClass: boolean
   openable: (suite: MatrixSuite) => boolean
   activeSuite: string | null
   onOpen: (suite: string) => void
@@ -159,9 +164,9 @@ export function TestsTabMatrix({ rows, openable, activeSuite, onOpen }: {
     <TestSection title={t('tests.task.section.matrix')} count={rows.length} testId="tests-matrix">
       <div role="table" className={contentTable(COLUMNS)} aria-label={t('tests.task.section.matrix')}>
         <div className={`${SUBGRID_ROW} ${TABLE_HEAD}`} role="row" data-testid="tests-matrix-head">
-          <span role="columnheader">{t('tests.word.kind')}</span>
+          <span role="columnheader">{t(byClass ? 'tests.word.class' : 'tests.word.kind')}</span>
           <span role="columnheader">{t('tests.task.matrix.requirement')}</span>
-          <span role="columnheader">{t('tests.task.matrix.registered')}</span>
+          <span role="columnheader">{t('tests.word.suite')}</span>
           <span role="columnheader">{t('tests.task.matrix.result')}</span>
           <span role="columnheader">{t('tests.task.matrix.blocker')}</span>
         </div>

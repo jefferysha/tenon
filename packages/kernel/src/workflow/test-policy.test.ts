@@ -2,6 +2,7 @@
  * 步骤 test_policy 的解析 / 编译 / 写回，与旧 tests[] 编译成内联套件的兼容路径。
  */
 import { describe, expect, it } from 'vitest'
+import { parseTestCatalog } from '../test-system/catalog.js'
 import { stepTestRequirements, testPolicyDigest } from '../test-system/policy.js'
 import { compileWorkflow } from './compile.js'
 import { compileStepTestPolicy } from './compile-test-policy.js'
@@ -205,65 +206,71 @@ describe('兼容：未声明策略的工作流 IR 与指纹逐字不变；旧 te
     expect(testPolicyDigest(requirements.policy)).toMatch(/^sha256:[a-f0-9]{64}$/)
     expect(testPolicyDigest({ ...requirements.policy, scope: 'full' })).not.toBe(testPolicyDigest(requirements.policy))
   })
+
+  it('stepTestRequirements：档位步骤经 resolveStepTestPolicy 求值（目录 levels 的阈值进策略摘要），none 没有策略', () => {
+    const result = parseTestCatalog('schema: tenon-test-catalog/v1\nlevels:\n  full: { coverage: { lines: 80 } }\nsuites: []\n')
+    if (!result.ok) throw new Error('catalog')
+    const step = { id: 'verify', test: 'full' as const }
+    const withDefaults = stepTestRequirements(step)
+    expect(withDefaults.policy).toMatchObject({ scope: 'full', level: { name: 'full', source: 'default' } })
+    const withCatalog = stepTestRequirements(step, result.catalog)
+    expect(withCatalog.policy).toMatchObject({ coverage: { lines: 80 }, level: { source: 'catalog' } })
+    if (withDefaults.policy === undefined || withCatalog.policy === undefined) throw new Error('policy')
+    expect(testPolicyDigest(withCatalog.policy)).not.toBe(testPolicyDigest(withDefaults.policy))
+    expect(stepTestRequirements({ id: 'x', test: 'none' })).toEqual({ stepId: 'x', inline: [] })
+  })
 })
 
-describe('default 工作流的默认策略（零豁免：只强制 unit）', () => {
+describe('default 工作流的测试档位（simplify-test-settings：工作流只写档位，含义在测试目录的 levels）', () => {
   const def = parseWorkflow(DEFAULT_WORKFLOW_SOURCE)
-  const policy = (track: string, step: string): StepDef['test_policy'] =>
-    def.tracks?.[track]?.steps.find((candidate) => candidate.id === step)?.test_policy
+  const stepOf = (track: string, step: string): StepDef | undefined =>
+    def.tracks?.[track]?.steps.find((candidate) => candidate.id === step)
+  const level = (track: string, step: string): StepDef['test'] => stepOf(track, step)?.test
 
-  it('轻量：build 要求登记并跑 unit、有 typecheck 才跑（changed）；verify 跑 unit（full），其余登记了就跑', () => {
-    expect(policy('lite', 'build')).toEqual({
-      plan: 'required', kinds: ['unit'], run: ['unit'], run_if_registered: ['typecheck'], scope: 'changed', files: 'registered',
-    })
-    expect(policy('lite', 'verify')).toEqual({
-      run: ['unit'], run_if_registered: ['regression', 'typecheck', 'integration', 'e2e', 'playwright', 'a11y', 'visual'],
-      scope: 'full', files: 'registered',
-    })
-    expect(policy('lite', 'spec')).toBeUndefined()
+  it('轻量：build 跑改动（changed）；verify 全量（full）；其余步骤不写', () => {
+    expect(level('lite', 'build')).toBe('changed')
+    expect(level('lite', 'verify')).toBe('full')
+    expect(level('lite', 'open')).toBeUndefined()
+    expect(stepOf('lite', 'build')?.test_policy).toBeUndefined()
+    expect(stepOf('lite', 'verify')?.test_policy).toBeUndefined()
   })
 
-  it('前端：playwright / e2e / a11y / visual / regression 目录里有才跑；覆盖率门槛只对声明覆盖率的套件生效', () => {
-    expect(policy('frontend', 'spec')).toEqual({ plan: 'required', kinds: ['unit'] })
-    expect(policy('frontend', 'build')).toEqual({ run: ['unit'], run_if_registered: ['typecheck'], scope: 'changed', files: 'registered' })
-    expect(policy('frontend', 'verify')).toEqual({
-      run: ['unit'], run_if_registered: ['regression', 'e2e', 'playwright', 'a11y', 'visual'], scope: 'full', files: 'registered',
-      coverage: { lines: 80 },
-    })
+  it('前端：spec 写计划（plan）、build 跑改动、verify 全量；覆盖率门槛不再写在工作流里', () => {
+    expect(level('frontend', 'spec')).toBe('plan')
+    expect(level('frontend', 'build')).toBe('changed')
+    expect(level('frontend', 'verify')).toBe('full')
+    expect(DEFAULT_WORKFLOW_SOURCE).not.toContain('coverage:')
   })
 
-  it('后端：integration / regression / benchmark 目录里有才跑', () => {
-    expect(policy('backend', 'spec')).toEqual({ plan: 'required', kinds: ['unit'] })
-    expect(policy('backend', 'verify')).toEqual({
-      run: ['unit'], run_if_registered: ['integration', 'regression', 'benchmark'], scope: 'full', files: 'registered',
-      coverage: { lines: 80 }, benchmark: { require_baseline: false },
-    })
+  it('后端：spec 写计划（plan）、build 跑改动、verify 全量；基准基线门槛不再写在工作流里', () => {
+    expect(level('backend', 'spec')).toBe('plan')
+    expect(level('backend', 'build')).toBe('changed')
+    expect(level('backend', 'verify')).toBe('full')
+    expect(DEFAULT_WORKFLOW_SOURCE).not.toContain('require_baseline')
   })
 
-  it('产品：spec 要求场景映射；冒烟有才跑', () => {
-    expect(policy('pm', 'spec')).toEqual({ plan: 'required', scenarios: 'required' })
-    expect(policy('pm', 'verify')).toEqual({ run_if_registered: ['smoke'], scope: 'full' })
-    expect(policy('pm', 'build')).toBeUndefined()
+  it('产品：spec 不要求（none，不再要求场景映射）；verify 跑改动；build 不写', () => {
+    expect(level('pm', 'spec')).toBe('none')
+    expect(level('pm', 'verify')).toBe('changed')
+    expect(level('pm', 'build')).toBeUndefined()
   })
 
-  it('全部轨道的全部步骤：策略强制的种类只有 unit；必需的内联测试只剩 code-size、设计体系校验与轻量的改动风险探针', () => {
-    const required = new Set<string>()
+  it('全部轨道的全部步骤：没有 test_policy；必需的内联测试只剩 code-size、设计体系校验与轻量的改动风险探针', () => {
     const inline = new Set<string>()
     for (const track of Object.values(def.tracks ?? {})) {
       for (const step of track.steps) {
-        for (const kind of step.test_policy === undefined ? [] : [...(step.test_policy.kinds ?? []), ...(step.test_policy.run ?? [])]) required.add(kind)
+        expect(step.test_policy, `${step.id} 不应再有 test_policy`).toBeUndefined()
         for (const test of step.tests ?? []) if (test.required !== false) inline.add(test.id)
       }
     }
-    expect([...required]).toEqual(['unit'])
     expect([...inline].sort()).toEqual(['code-size', 'design-system', 'diff-risk'])
   })
 
-  it('unit 之外的种类都是 run_if_registered：目录里没有就不要求，不需要豁免', () => {
-    const optional = new Set<string>()
+  it('default 里出现的档位只有 none / plan / changed / full，种类与阈值不写在工作流里', () => {
+    const used = new Set<string>()
     for (const track of Object.values(def.tracks ?? {})) {
-      for (const step of track.steps) for (const kind of step.test_policy?.run_if_registered ?? []) optional.add(kind)
+      for (const step of track.steps) if (step.test !== undefined) used.add(step.test)
     }
-    expect([...optional].sort()).toEqual(['a11y', 'benchmark', 'e2e', 'integration', 'playwright', 'regression', 'smoke', 'typecheck', 'visual'])
+    expect([...used].sort()).toEqual(['changed', 'full', 'none', 'plan'])
   })
 })

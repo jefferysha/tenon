@@ -3516,6 +3516,52 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
     expect(await readFile(target, 'utf8')).toBe(before)
   })
 
+  it('步骤的 test 档位原样往返；换成另一档后读回的是新档位', async () => {
+    const h = await start()
+    const auth = { headers: { Authorization: `Bearer ${h.token}` } }
+    const withLevel = (level: string) => ({
+      ...VALID_BODY, root: h.root,
+      steps: VALID_BODY.steps.map((step) => (step.id === 'intake' ? { ...step, test: level } : step)),
+    })
+    const first = await reqPost(h.port, '/api/workflows/onboarding', withLevel('changed'), auth)
+    expect(first.status, first.body).toBe(200)
+    const read = (): Promise<{ steps: Array<{ id: string; test?: string }> }> =>
+      reqGet(h.port, `/api/workflows/onboarding?root=${encodeURIComponent(h.root)}`).then((res) => res.json())
+    expect((await read()).steps.find((step) => step.id === 'intake')?.test).toBe('changed')
+    const second = await reqPost(h.port, '/api/workflows/onboarding', withLevel('full'), auth)
+    expect(second.status, second.body).toBe(200)
+    const after = await read()
+    expect(after.steps.find((step) => step.id === 'intake')?.test).toBe('full')
+    expect(after.steps.find((step) => step.id === 'done')).not.toHaveProperty('test')
+  })
+
+  it('同一步同时有 test 与 test_policy → 400 点名该步，不覆盖已发布的定义', async () => {
+    const h = await start()
+    const auth = { headers: { Authorization: `Bearer ${h.token}` } }
+    expect((await reqPost(h.port, '/api/workflows/onboarding', { ...VALID_BODY, root: h.root }, auth)).status).toBe(200)
+    const target = join(h.root, '.pipeline', 'workflows', 'onboarding.yaml')
+    const before = await readFile(target, 'utf8')
+    const both = await reqPost(h.port, '/api/workflows/onboarding', {
+      ...VALID_BODY, root: h.root,
+      steps: VALID_BODY.steps.map((step) => (step.id === 'intake' ? { ...step, test: 'full', test_policy: { run: ['unit'] } } : step)),
+    }, auth)
+    expect(both.status).toBe(400)
+    const errors = both.json<{ errors: string[] }>().errors
+    expect(errors.some((error) => error.includes('intake') && error.includes('test 与 test_policy 只能写一个'))).toBe(true)
+    expect(await readFile(target, 'utf8')).toBe(before)
+  })
+
+  it('未知档位 → 400，列出四个可选值', async () => {
+    const h = await start()
+    const r = await reqPost(h.port, '/api/workflows/onboarding', {
+      ...VALID_BODY, root: h.root,
+      steps: VALID_BODY.steps.map((step) => (step.id === 'intake' ? { ...step, test: 'quick' } : step)),
+    }, { headers: { Authorization: `Bearer ${h.token}` } })
+    expect(r.status).toBe(400)
+    const errors = r.json<{ errors: string[] }>().errors
+    expect(errors.some((error) => ['none', 'plan', 'changed', 'full'].every((level) => error.includes(level)))).toBe(true)
+  })
+
   it('name === default：body 不满足 default 骨架（缺 openspec: true）→ 400 并列出原因，不落盘', async () => {
     const h = await start()
     const r = await reqPost(

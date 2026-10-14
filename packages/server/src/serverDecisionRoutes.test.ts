@@ -703,7 +703,8 @@ describe('decision server adapters · one approval approves exactly the frozen s
       },
     })
     const catalogAfter = await readFile(join(h.cwd, CATALOG), 'utf8')
-    expect(catalogAfter).toMatch(/kind: integration\s+reason: 请求之后才声明的\s+approved_by: null/u)
+    // 目录写回只改批准的那一项：请求之后手写的声明连同它的 flow 写法逐字保留。
+    expect(catalogAfter).toContain('  - { kind: integration, reason: 请求之后才声明的, approved_by: null }\n')
     const { seal } = await readTestSeal(h.cwd, SLUG)
     expect(isApproved(seal, 'demo', CATALOG, await protectedFileDigest(h.cwd, CATALOG))).toBe(false)
   })

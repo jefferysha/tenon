@@ -130,12 +130,14 @@ and a separate terminal `escalated` reached from any of the first three steps th
 | Step | What happens | Evidence |
 | --- | --- | --- |
 | `open` | restate the goal and the acceptance check in one sentence; no exploring, no interview skills | none |
-| `build` | `test-driven-development`, then the unit tests (scope `changed`; `typecheck` when registered) and the `diff-risk` probe | unit run, test files registered, probe passing |
-| `verify` (review gate) | `verification-before-completion`, full unit run (plus `regression`, `typecheck`, `integration`, `e2e`, `playwright`, `a11y`, `visual` when registered), the required reviewers `code-review` and `security`; the user's single confirmation | tests, reviewers, human confirmation |
+| `build` | `test-driven-development`, then the suites the change touches (`test: changed`) and the `diff-risk` probe | touched suites run, changed test files executed, probe passing |
+| `verify` (review gate) | `verification-before-completion`, the unit-class suites in full plus the other classes the change touches (`test: full`), the required reviewers `code-review` and `security`; the user's single confirmation | tests, reviewers, human confirmation |
 | `done` / `escalated` | terminal; `done` moves the task to `openspec/changes/archive/` and commits the whole workspace once (`chore(tenon): finish <change>`); `escalated` is archived without a commit | |
 
-The test policy is the same zero-waiver one the heavy Tracks use: only `unit` is mandatory,
-everything else runs when the project has it. `code-review` is required with `block_at: medium`; it
+The test levels are the ones the heavy Tracks use for Build and Verify (see the
+[default workflow](default-workflow.md)): unit-class suites are the only mandatory class, the others
+run when the change touches them, and test files the change adds are claimed by the catalog's
+globs instead of being registered. `code-review` is required with `block_at: medium`; it
 reads the diff against the goal and acceptance check the host writes at the end of its prompt, not a
 spec. `security` declares `attach_on: [auth, dependency, contract]` and so joins only when the task's
 changes touch such a path. The track never pushes and never opens a pull request; that stays your

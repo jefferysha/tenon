@@ -83,8 +83,9 @@ WorkflowRun 初始化时冻结的完整计划，包括步骤、Skill、门禁、
 
 `tenon status <name> --json` 还带一个 `step` 块：单个 `tenon` skill 执行当前步骤所需的全部输入
 ——本步技能、执行者、评审者、测试、文档、字段、评审回执、带阻塞原因的出口，以及一份闭集的
-`next` 动作表，按序执行即可。`run-tests` 与 `run-test` 在将要执行的命令还没有得到用户信任时带一个 `trust` 对象
-（先请用户在自己的终端运行 `trust.command`）。带 `escalate` 的 `transition` 表示任务已经超出了它的轨道：
+`next` 动作表，按序执行即可。`run-tests` 与 `run-test` 在将要执行的命令里有还没得到用户信任的时带一个 `trust` 对象
+（只列这些命令，信任在同一仓库的所有 worktree 共享；先请用户在自己的终端运行 `trust.command`）。`test-register-files` 只在出现孤儿测试文件时才有，
+内容是一条 `tenon test register <change> --auto`；`test-plan-map` 只在缺必需测试类，或档位要求场景映射时才有。带 `escalate` 的 `transition` 表示任务已经超出了它的轨道：
 轻量轨道的风险探针没通过，`escalate.reasons` 点名被突破的阈值，`escalate.then` 给出转换之后要运行的重型轨道 `tenon init` 命令，
 以及随后的 `tenon set <新任务> depends_on <本任务>`。`finish-change` 动作带 `command`（`tenon task finish <name>`），命令之后再按 `commit` 提交。
 
@@ -361,30 +362,55 @@ tenon test diff-risk [<change>] [--json]
 `kind`、`runner`、`command`、`cwd`、报告格式与路径、可选的覆盖率、产物路径、`select` 模板（`{files}` / `{pattern}`）、
 `services`、`retries`、`parallel`，基准套件还有 `benchmark` 段。报告、覆盖率与产物路径必须在 `test-results/`、
 `playwright-report/` 或 `coverage/` 之下（声明不可能借此藏起源码）。把运行记录绑到代码上的工作区指纹，只忽略目录声明的路径
-（报告、覆盖率与 `artifacts`，按套件 `cwd` 换算）和在途任务冻结工作流里内联测试的 `outputs`：任意层级里没有声明的
-`coverage/`、`test-results/` 目录都算候选的一部分。任务**计划**
-（`openspec/changes/<change>/test-plan.yaml`）列出本任务用到的套件、新增或修改的测试文件、场景 / 任务 → 用例的映射
-（`spec:<capability>/<Scenario 标题>` 或 `task:<编号>`）和豁免。计划只经 `tenon test` 命令写入，每次写入把摘要记进
-任务目录里的台账，手改文件就是 `test-plan-tampered`。工作流**策略**（`steps[].test_policy`）说明一个步骤要什么：
-必须登记的种类、必须运行的种类、最小范围、覆盖率门槛、flaky 上限、基线要求、浏览器、场景覆盖与 `files: registered`。
-仍写着内联 `tests[]` 的步骤照旧可用：照旧运行，并和策略一起判定。默认工作流是零豁免的：只强制 `unit`，其余种类都是
-`run_if_registered`（见[默认工作流](./default-workflow.md)）。
+（报告、覆盖率与 `artifacts`，按套件 `cwd` 换算）和在途任务冻结工作流里内联测试的 `outputs`，外加一条通用规则：
+名为 `test-results`、`playwright-report` 或 `coverage` 的目录之下（任意层级）、git 没有跟踪、且扩展名属于证据格式
+（log、txt、xml、md、csv、png、jpg、jpeg、gif、webp、webm、mp4、lcov、info）的文件不算候选的一部分，
+所以 e2e 被测服务写一份日志不会让冻结的版本失效。已跟踪的文件、源码 / 脚本扩展名（js、ts、mjs、sh、py 等）、没有扩展名的文件，
+以及能被代码或浏览器直接加载、解包的格式（json、html、htm、zip、gz、har）仍然计入，目录名藏不住代码和页面；
+真会产出 json、html、zip、har 这类文件的套件，在测试目录里把它们声明为输出。git 读不出来时，这些目录下的文件全部计入。任务**计划**
+（`openspec/changes/<change>/test-plan.yaml`）只列你手工做的选择：用 `register --suite` 加进来的套件、用 `--file --kind` 登记的资源文件、
+场景 / 任务 → 用例的映射（`spec:<capability>/<Scenario 标题>` 或 `task:<编号>`）和豁免。本任务新增或修改的测试文件在步骤求值时由
+`files` glob 匹配它们的套件认领，不写进计划。计划只经 `tenon test` 命令写入，每次写入把摘要记进
+任务目录里的台账，手改文件就是 `test-plan-tampered`。工作流的**档位**（`steps[].test`）说明一个步骤要什么：`none`、`plan`、`changed`、`full`
+四选一。每档的含义由目录这个文件的可选顶层键 `levels` 定义，没写的取内建缺省：
 
-某个种类对整个项目都不适用时，在目录里声明，不必每个任务各豁免一次：`test catalog not-applicable <kind> --reason <原因>`
-在 `catalog.yaml` 写入 `not_applicable: [{kind, reason, approved_by}]`（`--rm` 撤销）。它要经一次人工确认才生效：
+```yaml
+levels:
+  plan:    { required: [unit] }
+  changed: { required: [unit], touched: [static] }
+  full:    { required: [unit], touched: [integration, e2e, static, benchmark] }
+```
+
+每档只接受六个键：`required` 与 `touched`（测试类）、`scenarios`（`off`，缺省；`required` 或 `passing`）、`coverage`（`lines`、`branches`、
+`functions`、`statements`、`changed_lines`，0–100）、`flaky`（`{ max, fail_on_new }`）、`require_baseline`（缺省 `false`）；`plan` 档只接受
+`required` 与 `scenarios`。一档运行 `required` 类（`full` 全量跑它们的全部套件，`changed` 只跑被碰到的）和被改动碰到的 `touched` 类；
+套件被「碰到」是指某个改动文件匹配它的 `files` 或 `covers` glob。没写 `covers` 的套件只有它自己的测试文件改了才算被碰到：
+改动只含源码文件时，这类套件在 `changed` 档（不论 `required` 还是 `touched` 类）与 `full` 档（`touched` 类）都不跑，`tenon test status` 与
+`test run --stage` 会给出不阻断的提示 `suites-without-covers` 并点名它们。要让源码改动触发这个套件，用
+`tenon test catalog set <id> --cover-glob "<glob>"` 写上 `covers`。一档没有任何要跑的东西就算满足：`test run --stage` 如实说明并 exit `0`。
+`levels` 写错（未知的档、键、类，或超出 0–100 的覆盖率）会让目录无效、阻断所有测试相关出口；`levels` 计入目录摘要。测试类有
+`unit`（种类 `unit`、`coverage`）、`integration`（`integration`、`regression`、`contract`、`smoke`）、`e2e`（`e2e`、`playwright`、`browser`、`a11y`、
+`visual`）、`static`（`typecheck`、`lint`、`code-size`、`design-system`）、`benchmark` 和只在点名时运行的 `custom`；套件的 `kind` 可以写类名或旧种类名（别名）。
+较早的多字段 `steps[].test_policy` 是旧写法：冻结了它的任务照旧读取并按种类名判定，同一步不能与 `test` 并写。
+仍写着内联 `tests[]` 的步骤照旧可用：照旧运行，并和档位一起判定（见[默认工作流](./default-workflow.md)）。
+
+某个测试类对整个项目都不适用时，在目录里声明，不必每个任务各豁免一次：`test catalog not-applicable <kind> --reason <原因>`
+在 `catalog.yaml` 写入 `not_applicable: [{kind, reason, approved_by}]`（`--rm` 撤销），它同时满足该种类所属的测试类。它要经一次人工确认才生效：
 `review request` 把它以 `not-applicable:<kind>` 和计划里待批准的豁免一起列出，`review acknowledge`（不含 `--delegated`）批准它并把
-批准人记进 `approved_by`；在此之前策略仍要求这个种类，报 `waiver-unapproved`。改理由会让批准清零。
+批准人记进 `approved_by`；在此之前档位仍要求这个类，报 `waiver-unapproved`。改理由会让批准清零。
 
-失败的必需步骤测试（例如 `code-size`）用户决定放行时，用
-`tenon test waive <change> --test <步骤测试 id> --reason <原因>` 登记步骤测试豁免。id 必须是本任务工作流某个步骤声明的测试，否则退出码 2 并列出可用的 id；该步骤要声明 `test_policy`
+失败的必需步骤测试用户决定放行时（默认的 `code-size` 没有上限、不会因规模失败；项目在工作流里给它写了 `pass.metrics` 上限之后才适用），用
+`tenon test waive <change> --test <步骤测试 id> --reason <原因>` 登记步骤测试豁免。id 必须是本任务工作流某个步骤声明的测试，否则退出码 2 并列出可用的 id；该步骤要声明测试档位（或旧策略）
 才会判豁免。它与种类豁免是同一机制：写进计划、随 `review request` 以 `test:<id>` 连同理由列出，人工确认这道评审门时一并批准，
-批准前仍报 `waiver-unapproved`。登记之后 `step.next` 不再发 `run-test`，照常走评审者与 `request-review`；评审者提示里该测试
+批准前仍报 `waiver-unapproved`。`test:<id>` 豁免出现的每个地方（`review request` 清单、验证报告、评审者提示、`test-waived` 提示）都另起一行写出
+当前候选上最新失败记录的实测值，例如 `最新运行：lines_added=2810（上限 2000）`；当前候选上没有失败记录则写 `当前候选上没有失败记录`。
+实测值每次展示都重读，你写的登记理由仍标注为登记者自述、不做核实。登记之后 `step.next` 不再发 `run-test`，照常走评审者与 `request-review`；评审者提示里该测试
 的结果下面带一行 `豁免（已批准|待评审批准）：<理由>`。豁免只覆盖新鲜的失败记录：未运行、运行中、过期的测试照旧阻塞，
 代码变了就要重跑。`test unregister <change> --waiver test:<id>` 撤销。
 
 `test discover` 扫描包脚本与各工具配置（vitest、jest、mocha、node:test、Playwright、tsc、eslint、pytest、go），
 给出带推荐 reporter 参数的建议套件，让每个套件都产出可解析的报告；`--write` 追加目录里还没有的 id。
-声明了 `test_policy` 的工作流在项目没有目录时，`tenon init` 会替你跑它并在 stderr 说明（没有识别到测试工具就不写，已有目录一律不动）。
+声明了测试档位的工作流在项目没有目录时，`tenon init` 会替你跑它并在 stderr 说明（没有识别到测试工具就不写，已有目录一律不动）。
 JavaScript 单测套件在工具配置里没有 `include` 时，测试文件 glob 覆盖 `src/`、`test/`、`tests/`、`__tests__/` 和根目录下的
 `*.test.*` / `*.spec.*`（这几个目录一个都没有时，取套件 `cwd` 下任意位置的 `*.test.*` / `*.spec.*`）。
 vitest 工程里的 `*.bench.*` 文件会识别成 `vitest-bench` 基准套件，指标取自能读出的每个 `bench('名字', …)`（`<名字>.mean_ms`，读不出
@@ -408,15 +434,25 @@ vitest 工程里的 `*.bench.*` 文件会识别成 `vitest-bench` 基准套件�
 （`test('…', async ({ bench }) => { await bench('名字', fn).run() })`，选项放第二个参数 `bench(名字, 选项, fn)`）；迁移后重跑
 `tenon test discover`。
 `catalog add --from <方向>` 用测试方向起步（裸的工具调用会换成该 runner 的推荐调用）；`catalog validate` 逐条列出
-`catalog.yaml:<行>: …`（有问题 exit `2`）。`test plan --seed` 补上「拥有或覆盖了本任务改动文件」的套件、策略要求的每个种类
-的套件、改动的测试文件，并列出还没映射的场景与任务，附可直接执行的 `register --case` 命令；策略里 `run_if_registered` 的种类
-只要目录里有套件也一并登记（基准除外）。只有场景和 `tasks.md`「实现」（`build`）小节下的任务要求映射
+`catalog.yaml:<行>: …`（有问题 exit `2`）。`test plan --seed` 在计划缺失时建好计划。有测试档位的步骤，它不写套件也不写测试文件
+（运行什么由档位、目录和本任务的 diff 在步骤求值时决定），只报告目录里没有套件的必需类，以及档位要求映射时还没映射的场景与任务，
+附可直接执行的 `register --case` 命令；旧策略仍补上「拥有或覆盖了本任务改动文件」的套件和必需种类的套件，但不再登记测试文件。
+只有场景和 `tasks.md`「实现」（`build`）小节下的任务要求映射
 （`scenarios: required|passing` 对它们出阻塞）；其他阶段小节的任务单列为可选（验证报告里写「可选」而不是「未覆盖」），永不挡；
-骨架提示词（「将本阶段目标拆成可验证任务」）不是作者写的任务：种子、`test sync`、`test plan` 不再列它，追溯矩阵里它显示为可选。`test register <change> --auto` 是一条命令的形态：缺目录先识别，
-把没有套件认领的测试文件并进套件的 `files` glob（`test/x.test.js` 得到 `test/**/*.test.js`；`e2e/` 下的用例进 Playwright 套件，
-辅助文件和 `*.bench.*` 不会自动认领），再生成计划初稿并登记这些文件；只增不减，可重复运行。`test sync` 拿本任务相对起点的
-diff 对账：未登记的测试文件、没有套件认领的文件、登记了但文件已不存在的项、登记了但目录已不认领的项（套件不在目录里了，或没有套件的
+骨架提示词（「将本阶段目标拆成可验证任务」）不是作者写的任务：种子、`test sync`、`test plan` 不再列它，追溯矩阵里它显示为可选。
+档位不要求映射（`scenarios: off`，缺省）时，矩阵只列已映射的行，另加一行「另有 N 条场景 / 任务未映射（本步不要求映射）」，
+也不出 `scenario-uncovered` 阻断。`test register <change> --auto` 是处理孤儿测试文件的一条命令：缺目录先识别，
+再只看本任务新增或修改、没有任何套件 `files` glob 认领的像测试的文件（从不扫整个仓库，也不看 `openspec/`、`.tenon/`、`.pipeline/` 下的路径），
+把每个文件的精确路径追加进合适的套件（`e2e/` 下的用例进 Playwright 套件，辅助文件和 `*.bench.*` 不会自动认领）。它不放宽任何 glob：
+`tools/x.test.mjs` 就只加这一条路径，不会出现 `tools/**`，本任务没动过的文件也原样不动；只增不减，可重复运行；没有合适的套件时停下并给出
+`catalog add` 命令、不写任何东西。`test sync` 拿本任务相对起点的
+diff 对账：没有套件认领的文件（孤儿）、登记了但文件已不存在的项、登记了但目录已不认领的项（套件不在目录里了，或没有套件的
 `files` glob 再匹配这条路径；`--json` 字段 `registeredButUnclaimed`），与门禁是同一份计算（有待处理 exit `2`）。
+
+所有写目录的命令（`catalog add|set|rm`、`catalog not-applicable`、`register --auto`，以及 `init` 写入已有目录）只改动实际变化的节点所在的行，
+分三层：顶层键、`suites` 条目、条目里的键。新增节点追加在所属列表或映射的末尾，删除的节点只去掉它自己的行（它前面的注释行跟着后面的内容保留），
+其余每个字节（含注释和空行）原样不动；被改键上的行内注释是唯一会丢失的东西。新文本会重新解析，必须与预期目录一致，否则不写盘。
+`discover --write` 写入不存在的目录时照旧整份写出。
 
 登记只增不减（`register`、`plan --seed` 只加，`sync` 只报告），而套件出口检查对每条写明了套件的登记都要求「报告里执行过」，不看套件的 glob
 还认不认领它。所以套件的 `files` glob 被放宽、后来又收窄之后，那段时间登记进来的文件会留在计划里，一直以 `registered-test-not-executed` 挡住出口。
@@ -434,7 +470,9 @@ diff 对账：未登记的测试文件、没有套件认领的文件、登记了
 未跟踪文件。读不到 diff 时门禁以 `files-diff-unavailable` 阻塞（失败关闭，不降级成提示）。
 
 `test run` 每次调用写一份 v2 记录（`.tenon/users/<slug>/tests/<change>/<run-id>.json`），按 `prev_digest` 串成链；
-手改记录就断链，该任务的全部 v2 记录视为未运行，直到重跑另起新链。记录按设计入库（它们是别人和 CI 读的证据），所以数量可以设上限：
+手改记录就断链，该任务的全部 v2 记录视为未运行，直到重跑另起新链。算记录摘要之前，所有字符串字段（失败用例的 message / stack 也算）里的
+仓库根（逻辑路径与真实路径两种写法，含 `file://` 前缀，所以 `/var/…` 与 `/private/var/…` 一视同仁）改写成仓库相对路径，用户主目录改写成 `~/`，
+入库的记录因此不带本机绝对路径；`local/artifacts/` 里的本机日志不入库、保持原样，早先版本写下的记录也不回写。记录按设计入库（它们是别人和 CI 读的证据），所以数量可以设上限：
 设 `TENON_RECORD_RETENTION=<n>`，每次运行之后每个用户每个任务只保留最新的 `n` 条（内联步骤测试固定按测试项保留最新 20 条）。
 默认不清理，因为上一个发行版（v0.2.1）读不了清理过的链（见
 [更新、恢复与卸载](updates-recovery-and-uninstall.md) 里「与上一个发行版（v0.2.1）的兼容」）。
@@ -445,15 +483,16 @@ diff 对账：未登记的测试文件、没有套件认领的文件、登记了
 `.pipeline-owned.json`、`test-results/`、`playwright-report/` 和仓库根的 `coverage/`；生成的 `tenon-<name>` 宿主 agent 文件与这些输出目录
 会加进本克隆的 `.git/info/exclude`（不改项目的 `.gitignore`）。选择：`--suite`、`--kind`、`--all`（计划里的全部
 套件，全量）、`--changed`（套件有 `select.files` 模板且只改了它的测试文件时只跑这些，否则整套跑）、
-`--stage [<step>]`（该步骤策略的 `run` 种类，加上计划登记了的 `run_if_registered` 种类；策略要求 `scope: full` 时一律
-全量）。没有任何选择参数时缺省就是 `--stage`。`--stage` 只跑目录套件：内联的 `tests[]`（套件 id 以 `step:` 开头）仍走
-`tenon test run <change> <test-id>`，摘要会列出还要跑的命令；策略没有要运行的套件时如实说明并 exit `0`。声明的服务每次调用只启动一次，独立进程组，按 URL / 端口 / 日志文本探测就绪，
+`--stage [<step>]`（该步骤的阶段运行集：步骤档位按本任务 diff 要跑的套件，加上计划里用 `register --suite` 显式加进来的套件；
+`test: full` 一律全量，`status` 与 `check` 求值用的是同一个运行集）。没有任何选择参数时缺省就是 `--stage`。`--stage` 只跑目录套件：内联的
+`tests[]`（套件 id 以 `step:` 开头）仍走
+`tenon test run <change> <test-id>`，摘要会列出还要跑的命令；档位在本任务上没有要运行的套件时如实说明并 exit `0`，不写记录。声明的服务每次调用只启动一次，独立进程组，按 URL / 端口 / 日志文本探测就绪，
 结束后整个进程组连孙进程一起回收；启动前 URL 或端口就已经在响应会被拒绝——测试会打到旧服务上。`parallel: true` 的套件并发，
 其余依次。报告按用例解析：`junit`、`playwright-json`、`vitest-json`、`jest-json`、`go-json`、`tap`；基准读 `benchmark-json`
 （也认 hyperfine 与 vitest bench 的输出：vitest 3 / 4 的 `--outputJson` 文件和 vitest 5 的 json reporter）、`k6-summary`、`lighthouse-json`；覆盖率读 `istanbul-summary`、`lcov`、
 `cobertura`，`changed_lines` 由 diff 算出。每次执行前先删掉上一次留下的报告。一次运行会因这些判失败：没有报告
 （`report-missing`）、报告无法解析（`report-unreadable`）、0 个用例或全部跳过（`no-tests-ran`）、退出码与报告不一致
-（`exit-report-mismatch`）、已登记的文件或映射的用例没有出现在报告里（`registered-test-not-executed`）、覆盖率低于策略
+（`exit-report-mismatch`）、被认领或已登记的文件、映射的用例没有出现在报告里（`registered-test-not-executed`；一个文件被多个套件认领时，只要在其中一个跑过的套件里执行过即可）、覆盖率低于档位
 （`coverage-below`）、基准退化超过指标阈值（`benchmark-regression`）、flaky 超过策略上限（`flaky-over-limit`）、要求的浏览器
 project 不在报告里（`browser-project-missing`）、服务没有就绪（`service-not-ready`）。失败用例按 `retries` 重试（Playwright
 补 `--retries`，其他 runner 经 `select.grep` / `select.files` 只重跑失败用例）；重试后通过的用例记为 `flaky` 并计数。已知失败清单
@@ -495,7 +534,8 @@ OS、架构、核数、运行时主版本加 `profiles_env` 的取值（形如 `
   `report-untrusted`），并且 Tenon 把它复制进本次运行的产物目录、记下摘要——读完之后又被改写的报告、没有副本的报告同样是
   `report-untrusted`。报告与退出码的交叉校验不变。
 - *本机封存*：按用户、gitignored 的 `<用户目录>/local/test-seal.json`，用 `local/env.key` 里的密钥做 HMAC 签名，记着每个任务记录链
-  的链头摘要、Tenon 命令写出的基线与 `known-failures.yaml` 的摘要、你在评审里做过的批准、你做过的信任决定。链头不等于封存链头的记录
+  的链头摘要、Tenon 命令写出的基线与 `known-failures.yaml` 的摘要、你在评审里做过的批准（早先版本写在这里的信任决定只在不是 git 仓库的项目里才认，
+  git 仓库里的信任只记在下面的信任存储）。链头不等于封存链头的记录
   链（记录是绕开 `tenon test run` 写进来的）判 `record-unsealed`，没有人工批准的出口，下一次 `tenon test run` 另起新链取代它。
   封存缺失、损坏或被改动一律读成空，绝不读成放行。
 - *人工确认*：任务 diff 里出现 `.tenon/tests/catalog.yaml`、`.tenon/tests/baselines/**`、`.tenon/tests/known-failures.yaml`、
@@ -503,11 +543,22 @@ OS、架构、核数、运行时主版本加 `profiles_env` 的取值（形如 `
   `tenon review request` 逐个列出文件、状态与摘要，目录与已知失败清单还列出新增 / 改动 / 移出的套件、服务与条目；人工的
   `tenon review acknowledge`（或 Dashboard 的「通过」）把这些摘要的批准封存下来，待确认时 `--delegated` 被拒，之后再改一个字节就要重新
   确认。与 Tenon 上次写出的内容对不上的基线或 `known-failures.yaml` 判 `protected-file-tampered`，并标注「台账外改动」。
-- *首次信任*：`tenon test run` 拒绝执行你在本机还没信任过的目录（内联步骤测试则是冻结工作流里的测试命令）：套件 `command`、`select`
-  模板、`cwd`、声明的环境变量名和服务的 start / ready / stop，按摘要记（改标签、`covers` 不会再问，改任何一条命令会）。
-  `tenon test trust [<change>]` 列出将执行的命令，交互终端里问 `[y/N]`（`--yes` 给你自己的脚本，`--status` 只看是否已信任、
-  未信任 exit `2`，`--json`）。CI 由运行器显式设置 `TENON_TEST_TRUST=1`，之后每次运行都会打一行说明信任来自环境。Tenon 的 hook
-  会拒绝 agent 的 shell 调用里出现 `tenon test trust` 或 `TENON_TEST_TRUST=` 赋值，所以这个决定只留给你。
+- *首次信任*：`tenon test run` 拒绝执行你在本机还没信任过的命令。信任按用户、仓库、单条命令记录：每条可执行命令各有自己的摘要
+  （套件的 `command`、`cwd`、`select.files` / `select.grep`、排好序的 `env` 和它用到的服务；内联步骤测试则是它的 `command` 与 `cwd`），
+  所以改一条命令只会让这一条重新问，改标签、`covers` 不会问。只校验本次运行要执行的命令，拒绝（exit `1`，不写记录）时只列出未信任的那几条，
+  `run-tests` 的 `trust` 对象显示的也是它们。仓库身份取 `git rev-parse --git-common-dir` 的真实路径，所以同一仓库的所有 worktree 共享信任；
+  当前检出还必须出现在 `git worktree list --porcelain` 里，一个 `.git` 文件指向已信任仓库的拷贝树什么信任也借不到。信任条目存在用户级状态目录
+  （`<state>/test-trust/<user>.json`，旁边的密钥做 HMAC 签名，权限 `0600`，最多 2000 条、满了先淘汰最旧的），不在仓库里；读不出或被改动的文件
+  视为没有信任。只有检出目录及其所有上级都没有 `.git`（不是 git 仓库）时才退回检出里的旧封存，早先版本写在那里的 `trusted[]` 仍然让整份摘要相同的目录保持已信任，
+  `tenon test trust` 也写在那里。git 仓库里一律不认检出里的旧封存，不论它是否被 git 跟踪：检出里的任何文件（含封存和它的密钥）都可能随仓库或压缩包带来，
+  能算好封印给仓库自己授信，只看检出内容的检查（例如「是否被 git 跟踪」）都能被伪造。以前在检出里信任过的命令，请在你自己的终端重新运行一次 `tenon test trust`；
+  检出旧封存恰好记着当前整份摘要时，`tenon test run` 多打一行提示说明这一点。git 仓库里没有用户级状态目录时，`tenon test trust` 直接报错，不再退回写检出封存。
+  有 `.git` 却读不出仓库身份（git 出错、超时，或 `.git` 是伪造的指针）一律未信任：用户级条目和旧封存都不认，
+  `tenon test run` 提示先修好 git，`tenon test trust` 拒绝写入任何东西。
+  `tenon test trust [<change>]` 列出未信任的命令，交互终端里问 `[y/N]`（`--yes` 给你自己的脚本，`--status` 逐条显示是否已信任、
+  有未信任的 exit `2`，`--json`）。CI 由运行器显式设置 `TENON_TEST_TRUST=1`，之后每次运行都会打一行说明信任来自环境。Tenon 的 hook
+  会拒绝 agent 的 shell 调用里出现 `tenon test trust` 或 `TENON_TEST_TRUST=` 赋值，也拒绝写入任何 `test-trust/` 路径，所以这个决定只留给你。
+  信任记的是路径而不是文件内容：之后在同一路径克隆出另一个仓库，会继承命令级的信任，与往已信任的仓库里拉新提交是同一个信任级别。
 
 **测试完整性。** `tenon test integrity <change>` 只回答一个问题：证据比任务开始时变弱了吗？它把任务和它的起点（与改动文件列表
 同一个起点）对比，报十种信号，每条带对象和一行事实：
@@ -526,23 +577,24 @@ OS、架构、核数、运行时主版本加 `profiles_env` 的取值（形如 `
 | `coverage-threshold-lowered` | diff | 测试运行器配置、`pyproject.toml` / `setup.cfg` / `.coveragerc`、`package.json` 或 `.pipeline/workflows/*.yaml` 里的覆盖率门槛（`lines`、`branches`、`functions`、`statements`、`fail_under`、`threshold`、`target`）变小或被删 |
 
 全部是对 `git diff -U0` 与运行记录的文本启发式：信号表示"值得看一眼"，不是"被篡改"，改了用例名、换了断言库也可能出现。
-策略键 `test_policy.integrity` 决定信号的去向：`notice`（缺省，默认工作流与标准车道都用它）把信号汇成一条 `test-integrity`
+信号的去向按步骤决定：`notice`（缺省，也是测试档位唯一的模式，所以默认工作流的各条轨道都用它）把信号汇成一条 `test-integrity`
 提示，出现在 `test status`、`status` 和 Dashboard 的测试页签里，从不阻塞；`block` 把同样的信号变成该步骤的一条 `test-integrity`
-阻塞，读不出 diff 时失败关闭（`files-diff-unavailable`）。`block` 没有逐条豁免：还原被削弱的测试，或改策略。写 `integrity: notice`
-与不写完全相同（它不进编译后的工作流，所以已有的指纹和运行记录不受影响）。只在会运行测试（`run` / `run_if_registered`）或声明了
-`integrity: block` 的步骤上判。`tenon test integrity` 在该步骤策略是 `block` 且有信号（或读不出 diff）时 exit `2`，否则 `0`；
-`--step` 取另一个步骤的策略；`--json` 输出 `{ change, step, pass, mode, state, signals[], truncated? }`。最多读 400 个相关文件，
+阻塞，读不出 diff 时失败关闭（`files-diff-unavailable`）。只有冻结的旧策略还能写 `integrity: block`，它没有逐条豁免：还原被削弱的测试。
+只在档位会运行测试（`changed`、`full`），或旧策略会运行测试、声明了 `integrity: block` 的步骤上判。`tenon test integrity` 在该步骤的模式是
+`block` 且有信号（或读不出 diff）时 exit `2`，否则 `0`；`--step` 取另一个步骤的设置；`--json` 输出 `{ change, step, pass, mode, state, signals[], truncated? }`。最多读 400 个相关文件，
 超出由 `files-truncated` 提示。
 
-`test status` 用与转换拦截完全相同的判定列出该步骤每项测试，所以这里通过就是转换会放行；声明了 `test_policy` 的步骤在 `--json`
-里还带 `policy` 对象（带修复命令的阻塞码、提示、套件、场景 / 任务追溯、文件登记与记录链状态）。有阻塞时 exit 2。候选代码、
-所跑套件在目录里的条目、计划、步骤策略或工作流指纹任一变化，记录就过期；记录绑定的计划摘要把豁免的 `approved_by` 一律当作空，所以评审
+`test status` 用与转换拦截完全相同的判定列出该步骤每项测试，所以这里通过就是转换会放行；声明了测试档位的步骤在 `--json`
+里还带 `policy` 对象（档位及其生效的要求、带修复命令的阻塞码、提示、套件、场景 / 任务追溯、被认领的文件与孤儿、记录链状态）。有阻塞时 exit 2。候选代码、
+所跑套件在目录里的条目、计划、步骤的档位定义或工作流指纹任一变化，记录就过期；记录绑定的计划摘要把豁免的 `approved_by` 一律当作空，所以评审
 批准豁免不会让批准之前的运行过期（计划的其他任何变化仍会）。`test report` 生成验证报告的测试段，`--write` 替换目标文件里的标记区间，
 分两个各自替换的区间：内联步骤测试的旧表格（`tenon:tests:*` 标记之间，只在工作流有内联测试时写）和 v2 块（`<!-- tenon:test-report:begin -->`
 与 `<!-- tenon:test-report:end -->` 之间）——追溯矩阵、套件与各套件最新运行的 `run_id`、覆盖率、基准对比、flaky 与已知失败、仍在挡出口的项。
 标记之外的字节一个都不动；`tenon status` 靠 v2 块里是否有最新的 run id 判断报告要不要重新生成。`test code-size` 是内建
-`code-size` 方向背后的确定性探针，输出一行 JSON 指标；只统计源代码：路径范围与工作区候选一致（不含 `openspec/`、`.tenon/`、
-`.pipeline/`、`docs/`、依赖与测试缓存），且不含 Markdown。`test diff-risk` 是内建 `diff-risk` 方向背后的探针，也是 `lite`
+`code-size` 方向背后的确定性探针，输出一行 JSON 指标（`files_changed`、`lines_added`、`lines_deleted`、`largest_added_lines`）；
+只统计源代码：路径范围与工作区候选一致（不含 `openspec/`、`.tenon/`、
+`.pipeline/`、`docs/`、依赖与测试缓存），且不含 Markdown。方向模板与默认工作流都不设上限，退出码 0 就是通过，数值由 `code-size` 评审者判断；
+没有上限时实测值照样记进运行记录，评审者在提示里读到它；想要上限的项目在工作流 YAML 的该测试下写 `pass.metrics`（例如给 `lines_added` 设 `max`），超限的运行以 `metric-threshold` 失败。`test diff-risk` 是内建 `diff-risk` 方向背后的探针，也是 `lite`
 轨道的风险闸（见[路由与执行模式](routing-and-workflows.md#轻量轨道)）：只读仓库，从任务起点算起（已提交与未提交的改动都算），输出一行 JSON：
 `files_changed`（源码文件数，口径同 `code-size`）、`contract_files` / `auth_files` / `dependency_files` / `migration_files`
 （命中对应路径类的文件数：OpenAPI、proto、GraphQL、schema 与 `contract` 名；auth、login、session、jwt、password、permission、

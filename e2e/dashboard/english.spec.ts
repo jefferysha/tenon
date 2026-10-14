@@ -263,25 +263,27 @@ test.describe('英文界面 · 测试页签', () => {
   })
 
   test('汇总的计数词：Suites / Cases / Failed / Flaky', async ({ page }) => {
-    await expect(page.getByTestId('tests-stat-suite')).toHaveText('3Suites')
+    await expect(page.getByTestId('tests-stat-suite')).toHaveText('4Suites')
     await expect(page.getByTestId('tests-stat-case')).toHaveText('2Cases')
     await expect(page.getByTestId('tests-stat-fail')).toHaveText('1Failed')
     await expect(page.getByTestId('tests-stat-flaky')).toHaveText('0Flaky')
   })
 
-  test('策略表：内置种类名、要求、结果和短标签都完整可见，不被截成 Integr…', async ({ page }) => {
+  test('策略表：内置测试类名、要求、结果和短标签都完整可见，不被截成 Integr…', async ({ page }) => {
     const matrix = page.getByTestId('tests-matrix')
     await expect(matrix).toBeVisible()
-    for (const kind of ['unit', 'integration', 'e2e', 'benchmark', 'code-size']) {
-      const row = page.getByTestId(`tests-kind-${kind}`)
+    for (const cls of ['unit', 'integration', 'e2e', 'static', 'benchmark']) {
+      const row = page.getByTestId(`tests-kind-${cls}`)
       await expect(row).toBeVisible()
-      expect(await fits(row.getByTestId(`tests-kind-label-${kind}`).locator('span').last()), `${kind} 种类名`).toBe(true)
-      expect(await fits(row.getByTestId(`tests-requirement-${kind}`)), `${kind} 要求`).toBe(true)
+      expect(await fits(row.getByTestId(`tests-kind-label-${cls}`).locator('span').last()), `${cls} 类名`).toBe(true)
+      expect(await fits(row.getByTestId(`tests-requirement-${cls}`)), `${cls} 要求`).toBe(true)
     }
     await expect(page.getByTestId('tests-kind-label-integration')).toHaveText('Integration')
     await expect(page.getByTestId('tests-kind-label-e2e')).toHaveText('End-to-end')
+    await expect(page.getByTestId('tests-kind-label-static')).toHaveText('Static')
     await expect(page.getByTestId('tests-kind-label-benchmark')).toHaveText('Benchmark')
-    await expect(page.getByTestId('tests-requirement-benchmark')).toHaveText('If registered')
+    await expect(page.getByTestId('tests-requirement-unit')).toHaveText('Required')
+    await expect(page.getByTestId('tests-requirement-benchmark')).toHaveText('Touched')
     expect(await fits(page.getByTestId('tests-blocker-label-integration')), '缺项短标签').toBe(true)
     // 测试项名不翻译：有 label 显示 label（代码规模）。
     await expect(page.getByTestId('tests-suite-step:code-size')).toHaveText('代码规模')

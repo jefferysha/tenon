@@ -4,7 +4,7 @@
  */
 import { TEST_BLOCKER_CODES, TEST_BLOCKER_LABELS, TEST_NOTICE_CODES, TEST_NOTICE_LABELS } from '@tenon/kernel/test-system/blockers'
 import { INTEGRITY_SIGNAL_CODES, INTEGRITY_SIGNAL_LABELS } from '@tenon/kernel/test-system/integrity-labels'
-import { RUN_SCOPES, TEST_KINDS } from '@tenon/kernel/test-system/vocabulary'
+import { RUN_SCOPES, TEST_KINDS, isTestKind, testClassOf } from '@tenon/kernel/test-system/vocabulary'
 import type { Lang } from '../i18n/translations'
 
 type Translate = (key: string) => string
@@ -30,6 +30,14 @@ export function reasonLabel(code: string, lang: Lang): string {
   const blocker = TEST_BLOCKER_CODES.find((item) => item === code)
   if (blocker !== undefined) return TEST_BLOCKER_LABELS[blocker][lang]
   return noticeLabel(code, lang)
+}
+
+/** 档位定义（必需类、碰到才跑的类、门槛）所在的文件：只作为图标的 Tooltip，不写成页面上的句子。 */
+export const LEVELS_FILE = '.tenon/tests/catalog.yaml'
+
+/** 种类所属的测试类（coverage → unit、playwright → e2e …）；不在闭集里的原样返回（不猜）。 */
+export function classOf(kind: string): string {
+  return isTestKind(kind) ? testClassOf(kind) : kind
 }
 
 /** 种类的界面词（单测 / Unit …）；不在闭集里的原样显示。标识本身放 Tooltip（KindLabel）。 */

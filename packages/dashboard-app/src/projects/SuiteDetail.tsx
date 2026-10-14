@@ -1,11 +1,11 @@
 import { useT } from '../i18n'
-import type { WbWorkflowDef } from '../api/governanceTypes'
-import type { CatalogService, CatalogSuite, KnownFailuresView } from '../api/testSystemTypes'
+import type { CatalogLevel, CatalogService, CatalogSuite, KnownFailuresView } from '../api/testSystemTypes'
 import { DetailColumn } from '../shell/ThreeColumns'
 import { CommandLine } from '../shared/CommandLine'
 import { KindLabel } from '../tests/KindLabel'
 import { DefRow } from '../tests/TestSection'
 import { formatPercent } from '../tests/testFormat'
+import { classOf } from '../tests/testLabels'
 import { Hinted } from './projectBits'
 import { SuiteBaselines } from './SuiteBaselines'
 import { SuiteKnownFailures } from './SuiteKnownFailures'
@@ -16,15 +16,15 @@ function serviceHint(service: CatalogService): string {
 }
 
 /** 右列：套件详情。定义行只写有值的；说明进 Tooltip；基线与已知失败各是一张表，没有内容就不出现。 */
-export function SuiteDetail({ root, suite, services, knownFailures, workflow }: {
+export function SuiteDetail({ root, suite, services, knownFailures, levels }: {
   root: string
   suite: CatalogSuite
   services: readonly CatalogService[]
   knownFailures: KnownFailuresView
-  workflow: WbWorkflowDef | null
+  levels: readonly CatalogLevel[]
 }): JSX.Element {
   const { t } = useT()
-  const thresholds = suiteThresholds(workflow, suite.kind)
+  const thresholds = suiteThresholds(levels, suite)
   const own = suite.services.map((id) => services.find((service) => service.id === id) ?? { id })
   return (
     <DetailColumn
@@ -43,6 +43,7 @@ export function SuiteDetail({ root, suite, services, knownFailures, workflow }: 
         <div className="min-w-0">
           <div className="py-1"><CommandLine command={suite.command} testId="proj-suite-command" truncate /></div>
           <div role="table" className="[--def-label:9rem]" aria-label={suite.id}>
+          <DefRow label={t('tests.word.class')} testId="proj-suite-class" mono={false}><KindLabel kind={classOf(suite.kind)} /></DefRow>
           <DefRow label={t('tests.project.detail.cwd')} testId="proj-suite-cwd"><span title={suite.cwd}>{suite.cwd}</span></DefRow>
           <DefRow label={t('tests.project.detail.timeout')} testId="proj-suite-timeout" mono={false}>{suite.timeoutS}s</DefRow>
           <DefRow label={t('tests.project.detail.report')} testId="proj-suite-report">
@@ -72,7 +73,7 @@ export function SuiteDetail({ root, suite, services, knownFailures, workflow }: 
               ? '—'
               : (
                 <Hinted
-                  hint={thresholds.sources.map((source) => `${source.stage}: ${THRESHOLD_METRICS.flatMap((metric) => (source.values[metric] === undefined ? [] : [`${t(`tests.project.threshold.${metric}`)} ${formatPercent(source.values[metric] ?? 0)}`])).join(' · ')}`).join(' | ')}
+                  hint={thresholds.sources.map((source) => `${t(`tests.level.${source.level}`)}: ${THRESHOLD_METRICS.flatMap((metric) => (source.values[metric] === undefined ? [] : [`${t(`tests.project.threshold.${metric}`)} ${formatPercent(source.values[metric] ?? 0)}`])).join(' · ')}`).join(' | ')}
                   asChild
                 >
                   <button type="button" className="max-w-full truncate rounded-xs font-mono text-body text-text outline-none focus-visible:ring-2 focus-visible:ring-(--accent)" data-testid="proj-suite-thresholds-value">

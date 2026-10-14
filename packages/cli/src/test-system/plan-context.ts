@@ -1,7 +1,7 @@
 /** 计划类命令共用的输入装配：目录、当前计划状态、delta spec 场景、tasks 条目、diff 文件列表。 */
 import {
-  loadDeltaScenarios, loadTaskItems, readTestPlanState,
-  type ChangedFilesReport, type OpenSpecScenario, type StepTestPolicyIR, type TaskItem, type TestPlanState,
+  loadDeltaScenarios, loadTaskItems, readTestPlanState, resolveStepTestPolicy, stepHasTestPolicy,
+  type ChangedFilesReport, type OpenSpecScenario, type StepIR, type StepTestPolicyIR, type TaskItem, type TestCatalog, type TestPlanState,
 } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
 import type { TestCommandContext } from '../commands/test-context.js'
@@ -50,7 +50,18 @@ export async function tryChangedFiles(deps: CliDeps, change: string): Promise<Ch
   }
 }
 
-/** 工作流所有步骤的测试策略（计划初稿按整个工作流要求的种类补套件）。 */
-export function policiesOf(context: TestCommandContext): readonly StepTestPolicyIR[] {
-  return context.plan.workflow.steps.flatMap((step) => (step.test_policy === undefined ? [] : [step.test_policy]))
+/**
+ * 一个步骤的有效测试策略：旧 `test_policy` 原样，档位按项目测试目录的 `levels` 求值（目录读不到按内建缺省）；
+ * 步骤没有测试声明时 undefined。只读 integrity / coverage 阈值这类展示用途的调用方走这里，不再各自读 `step.test_policy`。
+ */
+export async function stepPolicyFor(deps: CliDeps, step: Pick<StepIR, 'test' | 'test_policy'>): Promise<StepTestPolicyIR | undefined> {
+  if (!stepHasTestPolicy(step)) return undefined
+  if (step.test_policy !== undefined) return step.test_policy
+  const catalog = await readCatalogFile(deps.cwd)
+  return resolveStepTestPolicy(step, catalog.state === 'ok' ? catalog.catalog : undefined)
+}
+
+/** 工作流所有步骤的有效测试策略（档位按目录求值；计划初稿按整个工作流要求的种类补套件）。 */
+export function policiesOf(context: TestCommandContext, catalog: TestCatalog): readonly StepTestPolicyIR[] {
+  return context.plan.workflow.steps.flatMap((step) => resolveStepTestPolicy(step, catalog) ?? [])
 }

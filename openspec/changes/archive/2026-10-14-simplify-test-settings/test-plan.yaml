@@ -1,0 +1,293 @@
+schema: tenon-test-plan/v1
+change: simplify-test-settings
+suites:
+  - suite: adapters
+    scope: full
+  - suite: dashboard-app-unit
+    scope: full
+  - suite: dashboard-e2e
+    scope: changed
+  - suite: dashboard-e2e-chromium
+    scope: changed
+  - suite: docs-site-unit
+    scope: full
+  - suite: docs-smoke
+    scope: changed
+  - suite: hooks
+    scope: full
+  - suite: lint-docs
+    scope: changed
+  - suite: lint-openspec
+    scope: changed
+  - suite: migration-cas
+    scope: full
+  - suite: oracle
+    scope: full
+  - suite: oracle-unit
+    scope: full
+  - suite: tools-node
+    scope: full
+  - suite: typecheck-e2e
+    scope: full
+  - suite: typecheck-packages
+    scope: full
+  - suite: typecheck-web
+    scope: full
+  - suite: unit
+    scope: full
+files:
+  - path: e2e/dashboard/a11y.spec.ts
+    suite: dashboard-e2e
+    kind: playwright
+  - path: e2e/dashboard/english.spec.ts
+    suite: dashboard-e2e
+    kind: playwright
+  - path: e2e/dashboard/projects.spec.ts
+    suite: dashboard-e2e
+    kind: playwright
+  - path: e2e/dashboard/support/seed.mjs
+    suite: dashboard-e2e-chromium
+    kind: playwright
+  - path: e2e/dashboard/workflow.spec.ts
+    suite: dashboard-e2e
+    kind: playwright
+  - path: e2e/dashboard/workspace-ended.spec.ts
+    suite: dashboard-e2e
+    kind: playwright
+  - path: e2e/dashboard/workspace-tests.spec.ts
+    suite: dashboard-e2e
+    kind: playwright
+  - path: packages/cli/src/commands/agent-prompt.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/review-waivers.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/statusStepOwnership.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/statusStepTests.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/default-code-size.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/evidence-trust.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/next-action-runner.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/playwright-once.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/test-flow-lite.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/test-flow.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/test-levels.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/test-register-auto.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/test-settings-lite.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/test-system-vitest.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/test-system/claim-orphans.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/test-system/git-exec.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/test-system/plan-edit.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/test-system/repo-identity.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/test-system/report-md.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/test-system/run-paths.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/test-system/run-record.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/test-system/run-set.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/test-trust.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/test-waive-step.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/dashboard-app/src/api/governanceSchema.test.tsx
+    suite: dashboard-app-unit
+    kind: unit
+  - path: packages/dashboard-app/src/api/governanceTestPolicy.integration.test.tsx
+    suite: dashboard-app-unit
+    kind: unit
+  - path: packages/dashboard-app/src/api/testSystemDecoders.test.tsx
+    suite: dashboard-app-unit
+    kind: unit
+  - path: packages/dashboard-app/src/projects/ProjectTests.test.tsx
+    suite: dashboard-app-unit
+    kind: unit
+  - path: packages/dashboard-app/src/tests/testPrimitives.test.tsx
+    suite: dashboard-app-unit
+    kind: unit
+  - path: packages/dashboard-app/src/workbench/draftChanges.test.tsx
+    suite: dashboard-app-unit
+    kind: unit
+  - path: packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx
+    suite: dashboard-app-unit
+    kind: unit
+  - path: packages/dashboard-app/src/workflow/GateSection.test.tsx
+    suite: dashboard-app-unit
+    kind: unit
+  - path: packages/dashboard-app/src/workflow/StageEditorPane.test.tsx
+    suite: dashboard-app-unit
+    kind: unit
+  - path: packages/dashboard-app/src/workflow/TestPolicyForm.test.tsx
+    suite: dashboard-app-unit
+    kind: unit
+  - path: packages/dashboard-app/src/workflow/WorkflowView.test.tsx
+    suite: dashboard-app-unit
+    kind: unit
+  - path: packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx
+    suite: dashboard-app-unit
+    kind: unit
+  - path: packages/dashboard-app/src/workspace/testsTabModel.test.tsx
+    suite: dashboard-app-unit
+    kind: unit
+  - path: packages/kernel/src/test-evidence/direction.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/test-evidence/evaluate-policy.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/test-system/catalog-file.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/test-system/catalog-patch.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/test-system/catalog.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/test-system/claim.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/test-system/evaluate-v2-levels.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/test-system/evaluate-v2.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/test-system/exec-entries.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/test-system/levels-diff.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/test-system/levels.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/test-system/load.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/test-system/protected-summary.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/test-system/resolve-policy.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/test-system/stage-run-set.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/test-system/step-test-waivers.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/test-system/test-paths.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/test-system/trace-and-files.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/test-system/trust-store.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/test-system/vocabulary.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/test-system/waiver-metrics.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/default-direction-fidelity.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/default-yaml-rules.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/effective-plan.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/orchestration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/policy-snapshot.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/test-level.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/test-policy.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/track-branch.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workspace/fingerprint.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/server/src/server.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/server/src/serverDecisionRoutes.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/server/src/serverGetTestSystemRoutes.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/server/src/serverWorkflowOrchestrationRoutes.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/server/src/snapshot.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/server/src/testEvidenceSnapshot.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/server/src/testFilesSnapshot.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/server/src/testPolicyDto.test.ts
+    suite: unit
+    kind: unit
+  - path: tools/test-hooks.sh
+    suite: hooks
+    kind: integration
+cases: []
+waivers:
+  - test: code-size
+    reason: default 的 code-size 上限（lines_added ≤ 2000）冻结自旧运行时，本任务正是删掉它（spec test-settings「不设代码规模上限」）。探针统计约 2 万行（不含文档与 Markdown），构成：构建产物 dist 约 6500 行（npm run build 生成，CI 逐字节校验，单文件最大的 cli/dist/tenon.mjs 也在其中）；测试与夹具约 9000；手写生产代码约 4300（kernel 2200、CLI 950、Dashboard 730），TS 生产文件都在 500 行内。
+    approved_by: 710227704@qq.com
+    approved_candidate: workspace:sha256:3e5c86ff441a3efd5e4604265fd80dc27bc5ecc6276a08753c8c5bc6744c02a2

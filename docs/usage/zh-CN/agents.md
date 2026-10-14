@@ -119,7 +119,9 @@ agents:
 
 执行者先跑，必须 `done` 才能离开步骤；必需评审者必须在当前候选上通过；参考评审者只报告。默认工作流的
 重型轨道（`pm`、`frontend`、`backend`）在调研挂 `researcher`、实现挂 `builder`（按独立任务各起一个子代理，合成一份报告）、
-验证挂 `code-size` 评审者及其 `code-size` 测试；`lite` 轨道的验证挂评审者 `code-review` 与 `security`。见
+验证挂 `code-size` 评审者及其 `code-size` 测试；`lite` 轨道的验证挂评审者 `code-review` 与 `security`。`code-size` 评审者读
+`files_changed`、`lines_added`、`lines_deleted`、`largest_added_lines` 的实测值，按数值和改动性质判断规模是否合理（生成产物、批量迁移本来就大）；
+默认测试不设行数上限，项目在工作流里给该测试写了 `pass.metrics` 上限时以它为准。见
 [默认工作流](default-workflow.md) 与 [自定义工作流](custom-workflows-and-tracks.md)。
 
 ## 跨厂商评审

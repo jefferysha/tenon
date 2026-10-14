@@ -286,7 +286,7 @@ describe('withRunStatus', () => {
       ({ suite: id, origin: 'catalog' as const, kind, reason: 'run' as const, state })
     const report = {
       stepId: 'b', pass: false, chain: 'intact' as const, policy: null, blockers: [], notices: [], trace: [],
-      files: { checked: true, unregistered: [], orphans: [] },
+      files: { checked: true, claimed: [], orphans: [] },
       suites: [suite('a', 'unit', 'passed'), suite('b', 'unit', 'stale'), suite('c', 'typecheck', 'failed')],
     }
     const stages = withRunStatus(withPolicy, {
@@ -310,5 +310,23 @@ describe('withRunStatus', () => {
     expect(unitStatus('waived')).toBe('done')
     expect(unitStatus('waiver-pending')).toBe('waiting')
     expect(unitStatus('waived', 'failed')).toBe('failed')
+  })
+  it('档位的类节点（kind:unit）按类归并：旧种类名的套件（coverage 属于单测类）也算，别的类不算', () => {
+    const node = { kind: 'test' as const, id: 'kind:unit', label: 'unit', wave: 1, dependsOn: [], required: true, source: 'declared' as const, testKind: 'unit' }
+    const levelled = {
+      ...orchestration,
+      stages: orchestration.stages.map((stage) => (stage.id === 'b' ? { ...stage, entries: [...stage.entries, node] } : stage)),
+    }
+    const suite = (id: string, kind: string, state: 'passed' | 'failed') => ({ suite: id, origin: 'catalog' as const, kind, reason: 'run' as const, state })
+    const status = (...suites: ReturnType<typeof suite>[]) => withRunStatus(levelled, {
+      phase: 'b', archived: false, skills: new Map(), agents: [], tests: [],
+      policies: [{
+        stepId: 'b', pass: false, chain: 'intact' as const, policy: null, blockers: [], notices: [], trace: [],
+        files: { checked: true, claimed: [], orphans: [] }, notApplicable: [], suites,
+      }],
+    })[1]?.entries.find((entry) => entry.id === 'kind:unit')?.status
+    expect(status(suite('cov', 'coverage', 'passed'))).toBe('done')
+    expect(status(suite('cov', 'coverage', 'failed'), suite('u', 'unit', 'passed'))).toBe('failed')
+    expect(status(suite('lint', 'lint', 'failed'))).toBe('waiting')
   })
 })

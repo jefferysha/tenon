@@ -95,8 +95,8 @@ test at Ship.
 
 `pre_verify_review_result=pass` is Build's verdict; `tenon set` checks the step's
 declared readiness evidence before writing it. Every heavy Track's Build declares
-evidence that can be checked: frontend and backend require the `unit` suites of
-the project's test catalog to pass (Build's `test_policy`), and pm requires the
+evidence that can be checked: frontend and backend require the unit-class suites of
+the project's test catalog to pass (Build's `test: changed` level), and pm requires the
 `spec-consistency` reviewer (`block_at: medium`, a language-agnostic comparison
 of the implementation against the proposal, design, delta spec and tasks).
 Writing `pass` without that evidence is refused and names what is missing.
@@ -104,9 +104,13 @@ Writing `pass` without that evidence is refused and names what is missing.
 Every heavy Track also declares [agents](agents.md): Explore runs the `researcher`
 executor; Build runs the `builder` executor (one subagent per independent task,
 merged into one report) before its reviewers; Verify declares the `code-size`
-test (`tenon test code-size --json`, passing while `lines_added` stays within
-2000) and the required `code-size` reviewer that reads its result. If the lines added really
-exceed the limit and the user decides to waive it, register
+test (`tenon test code-size --json`) and the required `code-size` reviewer that reads its
+result. The test has **no ceiling by default**: it records `files_changed`, `lines_added`,
+`lines_deleted` and `largest_added_lines`, exits `0`, and never blocks the exit or needs a waiver;
+the reviewer judges from the measured values whether the size is reasonable for the kind of change.
+A project that wants a ceiling writes `pass.metrics` under that test in its own workflow, for
+example `pass: { metrics: [{ name: lines_added, max: 3000 }] }`; a run over the ceiling then fails
+with `metric-threshold`. Only then, if the user decides to let it through, register
 `tenon test waive <change> --test code-size --reason …`; the review that confirms this gate
 approves it with the rest, and nothing is let through before that. A step cannot
 be left until its executors finish `done`.
@@ -129,79 +133,129 @@ the design-system check (frontend's Ship); the project's own tests come from the
 catalog, so an ordinary project is never asked to add `typecheck` or
 `test:integration` scripts just to satisfy the workflow.
 
-A step can also declare a `test_policy`, the workflow's side of the test system
-(the project's `.tenon/tests/catalog.yaml` says how tests run, the change's
-`test-plan.yaml` says which suites and test files this change touches, the policy
-says what each step must see). `kinds` must be registered in the plan (a suite of
-that kind or an approved waiver), `run` must have passed on the current code,
-`run_if_registered` only when the plan registered that kind, `scope` is the
-minimum run scope (`changed` accepts any, `full` only a full run), `files:
-registered` blocks while a test file added or modified in the change is missing
-from the plan, `scenarios` (`required` / `passing`) maps every OpenSpec scenario
-to a test case, and `coverage`, `flaky` and `browsers` add thresholds. A step
-without `test_policy` behaves exactly as before, a started change keeps the plan
-it froze, and a step's own `tests` keep working next to its policy.
+A step declares what it needs from the test system with one key, `test:`, which takes a
+level: `none` (no requirement, the same as omitting the key), `plan` (the change has a test
+plan and the project catalog has a suite of every required class), `changed` (run the suites
+the change touches, on the changed scope) or `full` (run the required classes in full, plus any
+other class the change touches). The project's `.tenon/tests/catalog.yaml` says how tests run
+and what each level means, the change's `test-plan.yaml` records only the choices you make by
+hand (extra suites, mapped cases, waivers), and the workflow only names the level. A suite is
+*touched* when a file the change modified matches the suite's `files` or `covers` glob; a suite
+without `covers` is touched only by its own test files, and a change that edits only source files
+gets the non-blocking notice `suites-without-covers` (see the [CLI reference](cli-reference.md)).
+The older multi-field `test_policy` key is the legacy spelling, still readable for changes that
+froze it (a step cannot declare both). A step's own `tests` keep working next to its level.
 
-`integrity: notice | block` (default `notice`) says what the test-integrity report does at that
-step. The report compares the change with its start and flags case-count drops and rising skips
+What the levels mean is defined in the catalog, not in the workflow. An optional top-level
+`levels` key in `.tenon/tests/catalog.yaml` overrides the built-in defaults for `plan`,
+`changed` and `full`; each level takes only these keys: `required` (test classes the catalog must
+have a suite for), `touched` (classes that run only when the change touches them), `scenarios`
+(`off | required | passing`), `coverage` (`lines`, `branches`, `functions`, `statements`,
+`changed_lines`, each 0–100), `flaky` (`{ max, fail_on_new }`) and `require_baseline`. The `plan`
+level accepts only `required` and `scenarios`. A key you leave out keeps its built-in default:
+
+```yaml
+levels:
+  plan:    { required: [unit] }
+  changed: { required: [unit], touched: [static] }
+  full:    { required: [unit], touched: [integration, e2e, static, benchmark] }
+```
+
+The built-in defaults set `scenarios: off`, no coverage or flaky threshold and
+`require_baseline: false`, so an ordinary task is not asked for more than its changes need. A
+project that wants more writes it back: `levels.full.coverage: { lines: 80 }` makes every `test:
+full` step check line coverage for suites that declare a coverage report. An unknown level, key or
+class, or a coverage value outside 0–100, makes the catalog invalid (`tenon test catalog validate`
+shows the line) and every test exit blocks until it is fixed. The levels count in the catalog
+digest, and the catalog stays protected test configuration: changing it in a task needs the
+review confirmation.
+
+Test classes group the suite kinds into five (plus `custom`, which runs only when asked for by
+name): `unit` (`unit`, `coverage`), `integration` (`integration`, `regression`, `contract`,
+`smoke`), `e2e` (`e2e`, `playwright`, `browser`, `a11y`, `visual`), `static` (`typecheck`, `lint`,
+`code-size`, `design-system`) and `benchmark`. A suite's `kind` may be a class name or any older
+kind name, which stays valid as an alias; levels match by class, while a frozen legacy policy
+still matches the kind names literally, so its requirements do not widen.
+
+Changed test files are claimed, not registered (a frozen legacy `files: registered` is judged the
+same way, so it no longer asks for one-by-one registration). A test file the change added or modified that a
+suite's `files` glob matches belongs to that suite, which then runs at the levels that run it. Claiming
+is computed when the step is evaluated and is not written to `test-plan.yaml`, so adding test files
+never makes earlier runs stale. After the suite ran, a claimed file must show at least one executed
+case, otherwise the exit blocks with `registered-test-not-executed`. A file that looks like a test
+but no suite claims is an orphan (`test-file-orphan`) and blocks until
+`tenon test register <change> --auto` appends its exact path to a suitable suite. Paths under `openspec/`, `.tenon/` and
+`.pipeline/` are never test changes, and the test-file name rules apply only to source extensions
+(js, ts, py, go, rs, java and similar), so `fixtures/data.spec.json` or an archived `.spec.report` is not
+a test.
+
+The test-integrity report compares the change with its start and flags case-count drops and rising skips
 across full runs, deleted or skipped tests, removed assertions, rewritten snapshots, changed
 baselines, added known failures and lowered coverage thresholds (the ten signals are listed in
 the [CLI reference](cli-reference.md), the command is
-`tenon test integrity <change>`). No Track of the default workflow declares it, so
-every Build and Verify step runs at `notice`: the signals show up as one `test-integrity` notice in `status`,
-`test status` and the Dashboard Tests tab and never block. Set `integrity: block` on a step to
-turn them into a blocker for that step (an unreadable diff then blocks too, with
+`tenon test integrity <change>`). Levels have no integrity setting, so every Build and Verify step of the
+default workflow runs it at `notice`: the signals show up as one `test-integrity` notice in `status`,
+`test status` and the Dashboard Tests tab and never block. Only a frozen legacy policy that set
+`integrity: block` still turns them into a blocker for its step (an unreadable diff then blocks too, with
 `files-diff-unavailable`); there is no per-signal waiver, so a deliberate deletion means
-restoring the test or editing the policy. `integrity: notice` is the same as omitting the key and
-does not change the workflow's fingerprint. The Dashboard workflow page edits it next to
-`scenarios`.
+restoring the test.
 
-Zero-waiver defaults: **only `unit` is mandatory** (registered at Spec, run at
-Build with scope `changed` and at Verify with scope `full`). Everything else runs
-only when the project has it: `typecheck`, `integration`, `regression`, `e2e`,
-`playwright`, `a11y`, `visual`, `benchmark`, `smoke` are `run_if_registered`, and
-the seed (`tenon test plan <change> --seed`, `tenon test register <change> --auto`)
-registers every catalog suite of those kinds except benchmarks. A coverage
-threshold (frontend / backend Verify, lines 80%) applies only to a suite whose
-catalog entry declares `coverage`; a catalog without coverage is never blocked by
-it, and the Playwright browser list is whatever the suite's own `browsers`
-declares. `regression` needs no suite of its own: a policy that requires
-`regression` with `scope: full` is satisfied by the `unit` suite run in full.
-Defaults by Track (all editable on the Dashboard workflow page):
+Defaults by Track (the level is chosen per step on the Dashboard workflow page; the meaning of each
+level comes from the catalog):
 
-| Track | spec registers | build runs (changed) | verify runs (full) |
+| Track | spec | build | verify |
 | --- | --- | --- | --- |
-| lite | `unit` (planned at Build; there is no Spec step) | `unit`; `typecheck` when registered | `unit`; `regression`, `typecheck`, `integration`, `e2e`, `playwright`, `a11y`, `visual` when registered |
-| frontend | `unit` | `unit`; `typecheck` when registered | `unit`; `regression`, `e2e`, `playwright`, `a11y`, `visual` when registered; lines coverage 80% when the suite declares coverage |
-| backend | `unit` | `unit`; `typecheck` when registered | `unit`; `integration`, `regression`, `benchmark` when registered; lines coverage 80% when the suite declares coverage |
-| pm | every OpenSpec scenario mapped | none | `smoke` when registered |
+| lite | (no Spec step) | `changed` | `full` |
+| pm | `none` (scenarios are not required to be mapped) | none | `changed` |
+| frontend | `plan` | `changed` | `full` |
+| backend | `plan` | `changed` | `full` |
 
-A kind that does not apply to the whole project (a plain-JavaScript project has
+With the built-in level definitions this means: unit-class suites are the only mandatory class; a
+`changed` step runs just the suites the change touches (static checks such as `typecheck` only when
+touched), a `full` step runs every unit-class suite in full and the integration, e2e, static and
+benchmark suites the change touches. A change that touches no suite at `changed` runs nothing, and
+`tenon test run <change> --stage` says so and exits `0`. The default workflow no longer writes a
+coverage threshold: a project that wants one adds `levels.full.coverage` to its catalog, and it
+applies only to a suite whose catalog entry declares `coverage`.
+
+OpenSpec scenario mapping is off unless a level asks for it (`scenarios: required | passing`). With
+it off, no scenario blocks an exit, `step.next` does not issue `test-plan-map` for it, and the
+traceability matrix in the verification report lists only the rows that are mapped plus one line,
+"N more scenarios / tasks are not mapped (this step does not require mapping)".
+
+A test class that does not apply to the whole project (a plain-JavaScript project has
 no type check) is declared once in the catalog instead of waived per change:
 `tenon test catalog not-applicable typecheck --reason '<why>'` writes a
-`not_applicable` entry to `.tenon/tests/catalog.yaml`. It takes effect only after
+`not_applicable` entry to `.tenon/tests/catalog.yaml`, which also satisfies the class that kind
+belongs to. It takes effect only after
 a human confirmation: `tenon review request` lists it next to the plan's waivers
 (`not-applicable:<kind>`), the user's confirmation (`tenon review acknowledge`,
 not `--delegated`) approves it, and `approved_by` records who. Until then the
-policy still requires the kind and reports `waiver-unapproved`. A per-change
+level still requires the class and reports `waiver-unapproved`. A per-change
 `tenon test waive` remains for the one-off case.
 
 `tenon init` runs `tenon test discover --write` itself when the project has no
-catalog yet (for workflows that declare a `test_policy`) and says so on stderr;
-review the generated `.tenon/tests/catalog.yaml` and commit it. Discover claims
+catalog yet and says so on stderr; review the generated `.tenon/tests/catalog.yaml` and commit it.
+Discover claims
 unit test files under `src/`, `test/`, `tests/`, `__tests__/` and the project root
-(`*.test.*`, `*.spec.*`). `tenon test register <change> --auto` does the rest in
-one command: it discovers a missing catalog, widens a suite's `files` globs to
-claim test files nobody owns, seeds the plan and registers those files.
+(`*.test.*`, `*.spec.*`). `tenon test register <change> --auto` is the one command for the rest: it
+discovers a missing catalog, then appends the exact path of each orphan test file this change
+touched to the suite that fits. It never widens a glob and never touches files the change did not
+change. Every command that edits the catalog (`catalog add|set|rm|not-applicable`, `register --auto`)
+rewrites only the lines that changed and keeps comments, blank lines and layout; the one thing lost is
+an inline comment on a key you changed. A catalog created from scratch is written whole.
 
 Blockers carry a stable code (`test-catalog-missing`, `test-plan-missing`,
-`test-kind-missing`, `test-file-unregistered`, `test-not-run`, `test-failed`,
+`test-kind-missing`, `test-file-orphan`, `test-not-run`, `test-failed`,
 `test-stale`, `no-tests-ran`, `coverage-below`, `scenario-uncovered`, …), a short
-label, the full reason and the command that fixes it.
+label, the full reason and the command that fixes it. (`test-file-unregistered` is no longer issued;
+it stays in the vocabulary so older reports still display.)
 
 `tenon status`'s `step.next` walks the test system in order: `test-discover` (no
-catalog) → `test-plan-seed` → `test-plan-map` (missing kinds, unmapped scenarios) →
-`test-register-files` (unregistered test files) → `run-tests`
+catalog) → `test-plan-seed` → `test-plan-map` (only for a missing required class, or when the
+level requires scenario mapping) →
+`test-register-files` (only when orphan test files exist: one `tenon test register <change> --auto`
+claims them all) → `run-tests`
 (`tenon test run <change> --stage`) → `test-report` (writes the traceability matrix
 into the verification report). They come after the step's documents and before its reviewers;
 a run that finished but misses the policy becomes a `fix` — or, on a review gate, the

@@ -58,7 +58,8 @@ function entries(value: { readonly [key: string]: YamlValue | undefined }): Arra
   return out
 }
 
-function emitEntries(value: { readonly [key: string]: YamlValue | undefined }, pad: string): string[] {
+/** 一个映射的各条目按 `pad` 缩进发射成行（不含换行符）；目录写回只重写变化的节点时按同一套规则发射该节点。 */
+export function emitEntries(value: { readonly [key: string]: YamlValue | undefined }, pad: string): string[] {
   const lines: string[] = []
   for (const [key, item] of entries(value)) {
     if (isSeq(item)) {
@@ -74,7 +75,8 @@ function emitEntries(value: { readonly [key: string]: YamlValue | undefined }, p
   return lines
 }
 
-function emitItems(items: readonly YamlValue[], pad: string): string[] {
+/** 序列的各项按 `pad`（`- ` 所在列）缩进发射成行（不含换行符）。 */
+export function emitItems(items: readonly YamlValue[], pad: string): string[] {
   const lines: string[] = []
   for (const item of items) {
     if (isSeq(item)) throw new Error('yaml-emit: 不支持序列直接嵌套序列')

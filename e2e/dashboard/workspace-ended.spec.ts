@@ -43,6 +43,8 @@ test.describe('工作台 · 已结束', () => {
     await expect(page.getByTestId('task-detail-title')).toHaveText(ENDED)
     await expect(page.getByTestId('task-detail-meta')).toContainText('default')
     await expect(page.getByTestId('task-detail-error')).toHaveCount(0)
+    // 读到详情之前右列是只有标题与 ⋯ 的占位，读到后整列换成详情、⋯ 菜单随之重新挂载：等占位消失再开菜单。
+    await expect(page.getByTestId('task-detail-loading')).toHaveCount(0)
     await page.getByTestId('task-detail-menu').click()
     await expect(page.getByRole('menuitem').first()).toBeVisible()
     await expect(page.getByRole('menuitem', { name: /终止/u })).toHaveCount(0)

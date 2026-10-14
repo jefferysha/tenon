@@ -15,7 +15,7 @@ import { isRoundsLimited, isValidMaxRounds } from './step-rounds.js'
 import { compileArtifacts } from './compile-artifacts.js'
 import { compileStepAgents } from './compile-agents.js'
 import { compileStepTests } from './compile-tests.js'
-import { compileStepTestPolicy } from './compile-test-policy.js'
+import { compileStepTestLevel, compileStepTestPolicy } from './compile-test-policy.js'
 import { isDefaultWorkflowName } from './identifier.js'
 import {
   compileWorkflowDecompositionPolicy,
@@ -53,7 +53,7 @@ const WORKFLOW_KEYS: ReadonlySet<string> = new Set([
   'name', 'decomposition', 'interaction', 'openspec', 'documentContract', 'steps', 'tracks', 'route',
 ])
 const STEP_KEYS: ReadonlySet<string> = new Set([
-  'id', 'label', 'gate', 'prompt', 'maxRounds', 'skills', 'inputs', 'outputs', 'artifacts', 'tests', 'test_policy',
+  'id', 'label', 'gate', 'prompt', 'maxRounds', 'skills', 'inputs', 'outputs', 'artifacts', 'tests', 'test_policy', 'test',
   'agents', 'guards', 'transitions',
 ])
 const SKILL_KEYS: ReadonlySet<string> = new Set(['id', 'depends_on'])
@@ -212,6 +212,8 @@ function compileStep(step: unknown, index: number, allowedPolicies: ReadonlySet<
   const tests = compileStepTests(rec.tests, `${path}.tests`)
   // 同 tests：只在声明时进 IR，未声明策略的工作流指纹逐字不变。
   const testPolicy = compileStepTestPolicy(rec.test_policy, `${path}.test_policy`)
+  // 同 tests：档位键只在声明时进 IR；与 test_policy 互斥，二者同写在这里报错。
+  const testLevel = compileStepTestLevel(rec.test, rec.test_policy, `${path}.test`, id)
   // 同 tests：两个身份列表都空归一为「无 agents 键」，未声明 agent 的工作流指纹逐字不变。
   const agents = compileStepAgents(rec.agents, `${path}.agents`)
   // 门禁只有 review / auto：null 是 auto 的别名，这里归一。auto 的输出齐全守卫要知道哪些边是前进边，
@@ -235,6 +237,7 @@ function compileStep(step: unknown, index: number, allowedPolicies: ReadonlySet<
     skills, inputs, outputs, guards, artifacts,
     ...(tests === undefined ? {} : { tests }),
     ...(testPolicy === undefined ? {} : { test_policy: testPolicy }),
+    ...(testLevel === undefined ? {} : { test: testLevel }),
     ...(agents === undefined ? {} : { agents }),
     transitions,
   }

@@ -97,39 +97,23 @@ describe('WorkflowView · URL 记住工作流 / 轨道 / 阶段', () => {
   })
 })
 
-describe('WorkflowView · 测试策略随保存写回', () => {
+describe('WorkflowView · 测试档位随保存写回', () => {
   const POLICY = { plan: 'required', kinds: ['unit'], run: ['unit'], scope: 'full', files: 'registered', coverage: { lines: 80, functions: 60 }, flaky: { max: 2, fail_on_new: true }, browsers: ['chromium'] }
   const WITH_POLICY: WbWorkflowDef = {
     ...FLOW,
     tracks: { alpha: { label: '甲', steps: [{ ...stage('a1', '一', 'a2'), test_policy: POLICY as WbStepDef['test_policy'] }, stage('a2', '二', null)] } },
   }
+  const WITH_LEVEL: WbWorkflowDef = {
+    ...FLOW,
+    tracks: { alpha: { label: '甲', steps: [{ ...stage('a1', '一', 'a2'), test: 'plan' }, stage('a2', '二', null)] } },
+  }
 
-  it('改一项策略：未保存 1 处；保存的请求体带完整策略（表单不管的键一并写回）', async () => {
-    const user = userEvent.setup()
-    let posted: { url: string; body: WbWorkflowDef } | undefined
-    stubApi((url, init) => {
-      if (url === '/api/workflows/flow?root=') return new Response(JSON.stringify(WITH_POLICY), { status: 200 })
-      if (init?.method === 'POST' && url === '/api/workflows/flow') {
-        posted = { url, body: JSON.parse(String(init.body)) as WbWorkflowDef }
-        return new Response(JSON.stringify({ ok: true }), { status: 200 })
-      }
-      return undefined
-    })
-    window.history.replaceState(null, '', '/?view=workbench&wf=flow&track=alpha&step=a1')
-    render(<I18nProvider><TooltipProvider><WorkflowView root="" /></TooltipProvider></I18nProvider>)
-    await user.click(await screen.findByTestId('wb-policy-scope-changed'))
-    expect(screen.getByTestId('wb-dirty').textContent).toBe('未保存 1 处')
-    await user.click(screen.getByTestId('wb-save'))
-    await waitFor(() => expect(posted).toBeDefined())
-    expect(posted?.body.tracks?.alpha?.steps[0]?.test_policy).toEqual({ ...POLICY, scope: 'changed' })
-    expect(posted?.body).not.toHaveProperty('effectiveIo')
-  })
-
-  it('整个策略被移除也是一处改动，写回的定义里该阶段没有 test_policy', async () => {
+  /** 打开 alpha 轨道的 a1 阶段，点 `radio` 档位，保存，返回请求体。 */
+  async function pickAndSave(loaded: WbWorkflowDef, level: string): Promise<{ posted: WbWorkflowDef | undefined; dirty: string | null }> {
     const user = userEvent.setup()
     let posted: WbWorkflowDef | undefined
     stubApi((url, init) => {
-      if (url === '/api/workflows/flow?root=') return new Response(JSON.stringify(WITH_POLICY), { status: 200 })
+      if (url === '/api/workflows/flow?root=') return new Response(JSON.stringify(loaded), { status: 200 })
       if (init?.method === 'POST' && url === '/api/workflows/flow') {
         posted = JSON.parse(String(init.body)) as WbWorkflowDef
         return new Response(JSON.stringify({ ok: true }), { status: 200 })
@@ -138,11 +122,40 @@ describe('WorkflowView · 测试策略随保存写回', () => {
     })
     window.history.replaceState(null, '', '/?view=workbench&wf=flow&track=alpha&step=a1')
     render(<I18nProvider><TooltipProvider><WorkflowView root="" /></TooltipProvider></I18nProvider>)
-    await user.click(await screen.findByTestId('wb-policy-remove'))
-    expect(screen.getByTestId('wb-dirty').textContent).toBe('未保存 1 处')
+    await user.click(await screen.findByTestId(`wb-test-level-${level}`))
+    const dirty = screen.getByTestId('wb-dirty').textContent
     await user.click(screen.getByTestId('wb-save'))
     await waitFor(() => expect(posted).toBeDefined())
+    return { posted, dirty }
+  }
+
+  it('某步选「跑改动」并保存：未保存 1 处；请求体该步是 test: changed，没有 test_policy', async () => {
+    const { posted, dirty } = await pickAndSave(FLOW, 'changed')
+    expect(dirty).toBe('未保存 1 处')
+    expect(posted?.tracks?.alpha?.steps[0]).toMatchObject({ test: 'changed' })
     expect(posted?.tracks?.alpha?.steps[0]).not.toHaveProperty('test_policy')
+    expect(posted).not.toHaveProperty('effectiveIo')
+  })
+
+  it('旧 test_policy 步骤先只读显示摘要，选档即替换：保存后该步只有 test，旧策略的键一个不留', async () => {
+    const { posted, dirty } = await pickAndSave(WITH_POLICY, 'full')
+    expect(dirty).toBe('未保存 1 处')
+    expect(posted?.tracks?.alpha?.steps[0]).toMatchObject({ test: 'full' })
+    expect(posted?.tracks?.alpha?.steps[0]).not.toHaveProperty('test_policy')
+  })
+
+  it('换档位也是一处改动；选「不要求」写 test: none', async () => {
+    const { posted, dirty } = await pickAndSave(WITH_LEVEL, 'none')
+    expect(dirty).toBe('未保存 1 处')
+    expect(posted?.tracks?.alpha?.steps[0]).toMatchObject({ test: 'none' })
+  })
+
+  it('没有选档就没有改动：打开旧 test_policy 步骤只读显示摘要，保存条不出现', async () => {
+    stubApi((url) => (url === '/api/workflows/flow?root=' ? new Response(JSON.stringify(WITH_POLICY), { status: 200 }) : undefined))
+    window.history.replaceState(null, '', '/?view=workbench&wf=flow&track=alpha&step=a1')
+    render(<I18nProvider><TooltipProvider><WorkflowView root="" /></TooltipProvider></I18nProvider>)
+    expect((await screen.findByTestId('wb-policy-legacy')).textContent).toBe('策略单测 · 全量')
+    expect(screen.queryByTestId('wb-save-bar')).toBeNull()
   })
 })
 

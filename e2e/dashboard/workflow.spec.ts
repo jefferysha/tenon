@@ -207,6 +207,32 @@ test.describe('工作流页', () => {
     await expect(page.getByTestId('wb-save')).toBeDisabled()
   })
 
+  test('测试设置在门禁段：四选一（不要求 / 写计划 / 跑改动 / 全量），一行不折行；切换后未保存，放弃即恢复', async ({ page }) => {
+    await openView(page, 'workflow', { wf: 'default', track: 'backend', step: 'build' })
+    const gate = page.getByTestId('stage-gate')
+    const level = gate.getByTestId('wb-test-level')
+    await expect(level).toBeVisible()
+    await expect(level).toHaveAttribute('role', 'radiogroup')
+    await expect(level.getByRole('radio')).toHaveText(['不要求', '写计划', '跑改动', '全量'])
+    // 内置 default 的 backend 实现步是「跑改动」。
+    await expect(page.getByTestId('wb-test-level-changed')).toHaveAttribute('aria-checked', 'true')
+    const oneLine = await level.getByRole('radio').evaluateAll((items) => items.every((item) => item.scrollWidth <= item.clientWidth + 1 && item.getBoundingClientRect().height < 48))
+    expect(oneLine, '四个选项各占一行、没有被截断').toBe(true)
+    // 档位定义在哪个文件只在图标的悬停说明里，页面上不写成句子。
+    await expect(gate).not.toContainText('catalog.yaml')
+    await page.getByTestId('wb-test-level-hint').focus()
+    await expect(page.getByText('.tenon/tests/catalog.yaml').first()).toBeVisible()
+
+    await page.getByTestId('wb-test-level-full').click()
+    await expect(page.getByTestId('wb-test-level-full')).toHaveAttribute('aria-checked', 'true')
+    await expect(page.getByTestId('wb-test-level-changed')).toHaveAttribute('aria-checked', 'false')
+    await expect(page.getByTestId('wb-dirty')).toBeVisible()
+    await expect(page.getByTestId('wb-save')).toBeEnabled()
+    await page.getByTestId('wb-discard').click()
+    await expect(page.getByTestId('wb-test-level-changed')).toHaveAttribute('aria-checked', 'true')
+    await expect(page.getByTestId('wb-save')).toBeDisabled()
+  })
+
   test('门禁区列出离开条件：只读，一行一条，不换行', async ({ page }) => {
     await openView(page, 'workflow', { wf: 'default', track: 'backend', step: 'build' })
     const list = page.getByTestId('stage-leave-conditions')

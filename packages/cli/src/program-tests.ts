@@ -37,7 +37,7 @@ export function registerTestCommands(program: Command, deps: CliDeps): void {
   registerTestProjectCommands(test, deps)
   test
     .command('plan <change>')
-    .description('查看任务测试计划；--seed 生成初稿（diff 碰到的套件、策略要求种类的套件、未登记的测试文件）')
+    .description('查看任务测试计划；--seed 生成初稿（diff 碰到的套件、策略要求种类的套件；改动过的测试文件由套件 glob 自动认领，不用登记）')
     .option('--seed', '生成 / 补全计划初稿（只增不减）')
     .option('--json', 'JSON 输出')
     .action(async (change: string, opts: { seed?: boolean; json?: boolean }) =>
@@ -45,7 +45,7 @@ export function registerTestCommands(program: Command, deps: CliDeps): void {
   test
     .command('register <change>')
     .description('登记：--auto 一条命令登记到能往下走 / --suite 套件 / --file 测试文件 / --case + --test 场景或任务到用例的映射')
-    .option('--auto', '识别缺的目录、把没有套件认领的测试文件并进套件的文件 glob、生成计划初稿并登记这些文件（只增不减）')
+    .option('--auto', '识别缺的目录、把本任务改动里没有套件认领的测试文件的精确路径追加进套件的 files（不放宽 glob）、生成计划初稿（只增不减）')
     .option('--suite <id>', '目录套件 id（配合 --file 时指定认领它的套件）')
     .option('--scope <scope>', 'full | changed | files | grep（缺省 full）')
     .option('--pattern <regex>', 'scope grep 的用例名过滤')
@@ -78,7 +78,7 @@ export function registerTestCommands(program: Command, deps: CliDeps): void {
     .action(async (change: string, opts: { kind?: string; covers?: string; test?: string; reason?: string }) => bail(await cmdTestWaive(deps, change, opts)))
   test
     .command('sync <change>')
-    .description('对账：diff 里未登记的测试文件、无套件认领的孤儿文件、已不存在或目录不再认领的登记项（有待处理 exit 2）；--prune 删掉目录不再认领的登记')
+    .description('对账：diff 里自动认领的测试文件、无套件认领的孤儿文件、已不存在或目录不再认领的登记项（有待处理 exit 2）；--prune 删掉目录不再认领的登记')
     .option('--prune', '从计划里删掉目录不再认领的测试文件登记（套件已不在目录，或没有套件的 files glob 认领它）；只动测试文件登记，不动用例映射；不读 diff')
     .option('--json', 'JSON 输出')
     .action(async (change: string, opts: { json?: boolean; prune?: boolean }) =>

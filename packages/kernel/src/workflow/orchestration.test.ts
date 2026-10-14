@@ -104,14 +104,15 @@ describe('buildOrchestration · 来源', () => {
 })
 
 describe('buildOrchestration · 阶段内顺序与流向', () => {
-  it('前端 verify：技能串行 → 测试（unit 与 code-size 同波）→ 评审者波次（architecture 等四个评审者，code-size 评审者读测试后同波）', () => {
+  it('前端 verify：技能串行 → 测试（code-size；档位要求的必跑类与它同波）→ 评审者波次（architecture 等四个评审者，code-size 评审者读测试后同波）', () => {
     const plan = compileEffectiveWorkflowPlan('default', defaultDef(), { track: 'frontend' })
     const verify = stage(buildOrchestration(plan).stages, 'verify')
     expect(verify.gate).toBe('review')
-    expect(verify.entries.map((entry) => [entry.kind, entry.id, entry.wave])).toEqual([
+    // default 现在只写档位（`test: full`），必跑类由档位解析派生（`kind:*` 条目），不在这里逐个断言。
+    expect(verify.entries.filter((entry) => !entry.id.startsWith('kind:')).map((entry) => [entry.kind, entry.id, entry.wave])).toEqual([
       ['skill', 'browser-qa', 0], ['skill', 'web-design-guidelines', 1], ['skill', 'design-taste-frontend', 2],
       ['skill', 'verification-before-completion', 3], ['skill', 'e2e-testing', 4],
-      ['test', 'code-size', 5], ['test', 'kind:unit', 5],
+      ['test', 'code-size', 5],
       ['reviewer', 'spec-consistency', 6], ['reviewer', 'frontend-quality', 6], ['reviewer', 'security', 6], ['reviewer', 'e2e', 6],
       ['reviewer', 'architecture', 7], ['reviewer', 'code-size', 6],
     ])
@@ -179,6 +180,26 @@ describe('buildOrchestration · 阶段内顺序与流向', () => {
       id: 's', label: 'S', gate: null, skills: [], tests: [{ id: 'e2e' }], test_policy: { run: ['e2e', 'lint'] }, transitions: [],
     }] })
     expect(drawn.stages[0]?.entries.map((entry) => [entry.id, entry.testKind])).toEqual([['e2e', undefined], ['kind:lint', 'lint']])
+  })
+
+  it('测试档位：changed / full 画出必需类（按内建缺省）的测试节点，plan / none 不画；已有同种类旧测试不重复', () => {
+    const entriesOf = (test: 'none' | 'plan' | 'changed' | 'full', tests: ReadonlyArray<{ id: string }> = []) =>
+      orchestrate({ steps: [{ id: 's', label: 'S', gate: null, skills: [], tests, test, transitions: [] }] })
+        .stages[0]?.entries.map((entry) => [entry.id, entry.testKind])
+    expect(entriesOf('changed')).toEqual([['kind:unit', 'unit']])
+    expect(entriesOf('full')).toEqual([['kind:unit', 'unit']])
+    expect(entriesOf('plan')).toEqual([])
+    expect(entriesOf('none')).toEqual([])
+    expect(entriesOf('changed', [{ id: 'unit' }])).toEqual([['unit', undefined]])
+  })
+
+  it('有效计划里冻结的 test 档位带进编排投影', () => {
+    const def: WorkflowDef = {
+      name: 'demo',
+      steps: [{ id: 'work', label: '工作', gate: 'auto', skills: [], inputs: [], outputs: [], test: 'full', guards: [], transitions: [] }],
+    }
+    const work = stage(buildOrchestration(compileEffectiveWorkflowPlan('demo', def)).stages, 'work')
+    expect(work.entries.map((entry) => [entry.kind, entry.id])).toEqual([['test', 'kind:unit']])
   })
 
   it('回流边 = 指向更早阶段的转移', () => {

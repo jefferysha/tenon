@@ -10,8 +10,8 @@ import { join } from 'node:path'
 import {
   HISTORY_FILE, allPathChangesForState, touchedPathClasses,
   buildOrchestration, compileEffectiveWorkflowPlan, completedWorkflowSkillsSinceStepEntry,
-  documentRecordsInCurrentStepVisit, judgeStepSkillsFromHistory, orderSkillSlots,
-  pendingSkillDocumentKinds, planEffectiveIo, skillSlotStatuses,
+  documentRecordsInCurrentStepVisit, isTestClass, isTestKind, judgeStepSkillsFromHistory, orderSkillSlots,
+  pendingSkillDocumentKinds, planEffectiveIo, skillSlotStatuses, testClassOf,
   type AgentView, type EffectiveSkillResolver, type EffectiveWorkflowPlan, type OrchestrationEntry,
   type OrchestrationStage, type PipelineState, type TenonUser, type WorkflowDef, type WorkflowOrchestration,
 } from '@tenon/kernel'
@@ -103,8 +103,14 @@ type SuiteState = PolicyReportDto['suites'][number]['state']
  */
 const WORST: Readonly<Record<SuiteState, number>> = { passed: 0, waived: 0, missing: 1, 'waiver-pending': 1, running: 2, stale: 3, failed: 4 }
 
+/** 节点的 kind 是测试类（档位的类节点）时，套件按类归并（coverage 属于单测类）；是种类名（旧策略）时逐字匹配。 */
+function suiteMatchesKind(suiteKind: string, kind: string): boolean {
+  if (suiteKind === kind) return true
+  return isTestClass(kind) && isTestKind(suiteKind) && testClassOf(suiteKind) === kind
+}
+
 function kindStatus(report: PolicyReportDto | undefined, kind: string): OrchestrationRunStatus {
-  const states = (report?.suites ?? []).filter((suite) => suite.kind === kind).map((suite) => suite.state)
+  const states = (report?.suites ?? []).filter((suite) => suiteMatchesKind(suite.kind, kind)).map((suite) => suite.state)
   if (states.length === 0) return 'waiting'
   const worst = states.reduce((acc, state) => (WORST[state] > WORST[acc] ? state : acc))
   return worst === 'passed' || worst === 'waived' ? 'done' : worst === 'missing' || worst === 'waiver-pending' ? 'waiting' : worst

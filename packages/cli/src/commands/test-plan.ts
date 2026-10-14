@@ -29,13 +29,12 @@ function describePlan(deps: CliDeps, plan: TestPlan): void {
 }
 
 export function printSeed(deps: CliDeps, change: string, seed: SeedResult): void {
-  deps.io.out(`[TEST] plan ${change} 初稿：新增套件 ${seed.addedSuites.length} 个，测试文件 ${seed.addedFiles.length} 个`)
+  deps.io.out(`[TEST] plan ${change} 初稿：新增套件 ${seed.addedSuites.length} 个（改动过的测试文件由套件 glob 自动认领，不用登记）`)
   for (const id of seed.addedSuites) deps.io.out(`  + 套件 ${id}`)
-  for (const path of seed.addedFiles) deps.io.out(`  + 文件 ${path}`)
   for (const kind of seed.missingKinds) {
-    deps.io.out(`  ! 策略要求 ${kind} 测试，但目录里没有该种类的套件：tenon test catalog add ... --kind ${kind}；本项目都不适用就 tenon test catalog not-applicable ${kind} --reason ${shellQuote('<原因>')}（经评审确认一次后对所有任务生效）；只有本任务不适用 tenon test waive ${change} --kind ${kind} --reason ${shellQuote('<原因>')}`)
+    deps.io.out(`  ! 策略要求 ${kind} 测试，但目录里没有该类的套件：tenon test catalog add ... --kind ${kind}；本项目都不适用就 tenon test catalog not-applicable ${kind} --reason ${shellQuote('<原因>')}（经评审确认一次后对所有任务生效）；只有本任务不适用 tenon test waive ${change} --kind ${kind} --reason ${shellQuote('<原因>')}`)
   }
-  for (const path of seed.orphans) deps.io.out(`  ! 测试文件 ${path} 没有套件认领：tenon test register ${change} --auto（把它并进对应套件的文件 glob 并登记）`)
+  for (const path of seed.orphans) deps.io.out(`  ! 测试文件 ${path} 没有套件认领：tenon test register ${change} --auto（把该文件的精确路径并进对应套件的 files）`)
   const { required, optional } = splitUnmapped(seed.unmapped)
   if (required.length > 0) {
     deps.io.out(`  待映射的场景 / 任务（${required.length}）：写好测试后逐条登记`)
@@ -72,7 +71,7 @@ export async function cmdTestPlan(
       const seeded = seedPlan({
         catalog, plan: state.state === 'ok' ? state.plan : emptyTestPlan(change),
         changedFiles: diff.ok ? diff.files : undefined,
-        policies: policiesOf(context), scenarios: inputs.scenarios, tasks: inputs.tasks,
+        policies: policiesOf(context, catalog), scenarios: inputs.scenarios, tasks: inputs.tasks,
       })
       seen.result = seeded
       return { plan: seeded.plan }

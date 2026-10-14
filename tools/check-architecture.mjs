@@ -207,6 +207,9 @@ const DOMAIN_INFRASTRUCTURE = new Set([
 const PRODUCT_PATH_OWNER = 'packages/kernel/src/product-paths.ts'
 // Bash mirror of resolveProductPaths for the declared identity config file (hooks cannot call node).
 const USER_IDENTITY_SHELL_MIRROR = 'hooks/tenon-user.sh'
+// Hook guard that refuses an agent setting the runtime root variables (so it cannot re-point the test-trust store);
+// it names them only to refuse the assignment and never reads or interprets their values.
+const STATE_DIR_GUARD = 'hooks/lib/trust-command.sh'
 const PRODUCT_ROOT_CONTRACT_SITES = new Set([
   PRODUCT_PATH_OWNER,
   'packages/cli/src/runtime/launchers.ts',
@@ -378,13 +381,13 @@ for (const path of production) {
     && /['"]pipeline-projects\.json['"]/.test(code)) {
     failures.push(`${rel}: vendor-neutral kernel must not own host-specific migration paths`)
   }
-  if (rel !== PRODUCT_PATH_OWNER && rel !== USER_IDENTITY_SHELL_MIRROR && /\bTENON_RUNTIME_HOME\b/.test(code)) {
+  if (rel !== PRODUCT_PATH_OWNER && rel !== USER_IDENTITY_SHELL_MIRROR && rel !== STATE_DIR_GUARD && /\bTENON_RUNTIME_HOME\b/.test(code)) {
     failures.push(`${rel}: TENON_RUNTIME_HOME may only be interpreted by kernel resolveProductPaths`)
   }
   if (/\bTENON_DASHBOARD_HOME\b/.test(code)) {
     failures.push(`${rel}: Dashboard-only machine home creates a forbidden second product-state root`)
   }
-  if (/\bTENON_RUNTIME_ROOTS\b/.test(code) && !PRODUCT_ROOT_CONTRACT_SITES.has(rel)) {
+  if (/\bTENON_RUNTIME_ROOTS\b/.test(code) && !PRODUCT_ROOT_CONTRACT_SITES.has(rel) && rel !== STATE_DIR_GUARD) {
     failures.push(`${rel}: versioned runtime root contract may only be resolved, projected, or consumed at its boundary`)
   }
   if (/\bTENON_RUNTIME_(?:DATA|STATE|CONFIG)_ROOT\b/.test(code)

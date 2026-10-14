@@ -193,15 +193,24 @@ page performs no network access and starts no installation.
 
 ### Tests
 
-The Dashboard only reads test data and edits the workflow's test policy; it never runs or
+The Dashboard only reads test data and edits each workflow step's test level; it never runs or
 registers tests (`tenon test ...` does). The project page has a client/tests segment
-(catalog suites, baselines per machine profile, known failures), the workbench task has a
-tests tab (policy matrix, scenario trace, unregistered files) with a run drawer (failed
-cases, artifacts, coverage, benchmark against baseline, logs), the workflow page edits each
-stage's `test_policy`, and the library lists read-only test templates.
+(catalog suites with their test class, the effective level definitions, baselines per machine
+profile, known failures), the workbench task has a
+tests tab (requirement matrix by test class, scenario trace, test files marked as
+auto-claimed or orphaned) with a run drawer (failed
+cases, artifacts, coverage, benchmark against baseline, logs), the workflow page picks each
+step's level (`none`, `plan`, `changed` or `full`) with a single choice, and the library lists
+read-only test templates. The info icon next to the level choice names the file that defines the
+levels (`levels` in `.tenon/tests/catalog.yaml`) in its tooltip; a step that still holds a legacy `test_policy` shows a read-only
+summary until you pick a level, which replaces it. When a level does not ask for scenario mapping
+the trace shows one summary line instead of an "uncovered" row per scenario.
 
 - `GET /api/tests/catalog?root=` → the parsed catalog (`missing`, `invalid` with line-numbered
-  issues, or `ok`), the known failures and the latest result per suite.
+  issues, or `ok`), the effective `levels` (`plan`, `changed` and `full`, each marked as coming
+  from the catalog or from the built-in default), the known failures and the latest result per suite.
+- `POST /api/workflows/:name` accepts `test` on a step and answers `400` when a step carries both
+  `test` and `test_policy`.
 - `GET /api/tests/baselines?root=&suite=` → baselines per machine profile with history.
 - `GET /api/tests/plan?root=&change=` → the task's test plan state (`missing`, `tampered`, `ok`).
 - `GET /api/tests/records?root=&change=[&suite=]` → v2 run records, newest first, with the
@@ -219,7 +228,8 @@ stage's `test_policy`, and the library lists read-only test templates.
   saved download keeps its name instead of arriving as `artifact.zip`.
 
 Each change in `GET /api/snapshot` also carries `testPolicy` (the verdict of every stage
-that declares a policy), `testPlan` and `testUser`. Every `testPolicy` entry lists the catalog's
+that declares a test level or a legacy policy; an entry derived from a level carries
+`level: { name, required, touched, source }`), `testPlan` and `testUser`. Every `testPolicy` entry lists the catalog's
 project-wide `not_applicable` declarations as `notApplicable: [{kind, reason, approved}]`
 (`approved: false` = still waiting for the review confirmation), so the Tests tab shows an
 approved kind as "not applicable" rather than missing. The Dashboard itself reads the lighter

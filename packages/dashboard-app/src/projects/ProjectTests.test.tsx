@@ -2,9 +2,8 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import type { WbStepDef, WbWorkflowDef } from '../api/governanceTypes'
-import { baselinesResponse, catalogResponse } from '../api/testSystemFixtures'
-import type { KnownFailuresView, SuiteBaselinesResponse, TestCatalogResponse } from '../api/testSystemTypes'
+import { baselinesResponse, catalogResponse, defaultLevels } from '../api/testSystemFixtures'
+import type { CatalogLevel, CatalogSuite, KnownFailuresView, SuiteBaselinesResponse, TestCatalogResponse } from '../api/testSystemTypes'
 import { I18nProvider } from '../i18n'
 import { chartPoints } from './HistoryChart'
 import { ProjectsView } from './ProjectsView'
@@ -13,23 +12,9 @@ import { suiteThresholds } from './suiteThresholds'
 
 const PROJECTS = [{ root: '/repo', name: 'repo', count: 1, ok: true }]
 
-function step(id: string, label: string, policy: WbStepDef['test_policy']): WbStepDef {
-  return { id, label, gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [], ...(policy === undefined ? {} : { test_policy: policy }) }
-}
-
-const DEFAULT_WORKFLOW: WbWorkflowDef = {
-  name: 'default',
-  steps: [],
-  tracks: {
-    backend: { steps: [step('build', '实现', { run: ['unit'], coverage: { lines: 70 } }), step('verify', '验证', { run: ['unit', 'regression'], coverage: { lines: 80, branches: 60 } })] },
-    frontend: { steps: [step('verify', '验证', { kinds: ['unit', 'playwright'], coverage: { lines: 85, changed_lines: 90 } })] },
-  },
-}
-
 interface Api {
   catalog?: TestCatalogResponse | { status: number } | 'never'
   baselines?: SuiteBaselinesResponse | { status: number }
-  workflow?: WbWorkflowDef | { status: number }
 }
 
 function json(body: unknown, status = 200): Response {
@@ -49,10 +34,6 @@ function stub(api: Api = {}) {
     if (url.startsWith('/api/tests/baselines?')) {
       const value = api.baselines ?? baselinesResponse()
       return 'status' in value ? json({ ok: false, error: 'x' }, value.status) : json({ ok: true, ...value })
-    }
-    if (url.startsWith('/api/workflows/default')) {
-      const value = api.workflow ?? DEFAULT_WORKFLOW
-      return 'status' in value ? json({ ok: false, error: 'x' }, value.status) : json(value)
     }
     return json({ ok: false, error: 'not found' }, 404)
   }))
@@ -117,9 +98,6 @@ describe('项目页 · 套件表', () => {
     expect(within(screen.getByTestId('proj-tests-head')).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['名称', '工具', '最近结果', '不稳定'])
     expect(within(screen.getByTestId('proj-tests-table')).getAllByRole('row').slice(1).map((row) => within(row).getByRole('button').textContent)).toEqual(['前端单测', '浏览器 e2e', '接口基准', 'types'])
     expect(screen.getByTestId('proj-suite-open-types')).toHaveAttribute('title', 'types')
-    expect(screen.getByTestId('proj-suite-kind-web-unit').querySelector('svg')).toHaveAttribute('data-kind', 'unit')
-    expect(screen.getByTestId('proj-suite-kind-web-e2e').textContent).toBe('Playwright')
-    expect(screen.getByTestId('proj-suite-kind-web-e2e')).toHaveAttribute('data-kind', 'playwright')
     expect(screen.getByTestId('proj-suite-web-e2e').textContent).toContain('playwright')
     expect(screen.getByTestId('proj-suite-result-web-unit').textContent).toBe('通过')
     expect(screen.getByTestId('proj-suite-result-web-e2e').textContent).toBe('失败')
@@ -128,6 +106,22 @@ describe('项目页 · 套件表', () => {
     expect(screen.getByTestId('proj-suite-flaky-web-unit').textContent).toBe('0')
     expect(screen.getByTestId('proj-suite-result-api-bench').textContent).toBe('—')
     expect(screen.getByTestId('proj-suite-flaky-api-bench').textContent).toBe('—')
+  })
+
+  it('每个套件显示所属测试类（旧种类名按类归并）：图标 + 类名，标识放 Tooltip', async () => {
+    stub()
+    mount()
+    await openTests()
+    await screen.findByTestId('proj-tests-table')
+    const classOf = (id: string): [string | null, string | null] => {
+      const cell = screen.getByTestId(`proj-suite-kind-${id}`)
+      return [cell.getAttribute('data-kind'), cell.textContent]
+    }
+    expect(classOf('web-unit')).toEqual(['unit', '单测'])
+    expect(classOf('web-e2e')).toEqual(['e2e', '端到端'])
+    expect(classOf('api-bench')).toEqual(['benchmark', '基准'])
+    expect(classOf('types')).toEqual(['static', '静态'])
+    expect(screen.getByTestId('proj-suite-kind-web-unit').querySelector('svg')).toHaveAttribute('data-kind', 'unit')
   })
 
   it('「不稳定」整列都是 0 / 没有记录时不出这一列（只剩名称 · 工具 · 最近结果）；有一个非零就整列出现', async () => {
@@ -225,28 +219,160 @@ describe('项目页 · 套件详情', () => {
     expect((await screen.findAllByText('url http://127.0.0.1:5178/ · 60s')).length).toBeGreaterThan(0)
   })
 
-  it('覆盖率门槛来自 default 工作流各阶段的策略：取最高值，来源阶段在 Tooltip；没有要求这个种类的阶段是破折号', async () => {
+  it('所属测试类是一行定义（类名）', async () => {
     stub()
     mount()
     await openTests()
     await screen.findByTestId('proj-suite-title')
-    await waitFor(() => expect(screen.getByTestId('proj-suite-thresholds-value').textContent).toBe('行 85% · 分支 60% · 变更行 90%'))
-    screen.getByTestId('proj-suite-thresholds-value').focus()
-    expect((await screen.findAllByText(/实现: 行 70% \| 验证: 行 80% · 分支 60% \| 验证: 行 85% · 变更行 90%/u)).length).toBeGreaterThan(0)
+    expect(screen.getByTestId('proj-suite-class').textContent).toContain('单测')
     await userEvent.click(screen.getByTestId('proj-suite-web-e2e'))
-    await waitFor(() => expect(screen.getByTestId('proj-suite-thresholds-value').textContent).toBe('行 85% · 变更行 90%'))
-    await userEvent.click(screen.getByTestId('proj-suite-api-bench'))
+    expect(screen.getByTestId('proj-suite-class').textContent).toContain('端到端')
+  })
+
+  it('覆盖率门槛来自档位定义：声明了覆盖率报告、且所属类被某档要求或碰到才跑的套件取各档最高值，来源档位在 Tooltip；其余是破折号', async () => {
+    stub()
+    mount()
+    await openTests()
+    await screen.findByTestId('proj-suite-title')
+    expect(screen.getByTestId('proj-suite-thresholds-value').textContent).toBe('行 80% · 分支 60%')
+    screen.getByTestId('proj-suite-thresholds-value').focus()
+    expect((await screen.findAllByText('全量: 行 80% · 分支 60%')).length).toBeGreaterThan(0)
+    await userEvent.click(screen.getByTestId('proj-suite-web-e2e'))
     expect(screen.getByTestId('proj-suite-thresholds').textContent).toContain('—')
+    expect(screen.queryByTestId('proj-suite-thresholds-value')).toBeNull()
+    await userEvent.click(screen.getByTestId('proj-suite-api-bench'))
     expect(screen.queryByTestId('proj-suite-thresholds-value')).toBeNull()
   })
 
-  it('default 工作流读不到：门槛是破折号，页面其余照常', async () => {
-    stub({ workflow: { status: 500 } })
+  it('目录没写门槛（三档都是内建缺省）：门槛是破折号', async () => {
+    stub({ catalog: withLevels(defaultLevels()) })
     mount()
     await openTests()
     await screen.findByTestId('proj-suite-title')
     expect(screen.getByTestId('proj-suite-thresholds').textContent).toContain('—')
-    expect(screen.getByTestId('proj-suite-command')).toBeInTheDocument()
+  })
+
+  it('项目页不再读工作流：覆盖率门槛不依赖 default 工作流', async () => {
+    const calls = stub()
+    mount()
+    await openTests()
+    await screen.findByTestId('proj-suite-title')
+    expect(calls.some((url) => url.startsWith('/api/workflows'))).toBe(false)
+  })
+})
+
+function withLevels(levels: CatalogLevel[]): TestCatalogResponse {
+  const response = catalogResponse()
+  if (response.catalog.state !== 'ok') throw new Error('fixture catalog not ok')
+  return { ...response, catalog: { ...response.catalog, levels } }
+}
+
+describe('项目页 · 档位定义', () => {
+  it('三档各一行（写计划 · 跑改动 · 全量）：必需类、碰到才跑的类、门槛；类用图标 + 类名，标识放 Tooltip', async () => {
+    stub()
+    mount()
+    await openTests()
+    const section = await screen.findByTestId('proj-levels')
+    expect(within(section).getByRole('heading').textContent).toBe('档位')
+    const table = within(section).getByRole('table')
+    expect(within(table).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['档位', '必需', '碰到才跑', '门槛'])
+    expect(within(table).getAllByRole('row').slice(1).map((row) => row.getAttribute('data-testid'))).toEqual(['proj-level-plan', 'proj-level-changed', 'proj-level-full'])
+    const classes = (id: string, column: 'required' | 'touched'): string[] =>
+      [...screen.getByTestId(`proj-level-${id}-${column}`).querySelectorAll('[data-kind]')]
+        .filter((element) => element.tagName === 'SPAN').map((element) => element.getAttribute('data-kind') ?? '')
+    expect(classes('plan', 'required')).toEqual(['unit'])
+    expect(classes('plan', 'touched')).toEqual([])
+    expect(classes('changed', 'touched')).toEqual(['static'])
+    expect(classes('full', 'required')).toEqual(['unit'])
+    expect(classes('full', 'touched')).toEqual(['integration', 'e2e', 'static', 'benchmark'])
+    expect(screen.getByTestId('proj-level-plan-touched').textContent).toBe('—')
+    expect(screen.getByTestId('proj-level-full-touched').textContent).toBe('集成端到端静态基准')
+  })
+
+  it('标出来自目录还是内建缺省：目录写了的那一档是「目录」，其余是「内建缺省」', async () => {
+    stub()
+    mount()
+    await openTests()
+    await screen.findByTestId('proj-levels')
+    const source = (id: string): [string | null, string | null] => {
+      const element = screen.getByTestId(`proj-level-${id}-source`)
+      return [element.getAttribute('data-source'), element.textContent]
+    }
+    expect(source('plan')).toEqual(['default', '内建缺省'])
+    expect(source('changed')).toEqual(['default', '内建缺省'])
+    expect(source('full')).toEqual(['catalog', '目录'])
+  })
+
+  it('目录没写 levels：三档都显示缺省并标「内建缺省」，门槛是破折号', async () => {
+    stub({ catalog: withLevels(defaultLevels()) })
+    mount()
+    await openTests()
+    await screen.findByTestId('proj-levels')
+    for (const id of ['plan', 'changed', 'full']) {
+      expect(screen.getByTestId(`proj-level-${id}-source`).textContent).toBe('内建缺省')
+      expect(screen.getByTestId(`proj-level-${id}-thresholds`).textContent).toBe('—')
+    }
+  })
+
+  it('门槛一格：覆盖率各项 · 不稳定上限 · 基线 · 场景，完整内容在 title；不折行、截断', async () => {
+    stub()
+    mount()
+    await openTests()
+    await screen.findByTestId('proj-levels')
+    const cell = screen.getByTestId('proj-level-full-thresholds')
+    expect(cell.textContent).toBe('行 80% · 分支 60% · 不稳定 ≤ 2 · 基线 · 场景映射')
+    expect(cell).toHaveAttribute('title', '行 80% · 分支 60% · 不稳定 ≤ 2 · 基线 · 场景映射')
+    expect(cell.className).toContain('truncate')
+    expect(screen.getByTestId('proj-level-full').className).toContain('whitespace-nowrap')
+  })
+
+  it('场景要求通过显示「场景通过」', async () => {
+    const levels = defaultLevels().map((level) => (level.name === 'changed' ? { ...level, scenarios: 'passing' as const, source: 'catalog' as const } : level))
+    stub({ catalog: withLevels(levels) })
+    mount()
+    await openTests()
+    await screen.findByTestId('proj-levels')
+    expect(screen.getByTestId('proj-level-changed-thresholds').textContent).toBe('场景通过')
+  })
+
+  it('没有目录、目录无效、没有套件：不出档位定义', async () => {
+    stub({ catalog: { catalog: { state: 'missing' }, knownFailures: { state: 'missing' }, latest: [] } })
+    mount()
+    await openTests()
+    await screen.findByTestId('proj-tests-empty')
+    expect(screen.queryByTestId('proj-levels')).toBeNull()
+  })
+
+  it('页面上没有说明句子', async () => {
+    stub()
+    mount()
+    await openTests()
+    const section = await screen.findByTestId('proj-levels')
+    expect(section.textContent).not.toContain('。')
+  })
+
+  it('档位定义所在的文件只是标题旁图标的 Tooltip（键盘聚焦即可读到），不写成页面上的句子', async () => {
+    stub()
+    mount()
+    await openTests()
+    const section = await screen.findByTestId('proj-levels')
+    expect(section.textContent).not.toContain('catalog.yaml')
+    const hint = screen.getByTestId('proj-levels-file')
+    expect(hint).toHaveAccessibleName('档位定义: .tenon/tests/catalog.yaml')
+    hint.focus()
+    expect((await screen.findAllByText('.tenon/tests/catalog.yaml')).length).toBeGreaterThan(0)
+  })
+
+  it('每个格子不折行：档位行 nowrap，类图标一排，不用 flex-wrap', async () => {
+    stub()
+    mount()
+    await openTests()
+    const section = await screen.findByTestId('proj-levels')
+    for (const id of ['plan', 'changed', 'full']) {
+      expect(screen.getByTestId(`proj-level-${id}`).className).toContain('whitespace-nowrap')
+      expect(screen.getByTestId(`proj-level-${id}-touched`).className).toContain('flex-nowrap')
+    }
+    expect(section.innerHTML).not.toContain('flex-wrap')
   })
 })
 
@@ -377,10 +503,11 @@ describe('项目页 · 空态、错误与刷新', () => {
   })
 
   it('目录里一个套件都没有：同样给发现命令', async () => {
-    stub({ catalog: { catalog: { state: 'ok', suites: [], services: [] }, knownFailures: { state: 'missing' }, latest: [] } })
+    stub({ catalog: { catalog: { state: 'ok', suites: [], services: [], levels: defaultLevels() }, knownFailures: { state: 'missing' }, latest: [] } })
     mount()
     await openTests()
     expect(await screen.findByTestId('proj-tests-discover')).toBeInTheDocument()
+    expect(screen.queryByTestId('proj-levels')).toBeNull()
   })
 
   it('读取中是骨架', async () => {
@@ -417,15 +544,48 @@ describe('项目页 · 空态、错误与刷新', () => {
 })
 
 describe('纯逻辑', () => {
-  it('suiteThresholds：取各阶段最高值，只算要求过该种类且声明了覆盖率的阶段；没有则 null', () => {
-    const found = suiteThresholds(DEFAULT_WORKFLOW, 'unit')
-    expect(found?.highest).toEqual({ lines: 85, branches: 60, changed_lines: 90 })
-    expect(found?.sources.map((source) => source.stage)).toEqual(['实现', '验证', '验证'])
-    expect(suiteThresholds(DEFAULT_WORKFLOW, 'benchmark')).toBeNull()
-    expect(suiteThresholds(null, 'unit')).toBeNull()
-    expect(suiteThresholds({ name: 'x', steps: [step('a', 'A', { run: ['unit'] })] }, 'unit')).toBeNull()
-    const duplicated: WbWorkflowDef = { name: 'x', steps: [step('a', 'A', { run: ['unit'], coverage: { lines: 80 } })], tracks: { t: { steps: [step('a', 'A', { run: ['unit'], coverage: { lines: 80 } })] } } }
-    expect(suiteThresholds(duplicated, 'unit')?.sources).toHaveLength(1)
+  describe('suiteThresholds', () => {
+    const suite = (over: Partial<CatalogSuite>): CatalogSuite => ({
+      id: 's', kind: 'unit', runner: 'vitest', command: 'x', cwd: '.', timeoutS: 1, report: { format: 'junit' },
+      services: [], retries: 0, parallel: false, tags: [], browsers: [], ...over,
+    })
+    const withCoverage = { coverage: { format: 'istanbul-summary', path: 'coverage/c.json' } }
+    const level = (name: CatalogLevel['name'], over: Partial<CatalogLevel>): CatalogLevel => ({
+      name, required: ['unit'], touched: [], scenarios: 'off', requireBaseline: false, source: 'catalog', ...over,
+    })
+
+    it('取各档最高值；来源档位按档名给出；只算声明了覆盖率的档位', () => {
+      const levels = [
+        level('plan', {}),
+        level('changed', { coverage: { lines: 70, changedLines: 90 } }),
+        level('full', { coverage: { lines: 85, branches: 60 } }),
+      ]
+      const found = suiteThresholds(levels, suite(withCoverage))
+      expect(found?.highest).toEqual({ lines: 85, branches: 60, changed_lines: 90 })
+      expect(found?.sources.map((source) => source.level)).toEqual(['changed', 'full'])
+    })
+
+    it('套件所属类不在档位的必需类或碰到才跑的类里：不算；类按旧种类名归并（coverage 属于单测类）', () => {
+      const levels = [level('full', { required: ['integration'], touched: ['static'], coverage: { lines: 85 } })]
+      expect(suiteThresholds(levels, suite(withCoverage))).toBeNull()
+      expect(suiteThresholds(levels, suite({ ...withCoverage, kind: 'typecheck' }))?.highest).toEqual({ lines: 85 })
+      expect(suiteThresholds([level('full', { coverage: { lines: 85 } })], suite({ ...withCoverage, kind: 'coverage' }))?.highest).toEqual({ lines: 85 })
+    })
+
+    it('没有声明覆盖率报告的套件（种类也不是 coverage）、没有门槛、没有档位：null', () => {
+      const levels = [level('full', { coverage: { lines: 85 } })]
+      expect(suiteThresholds(levels, suite({}))).toBeNull()
+      expect(suiteThresholds(levels, suite({ kind: 'coverage' }))?.highest).toEqual({ lines: 85 })
+      expect(suiteThresholds([level('full', {})], suite(withCoverage))).toBeNull()
+      expect(suiteThresholds([], suite(withCoverage))).toBeNull()
+      expect(suiteThresholds(null, suite(withCoverage))).toBeNull()
+    })
+
+    it('五项指标都认：函数、语句同样进最高值；档位没有声明任何指标：不算来源', () => {
+      const found = suiteThresholds([level('changed', { coverage: {} }), level('full', { coverage: { functions: 80, statements: 75 } })], suite(withCoverage))
+      expect(found?.highest).toEqual({ functions: 80, statements: 75 })
+      expect(found?.sources.map((source) => source.level)).toEqual(['full'])
+    })
   })
 
   it('chartPoints：等距、按最小到最大映射；单点居中；全相等居中；空为空', () => {

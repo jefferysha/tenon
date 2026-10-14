@@ -6,8 +6,8 @@
 #   2. gate.sh 解析失败 fail-open（exit 0）+ Git 项目子目录能定位项目根；普通父目录绝不越界
 #   3. 红线自证：breadcrumb.sh / session-start.sh / statusline.sh 内 grep -c "node" 为 0；gate.sh
 #      例外，反向断言它**必须**仍引用 node（Task 9 非 default workflow 的 skill DAG 委托分支，
-#      见下方 section 3 注释）。python 红线四个文件全覆盖（含 gate.sh 与它按需加载的 lib/protected-writes.sh、lib/ack-command.sh）；
-#      jq 红线覆盖 gate/两个 lib/bc/sl
+#      见下方 section 3 注释）。python 红线全覆盖（含 gate.sh 与它按需加载的 lib/protected-writes.sh、lib/ack-command.sh、
+#      lib/trust-command.sh）；jq 红线覆盖 gate/三个 lib/bc/sl
 #   4. breadcrumb.sh：只在明确恢复时注入唯一/显式候选；新任务绝不泄漏旧任务
 #   5. verify-skills.sh：真实清单全绿；人为埋悬空引用（缺失脚本/不可执行/缺 SKILL.md/未声明外部 skill）抓红且逐条列出
 #   6. 插件清单 JSON 语法校验（plugin.json / hooks.json，经 node —— 测试脚本非 hook，允许）
@@ -32,6 +32,7 @@ export TENON_NODE_PATH
 GATE="$ROOT/hooks/gate.sh"
 GATE_LIB="$ROOT/hooks/lib/protected-writes.sh" # gate.sh 在原始输入名了受保护路径 / 解释器时才加载的写入识别
 ACK_LIB="$ROOT/hooks/lib/ack-command.sh" # gate.sh 的预筛命中（命令里可能有手动 acknowledge）时才加载的命令文本还原与判定
+TRUST_LIB="$ROOT/hooks/lib/trust-command.sh" # protected-writes.sh 在命令段里出现信任 / 状态目录字样时才加载的识别（tenon test trust、TENON_TEST_TRUST=、改写状态目录）
 BC="$ROOT/hooks/breadcrumb.sh"
 SS="$ROOT/hooks/session-start.sh"
 VS="$ROOT/tools/verify-skills.sh"
@@ -1104,7 +1105,8 @@ else
   bad "gate.sh 合法引用 node（统一 workflow skill DAG 委托分支，Task 9）" "实得 0 行——是否误删了 Task 9 分支？"
 fi
 [ -r "$ACK_LIB" ] && ok "红线: 手动 acknowledge 判定库 ack-command.sh 存在且可读" || bad "红线: 手动 acknowledge 判定库 ack-command.sh 存在且可读" "缺 $ACK_LIB"
-for f in "$GATE" "$GATE_LIB" "$ACK_LIB" "$BC" "$SS" "$SL"; do
+[ -r "$TRUST_LIB" ] && ok "红线: 信任与状态目录识别库 trust-command.sh 存在且可读" || bad "红线: 信任与状态目录识别库 trust-command.sh 存在且可读" "缺 $TRUST_LIB"
+for f in "$GATE" "$GATE_LIB" "$ACK_LIB" "$TRUST_LIB" "$BC" "$SS" "$SL"; do
   base="$(basename "$f")"
   n="$(grep -c "python" "$f" || true)"
   [ "$n" = "0" ] && ok "红线: $base 内无 python" || bad "红线: $base 内无 python" "实得 ${n} 行"
@@ -1113,7 +1115,7 @@ for tool in node python jq find xargs; do
   n="$(grep -c "$tool" "$ROOT/hooks/source-drift.sh" || true)"
   [ "$n" = "0" ] && ok "红线: source-drift.sh 内无 ${tool}" || bad "红线: source-drift.sh 内无 ${tool}" "实得 ${n} 行"
 done
-for f in "$GATE" "$GATE_LIB" "$ACK_LIB" "$BC" "$SL"; do
+for f in "$GATE" "$GATE_LIB" "$ACK_LIB" "$TRUST_LIB" "$BC" "$SL"; do
   base="$(basename "$f")"
   n="$(grep -c "jq" "$f" || true)"
   [ "$n" = "0" ] && ok "红线: $base 不依赖 jq" || bad "红线: $base 不依赖 jq" "实得 ${n} 行"
@@ -1290,6 +1292,7 @@ assert_contains "verify-skills: 列出缺失脚本 missing.sh" "$out" "missing.s
 assert_contains "verify-skills: 列出缺失 canonical state helper" "$out" "canonical-state.sh"
 assert_contains "verify-skills: 列出缺失共享 JSON helper" "$out" "json-input.sh"
 assert_contains "verify-skills: 列出缺失的手动 acknowledge 判定库" "$out" "hooks/lib/ack-command.sh"
+assert_contains "verify-skills: 列出缺失的信任与状态目录识别库" "$out" "hooks/lib/trust-command.sh"
 assert_contains "verify-skills: 列出不可执行 noexec.sh" "$out" "noexec.sh"
 assert_contains "verify-skills: 列出缺 SKILL.md 的 broken-skill" "$out" "broken-skill"
 assert_contains "verify-skills: 列出重复 Skill 内容树" "$out" ".codex-plugin/skills/duplicate/SKILL.md"
@@ -3262,6 +3265,12 @@ gate_cmd() { # $1=shell command (raw, may be multi-line) → gate exit code for 
 }
 refuse_cmd() { gate_cmd "$2"; assert_exit "gate shell: $1 → exit 2" 2 "$?"; }
 allow_cmd()  { gate_cmd "$2"; assert_exit "gate shell: $1 → 放行" 0 "$?"; }
+gate_cmd_err() { # $1=shell command → 设 ERR（stderr）与 RC（退出码），用于断言拒绝文案
+  local escaped
+  escaped="$(printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | awk 'BEGIN { ORS = "\\n" } { print }')"
+  ERR="$(printf '{"tool_name":"Bash","cwd":"%s","tool_input":{"command":"%s"}}' "$proj" "$escaped" | bash "$GATE" 2>&1 >/dev/null)"
+  RC=$?
+}
 
 # gate.sh 把 locale 固定成 C 以省掉 bash 3.2 的多字节遍历：非 ASCII 的内容、路径与命令照常判定（偏移与长度都按字节、自洽）。
 CJK_BODY="$(printf '说明文字%.0s' $(seq 1 400))"
@@ -3495,6 +3504,7 @@ mkdir -p "$SHAPE_REPO/src"
 printf '#!/bin/sh\necho x > %s\n' "$SHAPE_KF" > "$SHAPE_REPO/tracked-clean.sh"
 printf '#!/bin/sh\necho x > %s\n' "$SHAPE_KF" > "$SHAPE_REPO/modified.sh"
 printf '#!/bin/sh\necho hi\n' > "$SHAPE_REPO/plain.sh"
+printf '#!/bin/sh\ntenon test trust --status\n' > "$SHAPE_REPO/trust-tracked.sh"
 chmod +x "$SHAPE_REPO/tracked-clean.sh"
 ( cd "$SHAPE_REPO" && git init -q . && git -c user.email=t@t.test -c user.name=t add -A && git -c user.email=t@t.test -c user.name=t -c commit.gpgsign=false commit -q -m base ) >/dev/null 2>&1
 printf 'echo y >> %s\n' "$SHAPE_KF" >> "$SHAPE_REPO/modified.sh"
@@ -3503,6 +3513,10 @@ printf "open('%s','w').write('x')\n" "$SHAPE_KF" > "$SHAPE_REPO/fix.py"
 printf "require('fs').writeFileSync('%s','x')\n" "$SHAPE_KF" > "$SHAPE_REPO/fix.js"
 printf "p = '%s'\n" ".ten""on/tests/baselines" > "$SHAPE_REPO/fix.rb"
 printf 'print("plain")\n' > "$SHAPE_REPO/plain.py"
+printf '#!/bin/sh\ntenon test trust --yes\n' > "$SHAPE_REPO/trust-new.sh"
+printf "process.env.TENON_TEST_TRUST = '1'\n" > "$SHAPE_REPO/trust-fix.js"
+printf '#!/bin/sh\nTENON_RUNTIME_HOME=$(mktemp -d)\nexport TENON_RUNTIME_HOME\n' > "$SHAPE_REPO/iso-new.sh"
+printf '#!/bin/sh\necho x > %s\ntenon test trust --yes\n' "$SHAPE_KF" > "$SHAPE_REPO/both-new.sh"
 chmod +x "$SHAPE_REPO/new.sh"
 SAVED_PROJ="$proj"
 proj="$SHAPE_REPO"
@@ -3523,6 +3537,18 @@ allow_cmd '形态 8: 新脚本但不点名受保护路径' 'bash plain.sh'
 allow_cmd '形态 8: python 脚本不点名受保护路径' 'python3 plain.py'
 allow_cmd '形态 8: 脚本文件不存在' 'bash missing.sh'
 allow_cmd '形态 8: bash -c 内联命令没有写入' "bash -c 'echo hi'"
+# 形态 8 · 脚本文件里的信任决定：内容含 TEST_TRUST 或 test trust 的新写脚本也拒，拒绝原因是 trust（信任文案）而不是测试记录文案。
+refuse_cmd '形态 8 信任: bash 运行新写的、内容是 tenon test trust 的脚本' 'bash trust-new.sh'
+refuse_cmd '形态 8 信任: node 运行新写的、内容设 TENON_TEST_TRUST 的脚本' 'node trust-fix.js'
+gate_cmd_err 'bash trust-new.sh'
+assert_exit "形态 8 信任: 文案断言用的命令被拒" 2 "$RC"
+assert_contains "形态 8 信任: 拒绝文案是信任文案" "$ERR" 'tenon test trust'
+assert_not_contains "形态 8 信任: 拒绝文案不是测试记录文案" "$ERR" '测试记录与基线'
+gate_cmd_err 'bash both-new.sh'
+assert_exit "形态 8 信任: 既点名受保护路径又含信任决定的脚本被拒" 2 "$RC"
+assert_contains "形态 8 信任: 受保护路径名命中仍按测试记录文案" "$ERR" '测试记录与基线'
+allow_cmd '形态 8 信任: 干净的跟踪脚本里的 tenon test trust --status' 'bash trust-tracked.sh'
+allow_cmd '形态 8 信任: 新写脚本只在测试里隔离 TENON_RUNTIME_HOME' 'bash iso-new.sh'
 proj="$SAVED_PROJ"
 # 形态 9 · xargs / parallel / find
 refuse_cmd '形态 9: xargs sh -c 写路径' "printf '%s\\n' $SHAPE_KF | xargs -I{} sh -c 'echo x > {}'"
@@ -3610,6 +3636,41 @@ refuse_cmd '封存: python 内联改封存密钥' "python3 -c \"open('$SHAPE_KEY
 gate_tool Write file_path "$proj/$RECORD_USERS/hooks-at-tenon.test/local/active-change" ',"content":"demo"'
 assert_exit "封存: 同目录的别的本机文件不受影响 → 放行" 0 "$?"
 allow_cmd '封存: 读封存文件' "cat $SHAPE_SEAL"
+
+# 用户级测试信任存储 <stateRoot>/test-trust/<u>.json|.key：stateRoot 因机器与环境而异，所以不认前缀——路径里含 /test-trust/ 段的
+# 写入目标一律受保护（信任只能由用户本人经 tenon test trust 写入）。读它（cat / ls）与名字相近的路径放行。
+SHAPE_TRUST_DIR='/tmp/tenon-state-fixture/test-trust'
+SHAPE_TRUST="$SHAPE_TRUST_DIR/hooks-at-tenon.test.json"
+SHAPE_TRUST_KEY="$SHAPE_TRUST_DIR/hooks-at-tenon.test.key"
+gate_tool Write file_path "$SHAPE_TRUST_DIR/x.json" ',"content":"{}"'
+assert_exit "信任存储: Write <任意>/test-trust/x.json → exit 2" 2 "$?"
+gate_tool Edit file_path "$SHAPE_TRUST_KEY" ',"old_string":"a","new_string":"b"'
+assert_exit "信任存储: Edit 信任密钥 → exit 2" 2 "$?"
+gate_tool Write file_path "$proj/state/test-trust/x.json" ',"content":"{}"'
+assert_exit "信任存储: Write 项目目录下的 test-trust/x.json 也受保护 → exit 2" 2 "$?"
+gate_tool Write file_path "relative/test-trust/x.json" ',"content":"{}"'
+assert_exit "信任存储: 相对路径按 cwd 解析 → exit 2" 2 "$?"
+gate_tool Write file_path "$SHAPE_TRUST_DIR//../test-trust/./x.json" ',"content":"{}"'
+assert_exit "信任存储: 带 // 与 . .. 的路径 → exit 2" 2 "$?"
+printf '{"tool_name":"Write","cwd":"%s","tool_input":{"file_path":"%s","content":"{}"}}' "$proj" "$SHAPE_TRUST" | TENON_AFK=1 bash "$GATE" >/dev/null 2>&1
+assert_exit "信任存储: AFK 下 Write 信任存储仍 exit 2" 2 "$?"
+( printf '{"tool_name":"apply_patch","cwd":"%s","tool_input":{"command":"*** Begin Patch\\n*** Add File: %s\\n+{}\\n*** End Patch\\n"}}' "$proj" "$SHAPE_TRUST" | bash "$GATE" >/dev/null 2>&1 )
+assert_exit "信任存储: apply_patch 新增信任文件 → exit 2" 2 "$?"
+refuse_cmd '信任存储: 重定向写信任文件' "echo '{}' > $SHAPE_TRUST"
+refuse_cmd '信任存储: 追加重定向' "echo x >> $SHAPE_TRUST"
+refuse_cmd '信任存储: cp 覆盖信任文件' "cp /tmp/t $SHAPE_TRUST"
+refuse_cmd '信任存储: tee 写信任密钥' "echo k | tee $SHAPE_TRUST_KEY"
+refuse_cmd '信任存储: rm 信任文件' "rm -f $SHAPE_TRUST"
+refuse_cmd '信任存储: cd 进去再重定向' "cd $SHAPE_TRUST_DIR && echo '{}' > hooks-at-tenon.test.json"
+refuse_cmd '信任存储: node 内联改信任文件' "node -e \"require('fs').writeFileSync('$SHAPE_TRUST','{}')\""
+allow_cmd '信任存储: cat 读信任文件' "cat $SHAPE_TRUST"
+allow_cmd '信任存储: ls 信任目录' "ls -la $SHAPE_TRUST_DIR"
+allow_cmd '信任存储: 读信任文件写到 /tmp' "jq . $SHAPE_TRUST > /tmp/trust-copy.json"
+gate_tool Write file_path "$proj/docs/test-trust.md" ',"content":"x"'
+assert_exit "信任存储: 名字相近的文件 test-trust.md → 放行" 0 "$?"
+gate_tool Write file_path "$proj/docs/my-test-trust/notes.md" ',"content":"x"'
+assert_exit "信任存储: 目录名只是以 test-trust 结尾（my-test-trust）→ 放行" 0 "$?"
+allow_cmd '信任存储: 文档正文里提到信任存储路径不算写入' $'cat > docs/notes.md <<\'EOF\'\n信任记在 <stateRoot>/test-trust/<user>.json\nEOF'
 
 # ── 10d6. gate.sh：读测试记录的受支持办法是普通读取工具；经内联解释器 / xargs 的读一律按写入拒（v0.3.0 真机验收 F9 与复核）──
 # 读记录（cat / ls / jq / grep / head / tail / wc / find -name / stat / diff …）本来就放行，下面逐条钉住。管道里的内联解释器
@@ -3730,6 +3791,187 @@ allow_cmd '信任: echo 里的 TENON_TEST_TRUST=' 'echo "CI sets TENON_TEST_TRUS
 allow_cmd '信任: 正常的 tenon test run' 'tenon test run demo --stage'
 allow_cmd '信任: tenon test known list' 'tenon test known list'
 
+# Tenon 的状态目录（含 <stateRoot>/test-trust/ 信任存储）不能由 agent 改写：把 stateRoot 指到 agent 自造的位置，
+# 就能绕开「信任只能由用户本人确认」。TENON_RUNTIME_HOME= / TENON_RUNTIME_ROOTS= 不论后面跑什么都拒；
+# HOME= / XDG_STATE_HOME= 前缀赋值只在同段的命令头是 tenon（含 node …/tenon.mjs）时拒，export 与单独赋值一律拒；
+# 值边界静态分不清的写法（整个赋值被引号包住、值里带 ${…}）另有一道保守兜底：同段有 tenon 记号就拒（「状态目录兜底」组）。
+refuse_cmd '状态目录: TENON_RUNTIME_HOME= 前缀运行 tenon test run' 'TENON_RUNTIME_HOME=/tmp/x tenon test run c --stage'
+refuse_cmd '状态目录: TENON_RUNTIME_ROOTS= 前缀运行 tenon status' "TENON_RUNTIME_ROOTS='{\"version\":1}' tenon status c"
+refuse_cmd '状态目录: TENON_RUNTIME_HOME= 前缀跑别的命令也拒' 'TENON_RUNTIME_HOME=/tmp/x npm test'
+refuse_cmd '状态目录: TENON_RUNTIME_HOME= 带引号的值' 'TENON_RUNTIME_HOME="/tmp/x y" npm test'
+refuse_cmd '状态目录: env TENON_RUNTIME_ROOTS=' 'env TENON_RUNTIME_ROOTS=/tmp/x tenon status c'
+refuse_cmd '状态目录: 多个前缀赋值里夹着 TENON_RUNTIME_HOME=' 'A=1 TENON_RUNTIME_HOME=/tmp/x B=2 npm test'
+refuse_cmd '状态目录: export TENON_RUNTIME_HOME=' 'export TENON_RUNTIME_HOME=/tmp/x'
+refuse_cmd '状态目录: export TENON_RUNTIME_ROOTS（取环境里的值）' 'export TENON_RUNTIME_ROOTS'
+refuse_cmd '状态目录: declare -x TENON_RUNTIME_HOME=' 'declare -x TENON_RUNTIME_HOME=/tmp/x'
+refuse_cmd '状态目录: readonly TENON_RUNTIME_HOME=' 'readonly TENON_RUNTIME_HOME=/tmp/x'
+refuse_cmd '状态目录: setenv TENON_RUNTIME_HOME' 'setenv TENON_RUNTIME_HOME /tmp/x'
+refuse_cmd '状态目录: 组合命令里的 TENON_RUNTIME_HOME=' 'cd /repo && TENON_RUNTIME_HOME=/tmp/x npm test'
+refuse_cmd '状态目录: bash -lc 包装里的 TENON_RUNTIME_HOME=' 'bash -lc "TENON_RUNTIME_HOME=/tmp/x tenon status c"'
+refuse_cmd '状态目录: HOME= 前缀运行 tenon' 'HOME=/tmp/x tenon test run c'
+refuse_cmd '状态目录: env HOME= 运行 tenon' 'env HOME=/tmp/x tenon test run c'
+refuse_cmd '状态目录: /usr/bin/env HOME= 运行 tenon' '/usr/bin/env HOME=/tmp/x tenon status c'
+refuse_cmd '状态目录: sudo HOME= 运行 tenon' 'sudo HOME=/tmp/x tenon status c'
+refuse_cmd '状态目录: XDG_STATE_HOME= 前缀运行 tenon' 'XDG_STATE_HOME=/tmp/x tenon test run c --stage'
+refuse_cmd '状态目录: HOME= 运行 node …/tenon.mjs' 'HOME=/tmp/x node packages/cli/dist/tenon.mjs test run c'
+refuse_cmd '状态目录: HOME= 运行 npx tenon' 'HOME=/tmp/x npx tenon status c'
+refuse_cmd '状态目录: HOME= 带双引号的值' 'HOME="/tmp/x" tenon status c'
+refuse_cmd '状态目录: HOME= 带单引号且含空格的值' "HOME='/tmp/x y' tenon status c"
+refuse_cmd '状态目录: HOME= 带 $ 单引号的值' "HOME=\$'/tmp/x' tenon status c"
+refuse_cmd '状态目录: HOME= 值里有转义空格' 'HOME=/tmp/x\ y tenon status c'
+refuse_cmd '状态目录: XDG_STATE_HOME= 带引号的值' 'XDG_STATE_HOME="/tmp/x y" tenon status c'
+refuse_cmd '状态目录: HOME= 经 bash -c 运行 tenon' 'HOME=/tmp/x bash -c "tenon status c"'
+refuse_cmd '状态目录: HOME= 取命令替换的值再运行 tenon' 'HOME=$(mktemp -d) tenon status c'
+refuse_cmd '状态目录: 单独的 HOME= 赋值（之后的命令都受影响）' 'HOME=/tmp/x; tenon status c'
+refuse_cmd '状态目录: 单独的 XDG_STATE_HOME= 赋值' 'XDG_STATE_HOME=/tmp/x'
+refuse_cmd '状态目录: 组合命令里的 HOME= 运行 tenon' 'cd /tmp && HOME=/tmp/x tenon status c'
+refuse_cmd '状态目录: 多行命令里的 HOME= 运行 tenon' $'echo start\nHOME=/tmp/x tenon status c'
+refuse_cmd '状态目录: 命令替换里的 HOME= 运行 tenon' 'echo $(HOME=/tmp/x tenon status c)'
+refuse_cmd '状态目录: heredoc 喂给 bash 的正文里的 HOME= 运行 tenon' $'bash <<\'EOF\'\nHOME=/tmp/x tenon status c\nEOF'
+refuse_cmd '状态目录: export HOME=' 'export HOME=/tmp/x'
+refuse_cmd '状态目录: export XDG_STATE_HOME=' 'export XDG_STATE_HOME=/tmp/x'
+refuse_cmd '状态目录: export 多个变量里夹着 HOME=' 'export A=1 HOME=/tmp/x'
+refuse_cmd '状态目录: declare -x HOME=' 'declare -x HOME=/tmp/x'
+refuse_cmd '状态目录: typeset -x XDG_STATE_HOME=' 'typeset -x XDG_STATE_HOME=/tmp/x'
+# 保守兜底：HOME= / XDG_STATE_HOME= 赋值的值边界静态分不清（整个赋值被引号包住、值里带 ${…} / $(…)），同段又有 tenon 记号就拒。
+refuse_cmd '状态目录兜底: env 把整个 HOME= 赋值用引号包住且值含空格' "env 'HOME=/tmp/a b' tenon test run c"
+refuse_cmd '状态目录兜底: 整个 HOME= 赋值用双引号包住且值含空格' '"HOME=/tmp/a b" tenon test run c'
+refuse_cmd '状态目录兜底: HOME= 值里带 $(pwd)' 'HOME=$(pwd)/x tenon test run c'
+refuse_cmd '状态目录兜底: HOME= 值里带 ${X}' 'HOME=${X}/y tenon test run c'
+refuse_cmd '状态目录兜底: XDG_STATE_HOME= 值里带 $(pwd)' 'XDG_STATE_HOME=$(pwd)/s tenon status c'
+refuse_cmd '状态目录兜底: env 引号包住的 XDG_STATE_HOME= 值含空格' 'env "XDG_STATE_HOME=/tmp/a b" tenon status c'
+refuse_cmd '状态目录兜底: HOME= 值是带默认值的 ${X:-…}' 'HOME=${X:-/a b}/y tenon status c'
+refuse_cmd '状态目录兜底: 引号包住的 HOME= 后面跑 node …/tenon.mjs' "env 'HOME=/tmp/a b' node packages/cli/dist/tenon.mjs status c"
+printf '{"tool_name":"Bash","cwd":"%s","tool_input":{"command":"TENON_RUNTIME_HOME=/tmp/x tenon test run c --stage"}}' "$proj" | TENON_AFK=1 bash "$GATE" >/dev/null 2>&1
+assert_exit "状态目录: AFK 下也拒" 2 "$?"
+ERR="$(printf '{"tool_name":"Bash","cwd":"%s","tool_input":{"command":"HOME=/tmp/x tenon test run c"}}' "$proj" | bash "$GATE" 2>&1 >/dev/null)"
+assert_contains "状态目录: 拒绝文案说明状态目录不能由 agent 改写" "$ERR" '状态目录'
+assert_contains "状态目录: 拒绝文案告诉用户在自己的终端里做" "$ERR" '自己的终端'
+allow_cmd '状态目录: HOME= 跑不调用 tenon 的命令' 'HOME=/tmp/x npm run check:docs'
+allow_cmd '状态目录: HOME= 带引号的值跑不调用 tenon 的命令' 'HOME="/tmp/x y" npm run check:docs'
+allow_cmd '状态目录: XDG_STATE_HOME= 跑不调用 tenon 的命令' 'XDG_STATE_HOME=/tmp/x npm test'
+allow_cmd '状态目录: HOME= 前缀的 grep 只是提到 tenon' 'HOME=/tmp/x grep tenon README.md'
+allow_cmd '状态目录: HOME= 经 bash -c 跑别的命令' 'HOME=/tmp/x bash -c "echo hi"'
+allow_cmd '状态目录: grep 文档里的变量名' 'grep -rn TENON_RUNTIME_HOME packages/'
+allow_cmd '状态目录: echo $HOME' 'echo $HOME'
+allow_cmd '状态目录: git commit 信息里的赋值字样' 'git commit -m "TENON_RUNTIME_HOME=/tmp/x"'
+allow_cmd '状态目录: echo 里的 export HOME=' 'echo "export HOME=/tmp/x"'
+allow_cmd '状态目录: 无关的前缀赋值' 'TENON_E2E=1 npm test'
+allow_cmd '状态目录: 没有前缀赋值的 tenon 调用' 'tenon status c'
+allow_cmd '状态目录: 没有前缀赋值的 node …/tenon.mjs' 'node packages/cli/dist/tenon.mjs status c'
+allow_cmd '状态目录兜底: 引号包住的 HOME= 后面不调用 tenon' "env 'HOME=/tmp/a b' npm test"
+allow_cmd '状态目录兜底: HOME= 值里带 ${X} 但不调用 tenon' 'HOME=${X}/y npm test'
+# 已知保守：`HOME=$(mktemp -d) …` 不论后面跑什么都拒——protected-writes.sh 的分段器在赋值号后的 `=$(` 处把命令切开，
+# trust-command.sh 看到的第一段只剩单独的 `HOME=…` 赋值（和 `HOME=$(…); tenon …` 无从区分）。这里不钉它的结论；要放开得改分段器。
+allow_cmd '状态目录兜底: 别的变量名 XDG_CONFIG_HOME= 不算' 'XDG_CONFIG_HOME=/tmp/x tenon status c'
+allow_cmd '状态目录兜底: 别的变量名 MYHOME= 不算' 'MYHOME=/tmp/x tenon status c'
+allow_cmd '状态目录兜底: 引号包住的 MYHOME= 值含空格也不算' "env 'MYHOME=/tmp/a b' tenon status c"
+allow_cmd '状态目录兜底: grep 文档里的 HOME= 字样' 'grep -rn "HOME=" docs/'
+allow_cmd '状态目录兜底: git commit 信息里的 HOME= 字样' 'git commit -m "HOME=/x"'
+
+# 解释器内联代码里的信任 / 状态目录字样：逐记号判定只认命令位置，内联代码里的赋值与子进程调用躲得过；
+# 所以整条命令同时有「解释器 + 内联代码开关」和「TEST_TRUST / RUNTIME_HOME / RUNTIME_ROOTS / XDG_STATE_HOME，或 tenon 加 trust / HOME」就拒（state）。
+refuse_cmd '内联代码: node -e 里设 TENON_RUNTIME_HOME 再跑 tenon' "node -e \"process.env.TENON_RUNTIME_HOME='/tmp/x'; require('child_process').execSync('tenon test run c --stage')\""
+refuse_cmd '内联代码: python -c 里设 TENON_TEST_TRUST' "python3 -c \"import os; os.environ['TENON_TEST_TRUST']='1'; os.system('tenon test run c')\""
+refuse_cmd '内联代码: node -e 里 execFileSync tenon test trust' "node -e \"require('child_process').execFileSync('tenon',['test','trust','--yes'])\""
+refuse_cmd '内联代码: ruby -e 里设 XDG_STATE_HOME 再跑 tenon' "ruby -e \"ENV['XDG_STATE_HOME']='/tmp/x'; system('tenon status c')\""
+refuse_cmd '内联代码: perl -e 里设 TENON_RUNTIME_ROOTS' "perl -e '\$ENV{TENON_RUNTIME_ROOTS}=q({}); system(q(tenon status c))'"
+refuse_cmd '内联代码: node --eval= 形式' "node --eval=\"process.env.TENON_RUNTIME_HOME='/tmp/x'; require('child_process').execSync('tenon status c')\""
+refuse_cmd '内联代码: node -pe 合并开关' "node -pe \"process.env.HOME='/tmp/x'; require('child_process').execSync('tenon status c').toString()\""
+refuse_cmd '内联代码: 绝对路径的解释器与带版本号的 python' "/usr/bin/python3.11 -c \"import os; os.environ['TENON_TEST_TRUST']='1'\""
+refuse_cmd '内联代码: 组合命令里的 node -e' "cd /repo && node -e \"process.env.TENON_RUNTIME_HOME='/tmp/x'; require('child_process').execSync('tenon status c')\""
+refuse_cmd '内联代码: bash -c 包着的 node -e' "bash -c \"node -e 'process.env.TENON_RUNTIME_HOME=1; require(\\\"child_process\\\").execSync(\\\"tenon status c\\\")'\""
+refuse_cmd '内联代码: 多行内联代码' $'node -e "const a = 1;\nprocess.env.TENON_RUNTIME_HOME = \'/tmp/x\';\nrequire(\'child_process\').execSync(\'tenon status c\')"'
+gate_cmd_err "node -e \"process.env.TENON_RUNTIME_HOME=1; require('child_process').execSync('tenon status c')\""
+assert_exit "内联代码: 文案断言用的命令被拒" 2 "$RC"
+assert_contains "内联代码: 拒绝文案说明状态目录不能由 agent 改写" "$ERR" '状态目录'
+assert_contains "内联代码: 拒绝文案告诉用户在自己的终端里做" "$ERR" '自己的终端'
+allow_cmd '内联代码: node -e 读 HOME（没有 tenon）' 'node -e "console.log(process.env.HOME)"'
+allow_cmd '内联代码: node -e 普通代码' 'node -e "console.log(1)"'
+allow_cmd '内联代码: node -e 提到 tenon 但没有信任 / HOME 字样' 'node -e "console.log(\"tenon\")"'
+allow_cmd '内联代码: tenon 只是更长路径名的一部分（tenon-local）' 'node -e "console.log(process.env.HOME)" /Users/x/projects/tenon-local/a.json'
+allow_cmd '内联代码: tenon 嵌在更长的词里（mytenon）不是 tenon 调用' 'node -e "console.log(process.env.HOME)" notes/mytenon.txt'
+refuse_cmd '内联代码: 绝对路径里的 tenon 可执行文件' "node -e \"process.env.HOME='/tmp/x'; require('child_process').execSync('/usr/local/bin/tenon status c')\""
+refuse_cmd '内联代码: tenon.mjs 也是 tenon 调用' "node -e \"process.env.HOME='/tmp/x'; require('child_process').execSync('node packages/cli/dist/tenon.mjs status c')\""
+allow_cmd '内联代码: python -c 里的 trust 一词（没有 tenon）' "python3 -c \"print('trust me')\""
+allow_cmd '内联代码: grep 文档里的 TENON_TEST_TRUST（没有内联代码）' 'grep -rn TENON_TEST_TRUST docs/'
+allow_cmd '内联代码: git commit 信息里的 TENON_TEST_TRUST' 'git commit -m "TENON_TEST_TRUST"'
+allow_cmd '内联代码: node 跑脚本文件（不是内联代码）' 'node tools/check-architecture.mjs'
+allow_cmd '内联代码: node …/tenon.mjs test trust --status 只读' 'node packages/cli/dist/tenon.mjs test trust --status'
+allow_cmd '内联代码: 状态目录字样出现在 echo 里、node 只跑脚本文件' 'echo TENON_RUNTIME_HOME; node tools/check-architecture.mjs'
+# 内联代码开关只算「紧跟在解释器后面的开关」：解释器后第一个非开关记号（脚本路径、模块名）说明它跑的不是内联代码，
+# 之后别的命令（grep -c / grep -e）的 -c / -e 与它无关。
+allow_cmd '内联代码: node 跑脚本之后 grep -c 的 -c 不算内联开关' 'node tools/check-architecture.mjs; grep -c TENON_TEST_TRUST docs/usage/cli-reference.md'
+allow_cmd '内联代码: node --test 之后管道里 grep -e 的 -e 不算内联开关' 'node --test x.mjs | grep -e RUNTIME_HOME'
+allow_cmd '内联代码: python -m pytest -k 提到 TEST_TRUST' 'python3 -m pytest -k TEST_TRUST'
+refuse_cmd '内联代码: 前一个解释器跑脚本，后一个 node -e 仍然拒' "node tools/check-architecture.mjs; node -e \"process.env.TENON_RUNTIME_HOME='/tmp/x'; require('child_process').execSync('tenon status c')\""
+refuse_cmd '内联代码: 开关之前还有别的 node 开关' "node --no-warnings -e \"process.env.TENON_RUNTIME_HOME='/tmp/x'; require('child_process').execSync('tenon status c')\""
+refuse_cmd '内联代码: 管道后面的 node -pe' "echo x | node -pe \"process.env.HOME='/tmp/x'; require('child_process').execSync('tenon status c').toString()\""
+
+# 信任与状态目录的识别在 hooks/lib/trust-command.sh，protected-writes.sh 只在命令段里出现相关字样（trust / TRUST / RUNTIME_HOME /
+# RUNTIME_ROOTS / HOME=）时才加载它。库缺失（安装缺陷）时：这些字样出现的命令段失败关闭——不能因为缺库就放行 tenon test trust、
+# TENON_TEST_TRUST= 与状态目录改写——其余命令段不加载它，照常判定。
+TRUST_NOLIB_HOOKS="$TMP/hooks-without-trust-lib"
+mkdir -p "$TRUST_NOLIB_HOOKS"
+cp -R "$ROOT/hooks/." "$TRUST_NOLIB_HOOKS/"
+rm -f "$TRUST_NOLIB_HOOKS/lib/trust-command.sh"
+trust_nolib_cmd() { # $1=raw shell command → 设 RC / ERR（用缺了 trust-command.sh 的 hooks 副本）
+  local escaped
+  escaped="$(printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')"
+  ERR="$(printf '{"tool_name":"Bash","cwd":"%s","tool_input":{"command":"%s"}}' "$proj" "$escaped" | bash "$TRUST_NOLIB_HOOKS/gate.sh" 2>&1 >/dev/null)"
+  RC=$?
+}
+trust_nolib_cmd 'tenon test trust --yes'
+assert_exit "信任库缺失: tenon test trust 失败关闭" 2 "$RC"
+assert_contains "信任库缺失: 拒绝文案点名 trust-command.sh" "$ERR" "trust-command.sh"
+assert_contains "信任库缺失: 拒绝文案告诉用户重新安装或更新插件" "$ERR" "tenon update"
+trust_nolib_cmd 'TENON_TEST_TRUST=1 tenon test run demo --stage'
+assert_exit "信任库缺失: TENON_TEST_TRUST= 前缀失败关闭" 2 "$RC"
+trust_nolib_cmd 'export TENON_TEST_TRUST=1'
+assert_exit "信任库缺失: export TENON_TEST_TRUST= 失败关闭" 2 "$RC"
+trust_nolib_cmd 'TENON_RUNTIME_HOME=/tmp/x tenon status c'
+assert_exit "信任库缺失: TENON_RUNTIME_HOME= 失败关闭" 2 "$RC"
+trust_nolib_cmd 'HOME=/tmp/x tenon status c'
+assert_exit "信任库缺失: HOME= 前缀运行 tenon 失败关闭" 2 "$RC"
+trust_nolib_cmd 'cd /repo && tenon test trust --yes'
+assert_exit "信任库缺失: 组合命令里的 tenon test trust 失败关闭" 2 "$RC"
+trust_nolib_cmd 'echo x >> openspec/changes/demo/test-plan.yaml'
+assert_exit "信任库缺失: 写测试计划照常拒（受保护路径规则不依赖这个库）" 2 "$RC"
+assert_not_contains "信任库缺失: 写测试计划的拒绝文案不是库缺失文案" "$ERR" "trust-command.sh"
+trust_nolib_cmd 'cat openspec/changes/demo/test-plan.yaml'
+assert_exit "信任库缺失: 读测试计划（命令段没有信任字样）照常放行" 0 "$RC"
+trust_nolib_cmd 'cd openspec/changes/demo && ls'
+assert_exit "信任库缺失: 没有信任字样的组合命令照常放行" 0 "$RC"
+
+# lib/protected-writes.sh 同时保护测试信任存储与状态目录：它缺失（安装缺陷）时，原始输入出现 trust / TRUST / RUNTIME_HOME /
+# RUNTIME_ROOTS / HOME= / XDG_STATE_HOME 字样的调用失败关闭，其余调用照旧放行（历史上的 fail-open 约定只留给与信任无关的调用）。
+PROTECTED_NOLIB_HOOKS="$TMP/hooks-without-protected-lib"
+mkdir -p "$PROTECTED_NOLIB_HOOKS"
+cp -R "$ROOT/hooks/." "$PROTECTED_NOLIB_HOOKS/"
+rm -f "$PROTECTED_NOLIB_HOOKS/lib/protected-writes.sh"
+protected_nolib_cmd() { # $1=raw shell command → 设 RC / ERR（用缺了 protected-writes.sh 的 hooks 副本）
+  local escaped
+  escaped="$(printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')"
+  ERR="$(printf '{"tool_name":"Bash","cwd":"%s","tool_input":{"command":"%s"}}' "$proj" "$escaped" | bash "$PROTECTED_NOLIB_HOOKS/gate.sh" 2>&1 >/dev/null)"
+  RC=$?
+}
+protected_nolib_cmd 'tenon test trust --yes'
+assert_exit "保护库缺失: tenon test trust 失败关闭" 2 "$RC"
+assert_contains "保护库缺失: 拒绝文案点名 protected-writes.sh" "$ERR" "protected-writes.sh"
+assert_contains "保护库缺失: 拒绝文案告诉用户重新安装或更新插件" "$ERR" "tenon update"
+protected_nolib_cmd 'TENON_RUNTIME_HOME=/tmp/x tenon status c'
+assert_exit "保护库缺失: TENON_RUNTIME_HOME= 失败关闭" 2 "$RC"
+protected_nolib_cmd 'HOME=/tmp/x tenon status c'
+assert_exit "保护库缺失: HOME= 前缀运行 tenon 失败关闭" 2 "$RC"
+protected_nolib_cmd 'XDG_STATE_HOME=/tmp/x tenon status c'
+assert_exit "保护库缺失: XDG_STATE_HOME= 失败关闭" 2 "$RC"
+protected_nolib_cmd 'TENON_TEST_TRUST=1 tenon test run demo --stage'
+assert_exit "保护库缺失: TENON_TEST_TRUST= 失败关闭" 2 "$RC"
+protected_nolib_cmd 'node -v'
+assert_exit "保护库缺失: 预筛命中 node 但没有信任字样的命令照旧放行" 0 "$RC"
+protected_nolib_cmd 'cat openspec/changes/demo/test-plan.yaml'
+assert_exit "保护库缺失: 没有信任字样的读命令照旧放行" 0 "$RC"
+
 # 性能：带受保护字样的大命令仍然线性（不因新增的形态扫描变慢）。
 BIG_SHAPE_LINE='echo "see .tenon/tests/known-failures.yaml and baselines" | tr a b >/dev/null\n'
 BIG_SHAPE_BODY="$BIG_SHAPE_LINE"
@@ -3741,6 +3983,48 @@ RC=$?
 big_elapsed=$((SECONDS - big_start))
 assert_exit "大命令: 名了受保护路径但只是读 → 放行" 0 "$RC"
 if [ "$big_elapsed" -le 5 ]; then ok "大命令: 形态扫描 ${big_elapsed}s 内完成"; else bad "大命令: 形态扫描 5s 内完成" "耗时 ${big_elapsed}s"; fi
+
+# 性能：状态目录规则的预筛（HOME= 字样）命中的大命令同样线性——每行一个带引号值的 HOME= 前缀赋值，跑的是不调用 tenon 的命令。
+BIG_HOME_LINE='FOO=1 HOME=\"/tmp/x y\" npm run check:docs\n'
+BIG_HOME_BODY="$BIG_HOME_LINE"
+for _ in 1 2 3 4 5 6 7 8; do BIG_HOME_BODY="$BIG_HOME_BODY$BIG_HOME_BODY"; done
+printf '%s' "{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"${BIG_HOME_BODY}true\"}}" > "$TMP/big-home-assign.json"
+big_start=$SECONDS
+bash "$GATE" < "$TMP/big-home-assign.json" >/dev/null 2>&1
+RC=$?
+big_elapsed=$((SECONDS - big_start))
+assert_exit "大命令: 一堆 HOME= 前缀赋值但不调用 tenon → 放行" 0 "$RC"
+if [ "$big_elapsed" -le 5 ]; then ok "大命令: 状态目录规则 ${big_elapsed}s 内完成"; else bad "大命令: 状态目录规则 5s 内完成" "耗时 ${big_elapsed}s"; fi
+# 同一段里引号值多得离谱（上限 16）：按拒处理，也不会拖慢。
+BIG_HOME_ONE_SEG=''
+for _ in $(seq 1 40); do BIG_HOME_ONE_SEG="$BIG_HOME_ONE_SEG"'HOME=\"/tmp/x y\" '; done
+printf '%s' "{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"${BIG_HOME_ONE_SEG}npm test\"}}" > "$TMP/big-home-one-seg.json"
+big_start=$SECONDS
+bash "$GATE" < "$TMP/big-home-one-seg.json" >/dev/null 2>&1
+RC=$?
+big_elapsed=$((SECONDS - big_start))
+assert_exit "大命令: 同一段里堆了 40 个带引号的 HOME= → 拒" 2 "$RC"
+if [ "$big_elapsed" -le 5 ]; then ok "大命令: 同段多个 HOME= ${big_elapsed}s 内完成"; else bad "大命令: 同段多个 HOME= 5s 内完成" "耗时 ${big_elapsed}s"; fi
+
+# 性能：解释器内联代码的判定看整条命令。前面一大堆带引号的 node 脚本调用、状态目录字样只在最后一小段时，整条命令切记号这一步也要线性
+# （逐字符替换成空格在 bash 3.2 下是二次方的，所以改成一次 read）；没有内联代码开关就放行，有就拒。
+BIG_INLINE_LINE='node tools/x.mjs \"a\" \"b\" \"c\" ; '
+BIG_INLINE_BODY="$BIG_INLINE_LINE"
+for _ in 1 2 3 4 5 6 7 8 9; do BIG_INLINE_BODY="$BIG_INLINE_BODY$BIG_INLINE_BODY"; done
+printf '%s' "{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"${BIG_INLINE_BODY}echo TENON_RUNTIME_HOME\"}}" > "$TMP/big-inline-pass.json"
+big_start=$SECONDS
+bash "$GATE" < "$TMP/big-inline-pass.json" >/dev/null 2>&1
+RC=$?
+big_elapsed=$((SECONDS - big_start))
+assert_exit "大命令: 一大堆 node 脚本调用 + 状态目录字样但没有内联代码开关 → 放行" 0 "$RC"
+if [ "$big_elapsed" -le 5 ]; then ok "大命令: 内联代码判定（放行）${big_elapsed}s 内完成"; else bad "大命令: 内联代码判定（放行）5s 内完成" "耗时 ${big_elapsed}s"; fi
+printf '%s' "{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"${BIG_INLINE_BODY}node -e \\\"1\\\" ; echo TENON_RUNTIME_HOME\"}}" > "$TMP/big-inline-refuse.json"
+big_start=$SECONDS
+bash "$GATE" < "$TMP/big-inline-refuse.json" >/dev/null 2>&1
+RC=$?
+big_elapsed=$((SECONDS - big_start))
+assert_exit "大命令: 一大堆 node 脚本调用 + 状态目录字样 + 末尾的内联代码开关 → 拒" 2 "$RC"
+if [ "$big_elapsed" -le 5 ]; then ok "大命令: 内联代码判定（拒）${big_elapsed}s 内完成"; else bad "大命令: 内联代码判定（拒）5s 内完成" "耗时 ${big_elapsed}s"; fi
 
 # ── 10e. 红线自证：PostToolUse 热路径保持 bash；唯二 producer hook 只允许精确 managed CLI bridge ──
 for f in "$CC" "$CP" "$DR" "$ST" "$IG" "$IA" "$TA" "$TN"; do

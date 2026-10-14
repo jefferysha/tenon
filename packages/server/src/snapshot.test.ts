@@ -1907,9 +1907,10 @@ steps:
       ...legacyBase,
       // Historical bytes also predate step prompts (the frontend branch gained them with DESIGN.md).
       steps: legacyBase.steps.map((step) => {
-        // Historical bytes also predate step tests (2026-09 per-step test evidence), step prompts and max_rounds.
+        // Historical bytes also predate step tests (2026-09 per-step test evidence), the step test level (`test:`),
+        // step prompts and max_rounds.
         const {
-          tests: _tests, test_policy: _testPolicy, prompt: _prompt, agents: _agents, maxRounds: _maxRounds, ...legacyStep
+          tests: _tests, test_policy: _testPolicy, test: _test, prompt: _prompt, agents: _agents, maxRounds: _maxRounds, ...legacyStep
         } = step
         return {
           ...legacyStep,

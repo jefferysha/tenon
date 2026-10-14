@@ -23,8 +23,9 @@ import { baselineV2Path, testSystemPaths } from './paths.js'
 import { readTestPlanState } from './plan-ledger.js'
 import type { ProtectedChange } from './protected-files.js'
 import { readRecordChain, type ChainReport, type RecordChainCache } from './record-chain.js'
+import { INERT_TEST_POLICY, policyChecksChangedFiles, policyRunsSuites, resolveStepTestPolicy } from './resolve-policy.js'
 import { readTestSeal } from './seal.js'
-import type { StepTestPolicyIR } from '../workflow/ir.js'
+import type { StepIR, StepTestPolicyIR } from '../workflow/ir.js'
 import type { PipelineTodoStageDefinition } from '../workflow/todo-projection.js'
 
 const MAX_TEXT_BYTES = 1024 * 1024
@@ -116,7 +117,8 @@ export interface StepTestPolicyLoadInput {
   readonly changeName: string
   readonly slug: string
   readonly stepId: string
-  readonly policy: StepTestPolicyIR
+  /** 本步的测试声明：旧 `test_policy`，或档位 `test`——档位在这里读完目录之后用目录的 `levels`（没写用缺省）求值。 */
+  readonly step: Pick<StepIR, 'test' | 'test_policy'>
   /** 任务冻结的工作流阶段；tasks.md 的阶段小节按它识别（缺省 = 默认七阶段）。 */
   readonly stages?: readonly PipelineTodoStageDefinition[]
   readonly inline: readonly InlineSuiteStatus[]
@@ -151,10 +153,10 @@ export interface StepTestPolicyLoadInput {
 /** 完整性只在会运行测试的步骤（或明确声明了 block 的步骤）上判；读 diff 要起一次版本库命令，不给无关步骤白付。 */
 async function loadIntegrity(
   input: StepTestPolicyLoadInput,
+  policy: StepTestPolicyIR,
   catalog: CatalogInput,
 ): Promise<TestPolicyEvaluationInput['integrity']> {
-  const policy = input.policy
-  const wanted = policy.integrity === 'block' || policy.run.length > 0 || policy.run_if_registered.length > 0
+  const wanted = policy.integrity === 'block' || policyRunsSuites(policy)
   if (!wanted || input.integrityDiff === undefined) return undefined
   const known = catalog.state === 'ok' ? catalog.catalog : undefined
   const suiteOf = integritySuiteOf(known)
@@ -177,6 +179,8 @@ export async function evaluateStepTestPolicy(input: StepTestPolicyLoadInput): Pr
     loadDeltaScenarios(input.changeDir),
     loadTaskItems(input.changeDir, input.stages),
   ])
+  // 目录缺失或无效时档位按内建缺省求值（照旧出 test-catalog-missing，不放行）；步骤没有任何声明时用中性策略。
+  const policy = resolveStepTestPolicy(input.step, catalog.state === 'ok' ? catalog.catalog : undefined) ?? INERT_TEST_POLICY
   const planInput: PlanInput = plan.state === 'ok' ? { state: 'ok', plan: plan.plan, digest: plan.digest } : plan
   const hasRecords = chain.state === 'intact' && chain.active.length > 0
   const candidate = hasRecords ? await input.candidate() : undefined
@@ -188,7 +192,7 @@ export async function evaluateStepTestPolicy(input: StepTestPolicyLoadInput): Pr
   let changedFiles: readonly string[] | undefined
   let changedFilesTruncated: TestPolicyEvaluationInput['changedFilesTruncated']
   let changedFilesError: string | undefined
-  if (input.policy.files === 'registered' && input.changedFiles !== undefined) {
+  if (policyChecksChangedFiles(policy) && input.changedFiles !== undefined) {
     try {
       const source = await input.changedFiles()
       const report: ChangedFilesReport = Array.isArray(source) ? { files: source } : (source as ChangedFilesReport)
@@ -209,11 +213,11 @@ export async function evaluateStepTestPolicy(input: StepTestPolicyLoadInput): Pr
       protectedChangesError = error instanceof Error ? error.message.slice(0, 200) : '读取失败'
     }
   }
-  const integrity = await loadIntegrity(input, catalog)
+  const integrity = await loadIntegrity(input, policy, catalog)
   return evaluateTestPolicy({
     change: input.changeName,
     stepId: input.stepId,
-    policy: input.policy,
+    policy,
     inline: input.inline,
     catalog,
     plan: planInput,

@@ -1,0 +1,91 @@
+{
+  "schema": "tenon-test-run-v1",
+  "run_id": "20261013T191718Z-5e29a0",
+  "change": "simplify-test-settings",
+  "workflow_run_id": "c6279f4b-c76a-441d-8407-28a39aef3839",
+  "workflow": "default",
+  "workflow_fingerprint": "5b335442cae7137d357e1c59702816f3ac67fbde095517a75138cc28ddfa84aa",
+  "track": "backend",
+  "step": "verify",
+  "step_visit": {
+    "run_id": "c6279f4b-c76a-441d-8407-28a39aef3839",
+    "transition_sequence": 18
+  },
+  "test_id": "code-size",
+  "test_digest": "sha256:14ba72c81a52ef4902362ccb0a133da3d6de65cacb37ee40c78e42b4449128e3",
+  "direction": "code-size",
+  "label": "代码规模",
+  "command": "tenon test code-size --json",
+  "cwd": ".",
+  "timeout_s": 120,
+  "required": true,
+  "actor": {
+    "id": "710227704@qq.com",
+    "name": "jefferySha",
+    "trust": "declared"
+  },
+  "host": {
+    "kind": "claude-code",
+    "sandbox": null
+  },
+  "candidate_before": "workspace:sha256:3e5c86ff441a3efd5e4604265fd80dc27bc5ecc6276a08753c8c5bc6744c02a2",
+  "candidate": "workspace:sha256:3e5c86ff441a3efd5e4604265fd80dc27bc5ecc6276a08753c8c5bc6744c02a2",
+  "git_head": "33425ab01248ecceff2c792be70011b931ead018",
+  "build_sha": "build:v1:workspace:56c178646aa21cb9765d3430e6c9b226d4eeeeea310706e65de81703974d0844:467996397e337a566945ca1fde5f827268a63c2735267155c7c68855a8263fc7:37d2c849a1e6d96e01a4cade3a8350e7723e6a72f4178edd9ce8c36742488c7f",
+  "started_at": "2026-10-13T19:17:19.342Z",
+  "finished_at": "2026-10-13T19:17:19.703Z",
+  "duration_ms": 361,
+  "exit_code": 0,
+  "signal": null,
+  "result": "fail",
+  "reasons": [
+    {
+      "code": "metric-threshold",
+      "detail": "指标 'lines_added' 19867 超过上限 2000"
+    }
+  ],
+  "inputs": [],
+  "outputs": [],
+  "metrics": [
+    {
+      "name": "files_changed",
+      "value": 268,
+      "baseline": null,
+      "delta_pct": null,
+      "better": "lower",
+      "ok": true
+    },
+    {
+      "name": "lines_added",
+      "value": 19867,
+      "baseline": null,
+      "delta_pct": null,
+      "max": 2000,
+      "better": "lower",
+      "ok": false
+    },
+    {
+      "name": "lines_deleted",
+      "value": 6398,
+      "baseline": null,
+      "delta_pct": null,
+      "better": "lower",
+      "ok": true
+    },
+    {
+      "name": "largest_added_lines",
+      "value": 5165,
+      "baseline": null,
+      "delta_pct": null,
+      "better": "lower",
+      "ok": true
+    }
+  ],
+  "log": {
+    "artifact": "output.log",
+    "bytes_total": 90,
+    "bytes_kept": 90,
+    "truncated": false,
+    "digest": "sha256:7105bc1eaf53df432e9b959d0ae8b30d747d2c166e334a15813bf715bdbe056e"
+  }
+}

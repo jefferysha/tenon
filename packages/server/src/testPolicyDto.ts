@@ -2,13 +2,45 @@
  * 步骤策略判定（TestPolicyReport）到快照响应形状的纯转换。列表按上限截断，不让一个大任务撑爆快照。
  */
 import type {
-  BenchmarkMetricVerdict, StepTestPolicyIR, SuiteVerdict, TestBlocker, TestIntegrityReport, TestNotice, TestPolicyReport, TraceRow,
+  BenchmarkMetricVerdict, ResolvedLevel, StepTestPolicyIR, SuiteVerdict, TestBlocker, TestIntegrityReport, TestNotice, TestPolicyReport,
+  TraceRow,
 } from '@tenon/kernel'
 import {
-  MAX_DTO_BLOCKERS, MAX_DTO_TRACE_ROWS, type BenchmarkVerdictDto, type BlockerDto, type IntegrityDto, type NoticeDto,
-  type PolicyDto, type PolicyReportDto, type SuiteVerdictDto, type TraceRowDto,
+  MAX_DTO_BLOCKERS, MAX_DTO_TRACE_ROWS, type BenchmarkVerdictDto, type BlockerDto, type IntegrityDto, type LevelDto,
+  type NoticeDto, type PolicyDto, type PolicyReportDto, type SuiteVerdictDto, type TraceRowDto,
 } from './testSystemDtoTypes.js'
 import { coverageDto, totalsDto } from './testSystemDto.js'
+
+type Thresholds = Pick<ResolvedLevel, 'coverage' | 'flaky'>
+
+function thresholdFields(source: Thresholds): Pick<LevelDto, 'coverage' | 'flaky'> {
+  const { coverage, flaky } = source
+  return {
+    ...(coverage === undefined ? {} : {
+      coverage: coverageDto({
+        ...(coverage.lines === undefined ? {} : { lines: coverage.lines }),
+        ...(coverage.branches === undefined ? {} : { branches: coverage.branches }),
+        ...(coverage.functions === undefined ? {} : { functions: coverage.functions }),
+        ...(coverage.statements === undefined ? {} : { statements: coverage.statements }),
+        ...(coverage.changed_lines === undefined ? {} : { changed_lines: coverage.changed_lines }),
+      }),
+    }),
+    ...(flaky === undefined ? {} : { flaky: { max: flaky.max, failOnNew: flaky.fail_on_new } }),
+  }
+}
+
+/** 一个档位的生效定义（项目测试页的档位定义行）。 */
+export function levelDto(level: ResolvedLevel): LevelDto {
+  return {
+    name: level.name,
+    required: level.required,
+    touched: level.touched,
+    scenarios: level.scenarios,
+    ...thresholdFields(level),
+    requireBaseline: level.require_baseline,
+    source: level.source,
+  }
+}
 
 export function policyDto(policy: StepTestPolicyIR): PolicyDto {
   return {
@@ -20,18 +52,12 @@ export function policyDto(policy: StepTestPolicyIR): PolicyDto {
     files: policy.files,
     scenarios: policy.scenarios,
     integrity: policy.integrity ?? 'notice',
-    ...(policy.coverage === undefined ? {} : {
-      coverage: coverageDto({
-        ...(policy.coverage.lines === undefined ? {} : { lines: policy.coverage.lines }),
-        ...(policy.coverage.branches === undefined ? {} : { branches: policy.coverage.branches }),
-        ...(policy.coverage.functions === undefined ? {} : { functions: policy.coverage.functions }),
-        ...(policy.coverage.statements === undefined ? {} : { statements: policy.coverage.statements }),
-        ...(policy.coverage.changed_lines === undefined ? {} : { changed_lines: policy.coverage.changed_lines }),
-      }),
-    }),
-    ...(policy.flaky === undefined ? {} : { flaky: { max: policy.flaky.max, failOnNew: policy.flaky.fail_on_new } }),
+    ...thresholdFields(policy),
     requireBaseline: policy.benchmark.require_baseline,
     browsers: policy.browsers,
+    ...(policy.level === undefined ? {} : {
+      level: { name: policy.level.name, required: policy.level.required, touched: policy.level.touched, source: policy.level.source },
+    }),
   }
 }
 
@@ -135,7 +161,7 @@ export function policyReportDto(report: TestPolicyReport, policy: StepTestPolicy
     trace: report.trace.slice(0, MAX_DTO_TRACE_ROWS).map(traceDto),
     files: {
       checked: report.files.checked,
-      unregistered: report.files.unregistered.map((file) => ({ path: file.path, suites: file.suites })),
+      claimed: report.files.claimed.slice(0, MAX_DTO_BLOCKERS).map((file) => ({ path: file.path, suites: file.suites })),
       orphans: report.files.orphans,
     },
     notApplicable: report.notApplicable.map((entry) => ({ kind: entry.kind, reason: entry.reason, approved: entry.approved })),

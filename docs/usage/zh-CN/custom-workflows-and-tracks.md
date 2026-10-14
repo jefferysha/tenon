@@ -109,6 +109,31 @@ draft → approve → done
 
 如果只有 `draft`、`approve` 两步写了 `required-output`，Tenon 只要求这些文件。它不会因为步骤叫 `approve` 或使用中文 label 就补齐 default 的文档，也不会替任何一步铺 proposal、design 骨架。
 
+### 6. 声明每步的测试档位
+
+步骤用一个键 `test:` 说明自己需要多少测试，取值 `none`、`plan`、`changed`、`full`（不写等于 `none`）。平铺 Workflow 与每个 Track 分支用法相同：
+
+```yaml
+  - id: implement
+    label: 实现
+    gate: auto
+    test: changed
+    skills: []
+    inputs: []
+    outputs: []
+    guards: []
+    transitions: []
+```
+
+Workflow 只写档位名。档位要求什么（必须有哪些测试类、碰到哪些类才跑、场景映射、覆盖率与 flaky 门槛、基准基线）由项目
+`.tenon/tests/catalog.yaml` 的可选顶层键 `levels` 定义，没写就用内建缺省；改它不会改 Workflow，也不会改工作流指纹。
+五个测试类是 `unit`、`integration`、`e2e`、`static`、`benchmark`（外加只在点名时运行的 `custom`），套件的旧种类名仍是有效别名。缺省值与各轨道的选档见
+[默认工作流](./default-workflow.md)。
+
+较早的多字段 `test_policy` 键对冻结了它的 Change 仍可读取，但同一步不能同时写两个键，编译报错会点名这一步。步骤也可以声明自己的 `tests`，例如
+`code-size` 探针；默认的 `code-size` 没有上限，想要上限的项目在自己的 Workflow 里给该测试写
+`pass: { metrics: [{ name: lines_added, max: <n> }] }`。
+
 ## 预期结果
 
 - `tasks.md` 的一级项只列自定义 Workflow 的真实步骤；

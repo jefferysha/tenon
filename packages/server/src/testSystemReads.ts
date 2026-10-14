@@ -8,15 +8,16 @@
 import { lstat, readFile, readdir } from 'node:fs/promises'
 import { join, relative, sep } from 'node:path'
 import {
-  MACHINE_PROFILE_ID_RE, SUITE_ID_RE, TENON_PROJECT_DIR, baselineV2Path, catalogSuite, declaresRecordV2,
+  LEVEL_NAMES, MACHINE_PROFILE_ID_RE, SUITE_ID_RE, TENON_PROJECT_DIR, baselineV2Path, catalogSuite, declaresRecordV2,
   decodeTestRunRecordV2, formatCatalogIssues, knownFailureExpired, listRecordDirectory, loadCatalogInput,
-  parseKnownFailures, readTestBaselineV2, readTestPlanState, testRunArtifactsDir, testRunRecordsDir,
+  parseKnownFailures, readTestBaselineV2, readTestPlanState, resolveLevel, testRunArtifactsDir, testRunRecordsDir,
   testSystemPaths, verifyRecordChain, type CatalogInput, type TestCatalog, type TestRunRecordV2,
 } from '@tenon/kernel'
 import {
   artifactDto, baselineDto, caseDto, catalogServiceDto, catalogSuiteDto, coverageDto, knownFailureDto, planBriefDto, planDto,
   recordSummaryDto, totalsDto,
 } from './testSystemDto.js'
+import { levelDto } from './testPolicyDto.js'
 import {
   MAX_DTO_CASES, type BaselineDto, type CatalogDto, type KnownFailuresDto, type PlanBriefDto, type PlanDto, type RecordDetailDto,
   type RecordSummaryDto, type ServiceRunDto, type SuiteLatestDto, type SuiteRunDto,
@@ -51,6 +52,7 @@ export function catalogView(input: CatalogInput): CatalogDto {
     state: 'ok',
     suites: input.catalog.suites.map(catalogSuiteDto),
     services: input.catalog.services.map(catalogServiceDto),
+    levels: LEVEL_NAMES.map((name) => levelDto(resolveLevel(name, input.catalog))),
   }
 }
 

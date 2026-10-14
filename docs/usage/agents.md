@@ -159,7 +159,11 @@ report. The heavy Tracks of the default workflow (`pm`, `frontend`, `backend`) a
 `researcher` to every Explore, `builder` to every Build (one subagent per independent
 task, merged into one report), and the `code-size` reviewer with its `code-size` test
 to every Verify; the `lite` Track runs the reviewers `code-review` and `security` at its
-Verify. See
+Verify. The `code-size` reviewer reads the measured `files_changed`, `lines_added`, `lines_deleted`
+and `largest_added_lines` and judges, from the numbers and the nature of the change, whether the size is
+reasonable (generated output and bulk migrations are large by nature); the default test sets no line
+ceiling, and when the project's workflow gives the test a `pass.metrics` ceiling, that ceiling
+applies. See
 [Default workflow](default-workflow.md) and
 [Custom workflows](custom-workflows-and-tracks.md).
 

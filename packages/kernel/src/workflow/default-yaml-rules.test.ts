@@ -5,7 +5,7 @@
  * （generate-default-workflow.test.ts 守这一条）。
  */
 import { describe, expect, it } from 'vitest'
-import { compileDefaultWorkflow } from './compile.js'
+import { compileDefaultWorkflow, compileWorkflow } from './compile.js'
 import { DEFAULT_WORKFLOW_SOURCE } from './default-workflow.generated.js'
 import { parseWorkflow } from './parse.js'
 import type { StepDef, StepTransition, TrackBranchDef, WorkflowDef, WorkflowGuardConfig } from './types.js'
@@ -300,6 +300,89 @@ describe.each(HEAVY)('%s：写死的离开条件与动作都在 YAML 里（设�
       expect(RETIRED_FIELDS, `${guard.type}:${fieldOf(guard)}`).not.toContain(fieldOf(guard))
       expect(guard.type).not.toBe('full-direct-override')
     }
+  })
+})
+
+describe('各轨道各步的测试档位（simplify-test-settings）', () => {
+  it.each([
+    ['lite', 'build', 'changed'],
+    ['lite', 'verify', 'full'],
+    ['pm', 'spec', 'none'],
+    ['pm', 'verify', 'changed'],
+    ['frontend', 'spec', 'plan'],
+    ['frontend', 'build', 'changed'],
+    ['frontend', 'verify', 'full'],
+    ['backend', 'spec', 'plan'],
+    ['backend', 'build', 'changed'],
+    ['backend', 'verify', 'full'],
+  ] as const)('%s.%s 的档位是 %s', (id, stepId, level) => {
+    expect(step(id, stepId).test).toBe(level)
+    expect(step(id, stepId).test_policy).toBeUndefined()
+  })
+
+  it('其余步骤不写档位（等于不要求）', () => {
+    const declared = new Set([
+      'lite.build', 'lite.verify', 'pm.spec', 'pm.verify',
+      'frontend.spec', 'frontend.build', 'frontend.verify', 'backend.spec', 'backend.build', 'backend.verify',
+    ])
+    for (const [id, track] of Object.entries(def.tracks ?? {})) {
+      for (const s of track.steps) {
+        if (!declared.has(`${id}.${s.id}`)) expect(s.test, `${id}.${s.id}`).toBeUndefined()
+      }
+    }
+  })
+
+  it('整份 default.yaml 不再有 test_policy', () => {
+    expect(DEFAULT_WORKFLOW_SOURCE).not.toContain('test_policy')
+    for (const track of Object.values(def.tracks ?? {})) {
+      for (const s of track.steps) expect(s.test_policy, s.id).toBeUndefined()
+    }
+  })
+
+  it('编译后的冻结计划只记档位名', () => {
+    const compiled = compileDefaultWorkflow(def)
+    expect(JSON.stringify(compiled)).not.toContain('test_policy')
+    expect(JSON.stringify(compiled)).toContain('"test":"full"')
+  })
+
+  it.each(HEAVY)('%s 验证步的 code-size 测试没有 pass 门槛（代码规模无缺省上限）', (id) => {
+    const tests = (step(id, 'verify').tests ?? []).filter((test) => test.direction === 'code-size')
+    expect(tests).toHaveLength(1)
+    expect(tests[0]?.pass).toBeUndefined()
+    expect(tests[0]).toMatchObject({ id: 'code-size', command: 'tenon test code-size --json', required: true })
+  })
+
+  it('项目可在自己的工作流里给 code-size 写回 pass.metrics 启用上限，并进入冻结计划', () => {
+    const source = [
+      'name: sized',
+      'steps:',
+      '  - id: verify',
+      '    label: 验证',
+      '    gate: null',
+      '    skills: []',
+      '    tests:',
+      '      - id: code-size',
+      '        direction: code-size',
+      '        command: tenon test code-size --json',
+      '        label: 代码规模',
+      '        required: true',
+      '        pass:',
+      '          metrics:',
+      '            - name: lines_added',
+      '              max: 3000',
+      '    test: changed',
+      '    guards: []',
+      '    transitions: []',
+      '',
+    ].join('\n')
+    const compiled = compileWorkflow(parseWorkflow(source))
+    const test = compiled.steps[0]?.tests?.find((candidate) => candidate.id === 'code-size')
+    expect(test?.pass?.metrics).toEqual([{ name: 'lines_added', max: 3000, better: 'lower' }])
+  })
+
+  it('lite 实现步 diff-risk 的七条门槛不动', () => {
+    const probe = step('lite', 'build').tests?.find((test) => test.direction === 'diff-risk')
+    expect(probe?.pass?.metrics?.length).toBe(7)
   })
 })
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { buildMatrix, extraBlockers, fileRows, reportNotices, summarize, tabCount, traceNeedsMapping } from './testsTabModel'
-import { planBrief, totals, verdict, verifyReport } from '../api/testSystemFixtures'
+import { buildMatrix, extraBlockers, fileRows, mappingNotRequired, reportNotices, summarize, tabCount, traceNeedsMapping, traceRows } from './testsTabModel'
+import { levelReport, planBrief, totals, verdict, verifyReport } from '../api/testSystemFixtures'
 import type { PolicyReport, TestPlanBrief } from '../api/testSystemTypes'
 
 function report(over: Partial<PolicyReport> = {}): PolicyReport {
@@ -170,7 +170,7 @@ describe('extraBlockers / reportNotices / fileRows / traceNeedsMapping', () => {
     expect(rows.find((row) => row.kind === 'benchmark')?.blocker?.code).toBe('benchmark-regression')
     expect(extra.map((item) => item.code)).toEqual(['flaky-over-limit'])
     expect(extra.every((item) => item.blocking)).toBe(true)
-    expect(extra.some((item) => item.code === 'test-file-unregistered')).toBe(false)
+    expect(extra.some((item) => item.code === 'test-file-orphan')).toBe(false)
     expect(extra.some((item) => item.code === 'test-stale')).toBe(false)
     expect(extra.some((item) => item.code === 'known-failure-fixed')).toBe(false)
   })
@@ -200,11 +200,16 @@ describe('extraBlockers / reportNotices / fileRows / traceNeedsMapping', () => {
     expect(notices.map((item) => item.code)).toEqual(['known-failure-fixed'])
   })
 
-  it('未登记文件在前，孤儿在后；各带对应阻塞的修复命令', () => {
+  it('文件表：孤儿在前（带 --auto 认领命令），套件自动认领的在后（只有套件，没有阻塞）', () => {
     const rows = fileRows(verifyReport())
-    expect(rows.map((row) => [row.path, row.orphan, row.suites])).toEqual([['e2e/new.spec.ts', false, ['web-e2e']], ['scripts/tmp.test.mjs', true, []]])
-    expect(rows[0]?.blocker?.fix).toContain('--file e2e/new.spec.ts')
+    expect(rows.map((row) => [row.path, row.orphan, row.suites])).toEqual([['scripts/tmp.test.mjs', true, []], ['e2e/new.spec.ts', false, ['web-e2e']]])
+    expect(rows[0]?.blocker?.fix).toBe('tenon test register add-login --auto')
     expect(rows[1]?.blocker).toBeUndefined()
+  })
+
+  it('没有改动过的测试文件：文件表为空；没有 unregistered 这一类', () => {
+    expect(fileRows(report({ files: { checked: true, claimed: [], orphans: [] } }))).toEqual([])
+    expect(fileRows(levelReport()).every((row) => !row.orphan && row.blocker === undefined)).toBe(true)
   })
 
   it('追溯：未覆盖只在策略要求场景时算缺项', () => {
@@ -221,5 +226,116 @@ describe('extraBlockers / reportNotices / fileRows / traceNeedsMapping', () => {
     const optional = { ...current.trace.find((row) => row.state === 'uncovered')!, covers: 'task:1.1', kind: 'task' as const, required: false }
     expect(traceNeedsMapping(current, optional)).toBe(false)
     expect(traceNeedsMapping(current, { ...optional, required: true })).toBe(true)
+  })
+})
+
+describe('buildMatrix · 档位策略按测试类', () => {
+  const none: TestPlanBrief = { state: 'ok', suites: [], waivers: [], files: 0, cases: 0 }
+  const rowOf = (rows: ReturnType<typeof buildMatrix>, kind: string) => rows.find((row) => row.kind === kind)
+  const withLevel = (level: NonNullable<NonNullable<PolicyReport['policy']>['level']>, over: Partial<PolicyReport> = {}): PolicyReport =>
+    levelReport({ policy: { ...levelReport().policy!, level }, ...over })
+
+  it('行 = 必需类 → 碰到才跑的类；要求词是「必需」「碰到才跑」，不再有登记', () => {
+    expect(buildMatrix(levelReport(), none).map((row) => [row.kind, row.requirement])).toEqual([
+      ['unit', 'required'], ['integration', 'touched'], ['e2e', 'touched'], ['static', 'touched'], ['benchmark', 'touched'],
+    ])
+  })
+
+  it('套件按所属类归并（旧种类名 playwright 在 e2e 类下）；结果取最差，缺项挂这一类', () => {
+    const rows = buildMatrix(levelReport(), none)
+    expect(rowOf(rows, 'e2e')?.suites.map((suite) => [suite.suite, suite.verdict?.state])).toEqual([['web-e2e', 'stale']])
+    expect(rowOf(rows, 'e2e')).toMatchObject({ result: 'stale', met: false, blocker: { code: 'test-stale' } })
+    expect(rowOf(rows, 'unit')).toMatchObject({ result: 'passed', met: true, blocker: null })
+  })
+
+  it('本阶段没有运行的类（改动没碰到）不算缺：零运行即满足', () => {
+    const rows = buildMatrix(levelReport(), none)
+    for (const kind of ['integration', 'static', 'benchmark']) {
+      expect(rowOf(rows, kind), kind).toMatchObject({ suites: [], result: null, met: true, blocker: null })
+    }
+  })
+
+  it('页签计数与矩阵同口径：满足的类 / 档位列出的类', () => {
+    expect(tabCount(levelReport(), none)).toBe('4/5')
+  })
+
+  it('必需类在目录里没有套件：服务端的 test-kind-missing（对象是类名）挂在这一类', () => {
+    const missing = levelReport({
+      suites: [],
+      blockers: [{ code: 'test-kind-missing', blocking: true, message: 'm', fix: "tenon test catalog not-applicable unit --reason '<本项目为什么不适用>'", subject: 'unit' }],
+    })
+    expect(rowOf(buildMatrix(missing, none), 'unit')).toMatchObject({ suites: [], met: false, blocker: { code: 'test-kind-missing' } })
+  })
+
+  it('豁免按类名匹配；项目级不适用声明按类归并（static 类用 typecheck 声明）', () => {
+    const waived: TestPlanBrief = { ...none, waivers: [{ kind: 'static', approved: true }] }
+    expect(rowOf(buildMatrix(levelReport({ suites: [], blockers: [] }), waived), 'static')).toMatchObject({ waiver: { approved: true }, met: true })
+    const declared = levelReport({ suites: [], blockers: [], notApplicable: [{ kind: 'typecheck', reason: '没有类型检查', approved: true }] })
+    expect(rowOf(buildMatrix(declared, none), 'static')).toMatchObject({ notApplicable: { reason: '没有类型检查', approved: true }, met: true, blocker: null })
+    const pending = levelReport({
+      suites: [],
+      notApplicable: [{ kind: 'typecheck', reason: '没有类型检查', approved: false }],
+      blockers: [{ code: 'waiver-unapproved', blocking: true, message: 'm', fix: 'tenon review request add-login', subject: 'typecheck' }],
+    })
+    expect(rowOf(buildMatrix(pending, none), 'static')).toMatchObject({ notApplicable: { approved: false }, met: false, blocker: { code: 'waiver-unapproved' } })
+  })
+
+  it('plan 档：不运行套件，必需类没有套件也满足', () => {
+    const plan = withLevel({ name: 'plan', required: ['unit'], touched: [], source: 'default' }, { suites: [], blockers: [] })
+    expect(buildMatrix(plan, none)).toMatchObject([{ kind: 'unit', requirement: 'required', suites: [], result: null, met: true }])
+  })
+
+  it('计划显式加跑的、不在档位两类里的套件：所属类也进矩阵，要求词是运行', () => {
+    const changed = withLevel({ name: 'changed', required: ['unit'], touched: ['static'], source: 'default' }, { blockers: [] })
+    const rows = buildMatrix(changed, none)
+    expect(rows.map((row) => [row.kind, row.requirement])).toEqual([['unit', 'required'], ['static', 'touched'], ['e2e', 'run']])
+    expect(rowOf(rows, 'e2e')?.suites.map((suite) => suite.suite)).toEqual(['web-e2e'])
+  })
+
+  it('目录缺失 / 计划缺失这类全局阻塞：没有套件的类退到全局阻塞', () => {
+    const lost = levelReport({ suites: [], blockers: [{ code: 'test-catalog-missing', blocking: true, message: 'm', fix: 'tenon test discover --write' }] })
+    const rows = buildMatrix(lost, none)
+    expect(rows.every((row) => !row.met && row.blocker?.code === 'test-catalog-missing')).toBe(true)
+  })
+
+  it('旧策略（没有 level）仍按种类一行：登记 / 运行 / 有则跑', () => {
+    expect(buildMatrix(verifyReport(), planBrief()).map((row) => [row.kind, row.requirement])).toEqual([
+      ['unit', 'run'], ['playwright', 'run'], ['a11y', 'register'], ['benchmark', 'run'],
+    ])
+  })
+})
+
+describe('追溯 · 档位不要求映射（scenarios: off）', () => {
+  const requiring = (scenarios: 'required' | 'passing'): PolicyReport => levelReport({ policy: { ...levelReport().policy!, scenarios } })
+
+  it('只有策略存在且 scenarios 为 off 时成立；没有策略与要求映射时不成立', () => {
+    expect(mappingNotRequired(levelReport())).toBe(true)
+    expect(mappingNotRequired(requiring('required'))).toBe(false)
+    expect(mappingNotRequired(requiring('passing'))).toBe(false)
+    expect(mappingNotRequired(levelReport({ policy: null }))).toBe(false)
+  })
+
+  it('没有任何映射：一行都不逐条列出，只有没映射的条数', () => {
+    expect(traceRows(levelReport())).toEqual({ shown: [], optional: [], unmapped: 3 })
+  })
+
+  it('已映射、失败、通过的行照常列出（失败在前），统计只数没映射的', () => {
+    const base = levelReport()
+    const row = (covers: string, state: 'passing' | 'failing' | 'mapped' | 'uncovered'): PolicyReport['trace'][number] => ({
+      covers: `spec:${covers}`, kind: 'spec', title: covers, required: true, state, tests: [],
+    })
+    const current = { ...base, trace: [row('a-pass', 'passing'), row('b-uncovered', 'uncovered'), row('c-fail', 'failing'), row('d-mapped', 'mapped'), row('e-uncovered', 'uncovered')] }
+    const { shown, optional, unmapped } = traceRows(current)
+    expect(shown.map((item) => item.title)).toEqual(['c-fail', 'd-mapped', 'a-pass'])
+    expect(optional).toEqual([])
+    expect(unmapped).toBe(2)
+  })
+
+  it('要求映射（required / passing）：行为与之前相同，逐条列出，没有统计', () => {
+    for (const scenarios of ['required', 'passing'] as const) {
+      const { shown, optional, unmapped } = traceRows(requiring(scenarios))
+      expect(shown.map((item) => item.covers), scenarios).toEqual(['spec:auth/登录成功跳转首页', 'spec:auth/退出登录', 'task:2.3'])
+      expect([optional.length, unmapped]).toEqual([0, 0])
+    }
   })
 })

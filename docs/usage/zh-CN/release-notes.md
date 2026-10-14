@@ -56,6 +56,48 @@ Tenon 的发布说明用于回答三个问题：这一版改变了什么、用�
 5. 回滚到更早的版本之前，先完结或终止升级后新建的任务。更早的版本不认识三个通用离开条件，新建的 `default` 任务在 `tenon status` 里步骤投影只显示一行警告；它不认识的轨道上新建的任务会被直接拒绝读取：`lite`，以及没有 `tracks:` 的工作流（`design-system` 或你自己的平铺工作流，轨道记的是工作流名）（见[更新、恢复与卸载](updates-recovery-and-uninstall.md)）。
 6. 如果你的工作流保存失败并点名 `document_contract`、`inputs`、`outputs` 或 `artifacts`，删掉这些键；步骤必须产出的文件写 `required-output`，字段条件写 `field-nonempty` 或 `field-equals`。靠自己 `outputs` 检查的 `gate: auto` 步骤，要把那些检查改写成守卫。读工作流 API 的 `effectiveIo` 或 `GET /api/change/:name/orchestration` 的 `io` 的脚本，改读 `stepIo`。
 
+### 测试设置简化
+
+步骤现在用一个档位声明测试要求，取代十几个策略字段，围绕测试的手工登记也一并去掉。
+
+- 档位。工作流步骤接受 `test: none | plan | changed | full`，取代多字段 `test_policy`（同一步不能两个都写；冻结的 `test_policy` 仍可读取）。
+  `default` 在实现步用 `changed`、验证步用 `full`（lite、frontend、backend），frontend 与 backend 的规格步用 `plan`，pm 的规格步用 `none`，
+  不再要求映射场景。默认的 `full` 不再把全部集成与端到端套件都跑一遍：全量跑单测类，其他类只跑改动碰到的。
+- `levels`。目录（`.tenon/tests/catalog.yaml`）接受可选顶层键 `levels`，用六个键（`required`、`touched`、`scenarios`、`coverage`、`flaky`、
+  `require_baseline`）定义 `plan`、`changed`、`full`；没写的取内建缺省（`required: [unit]`，不设覆盖率门槛，`scenarios: off`）。
+  默认工作流原来在 frontend、backend 验证步写的 80% 行覆盖率门槛，现在改由想要它的项目写进 `levels.full.coverage`。
+  目录仍是受保护的测试配置：任务改了 `levels`，`tenon review request` 的改动摘要逐档逐键标出放宽或收紧，排在套件变化之前。
+- 五个测试类。`unit`、`integration`、`e2e`、`static`、`benchmark`（外加只在点名时运行的 `custom`）把 17 个种类归类；套件的 `kind` 可写类名或旧种类名
+  （别名），冻结的 `test_policy` 仍按旧名逐字匹配。
+- 认领，不登记。本任务新增或修改的测试文件，在步骤求值时由 `files` glob 匹配它的套件认领，从不写进 `test-plan.yaml`；`test-file-unregistered` 不再产生。
+  没有套件认领的文件是孤儿（`test-file-orphan`），`tenon test register <change> --auto` 把该文件的精确路径追加进合适的套件来解决
+  （不再放宽 glob，也不再扫整个仓库）。`openspec/`、`.tenon/`、`.pipeline/` 下的路径和没有源码扩展名的文件（`.spec.report`、`data.spec.json`）
+  从来不是测试文件。`step.next` 只为孤儿下发 `test-register-files`，只为缺必需类或档位要求映射下发 `test-plan-map`。
+- 没写 `covers` 的套件。改动文件匹配套件的 `files` 或 `covers` glob 才算碰到它，所以没写 `covers` 的套件只有它自己的测试文件改了才算被碰到。
+  改动只含源码文件时，`changed` 与 `full` 档不跑这类套件，`tenon test status` 与 `tenon test run --stage` 给出不阻断的提示 `suites-without-covers` 并点名它们；
+  要让源码改动触发它，用 `tenon test catalog set <id> --cover-glob "<glob>"` 写上 `covers`。
+- 目录写回保留注释。`catalog add|set|rm|not-applicable` 与 `register --auto` 只改变化的行，注释、空行和排版原样保留（被改键上的行内注释是唯一的损失）。
+- 场景映射默认关闭。`scenarios: off` 时没有场景会挡出口，追溯矩阵列出已映射的行，另加一行「另有 N 条…未映射」，不再逐条写「未覆盖」。
+- 测试信任按用户、仓库、命令记录。`tenon test trust` 把决定存在你的用户状态目录（`<state>/test-trust/`），同一仓库的所有 worktree 共享，
+  改一条命令只让这一条重新问。检出必须出现在 `git worktree list` 里，hook 拒绝 agent 写入 `test-trust/` 路径。你早先写在检出封存里的信任只在不是 git 仓库的项目里继续有效（那里新的信任也写进检出封存），不做迁移；
+  git 仓库里一律不认检出里的旧封存，不论它是否被 git 跟踪，因为封存和它的密钥可能随仓库或压缩包带来，能给仓库自己授信。
+  只有检出目录及其所有上级都没有 `.git` 才算「不是 git 仓库」；有 `.git` 却读不出仓库身份（git 出错、超时或伪造的指针）一律未信任：
+  `tenon test run` 提示先修好 git，`tenon test trust` 拒绝写入。
+- `code-size` 默认没有上限。默认工作流和 `code-size` 方向里 2000 行的 `lines_added` 限制已删除；探针仍报指标、退出码 0，实测值照样记进运行记录，
+  `code-size` 评审者在提示里读到它并据此判断。想要上限的项目在工作流里给该测试写 `pass.metrics`。`review request`、报告和评审者提示里列出的 `test:<id>` 豁免，
+  现在在你的理由旁边显示最新实测值。
+- 运行记录带相对路径。新记录在算摘要之前把仓库根改写成相对路径、用户主目录改写成 `~/`；已有记录不回写。
+- 测试输出不再让候选失效。`test-results/`、`playwright-report/`、`coverage/` 之下未跟踪、扩展名是证据格式（log、txt、xml、md、csv、png、jpg、jpeg、gif、webp、webm、mp4、lcov、info）的文件不计入候选指纹，
+  所以 e2e 服务写日志不会让冻结的版本过期。已跟踪的文件、脚本、没有扩展名的文件，以及能被代码或浏览器加载、解包的格式（json、html、htm、zip、gz、har）仍然计入；
+  真会产出这些文件的套件在测试目录里把它们声明为输出。
+- Dashboard。工作流页用一个单选为步骤选档位；项目测试页显示生效的档位定义；任务测试页标出被认领的文件并收起场景追溯。
+
+回滚（N-1）。上一个版本读不了步骤的 `test` 键和目录的 `levels` 键：读这样的工作流会失败，读这样的目录会报未知键。回滚之前，先完结或终止用新 `test` 键建的任务，
+并把 `levels` 从 `.tenon/tests/catalog.yaml` 里删掉。指纹规则变化：工作区里有未声明测试输出（例如未跟踪的 `test-results/**/*.log`）的在途任务，
+升级后第一次校验可能出现一次 `revision-stale`，因为那个文件不再计入；按冻结版本过期的惯常办法处理，回到实现步重新捕获当前版本。没有这类文件的任务不受影响。
+
+升级注意。升级后在 git 仓库里首次运行测试，需要在你自己的终端里重新运行一次 `tenon test trust`：检出里的旧信任不再被认。
+
 ### 验证
 
 ```bash

@@ -8,7 +8,7 @@
 import { lstat, readFile, writeFile } from 'node:fs/promises'
 import { isAbsolute, resolve } from 'node:path'
 import {
-  renderTestsRegion, replaceTestReportBlock, replaceTestsRegion,
+  renderTestsRegion, replaceTestReportBlock, replaceTestsRegion, stepHasTestPolicy,
   type ReportLocale, type TestsRegionItem,
 } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
@@ -59,8 +59,8 @@ export async function cmdTestReport(
     })
     items.push(...report.items.map((item) => ({ ...item, stepId: step.id, stepLabel: step.label })))
   }
-  // 测试体系 v2 段落取「统计范围内最近一个声明了 test_policy 的步骤」的判定，与该步骤的出口检查同一份。
-  const policyStep = steps.slice(0, until + 1).reverse().find((step) => step.test_policy !== undefined)
+  // 测试体系 v2 段落取「统计范围内最近一个声明了测试策略（档位或 test_policy）的步骤」的判定，与该步骤的出口检查同一份。
+  const policyStep = steps.slice(0, until + 1).reverse().find((step) => stepHasTestPolicy(step))
   let extra: string | undefined
   if (policyStep !== undefined) {
     const report = await testEvidenceReaderFor(deps)({

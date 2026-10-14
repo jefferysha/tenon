@@ -68,13 +68,21 @@ export function hasUnsafeDisplayChars(text: string): boolean {
 }
 
 /**
- * 豁免理由的展示文本：折成单行、去掉控制字符与双向覆盖 / 隔离字符、最多 200 个字符（超出加 …）、
- * 反引号与尖括号换成全角。换行等空白先折成单个空格，其余控制字符直接去掉。
+ * 不可信文本的最小清理：折成单行（换行等空白先折成单个空格）、去掉控制字符与双向覆盖 / 隔离字符、去首尾空白。
+ * 不改反引号与尖括号、不截短：要照抄的命令（含 `<日期>` 占位）放进行内代码时用它。
  */
+export function foldDisplayText(text: string): string {
+  const folded = text.replace(/\s+/gu, ' ')
+  return [...folded].filter((char) => !isUnsafeDisplayChar(char)).join('').replace(/ {2,}/gu, ' ').trim()
+}
+
+/** 展示用文本：foldDisplayText 再把反引号与尖括号换成全角（伪造不了代码块或标签）。不截短：标题、套件名要完整。 */
+export function displaySafeText(text: string): string {
+  return foldDisplayText(text).replace(/`/gu, '｀').replace(/</gu, '＜').replace(/>/gu, '＞')
+}
+
+/** 豁免理由的展示文本：displaySafeText 再截到最多 200 个字符（超出加 …）。 */
 export function waiverReasonText(reason: string): string {
-  const folded = reason.replace(/\s+/gu, ' ')
-  const stripped = [...folded].filter((char) => !isUnsafeDisplayChar(char)).join('').replace(/ {2,}/gu, ' ')
-  const safe = stripped.trim().replace(/`/gu, '｀').replace(/</gu, '＜').replace(/>/gu, '＞')
-  const chars = [...safe]
-  return chars.length > WAIVER_REASON_MAX ? `${chars.slice(0, WAIVER_REASON_MAX).join('')}…` : safe
+  const chars = [...displaySafeText(reason)]
+  return chars.length > WAIVER_REASON_MAX ? `${chars.slice(0, WAIVER_REASON_MAX).join('')}…` : chars.join('')
 }
