@@ -449,6 +449,27 @@ test('allows product identity only in the exact archived hook-isolation records'
   }
 })
 
+test('allows product identity only in the exact consolidate-workflow-tracks test run record', async () => {
+  const root = await fixture()
+  const firstIdentity = String.fromCharCode(116, 114, 101, 108, 108, 105, 115)
+  const secondIdentity = String.fromCharCode(99, 111, 109, 101, 116)
+  const records = '.tenon/users/710227704-at-qq.com/tests/consolidate-workflow-tracks'
+  const allowed = `${records}/20261011T032341Z-1a7be8.json`
+  const rejected = `${records}/20261011T041653Z-2ea989.json`
+  for (const path of [allowed, rejected]) {
+    await mkdir(join(root, path, '..'), { recursive: true })
+    await writeFile(join(root, path), `{"files":[".${firstIdentity}/tasks/archive/x/test/server.test.mjs"]}\n`)
+  }
+  try {
+    assert.deepEqual(checkReferenceIdentities(root, [allowed]), [])
+    assert.equal(checkReferenceIdentities(root, [rejected]).length, 1)
+    await writeFile(join(root, allowed), `{"note":"${firstIdentity} ${secondIdentity}"}\n`)
+    assert.equal(checkReferenceIdentities(root, [allowed]).length, 1)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 test('allows product identity in the fixed runtime artifact audit record', async () => {
   const root = await fixture()
   const identity = String.fromCharCode(116, 114, 101, 108, 108, 105, 115)

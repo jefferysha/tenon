@@ -11,8 +11,8 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
-import { BUILTIN_TRACK_DEFINITIONS, createBuildRevisionToken, GATE_TTL_MS } from '@tenon/kernel'
-import type { FieldName, GuardResult, HistoryEntry, Phase, PipelineState, TrackRegistry } from '@tenon/kernel'
+import { createBuildRevisionToken, GATE_TTL_MS } from '@tenon/kernel'
+import type { FieldName, GuardResult, HistoryEntry, Phase, PipelineState } from '@tenon/kernel'
 import type { CliDeps, GateMarkerInfo } from '../deps.js'
 import {
   FIXED_CLOCK,
@@ -98,12 +98,6 @@ function makeAdv(opts: {
   const flow = mockFlow()
   if (opts.guard) flow.guardCheck = spy((): GuardResult => opts.guard as GuardResult)
   const fx = opts.fileExists ?? true
-  const registry: TrackRegistry = {
-    ordered: BUILTIN_TRACK_DEFINITIONS,
-    byId: new Map(BUILTIN_TRACK_DEFINITIONS.map((track) => [track.id, track])),
-    revision: 'advance-test',
-    source: 'builtin-only',
-  }
   const deps = {
     store,
     runRepo: mockWorkflowRunRepository(store, () => FIXED_CLOCK),
@@ -112,9 +106,6 @@ function makeAdv(opts: {
     reviewGateBinding: async () => true,
     flow,
     resolver: testEffectiveSkillResolver,
-    // cmdCheck 的 default 路径从 effective registry 取 coverageProfile；测试显式注入内建 registry，
-    // 不再靠旧的 track-id 静态分支或缺依赖 TypeError 偶然通过。
-    loadRegistry: () => registry,
     // advance 的单测目标是停点/事件编排；真实 ledger 的缺失、hash 漂移、PM 强制性由
     // transition-application 集成测试覆盖，此处显式注入通过的 I/O 端口以隔离两类行为。
     documentEvidence: async (_root: string, _changeDir: string, phase: Phase) => ({
@@ -355,19 +346,16 @@ steps:
     transitions: []
 `
 
-/** g1 声明 nonempty-output guard（design_doc 必须产出）。 */
+/** g1 声明 field-nonempty guard（design_doc 必须已设；`outputs` / `nonempty-output` 已删除，字段门禁直接写 field-nonempty）。 */
 const GUARDED_WF = `name: guarded
 steps:
   - id: g1
     label: one
     gate: null
     skills: []
-    inputs: []
-    outputs:
-      - field: design_doc
-        type: file_path
     guards:
-      - type: nonempty-output
+      - type: field-nonempty
+        field: design_doc
     transitions:
       - event: done
         to: g2
@@ -427,6 +415,103 @@ steps:
     transitions: []
 `
 
+/**
+ * 一条前进边 + 一条回退边（default 的 build：build-complete / requirements-changed）。前进边的离开条件写在边上，
+ * 步骤自己没有 guards；放弃边（scope-expanded）指向更靠后的终态，也不是「前进」。
+ */
+const FWD_BACK_WF = `name: fwdback
+steps:
+  - id: w0
+    label: zero
+    gate: null
+    skills: []
+    inputs: []
+    outputs: []
+    guards: []
+    transitions:
+      - event: w0-complete
+        to: w1
+  - id: w1
+    label: one
+    gate: null
+    skills: []
+    inputs: []
+    outputs: []
+    guards: []
+    transitions:
+      - event: w1-complete
+        to: w2
+        guards:
+          - type: field-equals
+            field: pre_verify_review_result
+            value: pass
+      - event: w1-back
+        to: w0
+      - event: scope-expanded
+        to: w3
+  - id: w2
+    label: two
+    gate: null
+    skills: []
+    inputs: []
+    outputs: []
+    guards: []
+    transitions: []
+  - id: w3
+    label: escalated
+    gate: null
+    skills: []
+    inputs: []
+    outputs: []
+    guards: []
+    transitions: []
+`
+
+/** fix 步只有一条回退边（回到 v），而 v 还有别的出路：它没有隐式完成边，自动推进没有出口可走。 */
+const ONLY_BACK_WF = `name: onlyback
+steps:
+  - id: e
+    label: entry
+    gate: null
+    skills: []
+    inputs: []
+    outputs: []
+    guards: []
+    transitions:
+      - event: start
+        to: v
+  - id: v
+    label: verify
+    gate: null
+    skills: []
+    inputs: []
+    outputs: []
+    guards: []
+    transitions:
+      - event: pass
+        to: d
+      - event: fail
+        to: f
+  - id: f
+    label: fix
+    gate: null
+    skills: []
+    inputs: []
+    outputs: []
+    guards: []
+    transitions:
+      - event: refix
+        to: v
+  - id: d
+    label: done
+    gate: null
+    skills: []
+    inputs: []
+    outputs: []
+    guards: []
+    transitions: []
+`
+
 interface CustomAdv extends Adv {
   historyEntries: HistoryEntry[]
 }
@@ -438,11 +523,15 @@ describe('advance —— 非 default workflow（自定义 step 图，快速回�
     root = await mkdtemp(join(tmpdir(), 'advance-custom-'))
     const wfDir = join(root, '.pipeline', 'workflows')
     await mkdir(wfDir, { recursive: true })
+    // 自定义 workflow 的任务是观察模式：转换会在任务目录里写步骤产出账本，目录必须真实存在（state / history 仍是 mock）。
+    await mkdir(join(root, 'openspec', 'changes', 'demo'), { recursive: true })
     await writeFile(join(wfDir, 'chain.yaml'), CHAIN_WF, 'utf8')
     await writeFile(join(wfDir, 'fork.yaml'), FORK_WF, 'utf8')
     await writeFile(join(wfDir, 'guarded.yaml'), GUARDED_WF, 'utf8')
     await writeFile(join(wfDir, 'gatec.yaml'), GATE_AUTO_WF, 'utf8')
     await writeFile(join(wfDir, 'gater.yaml'), GATE_REVIEW_WF, 'utf8')
+    await writeFile(join(wfDir, 'fwdback.yaml'), FWD_BACK_WF, 'utf8')
+    await writeFile(join(wfDir, 'onlyback.yaml'), ONLY_BACK_WF, 'utf8')
     // 非法 workflow（transitions.to 悬空 → validateWorkflow 拒绝 → loadWorkflow fail-loud 抛错）
     await writeFile(join(wfDir, 'broken.yaml'), 'name: broken\nsteps:\n  - id: b1\n    label: one\n    gate: null\n    skills: []\n    inputs: []\n    outputs: []\n    guards: []\n    transitions:\n      - event: go\n        to: nowhere\n', 'utf8')
   })
@@ -519,6 +608,48 @@ describe('advance —— 非 default workflow（自定义 step 图，快速回�
     expect(stop).toBeDefined()
     expect(stop).toContain('pass')
     expect(stop).toContain('fail')
+  })
+
+  test('一条前进边 + 一条回退边 + 一条放弃边：前进边的离开条件满足时走前进边，回退边与放弃边都不走（§1b Q11）', async () => {
+    const a = makeCustomAdv({ phase: 'w1', workflow: 'fwdback', fields: { pre_verify_review_result: 'pass' } })
+    expect(await cmdAdvance(a.deps, 'demo', {})).toBe(0)
+    expect(a.store.phase()).toBe('w2')
+    const taken = a.historyEntries.filter((e) => e.kind === 'transition').map((e) => e.raw)
+    expect(taken).toEqual(['w1-complete', 'archived'])
+    expect(a.out.some((l) => l.startsWith('[ADVANCE]') && l.includes('w1') && l.includes('w2') && l.includes('w1-complete'))).toBe(true)
+    expect(a.out.join('\n')).not.toContain('多条出边')
+  })
+
+  test('前进边的离开条件不满足 → 不走任何一条边（尤其不走回退边），exit 2，列出未满足的条件', async () => {
+    const a = makeCustomAdv({ phase: 'w1', workflow: 'fwdback', fields: { pre_verify_review_result: 'pending' } })
+    expect(await cmdAdvance(a.deps, 'demo', {})).toBe(2)
+    expect(a.store.phase()).toBe('w1')
+    expect(a.store.write.calls).toHaveLength(0)
+    expect(a.out.some((l) => l.includes('[STOP]') && l.includes('guard'))).toBe(true)
+    expect(a.out.some((l) => l.includes("要求字段 'pre_verify_review_result'=pass"))).toBe(true)
+  })
+
+  test('只有回退边、没有前进出边的 step：不自动走回退边，停并列出它（人选 event），零推进', async () => {
+    const a = makeCustomAdv({ phase: 'f', workflow: 'onlyback' })
+    expect(await cmdAdvance(a.deps, 'demo', {})).toBe(0)
+    expect(a.store.phase()).toBe('f')
+    expect(a.store.write.calls).toHaveLength(0)
+    const stop = a.out.find((l) => l.includes('[STOP]'))
+    expect(stop).toContain('没有可自动走的前进出边')
+    expect(stop).toContain('refix')
+    expect(stop).not.toContain('终态')
+
+    const preview = makeCustomAdv({ phase: 'f', workflow: 'onlyback' })
+    expect(await cmdAdvance(preview.deps, 'demo', { dryRun: true })).toBe(0)
+    expect(preview.out.some((l) => l.includes('没有可自动走的前进出边') && l.includes('refix'))).toBe(true)
+  })
+
+  test('--dry-run：一条前进边 + 一条回退边时计划走前进边，不报「多条出边」', async () => {
+    const a = makeCustomAdv({ phase: 'w1', workflow: 'fwdback', fields: { pre_verify_review_result: 'pass' } })
+    expect(await cmdAdvance(a.deps, 'demo', { dryRun: true })).toBe(0)
+    expect(a.store.write.calls).toHaveLength(0)
+    expect(a.out.some((l) => l.includes('计划') && l.includes('w1') && l.includes('w2') && l.includes('w1-complete'))).toBe(true)
+    expect(a.out.join('\n')).not.toContain('多条出边')
   })
 
   test('guard 不过 → 停并打 failures，零推进，exit 2（对齐 check 口径）', async () => {

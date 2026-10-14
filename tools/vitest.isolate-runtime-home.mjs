@@ -10,9 +10,21 @@ import { INHERITED_RUNTIME_ROOT_VARS } from './lib/runtime-roots.mjs'
 // 还会把用例写进真实的运行时根。所以这里无条件保存、清掉、覆盖，文件结束后再还原。
 // 启动器导出的四个运行时根（TENON_RUNTIME_ROOTS 与 DATA / STATE / CONFIG 三个）优先于 TENON_RUNTIME_HOME，
 // 用例里 `{ ...process.env }` 起的子进程（CLI、hook、server）带着它们就会读写真实状态，所以一并清掉。
+// 经稳定启动器跑的 tenon test run 还带着已装发布版的插件身份：hook 取插件根时 PLUGIN_ROOT 优先于用例设的
+// CLAUDE_PLUGIN_ROOT，子进程就拿已装版本的模板与 CLI 去处理被测源码（版本不同时 router 生成失败、静默退出）。
+const HOST_PLUGIN_ENV = [
+  'PLUGIN_ROOT',
+  'CLAUDE_PLUGIN_ROOT',
+  'TENON_HOST_PLUGIN_ROOT',
+  'TENON_CODEX_PLUGIN_ROOT',
+  'TENON_ACTIVE_RELEASE_ROOT',
+  'TENON_ACTIVE_RELEASE_ID',
+  'TENON_RUNTIME_HOST',
+]
 const ISOLATED_ENV = [
   'TENON_RUNTIME_HOME',
   ...INHERITED_RUNTIME_ROOT_VARS,
+  ...HOST_PLUGIN_ENV,
   'TENON_USER',
   'TENON_USER_NAME',
   'TENON_BASE_BRANCH',

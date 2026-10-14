@@ -302,13 +302,26 @@ describe('真实 e2e —— 边界与错误路径', () => {
     await rm(h.cwd, { recursive: true, force: true })
   })
 
-  test('新 init（open 相位）→ 自动生成的 OpenSpec proposal 可作为 handoff、exit 0', async () => {
-    await init(h, 'fresh')
+  test('升级前创建的任务（契约模式）新 init（open 相位）→ 自动生成的 OpenSpec proposal 可作为 handoff、exit 0', async () => {
+    expect(await h.initLegacyContractDefault('fresh', 'backend')).toBe(0)
     const r = await handoff(h, 'fresh')
     expect(r.code).toBe(0)
     expect(r.out.join('\n')).toContain('# 交接摘要: fresh（阶段 open）')
     expect(r.out.join('\n')).toContain('openspec/changes/fresh/proposal.md')
     expect(r.err).toEqual([])
+  })
+
+  test('新任务（观察模式）新 init（open 相位）→ 不预铺 proposal，没有可交接文档、exit 0；技能写出 proposal 之后它进 handoff', async () => {
+    await init(h, 'fresh')
+    const before = await handoff(h, 'fresh')
+    expect(before.code).toBe(0)
+    expect(before.out.join('\n')).toContain('# 交接摘要: fresh（阶段 open）')
+    expect(before.out.join('\n')).toContain('当前阶段没有可交接文档')
+    await writeFile(changeFile(h, 'fresh', 'proposal.md'), '# Proposal\n\nGoal: the proposal is written by the skill.\n', 'utf8')
+    const after = await handoff(h, 'fresh')
+    expect(after.code).toBe(0)
+    expect(after.out.join('\n')).toContain('openspec/changes/fresh/proposal.md')
+    expect(after.err).toEqual([])
   })
 
   test('显式英文 Change 的 handoff 保持英文', async () => {
@@ -319,7 +332,8 @@ describe('真实 e2e —— 边界与错误路径', () => {
     const r = await handoff(h, 'english-handoff')
     expect(r.code).toBe(0)
     expect(r.out.join('\n')).toContain('# Handoff: english-handoff (phase open)')
-    expect(r.out.join('\n')).toContain('# Compression:')
+    // 观察模式不预铺 proposal：英文 Change 的输出也是英文的「没有可交接文档」。
+    expect(r.out.join('\n')).toContain('# No handoff documents found for this phase.')
   })
 
   test('非法 change 名 → exit 1', async () => {

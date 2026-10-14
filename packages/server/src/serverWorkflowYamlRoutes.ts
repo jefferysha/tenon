@@ -1,14 +1,10 @@
 import type { IncomingMessage } from 'node:http'
 import {
   DEFAULT_WORKFLOW_SOURCE,
-  builtinWorkflow,
   parseWorkflow,
-  serializeWorkflow,
   validateWorkflowForStorage,
-  validateWorkflowTrackReferences,
   isDefaultWorkflowName,
-  withTrackRegistryLock,
-  type TrackValidationContext,
+  withProjectCoordinationLock,
   type WorkflowDef,
 } from '@tenon/kernel'
 import { missingWorkflowAgents } from './agentReferences.js'
@@ -47,7 +43,7 @@ export function matchWorkflowYamlRoute(path: string): string | null {
 /**
  * GET /api/workflows/:name/yaml —— 导出原文。
  *   · 自定义 / default 覆盖：项目文件原文（受信读，同 readWorkflowForApi 的 fd 边界）；
- *   · default 无覆盖：内建模板源；内建 simple：serializeWorkflow。
+ *   · default 无覆盖：内建模板源。
  * 返回 null = 非本路由。
  */
 export function resolveWorkflowYamlGet(req: IncomingMessage, path: string, deps: WorkflowYamlGetDeps): YamlRouteResult | null {
@@ -57,8 +53,6 @@ export function resolveWorkflowYamlGet(req: IncomingMessage, path: string, deps:
   const root = new URL(req.url ?? '/', 'http://localhost').searchParams.get('root') ?? ''
   const rootCheck = deps.workflowRootForRequest(root)
   if (!rootCheck.ok) return { kind: 'json', status: rootCheck.code, body: { ok: false, error: rootCheck.error } }
-  const builtin = builtinWorkflow(name)
-  if (builtin !== null) return { kind: 'yaml', status: 200, text: serializeWorkflow(builtin) }
   try {
     return { kind: 'yaml', status: 200, text: readWorkflowSourceForApi(rootCheck.anchor, name) }
   } catch (error) {
@@ -90,18 +84,16 @@ export function readTextBody(req: IncomingMessage, maxBytes: number): Promise<st
 }
 
 export interface WorkflowYamlPutDeps extends WorkflowYamlGetDeps {
-  readonly trackValidationContextFor: (anchor: WorkflowRootAnchor) => TrackValidationContext
   /** 全局产品路径；保存前校验工作流引用的 agent 是否都在库里。 */
   readonly paths: ServerPaths
 }
 
 /**
  * PUT /api/workflows/:name/yaml —— 导入原文：解析 → 契约校验（default 走 default 契约）→ name 一致 →
- * track 引用校验 → 原子落盘。任一步失败都不写文件。鉴权与 Host 守卫由调用方（mutation 路由表）完成。
+ * 轨道谓词引用本工作流的分支 → 原子落盘。任一步失败都不写文件。鉴权与 Host 守卫由调用方（mutation 路由表）完成。
  */
 export async function handleWorkflowYamlPut(req: IncomingMessage, name: string, deps: WorkflowYamlPutDeps): Promise<{ status: number; body: unknown }> {
   if (!isWorkflowName(name)) return { status: 400, body: { ok: false, error: '非法 workflow 名（允许中文、字母、数字、- 与 _；不允许空格、点或路径符号）' } }
-  if (builtinWorkflow(name) !== null) return { status: 409, body: { ok: false, error: `内建 workflow '${name}' 不可覆盖` } }
   const root = new URL(req.url ?? '/', 'http://localhost').searchParams.get('root') ?? ''
   const rootCheck = deps.workflowRootForRequest(root)
   if (!rootCheck.ok) return { status: rootCheck.code, body: { ok: false, error: rootCheck.error } }
@@ -126,24 +118,15 @@ export async function handleWorkflowYamlPut(req: IncomingMessage, name: string, 
   } catch (error) {
     return { status: 500, body: { ok: false, error: deps.errMsg(error) } }
   }
-  let enteredRegistrySnapshot = false
   try {
-    const result = await withTrackRegistryLock(
-      rootCheck.anchor.path,
-      deps.trackValidationContextFor(rootCheck.anchor),
-      async ({ registry }) => {
-        enteredRegistrySnapshot = true
-        assertWorkflowRootAnchor(rootCheck.anchor)
-        const referenceErrors = validateWorkflowTrackReferences(workflow, registry)
-        if (referenceErrors.length > 0) return { ok: false as const, errors: referenceErrors }
-        return writeWorkflowForApi(rootCheck.anchor, name, workflow)
-      },
-    )
+    // 项目协调锁内写；writeWorkflowForApi 会按这份定义自己的分支核对轨道谓词。
+    const result = await withProjectCoordinationLock(rootCheck.anchor.path, async () => {
+      assertWorkflowRootAnchor(rootCheck.anchor)
+      return writeWorkflowForApi(rootCheck.anchor, name, workflow)
+    })
     return { status: result.ok ? 200 : 400, body: result.ok ? { ok: true, name } : result }
   } catch (error) {
-    return enteredRegistrySnapshot
-      ? { status: 500, body: { ok: false, error: deps.errMsg(error) } }
-      : { status: 400, body: { ok: false, errors: [deps.errMsg(error)] } }
+    return { status: 500, body: { ok: false, error: deps.errMsg(error) } }
   }
 }
 

@@ -67,12 +67,12 @@ export type {
   DocumentBlockerDetail, DocumentEvidenceItem, DocumentEvidenceItemStatus, DocumentEvidenceReport, DocumentEvidenceScope, DocumentStaleReason,
 } from './document-evidence.js'
 export { evaluateSpecMigrationEvidence } from './spec-migration-evidence.js'
-export {
-  SPEC_APPLY_RECEIPT_FILE, readSpecApplyReceiptStatus, recordedDeltaSpecPaths,
-} from './spec-apply-receipt.js'
+export { changeDeltaSpecPaths, DeltaSpecSourceError } from './delta-spec-source.js'
+export { SPEC_APPLY_RECEIPT_FILE, readSpecApplyReceiptStatus } from './spec-apply-receipt.js'
 export type { SpecApplyReceiptStatus } from './spec-apply-receipt.js'
 export { parsePipeline, serializePipeline, quoteGate, unquoteScalar, emptyFields } from './parse.js'
 export { withLock, LOCK_DIR_NAME, STALE_LOCK_MS } from './lock.js'
+export { withProjectCoordinationLock } from './project-lock.js'
 export {
   classifyTaskPlanProjectionForChange,
   isCurrentTaskPlanProjectionForChange,
@@ -140,6 +140,8 @@ export {
   readValidatedTransitionHead, readValidatedTransitionHeadFromSync,
 } from './run-revision-head-reader.js'
 export type { RunHookState, RunRevision, RunRevisionTextReader, RunStateMutation } from './run-revision-store.js'
+// 单个 current.json 的闭集解析（schema + digest）：只要摘要、不需要整条修订链校验的只读调用方（已结束任务列表）用它。
+export { parseRunRevision } from './run-revision-codec.js'
 // 机器级项目注册表（v5 T2 决策 D）——init 自动登记 + server 项目发现同源
 export {
   readProjectRegistry,

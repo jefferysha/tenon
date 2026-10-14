@@ -9,7 +9,7 @@ import {
 import { actorOf } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
 import { isValidChangeName, resolveChangeDir } from '../paths.js'
-import { refuseArchived } from '../archivedGuard.js'
+import { refuseArchived } from '../endedTaskGuard.js'
 import { requireUser } from '../userIdentity.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
 import { msg } from '../i18n/messages.js'

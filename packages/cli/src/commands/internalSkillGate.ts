@@ -21,6 +21,7 @@ import { str } from '../render.js'
 import { reconcileCodexSkillEvidence } from '../codexSkillReceipt.js'
 import { agentSkillDecision } from '../agentSkillGate.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
+import { isLegacyExecution } from './execution-cli-seam.js'
 import { canonicalTenonSkillId, completedSkillsSinceStepEntry, parseHistoryLines } from './stepSkillEvidence.js'
 
 /** `tenon` is the normal-chat orchestration entrypoint, not a phase work item. Every custom
@@ -71,7 +72,7 @@ export async function cmdInternalSkillGate(deps: CliDeps, name: string, skillId:
         deps.io.err(`WARN: step '${currentStepId}' 不在 workflow '${plan.id}' 里，fail-open 放行`)
         return 0
       }
-      if (skillCapability.source === 'manifest-overlay') {
+      if (isLegacyExecution(plan)) {
         const slots = resolveAvailableSkillSlots(deps.resolver, skillCapability, currentStepId)
         const requiredSlots = resolveRequiredSkillSlots(deps.resolver, skillCapability, currentStepId)
         const canonicalSlots = slots.map((slot) => ({

@@ -27,6 +27,18 @@ async function readReport(deps: CliDeps, path: string): Promise<string | undefin
   }
 }
 
+/**
+ * 追溯矩阵要写进的验证报告路径。契约模式取登记的 `verification-report` 记录；观察模式没有记录，取本步必须产出里
+ * 唯一不含 `*` / `?` 的那条（`{change}` 已渲染）——不止一条或一条都没有，就认不出哪个是报告，不发报告动作。
+ */
+function reportPathOf(documents: StepDocumentsView): string | null {
+  if (documents.mode === 'observed') {
+    const fixed = documents.required.filter((item) => !/[*?]/u.test(item.path))
+    return fixed.length === 1 ? fixed[0]?.path ?? null : null
+  }
+  return documents.records.find((candidate) => candidate.kind === REPORT_DOCUMENT_KIND)?.path ?? null
+}
+
 async function pendingReport(
   deps: CliDeps,
   change: string,
@@ -35,11 +47,11 @@ async function pendingReport(
 ): Promise<StepTestFlow['report']> {
   const runs = freshRunIds(report)
   if (runs.length === 0) return null
-  const doc = documents.records.find((candidate) => candidate.kind === REPORT_DOCUMENT_KIND)
-  if (doc === undefined || doc.path === null) return null
-  const text = await readReport(deps, doc.path)
+  const path = reportPathOf(documents)
+  if (path === null) return null
+  const text = await readReport(deps, path)
   if (text === undefined || reportCarriesRuns(text, runs)) return null
-  return { path: doc.path, command: testReportCommand(change, doc.path) }
+  return { path, command: testReportCommand(change, path) }
 }
 
 /**

@@ -92,6 +92,73 @@ describe('evaluateStepGuards —— tasks-at-least（B2：复用 flow/guard.ts t
   })
 })
 
+describe('evaluateStepGuards —— required-output（必须产出）', () => {
+  const guarded = step({ guards: [{ type: 'required-output', path: 'docs/superpowers/specs/*.md' }] })
+  const HEAD = "step 's1' 要求产出匹配 docs/superpowers/specs/*.md 的文件"
+
+  it('buildStepGuardInput 把 requiredOutput 能力连同当前步骤一起交给 handler', async () => {
+    const seen: Array<readonly [string, string]> = []
+    const result = await evaluateStepGuards(state({}), guarded, {
+      changeDirAbs: '/tmp/x',
+      currentStep: 's1',
+      requiredOutput: async (stepId, pattern) => { seen.push([stepId, pattern]); return true },
+    })
+    expect(result).toEqual({ pass: true, failures: [] })
+    expect(seen).toEqual([['s1', 'docs/superpowers/specs/*.md']])
+  })
+
+  it('不满足：文案说清要的路径模式和「本任务里这一步还没有写出」', async () => {
+    const result = await evaluateStepGuards(state({}), guarded, {
+      changeDirAbs: '/tmp/x', currentStep: 's1', requiredOutput: async () => false,
+    })
+    expect(result.pass).toBe(false)
+    expect(result.failures).toEqual([`${HEAD}（本任务里这一步还没有写出这样的文件）`])
+  })
+
+  describe('路径模式里的 {change} 占位', () => {
+    const withPlaceholder = step({ guards: [{ type: 'required-output', path: 'openspec/changes/{change}/proposal.md' }] })
+    const changeDirAbs = '/tmp/project/openspec/changes/demo'
+    const RENDERED = "step 's1' 要求产出匹配 openspec/changes/demo/proposal.md 的文件"
+
+    it('不满足的文案显示渲染成任务名的真实路径，而不是 {change} 原样', async () => {
+      const result = await evaluateStepGuards(state({}), withPlaceholder, {
+        changeDirAbs, currentStep: 's1', requiredOutput: async () => false,
+      })
+      expect(result.failures).toEqual([`${RENDERED}（本任务里这一步还没有写出这样的文件）`])
+    })
+
+    it('能力缺失、能力抛错、当前步骤未知的文案同样渲染', async () => {
+      const missing = await evaluateStepGuards(state({}), withPlaceholder, { changeDirAbs, currentStep: 's1' })
+      expect(missing.failures).toEqual([`${RENDERED}，但缺少能力 requiredOutput，无法判定`])
+      const broken = await evaluateStepGuards(state({}), withPlaceholder, {
+        changeDirAbs, currentStep: 's1', requiredOutput: async () => { throw new Error('boom') },
+      })
+      expect(broken.failures).toEqual([`${RENDERED}，评估出错，已按未满足处理`])
+      const unknown = await evaluateStepGuards(state({ phase: '' }), withPlaceholder, {
+        changeDirAbs, requiredOutput: async () => false,
+      })
+      expect(unknown.failures).toEqual([`${RENDERED}，但当前步骤未知，无法判定`])
+    })
+
+    it('能力拿到的仍是原样的路径模式（占位由能力自己展开）', async () => {
+      const seen: string[] = []
+      await evaluateStepGuards(state({}), withPlaceholder, {
+        changeDirAbs, currentStep: 's1', requiredOutput: async (_step, pattern) => { seen.push(pattern); return true },
+      })
+      expect(seen).toEqual(['openspec/changes/{change}/proposal.md'])
+    })
+  })
+
+  it('能力缺失与能力抛错：失败关闭，文案分别说明缺能力 / 评估出错，不带异常原文', async () => {
+    const missing = await evaluateStepGuards(state({}), guarded, { changeDirAbs: '/tmp/x', currentStep: 's1' })
+    expect(missing.failures).toEqual([`${HEAD}，但缺少能力 requiredOutput，无法判定`])
+    const broken = await evaluateStepGuards(state({}), guarded, {
+      changeDirAbs: '/tmp/x', currentStep: 's1', requiredOutput: async () => { throw new Error('/secret/path 读失败') },
+    })
+    expect(broken.failures).toEqual([`${HEAD}，评估出错，已按未满足处理`])
+  })
+})
+
 // G2 P2：v1 经 compile 下沉 + handler 求值后，collect-all 逐条列全部未过项的旧语义必须逐字保留
 // （非 first-stop）——此前无测试覆盖多失败项，这里钉死顺序与文案，防新 handler 路径悄悄改成首错即停。
 describe('evaluateStepGuards —— collect-all 多失败项全列（旧语义逐字保留）', () => {

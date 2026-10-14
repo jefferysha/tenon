@@ -57,7 +57,7 @@
 ### 1.1 `.pipeline.yaml` 格式契约（与老内核字节级兼容）
 
 - 位置：`openspec/changes/<name>/.pipeline.yaml`（相对项目根）。
-- **字段序固定**：见 `types.ts::FIELD_ORDER`（现 49 字段，最末尾是 `start_sha`，见第 5 节第 16 条；2026-07-11 v5 T4 决策 G **末尾追加**
+- **字段序固定**：见 `types.ts::FIELD_ORDER`（现 51 字段，最末尾是 `start_sha`，见第 5 节第 16 条；2026-07-11 v5 T4 决策 G **末尾追加**
   `automation_current_phase`——沙箱内当前阶段，automation runner 检出 [TRANSITION] 行运行期回写、
   run 结算清空；老文件缺该行读作空串，容忍不变。新字段必须末尾追加：老版本窄解析器把首个未知
   key 起整段当 opaqueTail，插中段会让老读者回写时重复 key 腐蚀文件，见 types.ts 注释。
@@ -76,6 +76,18 @@
   导致可读但首次合法 mutation 因 projection drift 失败。当前 runtime 的 `get`、guard 与
   Dashboard 从 canonical companion 恢复逻辑值，不依赖 YAML 展示。
   写回时严格按此序全量输出，缺省字段写空串。
+- **任务结果字段 `task_result`**（`FIELD_ORDER` 末尾，在 `max_rounds` 之后）：取值 `finished` | `escalated` | `terminated`（界面：完结 / 已升级 /
+  已终止），空串 = 任务还没有结束。**系统专写**：只由 `tenon task finish` / `tenon task terminate` 在移动任务目录之前经状态仓库写一次修订；
+  `tenon set|set-many|cas` 一律拒写（exit 1，文案点名这两条命令），`tenon get` 照常可读。移动失败时再写一次修订清回空串，所以失败后
+  任务仍是原来的活跃任务、没有残留结果。空值不进 wire `state.fields`，也不进 `.pipeline.yaml` 投影（同 `max_rounds`，
+  `state/omit-when-empty-fields.ts`），没有结束的任务逐字节不变；已知限制同 `max_rounds`：写过 `task_result` 的任务（即已归档的任务），
+  N-1 运行时读 canonical 会因闭集校验失败而读不了。读取入口 `readTaskResult(dir)`（kernel）读不到时返回 `undefined`、不抛。
+  「已结束」只由目录位于 `archive/` 判定：写完结果、移动目录前进程被打断时，活跃任务上会残留一个非空 `task_result`，它不表示任务已结束，
+  `tenon task finish|terminate` 在锁内入口先把它清回空串再继续。
+- **领域字段 `domain`**（`FIELD_ORDER` 末尾，在 `task_result` 之后）：`tenon init --domain <track>` 写入的同一工作流里另一条分支 id，
+  空串 = 没记。轻量任务风险升级时 `escalate.then` 读它点名新任务的轨道；读取处校验它仍是当前可选分支，不是就当作没记、列出可选分支。
+  `tenon set` 可改。空值不进 wire 与 `.pipeline.yaml` 投影（同 `max_rounds`）；已知限制同 `max_rounds`：记过 `domain` 的任务，
+  N-1 运行时读 canonical 会因闭集校验失败而读不了。
 - **标量引号契约（单层去引号）**：读取时若值首尾为同一对 `"` 或 `'` 则剥一层，不递归；写入时
   值含 `: `、` #`、换行或首字符为引号 → 拒写（fail-loud，对齐老内核 yaml_set 四闸）。
 - **列表字段**（`scope` / `related_files` / `spec_scope` / `depends_on`）：块序列格式
@@ -187,11 +199,18 @@
 
 ## 2. 相位与转换
 
-- 相位：`open → explore → spec ⇄ build ⇄ verify → ship → archive`。
+- 相位：重型轨道（`default` 的 `pm` / `frontend` / `backend`）为 `open → explore → spec ⇄ build ⇄ verify → ship → archive`；
+  轻量轨道（`lite`）为 `open → build → verify → done`，另有终态 `escalated`（`scope-expanded` 的放弃边）。
+- **按 YAML 执行**：新建的任务一律按冻结的工作流 YAML 的步骤、出边、离开条件与动作执行，代码里不再有以工作流名或阶段名为键的
+  转换表、事件策略或阶段出口规则。通用离开条件有三个：`tasks-through-step`（`tasks.md` 里截至本步的任务已勾选）、
+  `not-afk-queued`（未在 AFK 队列里）、`dependencies-ended`（`depends_on` 都已结束），写在步骤或前进边的 `guards` 里，能力经
+  `GuardInput` 注入，缺能力失败关闭。离开条件不满足时一次列出全部、退出码 `2`；`tenon advance` 只自动走唯一的前进边，不走回退边
+  与放弃边。新任务不再有 `build_mode`、`isolation`、`direct_override`、`branch_status` 这几个决定字段及其检查（升级前创建的任务
+  照旧）。旧 phase-manifest 引擎只服务快照里记着旧执行模型的在途任务，按快照执行，下个版本删除。
 - **Requirements rollback**：build 中发现批准后的需求/设计语义变化时，唯一合法路径是
   `requirements-changed`（build→spec）。该回退不要求先伪造已 stale 的前向文档证据；进入 spec 后
   必须由 `pipeline-spec` 重登记 proposal/design/tasks 的当前 SHA、补读取收据并重新通过 spec review。
-- **Phase-scoped Todo gate**：有标准阶段标题的 `tasks.md` 在出口只统计截至当前 phase 的未完成项；
+- **Phase-scoped Todo gate**（通用离开条件 `tasks-through-step`）：有标准阶段标题的 `tasks.md` 在出口只统计截至当前 phase 的未完成项；
   未来 phase 任务仍由 UI 展示，但不反向阻塞。无阶段标题的历史文件保留“build 全清单完成”兼容语义。
 - **Build pre-Verify readiness 门**：`pre_verify_review_result` 初始为 `pending`（字段名为兼容 ABI
   保留）。Build 必须对完整待冻结 diff 建立 capability / ADR / plan / 调用方 / 兼容边界覆盖表，并
@@ -206,22 +225,23 @@
   `max_rounds`，见第 5 节第 15 条。）
 - **Build→Verify 可复验基线**：状态字段仍命名为 `build_sha` 以兼容既有 state ABI，但新 Build 必须写入
   `build:v1:<git|workspace>:<revision_hash>:<repository_hash>:<worktree_hash>` typed token。三个摘要
-  是 domain-separated SHA-256；token 不含绝对路径、prompt、credential 或裸 SHA。类别只由 kernel
-  `expectedBuildRevisionKind(isolation)` 判定（CLI、Dashboard 流转、Dashboard 快照、kernel 捕获与复核共用）：
-  `isolation=branch` 以物理 Git common-dir/worktree identity 绑定 object ID（`git` 类）；`isolation=worktree`
-  与 `isolation=in-place` 绑定排除 `.git`、依赖、OpenSpec/文档证据、pipeline 控制文件与测试缓存后的
-  `workspace:sha256:<64 hex>` 内容指纹（`workspace` 类），因为任务 worktree 里的实现在 Build 出口时常常尚未提交。
-  身份（物理 Git common-dir + worktree 顶层目录与 git 目录）对 worktree 任务同样绑定该 worktree：同一任务在别的检出里
-  复核得 `worktree-mismatch`。类别与隔离方式不符（例如 `isolation=worktree` 却带 `git` 类令牌，升级前手动设置过
-  `worktree` 的旧任务）得 `isolation-mismatch`，回 Build 重新捕获。旧裸 Git SHA
+  是 domain-separated SHA-256；token 不含绝对路径、prompt、credential 或裸 SHA。新任务不再有「怎么隔离」这个要填的决定：
+  状态里没设 `isolation` 就按 `in-place` 取（`effectiveBuildIsolation`），`tenon init` 在任务 worktree 里建任务时预设
+  `isolation=worktree`。类别只由 kernel `expectedBuildRevisionKind(isolation)` 判定（CLI、Dashboard 流转、Dashboard 快照、
+  kernel 捕获与复核共用）：`isolation=worktree` 与 `isolation=in-place` 绑定排除 `.git`、依赖、OpenSpec/文档证据、
+  pipeline 控制文件与测试缓存后的 `workspace:sha256:<64 hex>` 内容指纹（`workspace` 类），因为任务 worktree 里的实现在
+  Build 出口时常常尚未提交；升级前创建、显式写过 `isolation=branch` 的任务仍以物理 Git common-dir/worktree identity 绑定
+  object ID（`git` 类）。身份（物理 Git common-dir + worktree 顶层目录与 git 目录）对 worktree 任务同样绑定该 worktree：
+  同一任务在别的检出里复核得 `worktree-mismatch`。类别与隔离方式不符（例如 `isolation=worktree` 却带 `git` 类令牌，升级前
+  手动设置过 `worktree` 的旧任务）得 `isolation-mismatch`，回 Build 重新捕获。旧裸 Git SHA
   或旧裸 workspace baseline 不会 backfill，必须回 Build 重新捕获。`verify-pass` 会重算当前 identity/
   revision，并用 validated canonical transition head、唯一 `build_sha` effect 与当前 Verify-like step
   证明来源；缺失、非法、漂移、能力/来源无法证明都返回 stable
   `verify-build-revision-untrusted`，remediation 为 `return-to-build-and-capture-current-revision`，
   只投影 closed reason 与 `sha256:` state/revision hash。worktree / in-place 绝不要求或伪造 commit；工作区能力缺失或
   返回非规范值时 build-complete 与 readiness 均 fail-closed。
-- 合法转换与 `review_phases` 由 `templates/manifest.yaml` 派生（**引擎侧真读该字段**——
-  这是对老内核 state-transition.sh 硬编码欠账的构造性修复）。
+- 合法转换与评审门来自任务冻结的工作流 YAML（步骤出边与 `gate: review`）；`templates/manifest.yaml` 的 phases / transitions /
+  `review_phases` 只服务快照里记着旧执行模型（phase-manifest）的在途任务。
 - 门 marker 文件（项目根）：`.pipeline-pending-confirm` / `-review` / `-interaction`，
   存在且 age ≤ 分级 TTL 视为新鲜 → hook 拦截；陈旧 marker 由 gate.sh 顺手清除。
   TTL 分级（BACKLOG #13，对齐老内核 pipeline-gate.sh；TS 侧单一数值真相源
@@ -261,31 +281,34 @@
 
 | cmd | 参数 | stdout 契约 | exit |
 |---|---|---|---|
-| init | `<name> --track --preset [--workflow] [--in-place] [--json]`；preset ∈ full\|hotfix\|tweak，显式自定义 `--workflow` 时可省略（存 `null`）。在 git 仓库的主检出里默认先建 worktree `.worktrees/<name>`（分支 `tenon/<name>`）再在其中建任务；非 git 仓库 / 无提交 / HEAD 分离 / 已在 linked worktree / `--in-place` / `TENON_INIT_IN_PLACE=1` 时原地建立 | 无（`[INIT] 路径` 与 worktree 路径走 stderr；`--json` 时 stdout 一行 `{change,path,worktree,worktree_reason}`） | 0；未知 preset / 缺必填 / worktree 路径或分支冲突=1 |
+| init | `<name> [--workflow <w>] [--track <t>] --preset [--domain <track>] [--in-place] [--json]`；preset ∈ full\|hotfix\|tweak，显式自定义 `--workflow` 时可省略（存 `null`）；有分支的工作流必须带 `--track`，平铺工作流（没有 `tracks:`）不带；`--domain` 把同一工作流里另一条存在的分支记入任务状态字段 `domain`（轻量任务升级时 `escalate.then` 直接点名它）。在 git 仓库的主检出里默认先建 worktree `.worktrees/<name>`（分支 `tenon/<name>`）再在其中建任务；非 git 仓库 / 无提交 / HEAD 分离 / 已在 linked worktree / `--in-place` / `TENON_INIT_IN_PLACE=1` 时原地建立 | 无（`[INIT] 路径` 与 worktree 路径走 stderr；`--json` 时 stdout 一行 `{change,path,worktree,worktree_reason}`） | 0；未知 preset / 缺必填 / worktree 路径或分支冲突 / `--workflow standard\|simple`（提示 `--workflow default --track lite`）/ 不存在的轨道（含已退役的 `standard`、`simple`、`chat`、`free`，列出可选轨道）=1 |
+| assess | `--files <paths…> [--workflow <w>] [--track <t>] [--json]`；缺省 `default` / `lite`；只按路径分类、不读文件内容，路径须是仓库内相对路径 | 人读：评估摘要与推荐；`--json`：`{workflow,track,metrics,exceeded,reasons,recommendation}`（`reasons` 形如 `auth_files 1 > 0`；未超限时 `recommendation` 是轨道 id，超限时是列出同一工作流重型轨道的提示） | 0 未超限；3 超限；1 用法错误、绝对路径 / `..` / 指向仓库外的符号链接、读不出是否存在的路径（权限、I/O；只有 ENOENT / ENOTDIR 算不存在，错误里点名路径与原因）、或该轨道没有改动风险阈值（读 `diff-risk` 步骤测试的 `pass.metrics`，不猜阈值） |
 | get | `<name> <field>` | 裸值一行；字段缺失/未知 → 空行 | 0；change 缺失/名非法=1 |
 | set | `<name> <field> <value>` | 无输出 | 0；四闸/枚举/未知字段拒写=1 |
 | set-many | `<name> k=v...` | 无输出 | 同上 |
 | cas | `<name> <field> <expect> <new>` | 无输出 | 0；不匹配=3；错误=1 |
 | transition | `<name> <event>` | 无（`[TRANSITION] name: old -> new` 走 stderr）；非法/未知事件的首行形状不变（`illegal transition: a -> b` / `未知 event: x`），第二行 `当前 step '<s>' 的合法 event：…`（语言随 `TENON_LANG`） | 0；非法/未知事件=1 |
-| check | `<name>` | guard 报告（人读） | 0 过 / 2 不过 / 1 错误 |
+| check | `<name>` | guard 报告（人读）：步骤 guards ∪ 前进边 guards，一次列出全部未满足的离开条件 | 0 过 / 2 不过 / 1 错误 |
+| advance | `<name> [--max-steps <n>] [--dry-run] [--through-gates]` | 反复走唯一的前进边直到撞上评审门、终态或 guard 不过；不走回退边与放弃边（`scope-expanded`） | 0；guard 不过=2；错误=1 |
 | review | `request\|acknowledge <name> [--delegated]` | review receipt 状态 | 0 成功；2 投影写/清失败（receipt 已提交）；1 用法/状态错误 |
 | status | `[name] [--json]` | 单 change 摘要；`--json` 的 `step.exits[].blockers[]` 另带可选的结构化字段 `subject` / `state` / `count`（客户端据此分类，不解析 `message`） | 0 |
 | support bundle | `[--out <path>] [--json]` | 本机脱敏诊断包 `.tar.gz`（版本、doctor、runtime status、配置摘要、最近 Dashboard 日志、hook 耗时；≤ 5 MiB，权限 0600，缺省 `~/tenon-support-<时间>.tar.gz`）；逐项打印包含的文件、截断与脱敏计数；`--json` `{path,bytes,entries,redactions,not_included}` | 0；`--out` 是目录/写失败=1 |
 | logs | `[--follow] [--lines <n>]` | Dashboard server 日志 `<state>/logs/dashboard.log`（+ `.1` `.2` 轮转，共 3 个）的最近 n 行（缺省 100），行内凭证再脱敏一次；`--follow` 轮询新增行直到 SIGINT；没有日志文件 → stderr 提示、stdout 空 | 0；`--lines` 非正整数/读失败=1 |
-| list | `[--json] [--archived]` | 活跃 change 表，另含建在 `.worktrees/<name>` 里的未归档任务（人读表末列 `WORKTREE`，无则 `-`；`--json` 每行末尾 `worktree` 为该 worktree 的绝对路径，当前根自己的任务为 `null`）；`--archived` 为当前用户已归档表 `NAME PHASE ARCHIVED_AT BY` | 0；归档记录损坏=1 |
+| list | `[--json] [--finished]` | 活跃 change 表，另含建在 `.worktrees/<name>` 里的未归档任务（人读表末列 `WORKTREE`，无则 `-`；`--json` 每行末尾 `worktree` 为该 worktree 的绝对路径，当前根自己的任务为 `null`）；`--finished` 为已结束的任务表（`archived=true`，含已移进 `openspec/changes/archive/` 的完结 / 已升级 / 已终止）`NAME TRACK PHASE STATUS FINISHED_AT OWNER` | 0 |
 | task delete | `<name> [--yes] [--json]` | 无（`[DELETE] name` 与 `未提交删除 n` 走 stderr）；`--json` `{change,removed,uncommitted_deletions}` | 0；用法/名/缺任务/身份/记录损坏/失败=1；待确认=2；被阻止=3 |
-| task archive | `<name> [--yes] [--json]` | 无（`[ARCHIVE] name phase=<phase>` 走 stderr）；`--json` `{change,changed,archived_at,phase}` | 同上 |
-| task unarchive | `<name> [--json]` | 无（`[UNARCHIVE] name` 走 stderr）；`--json` `{change,changed}` | 0/1 |
+| task finish | `<name> [--json]` | 无（`[FINISH] name 结果 → 归档目录` 走 stderr）；`--json` `{change,result,archived_dir,ended_at}`；只接受状态机已到终态（完结 / 已升级）的任务，先在任务状态里写 `task_result`、再把目录移进 `openspec/changes/archive/<YYYY-MM-DD>-<name>/`（同名同日追加 `-2`、`-3`，不覆盖）；`spec: openspec` 的轨道由 Tenon 调用 `openspec archive <name> --skip-specs --yes --json`，`spec: none` 的轨道在锁内原子移动；提交由 `step.next` 的 `finish-change.commit` 给出 | 0；用法/名/缺任务/未到终态/移动失败=1 |
+| task terminate | `<name> [--yes] [--json]` | 无（`[TERMINATE] name → 归档目录` 走 stderr）；`--json` `{change,result,archived_dir,ended_at,commit}`；任何还没结束的任务，`task_result=terminated`，目录同样移进 `archive/`，**只提交被移动的任务目录**（`chore(tenon): terminate <name>`），任务改过的代码不提交；已到终态的任务拒绝（改用 `task finish`）；目录移动之后审计记录写不进去只在 stderr 给 `WARN:`（HTTP 响应带 `warnings`），任务仍已终止、退出码 0；`delete` / `terminate` / `finish` 同序加锁（项目归档锁 → 任务锁）并在锁内重新评估，同一任务上互斥，后到的一方得到「任务不存在」 | 同 `task delete`（退出码 0/1/2/3） |
+| task archive / unarchive | 已退役（「隐藏」已删除） | stderr 提示改用 `task terminate` / `task finish` | 1 |
 | user | `[--json]` | `名字 <邮箱> 来源` 一行；`--json` `{user:{id,name,slug,source,trust}\|null, invalid?}` | 0；无身份=1 |
 | user set | `<email> [--name <name>]` | 写本机 `user.json` 后同 `user`；`TENON_USER` 覆盖时 stderr 警告 | 0；邮箱非法/写失败=1 |
 | owner take | `<name>` | 新负责人 `名字 <邮箱>` 一行；变更时追加 `assignee` history | 0；名非法/无身份/缺任务/写失败=1 |
 | owner set | `<name> <email> [--name <name>]` | 同 `owner take` | 0；非当前负责人/邮箱非法=1，其余同 `owner take` |
 | test discover | `[--write] [--json]` | 建议套件表（`--write` 追加进 `.tenon/tests/catalog.yaml`，已存在的 id 不覆盖）；`--json` `{catalog,written,suites[{id,state,source,suite}],notes}` | 0；目录无效=1 |
-| test catalog show/validate/add/set/rm | `show [<id>] [--json]`、`validate [--json]`、`add [<id>] [--from <方向>] [--service] …`、`set <id> … [--service]`、`rm <id> [--service]` | 目录条目；`validate` 逐条 `catalog.yaml:<行>: …`；写出前整份重新解析，写坏的目录不落盘 | 0；`validate` 有问题=2；用法/目录无效/引用缺失=1 |
-| test plan | `<name> [--seed] [--json]` | 计划摘要与各项；`--seed` 只增不减地补套件/文件并列出待映射场景 / 任务（场景与实现阶段小节的任务要求映射；其余阶段的任务与骨架提示词单列为「可选」，不挡）；`--json` `{change,state,digest?,plan?}` | 0；计划缺失或被改动=2；`--seed` 无目录/非负责人=1 |
-| test register/unregister/waive | `register --suite\|--file\|--case+--test`、`unregister --suite\|--file\|--case[--test]\|--waiver <种类\|场景>`、`waive --kind\|--covers --reason` | 一行确认；写入在 Change 锁内读—改—写并更新摘要台账 | 0；计划被改动/校验失败/非负责人=1 |
-| test sync | `<name> [--json]` | 未登记/无套件认领/已不存在的测试文件与修复命令；`--json` `{unregistered,orphans,registeredButMissing,unmapped,optionalUnmapped}`（`unmapped` 只含要求映射的场景 / 实现阶段任务，`optionalUnmapped` 是不挡的可选任务） | 0 干净；2 有待处理；读不到 diff 或目录=1 |
-| test run | `<name> [--suite <id>]… [--kind <k>]… [--stage [<step>]] [--all] [--changed] [--json]`；旧形式 `<name> <test-id>` | 摘要（每套件一行、前 10 条失败用例、服务、产物位置、出口检查）；`--json` `{run_id,step,result,chain,record_path,artifacts_dir,legacy,gate,record}`；`--stage` 只跑目录套件，旧内联测试仍走 `<name> <test-id>` | 0 全部通过；2 有失败（记录已写）；1 用法/环境错误（无记录） |
+| test catalog show/validate/add/set/rm | `show [<id>] [--json]`、`validate [--json]`、`add [<id>] [--from <方向>] [--service] …`、`set <id> … [--service]`、`rm <id> [--service]` | 目录条目；`validate` 逐条 `catalog.yaml:<行>: …`；写回只替换实际变化的节点所在的行（顶层键 / `suites` 条目 / 条目内的键），其余字节（注释、空行、排版）原样保留，新增追加在所属列表末尾，删除只去掉它自己的行，被改键的行内注释随之丢失；写出前整份重新解析并与预期目录逐键比较，不一致不落盘（新建目录照旧整份写出） | 0；`validate` 有问题=2；用法/目录无效/引用缺失=1 |
+| test plan | `<name> [--seed] [--json]` | 计划摘要与各项；`--seed` 只增不减：档位步骤不写套件和测试文件，只报告缺的必需测试类，以及档位要求映射时待映射的场景 / 任务（场景与实现阶段小节的任务要求映射；其余阶段的任务与骨架提示词单列为「可选」，不挡），旧策略只补碰到的套件与必需种类、不再写 `files`；`--json` `{change,state,digest?,plan?}` | 0；计划缺失或被改动=2；`--seed` 无目录/非负责人=1 |
+| test register/unregister/waive | `register --auto\|--suite\|--file\|--case+--test`、`unregister --suite\|--file\|--case[--test]\|--waiver <种类\|场景>`、`waive --kind\|--covers --reason` | 一行确认；写入在 Change 锁内读—改—写并更新摘要台账；改动过的测试文件由套件 `files` glob 认领、不逐个登记；`--auto` 只处理本任务改动里没有套件认领的测试文件（孤儿），把该文件的**精确路径**追加进合适套件的 `files`，不放宽 glob、不碰本任务没改动的文件，没有合适套件时报错并给出补套件的命令、不写目录 | 0；计划被改动/校验失败/非负责人=1 |
+| test sync | `<name> [--prune] [--json]` | 无套件认领（孤儿）/已不存在/目录已不认领的测试文件与修复命令（被认领的改动文件不再列为未登记）；`--json` `{unregistered,orphans,registeredButMissing,registeredButUnclaimed,unmapped,optionalUnmapped}`（`registeredButUnclaimed` 是 `[{path,suite?,reason}]`，`reason` 取 `no-owner`/`suite-missing`/`glob-mismatch`；`unmapped` 只含要求映射的场景 / 实现阶段任务，`optionalUnmapped` 是不挡的可选任务）。`--prune` 只删计划 `files` 里目录已不认领的登记（有意登记、只有 `kind` 的资源文件保留；套件、用例映射、豁免不动；不读 diff；要求负责人；写入走 `register` 同一条加锁、记摘要、留 `test:plan-write op=prune` 审计的路径），`--json` `{change,digest,pruned:[{path,suite?,reason}]}`，没有可删的项不重写计划 | 0 干净（`--prune`：删了或没有可删的）；2 有待处理；读不到 diff 或目录=1（`--prune`：目录缺失/无效/没有任何套件、计划被手改、非负责人=1） |
+| test run | `<name> [--suite <id>]… [--kind <k>]… [--stage [<step>]] [--all] [--changed] [--json]`；旧形式 `<name> <test-id>` | 摘要（每套件一行、前 10 条失败用例、服务、产物位置、出口检查）；`--json` `{run_id,step,result,chain,record_path,artifacts_dir,legacy,gate,record}`；`--stage` 只跑目录套件（运行集与 `status` / `check` 求值用的阶段运行集一致，由步骤档位、目录与本任务改动决定），旧内联测试仍走 `<name> <test-id>`；本阶段按档位没有要运行的套件时如实说明并以 0 退出、不写运行记录 | 0 全部通过；2 有失败（记录已写）；1 用法/环境错误（无记录） |
 | test baseline | `<name> --suite <id> --run <run-id>`；旧形式 `<name> <test-id> --run <run-id>` | `[BASELINE] 套件 @ 画像：n 项指标 ← run <id>`；写 `.tenon/tests/baselines/<套件>/<画像>.json` 并追加用户 `audit.jsonl` | 0；运行未通过/不在当前链上/无指标=1 |
 | test known | `add --suite --test --reason --expires [--link]`、`rm --suite --test`、`list [--json]` | 一行确认或清单（过期项标出） | 0；参数非法/清单无效=1 |
 | test report | `<name> [--step <id>] [--write <path>] [--locale zh-CN\|en]` | 验证报告测试段：旧步骤测试表（`tenon:tests:*`，仅有内联测试时）+ v2 块（`tenon:test-report:begin/end`：追溯矩阵/套件与各套件最新 run_id/基准/flaky/阻塞）；`--write` 只替换各自标记区间 | 0；写目标非法=1 |
@@ -296,7 +319,7 @@
 
 身份与负责人命令 `tenon user` / `tenon user set` / `tenon owner take` / `tenon owner set` 只登记自报身份，不做认证；`owner set` 仅当前负责人可执行，与 Dashboard 的负责人移交共用 kernel `transferOwner`。
 
-测试体系（`tenon test …`）三层落盘契约：项目目录 `.tenon/tests/catalog.yaml`（人可编辑，加载时校验，报告/覆盖率/产物路径必须在 `test-results/`、`playwright-report/`、`coverage/` 之下）、任务计划 `openspec/changes/<name>/test-plan.yaml`（只经 `tenon test` 命令写入，字节摘要记进同目录 `.pipeline-test-plan.json` 台账，不符即 `test-plan-tampered`）、工作流步骤策略 `steps[].test_policy`。运行记录 v2 写入 `.tenon/users/<slug>/tests/<change>/<run-id>.json`，按 `prev_digest` 哈希链串联，`tenon test run` 是唯一写入方；断链则该用户该任务的 v2 记录全部视为未运行，重跑另起新链。`report-untrusted` 套件原因在磁盘上写成已有的 `report-unreadable` + detail 前缀 `[report-untrusted]`，摘要算在磁盘形上（上一个发行版读得了）。清理默认关闭：设了 `TENON_RECORD_RETENTION=<n>` 才在每次运行后只保留最新 n 条（v1 内联步骤测试固定按测试项保留最新 `RECORD_RETENTION`=20 条），因为上一个发行版（v0.2.1）读不了清理过的链。清理删最老的前缀并写同目录的链基点标记 `chain-base`（`{schema: tenon-record-chain-base/v1, base, pruned}`，`base` 是被删的最后一条的摘要，保留下来的最老一条的 `prev_digest` 必须等于它；先写标记再删文件，标记里的 `pruned` 校验时当作不存在），中间缺记录、基点对不上、标记损坏仍是断链。基线 `.tenon/tests/baselines/<套件>/<画像>.json` 与已知失败 `.tenon/tests/known-failures.yaml` 进 git，只经 `test baseline` / `test known` 写。「自任务起点以来改动的文件」由 kernel `changedFilesSinceChangeStart` 提供（起点见第 5 节第 16 条：`start_sha`、基线分支上游的 merge-base、基线分支的 merge-base 中最新的候选，都没有时取 `created_at` 之前的最后一个提交；含暂存/未暂存/未跟踪），CLI 与 server 快照共用；提供者抛错时策略 `files: registered` 以 `files-diff-unavailable` 阻塞（失败关闭）。`tenon test run` 写入的套件结论与门禁重算调用同一个 kernel `evaluateSuiteResult`；旧步骤 `tests[]` 与 v1 记录不变，`tenon test run <name> <test-id>` 与 `tenon test baseline <name> <test-id>` 保持原行为。
+测试体系（`tenon test …`）三层落盘契约：项目目录 `.tenon/tests/catalog.yaml`（人可编辑，加载时校验，报告/覆盖率/产物路径必须在 `test-results/`、`playwright-report/`、`coverage/` 之下；可选顶层键 `levels` 只接受 `plan` / `changed` / `full` 三档，每档只接受 `required`、`touched`（测试类）、`scenarios`（`off|required|passing`，缺省 `off`）、`coverage`（0–100）、`flaky`、`require_baseline` 六个键，`plan` 档只接受 `required` 与 `scenarios`，没写的档或键取内建缺省，未知档 / 键 / 测试类 / 越界值使整份目录无效、测试相关出口一律阻断，`levels` 计入目录摘要）、任务计划 `openspec/changes/<name>/test-plan.yaml`（只记手工选择：`register --suite` 加跑的套件、`--file --kind` 登记的资源文件、用例映射与豁免；改动过的测试文件由套件 `files` glob 在求值时认领、不写进计划；只经 `tenon test` 命令写入，字节摘要记进同目录 `.pipeline-test-plan.json` 台账，不符即 `test-plan-tampered`）、工作流步骤档位 `steps[].test`（`none|plan|changed|full`，编译后只记档位名，含义在求值时读目录 `levels`；与旧 `test_policy` 在同一步互斥，同时写则编译以退出码 2 报错；旧 `test_policy` 只为冻结快照保留读取与求值，其 `files: registered` 改按认领处理）。测试类是 `unit`（`unit`、`coverage`）、`integration`（`integration`、`regression`、`contract`、`smoke`）、`e2e`（`e2e`、`playwright`、`browser`、`a11y`、`visual`）、`static`（`typecheck`、`lint`、`code-size`、`design-system`）、`benchmark`，外加只在点名时运行的 `custom`；套件的 `kind` 可写类名或旧种类名（别名），档位按类匹配，旧 `test_policy` 仍按种类名逐字匹配。运行记录 v2 写入 `.tenon/users/<slug>/tests/<change>/<run-id>.json`，写入前（算摘要之前）把所有字符串字段里的仓库根（逻辑路径、真实路径、`file://` 前缀）改写成仓库相对路径、用户主目录改写成 `~/`（已有记录不回写；本机日志照旧），按 `prev_digest` 哈希链串联，`tenon test run` 是唯一写入方；断链则该用户该任务的 v2 记录全部视为未运行，重跑另起新链。`report-untrusted` 套件原因在磁盘上写成已有的 `report-unreadable` + detail 前缀 `[report-untrusted]`，摘要算在磁盘形上（上一个发行版读得了）。清理默认关闭：设了 `TENON_RECORD_RETENTION=<n>` 才在每次运行后只保留最新 n 条（v1 内联步骤测试固定按测试项保留最新 `RECORD_RETENTION`=20 条），因为上一个发行版（v0.2.1）读不了清理过的链。清理删最老的前缀并写同目录的链基点标记 `chain-base`（`{schema: tenon-record-chain-base/v1, base, pruned}`，`base` 是被删的最后一条的摘要，保留下来的最老一条的 `prev_digest` 必须等于它；先写标记再删文件，标记里的 `pruned` 校验时当作不存在），中间缺记录、基点对不上、标记损坏仍是断链。基线 `.tenon/tests/baselines/<套件>/<画像>.json` 与已知失败 `.tenon/tests/known-failures.yaml` 进 git，只经 `test baseline` / `test known` 写。「自任务起点以来改动的文件」由 kernel `changedFilesSinceChangeStart` 提供（起点见第 5 节第 16 条：`start_sha`、基线分支上游的 merge-base、基线分支的 merge-base 中最新的候选，都没有时取 `created_at` 之前的最后一个提交；含暂存/未暂存/未跟踪），CLI 与 server 快照共用；提供者抛错时，`test: changed|full` 的档位与旧策略 `files: registered` 以 `files-diff-unavailable` 阻塞（失败关闭）。测试改动判定先去掉控制目录 `openspec/`、`.tenon/`、`.pipeline/` 下的路径，测试文件名规则（`*.test.*`、`*.spec.*`、`test_*.py`、`*_test.go`、`*.bench.*`、`e2e/` 下的文件）只在源码扩展名上成立，git 没有改动的文件不算本任务改动；改动里像测试却没有套件认领的是孤儿（`test-file-orphan`）。阶段运行集由 kernel `stageRunSet` 单源计算（`changed`：`required` 与 `touched` 类里被改动碰到的套件按改动范围运行，没被碰到则零运行即满足；`full`：`required` 类全部套件全量、`touched` 类被碰到的全量；`plan`：不运行；所有档位另加计划显式加跑的套件；读不到改动列表时不猜运行集），`status` / `check` 求值与 `tenon test run --stage` 共用。没写 `covers` 的套件只有它自己的测试文件改了才算被碰到：`changed` / `full` 档里，`required` 或 `touched` 类有套件没写 `covers`、没进运行集，而本任务改了源码文件（控制目录之外、源码扩展名、文件名不像测试文件）时，求值与 `--stage` 出不阻断的提示 `suites-without-covers`（`policy.notices`，点名套件，`fix` 为 `tenon test catalog set <第一个 id> --cover-glob "<glob>"`）；旧 `test_policy`、`plan` 档、读不到改动列表、改动只碰到测试文件或非源码文件时不出。认领文件在套件跑完后必须有执行过的用例，否则 `registered-test-not-executed`，多个套件认领同一文件时在其中一个跑过的套件里执行过即可。`tenon test run` 写入的套件结论与门禁重算调用同一个 kernel `evaluateSuiteResult`；旧步骤 `tests[]` 与 v1 记录不变，`tenon test run <name> <test-id>` 与 `tenon test baseline <name> <test-id>` 保持原行为。
 
 get/set/transition 的 stdout 与 exit code 以 **golden-oracle 双跑逐字一致**为准
 （oracle=老内核 `skills/pipeline/scripts/pipeline-state.sh`，diff 白名单仅时间戳字段值）。
@@ -318,12 +341,32 @@ get/set/transition 的 stdout 与 exit code 以 **golden-oracle 双跑逐字一�
 > 绝不写盘；`pipeline workflow plan <change> --json` 是 Agent、CLI 与 Dashboard 读取同一冻结计划的
 > 公共入口。
 >
-> 2026-09-16（workflow-io-openspec）：文档治理只有一个开关 `openspec: true`，`openspec_contract`
+> 2026-09-16（workflow-io-openspec；2026-10-13 起只适用于冻结了旧文档契约的任务，见下一条）：文档治理只有一个开关 `openspec: true`，`openspec_contract`
 > 已移除。契约写在它引用的 `steps` 旁边：单流程写顶层 `document_contract`，有 `tracks` 时逐分支写
 > `tracks.<id>.document_contract`；slot 的 `role` 只有 `produce | update | require`，scope 与路径由
 > kind 决定（`design-md` → `DESIGN.md`）。未声明契约的 Workflow 是自由模式。`document_contract` 缺少
 > `openspec: true`、owner/read 引用不存在或读取发生在 owner 之前均在 parse/compile/validate 阶段失败。
 > CLI、server 与 dashboard 投影消费同一编译结果，不按 workflow 名猜测文档策略。
+
+> 2026-10-13（rework-document-mechanism）：新任务不再有预先规定的文档契约。工作流定义拒绝
+> `document_contract` 与非空的步骤 `inputs` / `outputs` / `artifacts`（空列表照收、序列化不再写出），也拒绝依赖
+> `outputs` 的 `nonempty-output` 守卫；报错点名替代写法。文档条件只剩按路径的 `required-output` 守卫
+> （`{ type: required-output, path: <模式> }`，可写在步骤或边的 `guards` 上，支持 `when`；模式是项目相对 POSIX
+> 路径，支持 `{change}`、`*`、`**`、`?`，拒绝空串、绝对路径、`..`、反斜杠与其他占位符）。Tenon 在离开步骤时
+> （转换锁内、所有门禁通过之后、提交之前）把工作区与进入步骤时的 git 检查点比较，把本步新增、修改、删除的文件与
+> 来源技能（hook 记录的技能加载时间与文件修改时间的尽力标注，对不上记「未知」）记入
+> `openspec/changes/<change>/.pipeline-step-outputs.json`（`.pipeline-` 前缀的 Tenon 状态，只经 Tenon 命令写）。
+> 非 git 目录或 git 失败时该次访问记 `observation: unavailable`，不记产出也不阻断转换。下一步只拿到直接上游那次
+> 访问新增或修改、且仍存在的文档（`.md` / `.mdx` / `.markdown`）；`tenon document read <change> all|<path>` 写
+> 读取回执（摘要等于上游记下的或文件当前的即算读过）；离开除放弃边外的任何边都要求输入读完，否则阻断
+> `source: document`、`code: input-unread`、`subject: <path>`，转换退出码 `1`。必须产出不满足时是步骤守卫失败，转换
+> 退出码 `2`，`step.next` 走 `fix`。`capabilities.documents.mode` 是唯一分流点：`observed`（冻结计划没有旧文档契约）
+> 走上述机制；`contract`（冻结计划带旧文档契约）仍走文档账本 `.pipeline-documents.json`、按 kind 的读取与
+> `scaffold-document` / `record-document` / `register-field` 动作，行为不变；`governed` 只表示走 OpenSpec 生命周期。
+> 观察模式下 `tenon document scaffold|record|init|migrate-delta` 退出码 `2`、`tenon artifact register` 退出码 `1`。
+> `gate: auto` 不再由 `outputs` 推导输出齐全守卫，自动门禁就是离开条件全部满足。观察、交接、读取回执与必须产出
+> 不认识任何规范格式（OpenSpec、Spec Kit 一视同仁）。工作流 API 不再返回 `effectiveIo`，任务编排接口
+> （`GET /api/change/:name/orchestration`）的 `io` 换成 `stepIo`。
 
 > 2026-07-24（PM Spec 后 AFK）：内建 PM track 在 `spec-complete` 成功提交后会按独立的
 > `auto_enqueue_on_spec_complete` 策略将 automation 从 `off` 原子置为 `queued`，并记录入队时间；不启动
@@ -448,6 +491,34 @@ most 64 characters, and a manifest contains at most 256 fixtures.
   server 在 registered root、Change parent、Change 与 root mutation version 上做前后锚定。坏证据返回
   `409 SKILL_INVOCATION_CORRUPT`，路径漂移返回 403，未知/future DTO 不显示为成功。
 
+### 3.5 轨道、路由、评估与任务结束
+
+- **轨道只是工作流的分支**：轨道的身份是「工作流 + 轨道 id」（工作流 YAML 的 `tracks.<id>`），只此一种；没有 `tracks:` 的平铺
+  工作流是只有一条隐式轨道的工作流，`tenon init` 不带 `--track`。分支键是闭集：`label`、`steps`、
+  `spec`（`openspec` | `none`；缺省继承顶层 `openspec`，`openspec: true` 视为 `spec: openspec`，旧文件的工作流指纹在不出现新键时
+  不变）、`route`（`keywords`、`exclude`、`priority`、`fallback`；不写表示不参与自动路由，只能点名）、`automation`（`eligible`、
+  `enqueue_after_spec`；缺省两者皆关）。未知键与非法值一律失败关闭；`document_contract` 不再是分支键（校验报错并给出
+  `required-output` 替代写法，解析器仍读它只为表示冻结快照）。内建轨道登记表与 `.pipeline/tracks.yaml` 不再读取（文件在
+  时只打印一行提示）。内建工作流只有 `default`（`lite` / `pm` / `frontend` / `backend`）与平铺的 `design-system`；`standard`、
+  `simple` 工作流与 `chat`、`free` 轨道已删除。`tenon tracks list|show` 只读列出全部可用工作流（项目 → 全局存储 → 插件模板）的分支。
+- **路由缓存 `router.v6`**（`.pipeline/cache/router.v6.data`，kernel 编码的有界纯数据，至多 64 条路由行，bash 只读、从不 source /
+  eval）：由所有可用工作流里带 `route` 的分支生成；缓存摘要覆盖全部工作流文件的内容，任一变化即重建；旧版本缓存整体作废；
+  写坏的工作流在生成时跳过并警告，其余照常路由，路由保持失败关闭。路由只决定「是不是开发请求、属于哪个领域」，不按关键词决定轻重：
+  点名轨道或工作流 → 照用，不评估；轻量分支自己的 `exclude` 命中（重型信号）→ 直接走领域重型轨道；其余开发请求 → dispatch 带
+  `assess: required` 与若干行 `candidate: workflow=<w>;track=<t>`（轻量 + 领域重型轨道）；最高分并列，或最高分落在自定义工作流的
+  分支 → `selection_required: true` 与候选；被排除又无分支认领 → 落到声明了 `route.fallback: true` 的分支（`default` 里是 `backend`）。
+  dispatch 的其余字段：`workflow`、`track`、`track_basis`（`user-named` | `score` | `state` | `none`）、`intent`、
+  `continuous_execution`、`host_session_id`。
+- **评估与探针共用分类**：`tenon assess` 与轻量轨道实现步的 `diff-risk` 探针共用 kernel `classifyChange` 与同一组阈值（该步骤测试的
+  `pass.metrics`），事前评估与事后探针对同一组文件给出相同的指标与结论；评估只读路径，不读文件内容。探针超限时 `step.next` 只给
+  `scope-expanded` 与 `escalate`（`reasons`、`then`）。
+- **任务结束一律归档**：`tenon task finish` / `tenon task terminate` 是仅有的结束入口，任务结果 `task_result` ∈ `finished` | `escalated`
+  | `terminated`，在移动目录之前写入；目录移进 `openspec/changes/archive/<YYYY-MM-DD>-<name>/`，同名同日追加 `-2`、`-3`，绝不覆盖。
+  `step.next` 的 `finish-change` 对所有轨道都给出 `command: tenon task finish <name>`，agent 不再直接执行 `openspec` 命令。Dashboard
+  的「已结束」分类列出 `archive/` 下的全部任务，详情是只读的 `GET /api/change/:dir/snapshot?archived=1`。
+- **AFK 资格**只读所选分支的 `automation.eligible`；没写 `automation` 的分支（含平铺工作流）不可进入 AFK，`tenon afk enqueue` 退出码 `3`，
+  `--json` 带 `reason: "track-not-afk-eligible"`；`enqueue_after_spec: true` 的分支在规格完成后自动入队。
+
 ## 4. 目录所有权（并行 agent 只写自己的格子）
 
 | 目录 | 所有者 | 内容 |
@@ -523,8 +594,8 @@ most 64 characters, and a manifest contains at most 256 fixtures.
    归一成 v1，下一次写盘即自愈。技能可不可以被模型调用的权威来源是 SKILL.md 字节本身
    （`tree_sha256` 已把字节钉死），由 doctor 探针与候选校验现读，不进锁。
 
-10. **强制 Skill 必须模型可调用（2026-09-22）**：`templates/manifest.yaml` 的 `mandatory_skills`
-   与 `templates/workflows/default.yaml` 的 step `skills` 只能声明宿主肯代模型调用的 Skill。
+10. **强制 Skill 必须模型可调用（2026-09-22）**：`templates/workflows/default.yaml` 的 step `skills`
+   （技能只来自工作流 YAML，manifest 的 `mandatory_skills` 技能矩阵已删除）只能声明宿主肯代模型调用的 Skill。
    带 `disable-model-invocation: true` 的 Skill 由设计只接受人工触发，宿主 Skill 工具拒绝代模型
    执行它，Tenon 下发的 `load-skill <id>` 因此既跑不起来也留不下回执，transition 的
    step-skills-incomplete 会把该 phase×track 永久锁死（v0.1.0 的 explore.pm/frontend/backend、
@@ -535,10 +606,7 @@ most 64 characters, and a manifest contains at most 256 fixtures.
    token 的 `a|b` 备选只要有一个被证明可调用即算过；**读不到字节 = 未知**，既不定罪也不报绿——
    候选校验对未知沉默（干净检出本就没有这些字节，否则没人能发版），doctor 对未知报 yellow。
    「强制技能压根没装」由 `skills:mandatory` / `skills:workflow` 报红，不会因这条沉默而漏掉。
-   仅人工调用的 Skill 仍随包分发作人工指引，只是不得出现在强制表。
-   Dashboard 的 `POST /api/config/mandatory-skills` 在落盘前做同一判定（automation
-   `nonInvocableSkillTokens`，读产品 `skills/<id>/SKILL.md`），证明不可调用即 400
-   `code: mandatory-skill-not-invocable`、manifest 零改动；未知同样不拦。
+   仅人工调用的 Skill 仍随包分发作人工指引，只是不得出现在工作流步骤的 `skills` 里。
 
 11. **跨年龄线格式不许做版本握手（2026-09-22）**：一份文件如果由一个组件写、由另一个**可能是
    别的年龄**的组件读，它的 schema 就是对外契约，不能靠「双方同时升级」成立。本仓已知的这类面：
@@ -549,7 +617,7 @@ most 64 characters, and a manifest contains at most 256 fixtures.
    已经容忍的方式增**；旧读取器若是 exact-keys，就一个字段都不能加，新事实应当放到旧读取器
    根本不看的地方（如内容字节本身）。改 version 等于断代，必须当作破坏性变更单独设计升级路径。
 
-12. **必需技能 = 调用 + 本步绑定的产物（2026-09-23）**：step 的 document 契约（`document_contract`
+12. **必需技能 = 调用 + 本步绑定的产物（2026-09-23；2026-10-13 起只适用于冻结了旧文档契约的任务）**：step 的 document 契约（`document_contract`
    的 role produce 槽）点名为 producer 的必需技能，要在**本次步骤访问**里由它（按别名等价）登记了
    该槽的文档才算完成；只有调用回执不算（第三轮真机验收里五条空 PostToolUse 就把五个技能刷成了
    done）。本步没有产出槽点名它的技能仍以调用为准——没有可以绑定的产物。「本次访问」按文档记录的
@@ -560,11 +628,15 @@ most 64 characters, and a manifest contains at most 256 fixtures.
    （新增 `invoked` = 已调用、欠 `pending_documents`）、`exits[].blockers` 与 `next` 都读它；
    `next` 对 `invoked` 的技能下发它欠的 `scaffold-document` / `record-document`（带 `skill`），
    不再发 `load-skill`。不加交互门：headless `claude -p` 没有 AskUserQuestion。
+   新任务（`capabilities.documents.mode` 为 `observed`）没有文档契约，也就没有可以绑定的产物：必需技能以本次
+   步骤访问里的调用回执为准，不产生 `invoked` 状态与 `pending_documents`；步骤产出的来源技能（见 §3 的
+   2026-10-13 说明）只是尽力而为的标注，不进任何门禁。
 
 13. **测试体系接入流程（2026-09-29）**：`tenon status --json` 的 `step.next` 读 kernel 的策略判定
    （`TestEvidenceReport.policy`，与 `tenon check`、transition、工作台同一份）下发测试动作，顺序固定为
-   `test-discover`（无目录）→ `test-plan-seed`（无计划 / 计划被改）→ `test-plan-map`（缺的种类、未映射的场景）→
-   `test-register-files`（有未登记的测试文件）→ `run-tests`（`tenon test run <c> --stage`）→ `test-report`
+   `test-discover`（无目录）→ `test-plan-seed`（无计划 / 计划被改）→ `test-plan-map`（只在缺必需测试类，或档位要求场景映射时下发）→
+   `test-register-files`（只在出现孤儿测试文件时下发，内容是一条 `tenon test register <c> --auto`，不再逐个登记）→ `run-tests`（`tenon test run <c> --stage`；
+   `trust` 只列本次要执行、尚未信任的命令）→ `test-report`
    （验证报告还没带上最新运行的追溯矩阵）。登记类一次只发最靠前的一类；整体排在本步文档之后、评审者之前；
    旧步骤 `tests[]` 仍走 `run-test`。已经运行过却不满足策略的阻塞（用例失败、覆盖率不足……）没有专门动作：
    非评审门发 `fix`，评审门上有回退边就走回退边。计划里的豁免（`waivers[].approved_by`）只由人工确认写入：
@@ -575,9 +647,14 @@ most 64 characters, and a manifest contains at most 256 fixtures.
    带 `waivers`（这次通过会批准的冻结清单，绑定当前请求，否则为空），POST 成功响应带 `waivers: { approved, skipped }`。
    项目目录里的「本项目不适用」声明（`catalog.yaml` 的 `not_applicable: [{kind, reason, approved_by}]`，由
    `tenon test catalog not-applicable <kind> --reason` 写入）走同一条批准路径：未批准的声明以 `not-applicable:<kind>`
-   进冻结清单，确认时写回 `catalog.yaml` 的 `approved_by`（批准人），批准前策略照旧要求该种类并报 `waiver-unapproved`。
-   默认策略只强制 `unit`，其余种类为 `run_if_registered`；覆盖率门槛只对目录里声明了 `coverage` 的套件生效；
-   策略要求 `regression` 且 `scope: full` 时由全量运行的 `unit` 套件满足。
+   进冻结清单，确认时写回 `catalog.yaml` 的 `approved_by`（批准人），批准前档位照旧要求该测试类并报 `waiver-unapproved`；已批准的声明
+   同时满足该种类所属的测试类。步骤测试豁免（`test:<id>`）在评审请求清单、验证报告、读测试结果的评审者提示与 `test-waived` 提示里，另起一行附带该测试
+   在当前候选上最新失败记录的实测值（`最新运行：lines_added=2810（上限 2000）`，每次展示时重读；当前候选上没有失败记录则写
+   `当前候选上没有失败记录`），登记理由照旧标注为登记者自述。
+   default 工作流只写档位（lite：build `changed` / verify `full`；pm：spec `none` / verify `changed`；frontend、backend：spec `plan` / build `changed` / verify `full`），
+   内建档位只强制 `unit` 类，覆盖率与不稳定用例没有缺省门槛，`scenarios` 缺省 `off`（不要求时追溯矩阵只列已映射行，另加一行「另有 N 条场景 / 任务未映射（本步不要求映射）」，
+   不出 `scenario-uncovered`，`next` 不下发 `test-plan-map`）；default 三个重型轨道验证步的 `code-size` 与 `templates/test-directions/code-size.yaml` 不带 `pass.metrics`，
+   探针照常统计，退出码 0 即通过，没有上限时实测值照样记进运行记录、写在 `code-size` 评审者的提示里，要上限的项目在自己的工作流里写回 `pass.metrics`。
    计划写入、豁免批准、基线更新各在 change 历史里留一行 `test:plan-write|waiver-approve|baseline-update`。
    写门（`hooks/gate.sh`）拒绝对 `test-plan.yaml`（及台账、冻结清单）、`.tenon/tests/baselines/**`、
    `.tenon/tests/known-failures.yaml`、按用户的记录目录的编辑类工具写入与 shell 重定向 / tee / cp / mv / rm /
@@ -587,24 +664,43 @@ most 64 characters, and a manifest contains at most 256 fixtures.
 14. **测试证据的可信根（v0.3）**：证据必须是「被它约束的 agent 造不出来」的东西。
    · 本机封存 `<用户目录>/local/test-seal.json`（按用户、gitignored、HMAC-SHA256，密钥 `local/env.key`）：记录链头
    （`appendTestRunRecordV2` 在链锁内更新）、Tenon 命令写出的共享受保护文件摘要（`known add|rm`、`baseline --suite`）、
-   人工批准（change + 路径 + 内容摘要）、用户的信任决定。缺失 / 损坏 / mac 不符读成空封存，绝不放行。链头不等于封存链头
+   人工批准（change + 路径 + 内容摘要）、早先版本写下的信任决定（`trusted[]`，只读兼容，只在不是 git 仓库的项目里才认；git 仓库里的信任只记在下面的用户级信任存储）。缺失 / 损坏 / mac 不符读成空封存，绝不放行。链头不等于封存链头
    的记录链判 `record-unsealed`（无人工出口；下一次 `tenon test run` 另起新链取代它，`chain: reset`）。
    · 受保护配置改动（`.tenon/tests/catalog.yaml`、`baselines/**`、`known-failures.yaml`、`.pipeline/workflows/*.yaml`）出现在任务
    diff（含删除）里，在 `gate: review` 步骤判 `protected-file-unapproved`（封存里没有同内容的批准）或 `protected-file-tampered`
-   （Tenon 命令写出之后又被改）；`review request` 把它们连同语义摘要冻结进 `.pipeline-review-waivers.json` 的 `protected`，人工
+   （Tenon 命令写出之后又被改）；`review request` 把它们连同语义摘要（目录：档位定义 `levels` 按生效值逐档逐键标出放宽 / 收紧、项目级不适用声明的增删改，排在套件 / 服务命令的变化之前；门槛与命令两段各自最多 8 行，哪段改得再多也不挤掉另一段）冻结进 `.pipeline-review-waivers.json` 的 `protected`，人工
    `review acknowledge`（与 Dashboard 通过共用 `approveFrozenWaivers`，入参多一个 `repoRoot`）把仍同摘要的项写进封存，
    `--delegated` 在有待确认项时整个被拒；POST 成功响应多 `protectedChanges: { approved, skipped }`，历史多一行
-   `test:protected-approve`。读不出 diff：策略要求 `files: registered` 的步骤 `files-diff-unavailable`，其余只提示 `files-unchecked`。
+   `test:protected-approve`。读不出 diff：档位 `changed|full` 与旧策略 `files: registered` 的步骤 `files-diff-unavailable`，其余只提示 `files-unchecked`。
    · 已知失败：`test` 必须是 `<文件> › <用例名>`；`expires` 距今 ≤ 30 天（`known add` 拒绝更长的，手写更长的判定时不被承认，
    提示 `known-failure-too-long`）。
    · 报告：必须新于本次调用开始（否则 `report-untrusted`），并复制进本次运行产物目录 `artifacts/<套件>/<仓库相对路径>`，
    记录里 `report.digest` 必须等于副本摘要（`evaluateSuiteResult` 重算同一判断）。
-   · 首次信任：`tenon test run` 执行前校验目录可执行摘要（`catalogExecDigest`）/ 冻结工作流内联测试摘要（`stepTestsExecDigest`）
-   在封存 `trusted` 里，或环境变量 `TENON_TEST_TRUST=1`（CI）；`tenon test trust [change] [--yes] [--status]` 由用户在终端给出。
-   目录顶层的 `setup`（`tenon init` 在新 worktree 里执行）在这个摘要里，信任口径同测试套件：信任绑定的是命令文本，
-   不绑定命令执行时读取的仓库文件（例如 `package.json` 的生命周期脚本、它调用的脚本）。已信任的 `setup` 在之后的提交改了这些文件时
+   · 首次信任：键是「用户 + 仓库身份 + 单条命令摘要」。仓库身份取 `git rev-parse --git-common-dir` 的真实路径，同一仓库的所有 worktree 共享；当前检出的根目录
+   必须出现在 `git worktree list --porcelain` 里，否则视为未信任（防压缩包里伪造指向别处的 `.git` 文件）。命令摘要按单条可执行命令算：套件的 `command`、`cwd`、
+   `select.files` / `select.grep`、排序后的 `env` 与它用到的服务，步骤内联测试的 `command` 与 `cwd`（`catalogExecEntries` / `stepTestExecEntries`）。
+   `tenon test run` 执行前只校验本次要执行的命令，未信任的逐条列出并以退出码 1 拒绝、不写运行记录。判定顺序：环境变量 `TENON_TEST_TRUST=1`（CI）→ 用户级信任存储里有
+   `(仓库身份, 摘要)` → 拒绝。只有检出目录及其所有上级都没有 `.git`（不是 git 仓库）时，才在拒绝之前多看一步检出旧封存 `trusted[]` 是否含当前整份摘要
+   （`catalogExecDigest` / `stepTestsExecDigest`，只读兼容，不迁移），这时 `tenon test trust` 也写检出旧封存。
+   git 仓库里一律不认检出里的旧封存，不论它是否被 git 跟踪：检出里的任何文件（含封存与它的 HMAC 密钥）都可能随仓库提交或压缩包带来，能算好封印给仓库自己授信，
+   只看检出内容的检查（例如「是否被 git 跟踪」）都能被伪造。以前在检出里信任过的命令，要在你自己的终端重新运行一次 `tenon test trust`；检出旧封存恰好记着当前整份摘要时，
+   `tenon test run` 多打一行提示「检出里的旧信任在 git 仓库里不再被认，请在你自己的终端重新运行 `tenon test trust <change>` 确认一次」。
+   git 仓库里没有用户级状态目录时，`tenon test trust` 直接报错「没有用户级状态目录：git 仓库的信任只记在用户级存储里，写不进去」，不再退回写检出封存。
+   有 `.git` 却读不出仓库身份（git 出错、超时、不可用，或 `.git` 是不在 worktree 列表里的伪造指针）一律未信任，既不查用户级存储也不看旧封存：`tenon test run` 提示先修好 git，
+   `tenon test trust` 拒绝写入（否则克隆来的仓库只要让 git 出错，自带的封存与密钥就能自行授信）。
+   存储在 `<stateRoot>/test-trust/<user-slug>.json`（`stateRoot` 经 `resolveProductPaths`，整份 HMAC-SHA256 封印，密钥 `<user-slug>.key` 权限 0600，锁 + 原子替换，
+   最多 2000 条、满了淘汰最旧的），读取永不抛错，坏文件读成空。`tenon test trust [change] [--yes] [--status]` 只能由用户在终端给出；hook 也拒绝 agent 在调用中改写 Tenon 的状态目录
+   （`TENON_RUNTIME_HOME`、`TENON_RUNTIME_ROOTS`，以及在 `tenon` 调用前改 `HOME` / `XDG_STATE_HOME`），信任存储不能被指到 agent 自造的位置。仓库身份取路径、不取内容摘要：
+   在同一路径换成另一个仓库会继承命令级信任，与拉取新提交同一信任级别，记为已知限制。
+   目录顶层的 `setup`（`tenon init` 在新 worktree 里执行）不属于任何套件，是目录里单独的一条可执行命令（`catalogSetupEntry`，按命令文本算摘要）：
+   `tenon test trust` 确认整份目录时把它连同各套件的命令一起列出；`tenon test run` 不执行它，所以不校验它。`tenon init` 建好 worktree 后按同一份用户级信任存储判定——
+   这条 `setup` 已得到信任（同一仓库的所有 worktree 共享，不需要把信任「带进」新 worktree）才执行，未信任只提示、不执行，`tenon init` 照常成功。
+   信任绑定的是命令文本，不绑定命令执行时读取的仓库文件（例如 `package.json` 的生命周期脚本、它调用的脚本）。已信任的 `setup` 在之后的提交改了这些文件时
    会在新 worktree 里直接执行；不想自动执行用 `tenon init --in-place`，或从目录里去掉 `setup`。
-   · 指纹：`fingerprintWorkspace(root, { declaredOutputs })` 只忽略声明的产物路径；生产口径是 `candidateFingerprint`
+   · 指纹：`fingerprintWorkspace(root, { declaredOutputs })` 忽略声明的产物路径，另加一条通用规则：路径有一段名为 `test-results` / `playwright-report` / `coverage`、
+   git 没有跟踪、且扩展名（小写）属于证据格式（log、txt、xml、md、csv、png、jpg、jpeg、gif、webp、webm、mp4、lcov、info）的文件不计入（完整值与可移植值都排除）；
+   已跟踪的文件、源码 / 脚本扩展名与没有扩展名的文件照旧计入，json、html、htm、zip、gz、har 这类能被代码或浏览器直接加载、解包的产物也照旧计入（能借目录名藏内容），
+   真产出这些文件的套件在测试目录里把它们声明为输出；规则只为这些目录读取 git 跟踪状态，git 不可用、超时或出错时目录下全部计入（失败关闭）；生产口径是 `candidateFingerprint`
    （目录声明 ∪ 在途任务冻结工作流里内联测试的 `outputs`）。它把宿主本地**文件**（`HOST_LOCAL_FILES`：
    `.claude/settings.local.json`、根目录的 `CLAUDE.local.md`，从不提交）照算，但不计入未被 git 跟踪的 `.claude/worktrees/`
    （`HOST_LOCAL_DIRS`：宿主为子代理与会话建的本项目检出，里面的文件都是源码在别处的副本，同仓库的另一个会话随时在改，目录可能非常大；
@@ -633,12 +729,12 @@ most 64 characters, and a manifest contains at most 256 fixtures.
    · 宿主子代理：`agent-runs` 行可带 `subagent`（`host` / `type` / `native` 三键）。没用专属子代理的原因（`not-installed`、`definition-mismatch`、
    `shadowed`、`project-agent`，以及 `tenon agent record --subagent none` 的 `not-dispatched`）不写进行里，按 run_id 记在旁注
    `.pipeline-agent-run-meta.jsonl` 的 `subagent_reason`，读取时叠加回 `subagent.reason`：行的键集合不变，升级前的运行时仍能读台账。
-   · 测试完整性：`test_policy.integrity: notice|block`（缺省 notice，不进 IR，不改指纹与策略摘要）。`TestPolicyReport.integrity` 报告十种信号
+   · 测试完整性：旧 `test_policy` 的 `integrity: notice|block`（缺省 notice，不进 IR，不改指纹与策略摘要；档位没有这个设置，恒为 notice）。`TestPolicyReport.integrity` 报告十种信号
    （运行记录：`case-count-drop`、`skip-count-rise`；diff：`test-file-deleted`、`tests-removed`、`test-skipped`、`assertion-weakened`、
    `snapshot-rewritten`、`baseline-changed`、`known-failure-added`、`coverage-threshold-lowered`），notice 汇成一条 `test-integrity` 提示，block 汇成
    一条 `test-integrity` 阻塞（读不出 diff 时失败关闭 `files-diff-unavailable`）；宿主经 `TestEvidenceContext.integrityDiff` 提供改动行。`tenon test integrity` 输出同一份报告。
    · 写门（`hooks/gate.sh`）认 13 种写法（见安全模型），并拒绝 agent 的 shell 调用里的 `tenon test trust` 与 `TENON_TEST_TRUST=`
-   前缀赋值（只在命令位置匹配）。
+   前缀赋值（只在命令位置匹配），以及任何写入 `*/test-trust/*` 路径（用户级信任存储）。
 
 15. **验证轮次上限（2026-10-09）**：build ⇄ verify 不再无休止回退；带评审门和回退边的步骤有可声明、可覆盖的轮次上限，
    用完后停止自动回退，交给用户。
@@ -679,7 +775,7 @@ most 64 characters, and a manifest contains at most 256 fixtures.
 
 16. **任务起点 `start_sha`（2026-10-10）**：「自任务起点以来改动了哪些文件」不再只靠 `created_at` 推算——建任务时记下当时的 HEAD，
    起点再跟随上游前进，别人合并后拉进来的提交不算本任务的。
-   · 任务字段 `start_sha`：`FIELD_ORDER` 最末尾追加（在 `max_rounds` 之后）。`tenon init`、Dashboard `POST /api/changes` 与 triage 物化建任务时写入
+   · 任务字段 `start_sha`：`FIELD_ORDER` 最末尾追加（在 `max_rounds`、`task_result`、`domain` 之后）。`tenon init` 与 triage 物化建任务时写入
    当时检出的 HEAD（只接受 40 或 64 位小写十六进制提交 id，别的值 init 直接拒绝）；仓库还没有提交或不是 git 仓库时不写。**它是逻辑字段，
    物理值由伴随文件承载**（`state/start-sha-store.ts`，同 `review_acknowledged_via`）：每个 revision 在 `.pipeline-run/start-sha/<revision>-<revisionId>.json`
    发布一份不可变记录 `{schemaVersion, revision, revisionId, stateDigest, sha}`，绑定该 revision 的 `stateDigest`，先于 immutable revision 与

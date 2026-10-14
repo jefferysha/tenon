@@ -9,13 +9,16 @@ const known = new Map<string, { etag: string; change: ChangeSnapshot }>()
  * One change with all its evidence (documents, skill / agent runs, tests, test policy, the rules' policy block), as
  * the full snapshot would carry it. The list snapshot omits these; the open task reads them here and reads again
  * when the row's `rev` moves.
+ *
+ * `archived`: `name` is the archive directory of an ended task (the last segment of its `archivedDir`); the server
+ * reads it read-only out of `openspec/changes/archive/`.
  */
-export async function fetchChangeDetail(root: string, name: string, signal?: AbortSignal): Promise<ChangeSnapshot> {
-  const key = `${root}\u0000${name}`
+export async function fetchChangeDetail(root: string, name: string, signal?: AbortSignal, archived = false): Promise<ChangeSnapshot> {
+  const key = `${root}\u0000${archived ? 'archive/' : ''}${name}`
   const cached = known.get(key)
   let response: Response
   try {
-    response = await fetch(`/api/change/${encodeURIComponent(name)}/snapshot?root=${encodeURIComponent(root)}`, {
+    response = await fetch(`/api/change/${encodeURIComponent(name)}/snapshot?root=${encodeURIComponent(root)}${archived ? '&archived=1' : ''}`, {
       ...(signal === undefined ? {} : { signal }),
       headers: cached === undefined ? { Accept: 'application/json' } : { Accept: 'application/json', 'If-None-Match': cached.etag },
     })

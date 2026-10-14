@@ -32,7 +32,7 @@ async function sampleDashOffsets(page: Page): Promise<string[]> {
 
 test.describe('工作流页', () => {
   test('总览画布：每个阶段一列，列头带序号、名称与门禁图标', async ({ page }) => {
-    await openView(page, 'workflow', { wf: 'default', step: ':overview' })
+    await openView(page, 'workflow', { wf: 'default', track: 'backend', step: ':overview' })
     await expect(page.getByTestId('workflow-overview-pane')).toBeVisible()
     await expect(page.getByTestId('orchestration-overview')).toBeVisible()
     for (const [index, [id, label]] of STAGES.entries()) {
@@ -71,7 +71,7 @@ test.describe('工作流页', () => {
   })
 
   test('总览默认缩放 0.85：每个节点都显示名称，起点贴左 24px、内容顶对齐留 24px，并行的一波画括号条；点列头进入该阶段', async ({ page }) => {
-    await openView(page, 'workflow', { wf: 'default', step: ':overview' })
+    await openView(page, 'workflow', { wf: 'default', track: 'backend', step: ':overview' })
     const canvas = page.getByTestId('orchestration-overview')
     const viewport = page.locator('.react-flow__viewport')
     const zoomOf = (): Promise<number> => viewport.evaluate((el) => new DOMMatrix(getComputedStyle(el).transform).a)
@@ -183,7 +183,7 @@ test.describe('工作流页', () => {
   })
 
   test('门禁只有 评审 / 自动 两个选项；切换后未保存，放弃即恢复', async ({ page }) => {
-    await openView(page, 'workflow', { wf: 'default', step: 'build' })
+    await openView(page, 'workflow', { wf: 'default', track: 'backend', step: 'build' })
     const gate = page.getByTestId('wb-lane-gate-build')
     await expect(gate).toBeVisible()
     await expect(gate).toHaveAttribute('role', 'radiogroup')
@@ -207,9 +207,104 @@ test.describe('工作流页', () => {
     await expect(page.getByTestId('wb-save')).toBeDisabled()
   })
 
+  test('测试设置在门禁段：四选一（不要求 / 写计划 / 跑改动 / 全量），一行不折行；切换后未保存，放弃即恢复', async ({ page }) => {
+    await openView(page, 'workflow', { wf: 'default', track: 'backend', step: 'build' })
+    const gate = page.getByTestId('stage-gate')
+    const level = gate.getByTestId('wb-test-level')
+    await expect(level).toBeVisible()
+    await expect(level).toHaveAttribute('role', 'radiogroup')
+    await expect(level.getByRole('radio')).toHaveText(['不要求', '写计划', '跑改动', '全量'])
+    // 内置 default 的 backend 实现步是「跑改动」。
+    await expect(page.getByTestId('wb-test-level-changed')).toHaveAttribute('aria-checked', 'true')
+    const oneLine = await level.getByRole('radio').evaluateAll((items) => items.every((item) => item.scrollWidth <= item.clientWidth + 1 && item.getBoundingClientRect().height < 48))
+    expect(oneLine, '四个选项各占一行、没有被截断').toBe(true)
+    // 档位定义在哪个文件只在图标的悬停说明里，页面上不写成句子。
+    await expect(gate).not.toContainText('catalog.yaml')
+    await page.getByTestId('wb-test-level-hint').focus()
+    await expect(page.getByText('.tenon/tests/catalog.yaml').first()).toBeVisible()
+
+    await page.getByTestId('wb-test-level-full').click()
+    await expect(page.getByTestId('wb-test-level-full')).toHaveAttribute('aria-checked', 'true')
+    await expect(page.getByTestId('wb-test-level-changed')).toHaveAttribute('aria-checked', 'false')
+    await expect(page.getByTestId('wb-dirty')).toBeVisible()
+    await expect(page.getByTestId('wb-save')).toBeEnabled()
+    await page.getByTestId('wb-discard').click()
+    await expect(page.getByTestId('wb-test-level-changed')).toHaveAttribute('aria-checked', 'true')
+    await expect(page.getByTestId('wb-save')).toBeDisabled()
+  })
+
+  test('门禁区列出离开条件：只读，一行一条，不换行', async ({ page }) => {
+    await openView(page, 'workflow', { wf: 'default', track: 'backend', step: 'build' })
+    const list = page.getByTestId('stage-leave-conditions')
+    await expect(list).toBeVisible()
+    const items = list.getByRole('listitem')
+    for (const text of ['实现前评审通过', '本阶段任务已勾选', '依赖任务已结束']) await expect(list, text).toContainText(text)
+    await expect(list.locator('input, button, select, textarea')).toHaveCount(0)
+    const rows = await items.evaluateAll((elements) => elements.map((element) => ({
+      text: element.textContent ?? '', fits: element.scrollWidth <= element.clientWidth + 1, height: element.getBoundingClientRect().height,
+    })))
+    for (const row of rows) {
+      expect(row.fits, `${row.text} 被截断`).toBe(true)
+      expect(row.height, `${row.text} 换行了`).toBeLessThan(32)
+    }
+  })
+
+  test('门禁区列出「必须产出 <路径>」，一行一条不换行；右栏只剩 技能 → 门禁，没有输入表与输出表', async ({ page }) => {
+    await openView(page, 'workflow', { wf: 'default', track: 'backend', step: 'explore' })
+    const list = page.getByTestId('stage-leave-conditions')
+    await expect(list).toBeVisible()
+    await expect(list).toContainText('必须产出 docs/superpowers/specs/*.md')
+    const row = list.getByRole('listitem').filter({ hasText: '必须产出' })
+    await expect(row).toHaveCount(1)
+    const box = await row.evaluate((element) => ({ fits: element.scrollWidth <= element.clientWidth + 1, height: element.getBoundingClientRect().height }))
+    expect(box.fits, '必须产出被截断').toBe(true)
+    expect(box.height, '必须产出换行了').toBeLessThan(32)
+    // 不手写每步的输入输出：整页没有输入表、输出表和它们的入口。
+    for (const id of ['stage-inputs', 'stage-outputs', 'io-inputs', 'io-outputs', 'wb-inputs-edit', 'wb-outputs-add']) {
+      await expect(page.getByTestId(id), id).toHaveCount(0)
+    }
+    await expect(page.getByTestId('stage-editor-pane').getByRole('columnheader')).toHaveCount(0)
+    const sections = await page.locator('[data-testid="stage-editor-pane"] [data-stage-sections] > section').evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-testid')))
+    expect(sections).toEqual(['stage-skills', 'stage-gate'])
+    await expect(page.getByTestId('stage-editor-pane')).not.toContainText('契约')
+  })
+
+  test('自动门禁的警示只在阶段完全没有离开条件时出现：default 的实现 / 交付 / 完结没有', async ({ page }) => {
+    for (const id of ['build', 'ship', 'archive']) {
+      await openView(page, 'workflow', { wf: 'default', track: 'backend', step: id })
+      await expect(page.getByTestId(`wb-lane-gate-${id}`), id).toBeVisible()
+      await expect(page.getByTestId('stage-leave-conditions'), id).toBeVisible()
+      await expect(page.getByTestId('stage-gate-auto-warning'), id).toHaveCount(0)
+    }
+  })
+
+  test('轨道设置：规范是 OpenSpec / 无 两选一，关键词随之保存为未保存改动，放弃即恢复', async ({ page }) => {
+    await openView(page, 'workflow', { wf: 'default', track: 'backend', step: 'build' })
+    await page.getByTestId('wb-wf-menu').click()
+    await page.getByTestId('wb-wf-menu-track-settings').click()
+    const dialog = page.getByTestId('track-dialog')
+    await expect(dialog).toBeVisible()
+    const spec = page.getByTestId('track-dialog-spec')
+    await expect(spec.getByRole('radio')).toHaveCount(2)
+    await expect(page.getByTestId('track-dialog-spec-openspec')).toContainText('OpenSpec')
+    await expect(page.getByTestId('track-dialog-spec-none')).toContainText('无')
+    await expect(page.getByTestId('track-dialog-submit')).toBeDisabled()
+    // 主体放得下规范与关键词两段：不滚动，「规范」标签不被裁掉。
+    const body = page.getByTestId('track-dialog-body')
+    expect(await body.evaluate((el) => el.scrollHeight <= el.clientHeight), '轨道设置对话框主体不滚动').toBe(true)
+    await page.getByTestId('track-dialog-keywords').fill('后台, api')
+    expect(await body.evaluate((el) => el.scrollTop), '聚焦关键词后主体没有被滚动').toBe(0)
+    await expect(page.getByTestId('track-dialog-submit')).toBeEnabled()
+    await page.getByTestId('track-dialog-submit').click()
+    await expect(dialog).toBeHidden()
+    await expect(page.getByTestId('wb-dirty')).toBeVisible()
+    await page.getByTestId('wb-discard').click()
+    await expect(page.getByTestId('wb-dirty')).toBeHidden()
+  })
+
   test('每个阶段的门禁控件都只有评审与自动', async ({ page }) => {
     for (const [id] of STAGES) {
-      await openView(page, 'workflow', { wf: 'default', step: id })
+      await openView(page, 'workflow', { wf: 'default', track: 'backend', step: id })
       const gate = page.getByTestId(`wb-lane-gate-${id}`)
       await expect(gate, id).toBeVisible()
       await expect(gate.getByRole('radio')).toHaveCount(2)

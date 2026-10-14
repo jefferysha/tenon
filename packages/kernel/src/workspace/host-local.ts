@@ -90,7 +90,7 @@ function isMissing(error: unknown): boolean {
 }
 
 /** Lower-cases the ASCII letters only: the fold git's own `--icase-pathspecs` matching applies, and all the list's names need. */
-function foldAsciiCase(path: string): string {
+export function foldAsciiCase(path: string): string {
   return path.replace(/[A-Z]/gu, (letter) => letter.toLowerCase())
 }
 
@@ -157,6 +157,25 @@ async function hasGitDirectory(root: string): Promise<boolean> {
   }
 }
 
+/**
+ * The files git tracks (committed or staged) under `pathspecs`, spelled as the index spells them and relative to
+ * `root`: `git ls-files -z --cached`, run the way every tracking query in this package is run — repository-selecting
+ * variables stripped, the root's own `.git` directory pinned when it is a directory, a timeout and a buffer cap.
+ * With `icasePathspecs` the pathspecs match whatever the ASCII case.  Rejects with what git (or the spawn) rejects
+ * with; the callers decide what "git cannot answer" means for them.
+ */
+export async function lsCachedFiles(root: string, pathspecs: readonly string[], icasePathspecs = false): Promise<string[]> {
+  const gitDir = await hasGitDirectory(root) ? [`--git-dir=${join(root, '.git')}`] : []
+  const args = [
+    ...gitDir, ...icasePathspecs ? ['--icase-pathspecs'] : [],
+    'ls-files', '-z', '--cached', '--', ...pathspecs,
+  ]
+  const { stdout } = await runGit('git', args, {
+    cwd: root, timeout: GIT_TIMEOUT_MS, maxBuffer: GIT_MAX_BUFFER, env: gitEnvironment(),
+  })
+  return stdout.split('\0').filter((path) => path !== '')
+}
+
 /** What git says about the host-local list: the tracked paths (spelled as in the index) and how to compare them with the disk's spelling. */
 export interface HostLocalTracking {
   readonly tracked: ReadonlySet<string>
@@ -184,16 +203,9 @@ export interface HostLocalTracking {
  */
 export async function hostLocalTracking(root: string): Promise<HostLocalTracking | undefined> {
   const caseInsensitive = await isCaseInsensitiveRoot(root)
-  const gitDir = await hasGitDirectory(root) ? [`--git-dir=${join(root, '.git')}`] : []
-  const args = [
-    ...gitDir, ...caseInsensitive ? ['--icase-pathspecs'] : [],
-    'ls-files', '-z', '--cached', '--', ...HOST_LOCAL_FILES, ...HOST_LOCAL_DIRS,
-  ]
   try {
-    const { stdout } = await runGit('git', args, {
-      cwd: root, timeout: GIT_TIMEOUT_MS, maxBuffer: GIT_MAX_BUFFER, env: gitEnvironment(),
-    })
-    return { tracked: new Set(stdout.split('\0').filter((path) => path !== '')), caseInsensitive }
+    const tracked = await lsCachedFiles(root, [...HOST_LOCAL_FILES, ...HOST_LOCAL_DIRS], caseInsensitive)
+    return { tracked: new Set(tracked), caseInsensitive }
   } catch (error) {
     const stderr = typeof error === 'object' && error !== null ? Reflect.get(error, 'stderr') : undefined
     const noRepository = typeof stderr === 'string' && NO_REPOSITORY_MESSAGE.test(stderr) && !(await hasGitEntry(root))

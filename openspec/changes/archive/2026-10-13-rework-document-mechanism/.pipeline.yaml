@@ -1,0 +1,48 @@
+track: backend
+preset: full
+created_by: jefferySha <710227704@qq.com>
+assignee: jefferySha <710227704@qq.com>
+phase: archive
+phase_status: done
+design_doc: docs/superpowers/specs/rework-document-mechanism-design.md
+plan: docs/superpowers/plans/rework-document-mechanism.md
+verification_report: docs/superpowers/reports/rework-document-mechanism-verify.md
+build_mode: subagent-driven-development
+isolation: in-place
+build_sha: build:v1:workspace:92712ec86a0a6881c885d5b6ce4ad9dc9940f60195e975e80b940a47ba09a970:467996397e337a566945ca1fde5f827268a63c2735267155c7c68855a8263fc7:f8bd9e05824478753add8cf770abe4e476ead2f82813fd7a8900cd489c40e8f9
+agent_review_result: pending
+codex_review_result: pending
+verify_result: pass
+branch_status: handled
+direct_override: false
+prd_path: null
+pr_url: https://github.com/jefferysha/tenon/pull/82
+automation: off
+automation_queued_at: ""
+automation_sandbox: ""
+automation_worktree: ""
+automation_attempts: 0
+automation_last_error: ""
+automation_preserved_path: ""
+branch: null
+base_branch: tenon/rework-document-mechanism
+scope: null
+related_files: null
+spec_scope: null
+depends_on: null
+created_at: 2026-10-12T00:37:32Z
+updated_at: 2026-10-13T09:46:56Z
+verified_at: 2026-10-13T04:17:33Z
+archived_at: 2026-10-13T09:46:56Z
+archived: true
+workflow: default
+automation_current_phase: ""
+automation_cause: ""
+pipeline_run_id: 6315aa2c-fb3a-4bfc-ad7e-9606afc69752
+pipeline_transition_sequence: 7
+pipeline_transition_head: e48db11b-946e-44fd-979a-f9a545b2b483
+pipeline_state_revision: 21
+pipeline_state_revision_id: 628cc66e-7862-4f1f-9692-61022dd6f6b6
+pipeline_state_digest: c0467e6fd734aa28c8a44f1739e07ca5e8bcc59266097a308f07ceea33ca8f2c
+# tenon-internal-pre-verify-review-v1: eyJzY2hlbWFWZXJzaW9uIjoxLCJyZXZpc2lvbiI6MjEsInJldmlzaW9uSWQiOiI2MjhjYzY2ZS03ODYyLTRmMWYtOTY5Mi02MTAyMmRkNmY2YjYiLCJwYXlsb2FkRGlnZXN0IjoiODFlOGNhN2UzODMxN2FjOTg5YTgzODU5MDU5ZjU0OTY4ZTVlMjQyZWVkZDVhNzY3MDQ5MTczMzAzMTg5YzRmZSJ9
+# tenon-internal-transition-head-v1: eyJzY2hlbWFWZXJzaW9uIjoxLCJydW5JZCI6IjYzMTVhYTJjLWZiM2EtNGJmYy1hZDdlLTk2MDZhZmM2OTc1MiIsInNlcXVlbmNlIjo3LCJyZWNvcmRJZCI6ImU0OGRiMTFiLTk0NmUtNDRmZC05NzlhLWY5YTU0NWIyYjQ4MyIsInJlY29yZERpZ2VzdCI6Ijc5OWNiNGMwMDMwOTYzMjY1MzRiYzIyMThmZTJmYTk0OGUwZDI1NGJhNjExMTc3ZGVkZmVlOGZjNGQwMGRiODYifQ

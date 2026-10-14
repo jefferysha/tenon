@@ -1,10 +1,16 @@
 import { constants, fstatSync, openSync, readSync } from 'node:fs'
 import { dirname, posix } from 'node:path'
 import {
+  attachWorkflowGovernanceBinding,
+  attachWorkflowPlanSnapshot,
   LedgerContextBundleError,
   parseDocumentLedger,
+  parseWorkflowGovernanceBinding,
+  parseWorkflowPlanSnapshot,
   readValidatedTransitionHeadFromSync,
   RunStateCorruptError,
+  WORKFLOW_GOVERNANCE_BINDING_FILE,
+  WORKFLOW_PLAN_SNAPSHOT_FILE,
   type DocumentLedger,
   type LedgerContextBundleResourceLimits,
   type LedgerContextBundleSourceReadLimit,
@@ -24,6 +30,8 @@ import {
 export interface TrustedChangeIdentity {
   readonly dev: number
   readonly ino: number
+  /** 任务目录在 `openspec/changes/…/` 路径里的目录层数（`openspec` = 0）；缺省 2 = 活跃任务，已结束任务在 `archive/` 下是 3。 */
+  readonly depth?: number
 }
 
 function safeParts(path: string): string[] {
@@ -89,7 +97,7 @@ export function readTrustedFile(
   const expectedChange = changeIdentity
     && parts[0] === 'openspec'
     && parts[1] === 'changes'
-    ? { depth: 2, identity: changeIdentity }
+    ? { depth: changeIdentity.depth ?? 2, identity: changeIdentity }
     : undefined
   try {
     return withTrustedDirectoryChain(root, directories, false, () => {
@@ -188,25 +196,26 @@ export function trustedContextBundleCurrentSnapshot(
   changeIdentity: TrustedChangeIdentity,
 ): TrustedContextBundleStateSnapshot {
   const prefix = posix.join('openspec', 'changes', change)
+  const readChangeText = (relativePath: string): string | undefined => {
+    try {
+      return readTrustedFile(
+        root,
+        posix.join(prefix, relativePath),
+        1_048_576,
+        undefined,
+        changeIdentity,
+      ).text
+    } catch (error) {
+      if (
+        error instanceof LedgerContextBundleError
+        && error.code === 'CONTEXT_BUNDLE_DOCUMENT_MISSING'
+      ) return undefined
+      throw error
+    }
+  }
   let current
   try {
-    current = readValidatedTransitionHeadFromSync((relativePath) => {
-      try {
-        return readTrustedFile(
-          root,
-          posix.join(prefix, relativePath),
-          1_048_576,
-          undefined,
-          changeIdentity,
-        ).text
-      } catch (error) {
-        if (
-          error instanceof LedgerContextBundleError
-          && error.code === 'CONTEXT_BUNDLE_DOCUMENT_MISSING'
-        ) return undefined
-        throw error
-      }
-    })?.current
+    current = readValidatedTransitionHeadFromSync(readChangeText)?.current
   } catch (error) {
     if (
       error instanceof RunStateCorruptError
@@ -240,7 +249,32 @@ export function trustedContextBundleCurrentSnapshot(
     phase,
     revisionId: current.revisionId,
     stateDigest: current.stateDigest,
-    state: current.state,
+    state: withFrozenPlan(current.state, readChangeText),
+  }
+}
+
+/**
+ * 头记录里的状态不带治理绑定与冻结计划（它们各有文件，`readPipelineStateFromSync` 同法补上）。不补的话计划只能
+ * 按项目现行定义重算，升级前带文档契约的任务会被当成观察模式。读不出或对不上 → 失败关闭。
+ */
+function withFrozenPlan(state: PipelineState, readChangeText: (relativePath: string) => string | undefined): PipelineState {
+  try {
+    const bindingRaw = readChangeText(WORKFLOW_GOVERNANCE_BINDING_FILE)
+    const planRaw = readChangeText(WORKFLOW_PLAN_SNAPSHOT_FILE)
+    const metadata = attachWorkflowPlanSnapshot(
+      attachWorkflowGovernanceBinding(
+        state.runMetadata,
+        bindingRaw === undefined ? undefined : parseWorkflowGovernanceBinding(bindingRaw),
+      ),
+      planRaw === undefined ? undefined : parseWorkflowPlanSnapshot(planRaw),
+    )
+    return metadata === undefined ? state : { ...state, runMetadata: metadata }
+  } catch (error) {
+    throw new LedgerContextBundleError(
+      'CONTEXT_BUNDLE_STATE_CORRUPT',
+      'Context Bundle canonical state is corrupt',
+      { cause: error, repairAction: '恢复有效的 canonical Change state 后重试' },
+    )
   }
 }
 
@@ -313,16 +347,22 @@ export function trustedContextBundleInputs(
       { cause, path: ledgerPath, repairAction: '修复并重新登记 document ledger 后重试' },
     )
   }
+  return { ledger, sourceReader: trustedContextBundleSourceReader(root, changeIdentity, limits) }
+}
+
+/** 源文件读取：registered root 下 fd 相对遍历、绑定请求开始捕获的 Change inode；契约模式与观察模式共用。 */
+export function trustedContextBundleSourceReader(
+  root: WorkflowRootAnchor,
+  changeIdentity: TrustedChangeIdentity,
+  limits: LedgerContextBundleResourceLimits,
+): LedgerContextBundleSourceReader {
   return {
-    ledger,
-    sourceReader: {
-      read: async (path, readLimit) => readTrustedFile(
-        root,
-        path,
-        readLimit?.maxBytes ?? limits.maxSourceBytesPerDocument,
-        readLimit,
-        changeIdentity,
-      ),
-    },
+    read: async (path, readLimit) => readTrustedFile(
+      root,
+      path,
+      readLimit?.maxBytes ?? limits.maxSourceBytesPerDocument,
+      readLimit,
+      changeIdentity,
+    ),
   }
 }

@@ -1,8 +1,6 @@
 import { useCallback, useRef, type Dispatch, type SetStateAction } from 'react'
 import { isDefaultWorkflowName } from '@tenon/kernel/workflow/identifier'
-import type { DocumentKind } from '@tenon/kernel/workflow/document-contract-model'
-import type { WbExecutorRef, WbReviewerRef, WbSkillRef, WbStepDef, WbStepTestPolicy, WbTransition, WbWorkflowDef } from '../api/governanceTypes'
-import { addDocumentOutputInDef, removeDocumentSlotInDef, setDocumentInputsInDef, setOpenspecInDef } from './documentContractEdits'
+import type { WbExecutorRef, WbReviewerRef, WbSkillRef, WbStepDef, WbTestLevel, WbTransition, WbWorkflowDef } from '../api/governanceTypes'
 import {
   addSkillToDef,
   backTransitionOf,
@@ -12,10 +10,11 @@ import {
   renameStepInDef,
   reorderStagesInDef,
   setGateInDef,
+  setOpenspecInDef,
   setStageBackInDef,
   setStepAgentsInDef,
   setStepSkillsInDef,
-  setStepTestPolicyInDef,
+  setStepTestLevelInDef,
 } from './workbenchDefinition'
 
 export interface StageMutations {
@@ -26,13 +25,10 @@ export interface StageMutations {
   reorderStages: (fromId: string, toId: string, after: boolean) => void
   setSkills: (stepId: string, skills: readonly WbSkillRef[]) => void
   setAgents: (stepId: string, patch: { executors?: readonly WbExecutorRef[]; reviewers?: readonly WbReviewerRef[] }) => void
-  setTestPolicy: (stepId: string, policy: WbStepTestPolicy | undefined) => void
+  setTestLevel: (stepId: string, level: WbTestLevel) => void
   addSkill: (stepId: string, skillId: string) => void
   removeSkill: (stepId: string, skillId: string) => void
   setOpenspec: (on: boolean) => void
-  addDocumentOutput: (stepId: string, kind: DocumentKind) => void
-  removeDocumentSlot: (stepId: string, kind: string, direction: 'inputs' | 'outputs') => void
-  setDocumentInputs: (stepId: string, kinds: readonly string[]) => void
 }
 
 /**
@@ -88,17 +84,14 @@ export function useStageMutations(input: {
   )), [mutate, rememberDisplaced])
   const setSkills = useCallback((stepId: string, skills: readonly WbSkillRef[]) => mutate((previous) => setStepSkillsInDef(previous, stepId, skills)), [mutate])
   const setAgents = useCallback((stepId: string, patch: { executors?: readonly WbExecutorRef[]; reviewers?: readonly WbReviewerRef[] }) => mutate((previous) => setStepAgentsInDef(previous, stepId, patch)), [mutate])
-  const setTestPolicy = useCallback((stepId: string, policy: WbStepTestPolicy | undefined) => mutate((previous) => setStepTestPolicyInDef(previous, stepId, policy)), [mutate])
+  const setTestLevel = useCallback((stepId: string, level: WbTestLevel) => mutate((previous) => setStepTestLevelInDef(previous, stepId, level)), [mutate])
   const addSkill = useCallback((stepId: string, skillId: string) => mutate((previous) => addSkillToDef(previous, stepId, skillId)), [mutate])
   const removeSkill = useCallback((stepId: string, skillId: string) => mutate((previous) => removeSkillFromDef(previous, stepId, skillId)), [mutate])
   const setOpenspec = useCallback((on: boolean): void => {
     setFullDef((previous) => previous === null || (!on && isDefaultWorkflowName(previous.name)) ? previous : setOpenspecInDef(previous, on))
   }, [setFullDef])
-  const addDocumentOutput = useCallback((stepId: string, kind: DocumentKind) => mutate((previous) => addDocumentOutputInDef(previous, stepId, kind)), [mutate])
-  const removeDocumentSlot = useCallback((stepId: string, kind: string, direction: 'inputs' | 'outputs') => mutate((previous) => removeDocumentSlotInDef(previous, stepId, kind, direction)), [mutate])
-  const setDocumentInputs = useCallback((stepId: string, kinds: readonly string[]) => mutate((previous) => setDocumentInputsInDef(previous, stepId, kinds)), [mutate])
   return {
-    renameStep, setGate, setStageBack, removeStage, reorderStages, setSkills, setAgents, setTestPolicy, addSkill, removeSkill,
-    setOpenspec, addDocumentOutput, removeDocumentSlot, setDocumentInputs,
+    renameStep, setGate, setStageBack, removeStage, reorderStages, setSkills, setAgents, setTestLevel, addSkill, removeSkill,
+    setOpenspec,
   }
 }

@@ -2,11 +2,13 @@
  * 项目测试目录文件 `.tenon/tests/catalog.yaml` 的读—改—写。人可以直接改这份文件；`tenon test catalog|discover`、
  * `tenon init` 的自动识别和评审确认里对「不适用」声明的批准都经这里：同目录持锁 + 临时文件原子替换，
  * 读—改—写在同一把锁内，并发的写者不会互相覆盖；落盘前整份解析回读，写坏的目录进不了盘。
+ * 已有文件只重写变化的节点（`patchCatalogText`，注释与排版逐字保留）；文件不存在时整份规范化写出。
  */
 import { mkdir, readFile } from 'node:fs/promises'
 import { atomicReplaceFile } from '../state/atomic-publish.js'
 import { withLock } from '../state/lock.js'
 import { TEST_CATALOG_SCHEMA, type TestCatalog } from './catalog-types.js'
+import { patchCatalogText } from './catalog-patch.js'
 import { formatCatalogIssues, parseTestCatalog, serializeTestCatalog } from './catalog.js'
 import { testSystemPaths } from './paths.js'
 
@@ -19,16 +21,21 @@ export function emptyCatalog(): TestCatalog {
   return { schema: TEST_CATALOG_SCHEMA, profiles_env: [], suites: [], services: [] }
 }
 
-export async function readCatalogFile(repoRoot: string): Promise<CatalogFile> {
+/** 读一次文件：状态 + 原文（按节点写回要拿原文对行；文件不存在时没有原文）。 */
+async function loadCatalog(repoRoot: string): Promise<{ readonly file: CatalogFile; readonly text?: string }> {
   let text: string
   try {
     text = await readFile(testSystemPaths(repoRoot).catalog, 'utf8')
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { state: 'missing' }
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { file: { state: 'missing' } }
     throw error
   }
   const parsed = parseTestCatalog(text)
-  return parsed.ok ? { state: 'ok', catalog: parsed.catalog } : { state: 'invalid', issues: formatCatalogIssues(parsed.issues) }
+  return { file: parsed.ok ? { state: 'ok', catalog: parsed.catalog } : { state: 'invalid', issues: formatCatalogIssues(parsed.issues) }, text }
+}
+
+export async function readCatalogFile(repoRoot: string): Promise<CatalogFile> {
+  return (await loadCatalog(repoRoot)).file
 }
 
 export type UpdateOutcome<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly message: string }
@@ -50,16 +57,26 @@ export async function updateCatalog<T, Seen = undefined>(
   await mkdir(paths.root, { recursive: true })
   return withLock(paths.root, async () => {
     const seen = observe === undefined ? undefined as Seen : await observe()
-    const current = await readCatalogFile(repoRoot)
+    const { file: current, text: original } = await loadCatalog(repoRoot)
     if (current.state === 'invalid') return { ok: false, message: `catalog.yaml 无效，先修好再改：${current.issues.slice(0, 3).join('；')}` }
     const base = current.state === 'ok' ? current.catalog : emptyCatalog()
     const result = mutate(base, seen)
     if (typeof result === 'string') return { ok: false, message: result }
     // 原样返回入参 = 没有改动：不重写文件（重写会把人手写的注释和排版规范化掉）。
     if (result.catalog === base) return { ok: true, value: result.value }
-    const text = serializeTestCatalog(result.catalog)
-    const check = parseTestCatalog(text)
-    if (!check.ok) return { ok: false, message: `改动后的目录不合法：${formatCatalogIssues(check.issues).slice(0, 3).join('；')}` }
+    let text: string
+    if (original === undefined) {
+      text = serializeTestCatalog(result.catalog)
+      const check = parseTestCatalog(text)
+      if (!check.ok) return { ok: false, message: `改动后的目录不合法：${formatCatalogIssues(check.issues).slice(0, 3).join('；')}` }
+    } else {
+      try {
+        text = patchCatalogText(original, base, result.catalog)
+      } catch (error) {
+        return { ok: false, message: error instanceof Error ? error.message : '改动后的目录写回失败' }
+      }
+      if (text === original) return { ok: true, value: result.value }
+    }
     await atomicReplaceFile(paths.catalog, text)
     return { ok: true, value: result.value }
   })

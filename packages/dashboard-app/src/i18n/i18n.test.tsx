@@ -37,21 +37,9 @@ describe('i18n completeness（zh / en 键结构逐一对齐）', () => {
     const allowed = new Set([
       'common.switch_to_english',
       'common.switch_to_chinese',
-      'inbox.act_forward',
-      'inbox.act_backward',
-      'detail.related_sessions.platform_claude',
-      'detail.related_sessions.platform_codex',
-      'detail.related_sessions.platform_opencode',
-      'detail.related_sessions.platform_pi',
-      'detail.workflow_definition.workflow',
-      'workbench.lp_scope_placeholder',
-      'workbench.afk_rd_docker',
-      'progress.act_fail_http',
       'workflow.create_yaml',
       'workflow.create_yaml_placeholder',
       'workflow.openspec',
-      // 纯占位符行（阶段 · 时间 · 归档人），两种语言逐字相同。
-      'workspace.archived_meta',
       // 纯占位符行（阶段 · 状态），任务卡上的状态文字。
       'workspace.summary_with_stage',
       // 协议 / 文件名 token：DESIGN.md、SPDX、MCP、llms.txt 两种语言逐字相同。
@@ -70,16 +58,14 @@ describe('i18n completeness（zh / en 键结构逐一对齐）', () => {
       .sort()
     expect(identical).toEqual([...allowed].sort())
   })
+})
 
-  it('编排图标题、核心节点类型和治理元数据提供真正的中文文案', () => {
-    const graph = ((zh.detail as Dict).orchestration_graph as Dict)
-    expect(graph).toMatchObject({
-      heading: '编排图',
-      kind_workflow: '工作流',
-      kind_change: '变更',
-      meta_track: '轨道',
-      meta_preset: '预设',
-    })
+describe('界面文案不出现「契约」', () => {
+  it('术语只用 阶段 / 技能 / 输入 / 输出 / 门禁 / 轨道 / 工作流 / 文档：zh 词典没有「契约」，en 词典没有 contract', () => {
+    const zhHits = Object.entries(stringLeaves(zh)).filter(([, value]) => value.includes('契约')).map(([key]) => key)
+    const enHits = Object.entries(stringLeaves(en)).filter(([, value]) => /contracts?/iu.test(value)).map(([key]) => key)
+    expect(zhHits).toEqual([])
+    expect(enHits).toEqual([])
   })
 })
 
@@ -227,9 +213,9 @@ function Probe(): JSX.Element {
   const { t, lang, setLang } = useT()
   return (
     <div>
-      {/* 收件箱退役：示例键改用存活键——纯文本用 nav.workspace，变量插值用 inbox.badge_failed（{n}）。 */}
+      {/* 示例键用存活键：纯文本用 nav.workspace，变量插值用 workspace.summary_blocked（{n}）。 */}
       <span data-testid="txt">{t('nav.workspace')}</span>
-      <span data-testid="var">{t('inbox.badge_failed', { n: 3 })}</span>
+      <span data-testid="var">{t('workspace.summary_blocked', { n: 3 })}</span>
       <span data-testid="lang">{lang}</span>
       <button data-testid="to-en" onClick={() => setLang('en')}>en</button>
     </div>
@@ -245,7 +231,7 @@ describe('useT 真 render（默认 zh、变量插值、切换 en）', () => {
     )
     expect(screen.getByTestId('lang').textContent).toBe('zh')
     expect(screen.getByTestId('txt').textContent).toBe('工作台')
-    expect(screen.getByTestId('var').textContent).toBe('失败 ×3 · 等你决定')
+    expect(screen.getByTestId('var').textContent).toBe('阻塞 3')
   })
 
   it('切到 en 后组件真更新为英文', () => {
@@ -256,6 +242,6 @@ describe('useT 真 render（默认 zh、变量插值、切换 en）', () => {
     )
     fireEvent.click(screen.getByTestId('to-en'))
     expect(screen.getByTestId('txt').textContent).toBe('Workspace')
-    expect(screen.getByTestId('var').textContent).toBe('Failed ×3 · your call')
+    expect(screen.getByTestId('var').textContent).toBe('3 blocked')
   })
 })

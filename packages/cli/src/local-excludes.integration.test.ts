@@ -56,7 +56,7 @@ describe('本机生成物的忽略与清理', () => {
     expect(spawnSync('git', ['init', '-q'], { cwd: h.cwd }).status).toBe(0)
     await mkdir(join(h.cwd, '.pipeline', 'workflows'), { recursive: true })
     await writeFile(join(h.cwd, '.pipeline', 'workflows', 'hosted.yaml'), WF, 'utf8')
-    expect(await h.run(['init', 'demo', '--track', 'backend', '--workflow', 'hosted', '--preset', 'full'], { env: CLAUDE }), h.err.join('\n')).toBe(0)
+    expect(await h.run(['init', 'demo', '--workflow', 'hosted', '--preset', 'full'], { env: CLAUDE }), h.err.join('\n')).toBe(0)
     expect(existsSync(join(h.cwd, '.claude'))).toBe(false)
     await mkdir(join(h.cwd, 'test-results'), { recursive: true })
     await writeFile(join(h.cwd, 'test-results', 'unit.xml'), '<x/>', 'utf8')

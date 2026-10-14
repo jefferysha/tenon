@@ -16,7 +16,7 @@ function stateWithSnapshot(
   extra: Record<string, string> = {},
 ): PipelineState {
   return {
-    ...mockState({ workflow, phase, track: 'free', ...extra }),
+    ...mockState({ workflow, phase, track: 'backend', ...extra }),
     runMetadata: {
       runId: 'run-1',
       transitionSequence: 0,
@@ -26,7 +26,7 @@ function stateWithSnapshot(
   }
 }
 
-const defaultSnapshot = workflowPlanSnapshot(compileEffectiveWorkflowPlan('default'))
+const defaultSnapshot = workflowPlanSnapshot(compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' }))
 
 describe('workflow progress —— 终端一行步骤清单', () => {
   test('冻结默认计划、phase=explore：stdout 恰为一行，立项已过、调研当前', async () => {

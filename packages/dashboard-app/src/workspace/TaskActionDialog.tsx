@@ -2,7 +2,7 @@ import { useEffect, useId, useState } from 'react'
 import { useT } from '../i18n'
 import { ApiError, formatApiError } from '../api/transport'
 import {
-  archiveTask, deleteTask, fetchTaskLifecycle, TaskLifecycleRefusal,
+  deleteTask, fetchTaskLifecycle, terminateTask, TaskLifecycleRefusal,
   type TaskLifecycleAction, type TaskReason,
 } from '../api/taskLifecycleClient'
 import { takeOwner } from '../api/userClient'
@@ -16,7 +16,8 @@ export interface TaskActionDialogProps {
   /** take = 接手（负责人改为当前用户），只需确认，没有服务端原因。 */
   action: TaskLifecycleAction | 'take'
   onClose: () => void
-  onDone: (message: string) => void
+  /** warnings = 成功但服务端报了警告（接手没有）。 */
+  onDone: (message: string, warnings?: readonly string[]) => void
   /** 接手时服务端报缺用户身份（412）：交给外层打开身份对话框。 */
   onUserMissing?: () => void
 }
@@ -32,7 +33,7 @@ function reasonText(reason: TaskReason, t: (key: string) => string): string {
 }
 
 /**
- * 删除 / 归档 confirmation. The reasons always come from the server; the confirm button echoes back exactly
+ * 删除 / 终止 confirmation. The reasons always come from the server; the confirm button echoes back exactly
  * the codes shown here, and the server re-checks them under the lock — a 409 refreshes this list instead of
  * acting on a stale one. A blocker cannot be acknowledged at all.
  */
@@ -81,9 +82,10 @@ export function TaskActionDialog({ root, change, action, onClose, onDone, onUser
         onClose()
         return
       }
-      if (action === 'delete') await deleteTask({ root, change, acknowledged })
-      else await archiveTask({ root, change, acknowledged })
-      onDone(t(action === 'delete' ? 'workspace.done_deleted' : 'workspace.done_archived', { name: change }))
+      const { warnings } = action === 'delete'
+        ? await deleteTask({ root, change, acknowledged })
+        : await terminateTask({ root, change, acknowledged })
+      onDone(t(action === 'delete' ? 'workspace.done_deleted' : 'workspace.done_terminated', { name: change }), warnings)
       onClose()
     } catch (error) {
       if (action === 'take' && error instanceof ApiError && error.status === 412 && onUserMissing !== undefined) {

@@ -1,9 +1,9 @@
 /**
  * Unified, versioned definition catalog consumed by every Tenon client.
  *
- * The catalog is a projection, never a second source of truth: workflow files,
- * tracks.yaml, the adapter registry and the immutable pipeline plan remain
- * authoritative.  `revision`/`fingerprint` make the projection observable and
+ * The catalog is a projection, never a second source of truth: workflow files
+ * (with their track branches), the adapter registry and the immutable pipeline
+ * plan remain authoritative.  `revision`/`fingerprint` make the projection observable and
  * allow clients to reconcile SSE updates without guessing.
  */
 

@@ -28,18 +28,27 @@ const assessTrustedRevision: NonNullable<GuardInput['assessBuildRevision']> = as
 
 function makeInput(
   over: Partial<Record<FieldName, string | string[]>> = {},
-  caps: Partial<Pick<GuardInput, 'track' | 'fileExists' | 'readText' | 'gitHeadSha' | 'workspaceFingerprint' | 'specMigrationStatus' | 'assessBuildRevision'>> = {},
+  caps: Partial<Pick<
+    GuardInput,
+    | 'track' | 'change' | 'fileExists' | 'readText' | 'gitHeadSha' | 'workspaceFingerprint' | 'specMigrationStatus'
+    | 'assessBuildRevision' | 'currentStep' | 'tasksThroughStep' | 'afkQueued' | 'dependencyStates' | 'requiredOutput'
+  >> = {},
 ): GuardInput {
   return {
     fields: allFields(over),
     track: caps.track ?? 'backend',
+    change: caps.change,
     fileExists: caps.fileExists,
     readText: caps.readText,
     gitHeadSha: caps.gitHeadSha,
     workspaceFingerprint: caps.workspaceFingerprint,
     specMigrationStatus: caps.specMigrationStatus,
     assessBuildRevision: caps.assessBuildRevision,
-    currentStep: 'verify',
+    currentStep: caps.currentStep ?? 'verify',
+    tasksThroughStep: caps.tasksThroughStep,
+    afkQueued: caps.afkQueued,
+    dependencyStates: caps.dependencyStates,
+    requiredOutput: caps.requiredOutput,
   }
 }
 
@@ -373,6 +382,23 @@ describe('老仓 state-transition.sh cmd_transition 前置校验语义对照', (
       }
     })
 
+    it.each(['', 'null'])("isolation 没设（%j）：assessor 拿到的 isolation 是 in-place（与 freeze 的默认同一口径）", async (unset) => {
+      const seen: string[] = []
+      const out = await evaluateGuards([BARRIER], makeInput({ build_sha: 'x', isolation: unset }, {
+        assessBuildRevision: async (request) => { seen.push(request.isolation); return assessTrustedRevision(request) },
+      }))
+      expect(seen).toEqual(['in-place'])
+      expect(out).toHaveLength(1)
+    })
+
+    it('isolation 是显式的 branch：原样交给 assessor', async () => {
+      const seen: string[] = []
+      await evaluateGuards([BARRIER], makeInput({ build_sha: 'x', isolation: 'branch' }, {
+        assessBuildRevision: async (request) => { seen.push(request.isolation); return assessTrustedRevision(request) },
+      }))
+      expect(seen).toEqual(['branch'])
+    })
+
     it('全字段齐 + 文件在 + HEAD 对齐 → 6 条全 passed（L129-157 校验体通过）', async () => {
       const out = await evaluateGuards(
         VERIFY_EXIT,
@@ -526,6 +552,204 @@ describe('evaluateGuards 组合语义', () => {
       makeInput({ agent_review_result: 'pass', codex_review_result: 'pass' }, { track: 'ml' }),
     )
     expect(out.map((e) => e.decision)).toEqual([{ kind: 'passed' }, { kind: 'passed' }])
+  })
+})
+
+describe('通用离开条件（设计 §1b Q5 / Q7 / Q8）', () => {
+  const TASKS: CompiledGuardConfig = { type: 'tasks-through-step' }
+  const AFK: CompiledGuardConfig = { type: 'not-afk-queued' }
+  const DEPS: CompiledGuardConfig = { type: 'dependencies-ended' }
+
+  describe('tasks-through-step', () => {
+    it('有未勾任务：失败并把未勾原文放进 detail，按当前步骤向能力取数', async () => {
+      const seen: string[] = []
+      const out = await evaluateGuards([TASKS], makeInput({}, {
+        currentStep: 'build',
+        tasksThroughStep: async (step) => {
+          seen.push(step)
+          return { complete: false, unchecked: ['写测试 (build)', '接线 (build)'] }
+        },
+      }))
+      expect(out).toEqual([
+        { guard: TASKS, decision: { kind: 'failed', guardType: 'tasks-through-step', detail: ['写测试 (build)', '接线 (build)'] } },
+      ])
+      expect(seen).toEqual(['build'])
+    })
+
+    it('全部已勾：passed', async () => {
+      const out = await evaluateGuards([TASKS], makeInput({}, {
+        currentStep: 'build',
+        tasksThroughStep: async () => ({ complete: true, unchecked: [] }),
+      }))
+      expect(out.map((e) => e.decision)).toEqual([{ kind: 'passed' }])
+    })
+
+    it('以 complete 为准：complete=false 但没给原文时仍失败（detail 为空数组）', async () => {
+      const out = await evaluateGuards([TASKS], makeInput({}, {
+        tasksThroughStep: async () => ({ complete: false, unchecked: [] }),
+      }))
+      expect(out.map((e) => e.decision)).toEqual([{ kind: 'failed', guardType: 'tasks-through-step', detail: [] }])
+    })
+
+    it('当前步骤未知（currentStep 空串）：失败关闭，不向能力取数', async () => {
+      let called = false
+      const out = await evaluateGuards([TASKS], makeInput({}, {
+        currentStep: '',
+        tasksThroughStep: async () => { called = true; return { complete: true, unchecked: [] } },
+      }))
+      expect(called).toBe(false)
+      expect(out.map((e) => e.decision)).toEqual([
+        { kind: 'failed', guardType: 'tasks-through-step', actual: 'current-step-unavailable' },
+      ])
+    })
+  })
+
+  describe('not-afk-queued', () => {
+    it('排队中：失败', async () => {
+      const out = await evaluateGuards([AFK], makeInput({}, { afkQueued: async () => true }))
+      expect(out.map((e) => e.decision)).toEqual([{ kind: 'failed', guardType: 'not-afk-queued', actual: 'queued' }])
+    })
+
+    it('未排队：passed', async () => {
+      const out = await evaluateGuards([AFK], makeInput({}, { afkQueued: async () => false }))
+      expect(out.map((e) => e.decision)).toEqual([{ kind: 'passed' }])
+    })
+  })
+
+  describe('dependencies-ended', () => {
+    it('依赖未结束：失败并只点名未结束的依赖', async () => {
+      const out = await evaluateGuards([DEPS], makeInput({}, {
+        dependencyStates: async () => [{ name: 'a', ended: true }, { name: 'b', ended: false }, { name: 'c', ended: false }],
+      }))
+      expect(out.map((e) => e.decision)).toEqual([
+        { kind: 'failed', guardType: 'dependencies-ended', detail: ['b', 'c'] },
+      ])
+    })
+
+    it('依赖全部结束：passed', async () => {
+      const out = await evaluateGuards([DEPS], makeInput({}, {
+        dependencyStates: async () => [{ name: 'a', ended: true }],
+      }))
+      expect(out.map((e) => e.decision)).toEqual([{ kind: 'passed' }])
+    })
+
+    it('没有依赖：passed', async () => {
+      const out = await evaluateGuards([DEPS], makeInput({}, { dependencyStates: async () => [] }))
+      expect(out.map((e) => e.decision)).toEqual([{ kind: 'passed' }])
+    })
+  })
+
+  it('能力缺失时三者都失败（fail-closed），且各自点名缺的能力', async () => {
+    const out = await evaluateGuards([TASKS, AFK, DEPS], makeInput(), { stopOnFirstFailure: false })
+    expect(out.map((e) => e.decision)).toEqual([
+      { kind: 'failed', guardType: 'tasks-through-step', actual: 'capability-unavailable', missingCapability: 'tasksThroughStep' },
+      { kind: 'failed', guardType: 'not-afk-queued', actual: 'capability-unavailable', missingCapability: 'afkQueued' },
+      { kind: 'failed', guardType: 'dependencies-ended', actual: 'capability-unavailable', missingCapability: 'dependencyStates' },
+    ])
+  })
+
+  it('能力抛错时失败关闭为 evaluation-error，原始异常文本不外泄', async () => {
+    const boom = async (): Promise<never> => { throw new Error('/secret/path 读失败') }
+    const out = await evaluateGuards([TASKS, AFK, DEPS], makeInput({}, {
+      tasksThroughStep: boom, afkQueued: boom, dependencyStates: boom,
+    }), { stopOnFirstFailure: false })
+    expect(out.map((e) => e.decision)).toEqual([
+      { kind: 'failed', guardType: 'tasks-through-step', actual: 'evaluation-error' },
+      { kind: 'failed', guardType: 'not-afk-queued', actual: 'evaluation-error' },
+      { kind: 'failed', guardType: 'dependencies-ended', actual: 'evaluation-error' },
+    ])
+    expect(JSON.stringify(out)).not.toContain('/secret/path')
+  })
+
+  it('一次列出全部失败：字段条件与离开条件并存时两者都在结果里（stopOnFirstFailure=false）', async () => {
+    const out = await evaluateGuards(
+      [{ type: 'field-equals', field: 'pre_verify_review_result', value: 'pass' }, AFK],
+      makeInput({ pre_verify_review_result: 'pending' }, { afkQueued: async () => true }),
+      { stopOnFirstFailure: false },
+    )
+    expect(out.filter((e) => e.decision.kind === 'failed').map((e) => e.guard.type)).toEqual(['field-equals', 'not-afk-queued'])
+  })
+
+  it('when 谓词不命中的离开条件整体不适用：不取数、不算失败', async () => {
+    const out = await evaluateGuards(
+      [{ type: 'not-afk-queued', when: { kind: 'track-in', values: ['pm'] } }],
+      makeInput({}, { track: 'backend' }),
+    )
+    expect(out).toEqual([])
+  })
+})
+
+describe('required-output（必须产出）', () => {
+  const REQUIRED: CompiledGuardConfig = { type: 'required-output', path: 'docs/superpowers/specs/*.md' }
+
+  it('满足：passed，并按当前步骤与原样的路径模式向能力取数', async () => {
+    const seen: Array<readonly [string, string]> = []
+    const out = await evaluateGuards([REQUIRED], makeInput({}, {
+      currentStep: 'explore',
+      requiredOutput: async (step, pattern) => { seen.push([step, pattern]); return true },
+    }))
+    expect(out.map((e) => e.decision)).toEqual([{ kind: 'passed' }])
+    expect(seen).toEqual([['explore', 'docs/superpowers/specs/*.md']])
+  })
+
+  it('不满足：失败，actual 为 missing', async () => {
+    const out = await evaluateGuards([REQUIRED], makeInput({}, { requiredOutput: async () => false }))
+    expect(out).toEqual([{
+      guard: REQUIRED,
+      decision: { kind: 'failed', guardType: 'required-output', actual: 'missing', path: 'docs/superpowers/specs/*.md' },
+    }])
+  })
+
+  it('不满足：failed 决策带原样的路径模式，任务名已知也不展开 {change}（同一步的任务离开条件逐字相同，显示时由客户端展开）', async () => {
+    const guard: CompiledGuardConfig = { type: 'required-output', path: 'openspec/changes/{change}/proposal.md' }
+    for (const change of ['plan-checkout', undefined]) {
+      const out = await evaluateGuards([guard], makeInput({}, { ...(change === undefined ? {} : { change }), requiredOutput: async () => false }))
+      expect(out.map((e) => e.decision)).toEqual([
+        { kind: 'failed', guardType: 'required-output', actual: 'missing', path: 'openspec/changes/{change}/proposal.md' },
+      ])
+    }
+  })
+
+  it('能力缺失：失败关闭并点名 requiredOutput（不降级为跳过）', async () => {
+    const out = await evaluateGuards([REQUIRED], makeInput())
+    expect(out.map((e) => e.decision)).toEqual([
+      {
+        kind: 'failed', guardType: 'required-output', actual: 'capability-unavailable', missingCapability: 'requiredOutput',
+        path: 'docs/superpowers/specs/*.md',
+      },
+    ])
+  })
+
+  it('能力抛错：失败关闭为 evaluation-error，原始异常文本不外泄', async () => {
+    const out = await evaluateGuards([REQUIRED], makeInput({}, {
+      requiredOutput: async () => { throw new Error('/secret/path 读失败') },
+    }))
+    expect(out.map((e) => e.decision)).toEqual([
+      { kind: 'failed', guardType: 'required-output', actual: 'evaluation-error', path: 'docs/superpowers/specs/*.md' },
+    ])
+    expect(JSON.stringify(out)).not.toContain('/secret/path')
+  })
+
+  it('当前步骤未知（currentStep 空串）：失败关闭，不向能力取数', async () => {
+    let called = false
+    const out = await evaluateGuards([REQUIRED], makeInput({}, {
+      currentStep: '',
+      requiredOutput: async () => { called = true; return true },
+    }))
+    expect(called).toBe(false)
+    expect(out.map((e) => e.decision)).toEqual([
+      { kind: 'failed', guardType: 'required-output', actual: 'current-step-unavailable', path: 'docs/superpowers/specs/*.md' },
+    ])
+  })
+
+  it('when 谓词不命中：整体不适用，不取数', async () => {
+    let called = false
+    const out = await evaluateGuards(
+      [{ ...REQUIRED, when: { kind: 'track-in', values: ['pm'] } }],
+      makeInput({}, { track: 'backend', requiredOutput: async () => { called = true; return false } }),
+    )
+    expect(out).toEqual([])
+    expect(called).toBe(false)
   })
 })
 

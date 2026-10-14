@@ -22,7 +22,7 @@ export interface AgentContext extends TestCommandContext {
   /** 本任务的改动没有命中其 `attach_on` 的评审者：不投影、不排波、不阻断，`prompt` 也不接（diffRisk.ts 算出）。 */
   readonly unattached: readonly string[]
   readonly testsReady: { readonly ready: boolean; readonly pending: readonly string[] }
-  /** 本步声明了 test_policy 时的策略判定（评审者提示词的 v2 测试摘要读它）。 */
+  /** 本步声明了测试档位或 test_policy 时的策略判定（评审者提示词的 v2 测试摘要读它）。 */
   readonly testPolicy: TestPolicyReport | undefined
 }
 

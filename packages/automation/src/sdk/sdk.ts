@@ -11,8 +11,8 @@ import { join } from 'node:path'
 import {
   createLoopLedgerStore,
   loadRegistry,
+  type AutomationPolicyBits,
   type StateStore,
-  type TrackPolicyProfile,
 } from '@tenon/kernel'
 import { readAutomationJson, type AutomationJsonFs } from '../config/automationJson.js'
 import {
@@ -94,9 +94,7 @@ export interface AutomationDeps {
   readonly bindAutomationPolicy?: LoopAdmissionDeps['bindAutomationPolicy']
   /** Kernel-owned immutable effective authority snapshot binding used by default admission. */
   readonly bindWorkflowActionAuthority?: LoopAdmissionDeps['bindWorkflowActionAuthority']
-  /** Holds the exact TrackRegistry snapshot through final authority resolution and state claim. */
-  readonly withWorkflowActionAuthorityLock?: LoopAdmissionDeps['withWorkflowActionAuthorityLock']
-  /** Fresh non-Workflow permission layers used only by the default admission wiring. */
+  /** Fresh non-Workflow permission layers (plus the change's recorded track) used only by the default admission wiring. */
   readonly workflowActionAuthority?: LoopAdmissionDeps['workflowActionAuthority']
   /** ExecutionContext.image（写进 reservation 快照的沙箱镜像）；缺省 admission 装配点透传。 */
   readonly image?: string
@@ -160,10 +158,10 @@ export interface TargetedRunCandidate {
 
 export interface Automation {
   /**
-   * 挂队：读 change.track → 由调用者从当前项目 effective registry 解析 policy →
-   * off→queued + queued_at。resolver 对 orphan/损坏 registry 的异常原样 fail-loud。
+   * 挂队：读 change.track → 由调用者从任务冻结的计划（选中分支的 automation）解析 policy →
+   * off→queued + queued_at。resolver 对工作流缺失 / 轨道不存在的异常原样 fail-loud。
    */
-  enqueue(name: string, resolveTrackPolicy: (trackId: string) => TrackPolicyProfile): Promise<boolean>
+  enqueue(name: string, resolveTrackPolicy: (trackId: string) => AutomationPolicyBits | Promise<AutomationPolicyBits>): Promise<boolean>
   /** 就绪扫描：真扫 openspec/changes/* 的 build+queued+deps 满足集（FIFO）。 */
   scanReady(): Promise<string[]>
   /** 跑一轮：scanReady → 逐 change admission.reserve + claim + runChange(context) + 分级 settle
@@ -218,7 +216,6 @@ export function createAutomation(deps: AutomationDeps): Automation {
     getAutomation: (change) => getAutomation(store, changeDir(change)),
     bindAutomationPolicy: deps.bindAutomationPolicy,
     bindWorkflowActionAuthority: deps.bindWorkflowActionAuthority,
-    withWorkflowActionAuthorityLock: deps.withWorkflowActionAuthorityLock,
     workflowActionAuthority: deps.workflowActionAuthority,
   })
   // 二次任务（queued 卡死回归修复）：路由 SchedulerDeps.preparation——缺省 createDefaultExecutionPreparation()
@@ -242,7 +239,7 @@ export function createAutomation(deps: AutomationDeps): Automation {
     config,
     async enqueue(name, resolveTrackPolicy) {
       const state = await store.read(changeDir(name))
-      const policy = resolveTrackPolicy(scalar(state.fields.track))
+      const policy = await resolveTrackPolicy(scalar(state.fields.track))
       const eligible = shouldEnqueueOnSpecComplete({
         enabled: config.enabled,
         automationEligible: policy.automationEligible,

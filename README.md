@@ -21,7 +21,7 @@ Tenon 是一个完整打包的插件，不是“CLI 加一份需要手工安装�
 | 旧任务可能仅因为“最近”而被恢复。 | 只有请求明确标识或要求恢复某个 Change 时才恢复它。 |
 | 通用 Todo 可能与真实流程漂移。 | Todo 和 Dashboard 步骤来自所选 Workflow。 |
 | Prompt 可以声称执行过 Skill 或读过文档。 | 系统校验当前访问的 Skill、文档摘要、读取、复核和转换收据。 |
-| 所有任务都被迫经过同一套重流程。 | 讨论、Simple、Default、Free 和 Custom 有不同且显式的结果。 |
+| 所有任务都被迫经过同一套重流程。 | 讨论、轻量轨道、重型轨道和自定义工作流有不同且显式的结果。 |
 | “支持某宿主”可能掩盖能力差异。 | Adapter 公布上下文注入、阻断和 Skill 留痕的 A/B/C 保真度。 |
 
 ## 选择正确的执行路径
@@ -29,12 +29,11 @@ Tenon 是一个完整打包的插件，不是“CLI 加一份需要手工安装�
 | 路径 | 适用场景 | 形态 | 文档行为 |
 | --- | --- | --- | --- |
 | Discussion | 问答、解释、系统通知、斜杠命令 | 不创建 Change | 无受治理文档 |
-| Simple | 命中正向清单且不命中排除项的明确低风险修改 | `change → verify → done` 或 `escalated` | 不启用默认 OpenSpec 契约 |
-| Default | 产品、前端、后端、调研、修复、功能和重构 | `open → explore → spec ⇄ build ⇄ verify → ship → archive` | 完整默认文档证据链 |
-| Free Track | 显式选择、不叠加 PM/前端/后端覆盖层的中性实现 | 所选 Workflow | 仍遵守该 Workflow 的门禁和文档契约 |
-| Custom Workflow | 项目自定义声明式流程 | 与编写的图完全一致 | 只执行已声明的文档契约；未声明则无文档治理 |
+| 轻量（`default` 的 `lite` 轨道） | 评估后预计改动未超出轻量阈值的修改 | `open → build ⇄ verify → done`，越界时 `escalated` | 不启用 OpenSpec 文档链 |
+| 产品 / 前端 / 后端（`default` 的重型轨道） | 产品调研、功能、架构、鉴权、迁移、依赖等较大的工作 | `open → explore → spec ⇄ build ⇄ verify → ship → archive` | 离开每一步时记录实际产出与来源技能；门禁按路径检查 `required-output` |
+| Custom Workflow | 项目自定义声明式流程 | 与编写的图完全一致 | 离开每一步时记录实际产出与来源技能；只检查它声明的 `required-output` |
 
-Simple 路由刻意保持严格。API 或公共契约、schema 和 migration、认证或安全、依赖、发布、生产数据、跨模块工作和新功能即使只改一行，也不会进入 Simple。
+轻重不按关键词猜。开发请求在建任务前先用 `tenon assess --files` 评估预计要改的文件：改动超过 8 个文件，或碰到契约、鉴权、依赖、迁移、删测试、受保护的测试配置中的任何一类，就推荐领域重型轨道；你确认后才创建任务。轻量任务在实现中越界时，改动风险探针会把它升级为重型任务。
 
 [了解路由与 Workflow →](docs/usage/zh-CN/routing-and-workflows.md)
 
@@ -48,7 +47,7 @@ Simple 路由刻意保持严格。API 或公共契约、schema 和 migration、�
 | 工作流总览 |
 | --- |
 | <img src="docs-site/public/images/dashboard-workbench.webp" alt="Tenon Dashboard 工作流总览" width="1280" height="800" loading="lazy"> |
-| 默认、自定义与自由模式共享同一套可检查编排。 |
+| 默认与自定义工作流共享同一套可检查编排。 |
 
 Dashboard 顶部保留工作台、工作流、项目、库、技能五个入口；主题和语言从设置菜单切换。宿主计划、AFK
 和机器诊断继续由 CLI 与本地 API 提供，只读预览不会执行命令。
@@ -147,7 +146,7 @@ tenon dashboard --open
 为项目切换器添加键盘导航并编写测试。
 ```
 
-路由器会为讨论跳过治理、选择严格的 Simple 路径，或在合适的 Track 上创建新的受治理 Change。它不会静默恢复无关旧 Change。
+路由器会为讨论跳过治理；开发请求先评估改动范围，再在轻量或领域重型 Track 上创建新的受治理 Change。它不会静默恢复无关旧 Change。
 
 检查结果：
 
@@ -175,15 +174,16 @@ open → explore → spec ⇄ build ⇄ verify → ship → archive
                      └ 需求变化      └ 验证失败 → build
 ```
 
-Default Workflow 治理以下文档：
+每一步的 Skill 按它自己的 `SKILL.md` 写文件；只初始化状态不会自动产生有意义的内容。Tenon 在离开步骤时自动记录本步新增、修改、删除的文件和来源 Skill。下一步只拿直接上游产出的文档，必须读完（`tenon document read`）才能离开。
 
-- Open：proposal、OpenSpec design 和 tasks
-- Explore：Superpowers design 和 ADR
-- Spec：delta specification 和实现计划
-- Verify：verification report
-- Ship：applied specification
+门禁只保留按路径的“必须产出”（`required-output`）：
 
-后续阶段为其消费的文档登记当前读取收据。文档由当前 agent 通过各步骤要求的 Skills 编写；只初始化状态不会自动产生有意义的内容。Ledger 把每个受治理文件绑定到内容摘要、producer 证据、Change、阶段访问和后续读取。
+- Open：`openspec/changes/{change}/proposal.md`
+- Explore：`docs/superpowers/specs/*.md`
+- Spec：`openspec/changes/{change}/specs/*/spec.md`；前端、后端轨道另需 `docs/superpowers/plans/*.md`
+- Verify（`verify-pass`）：`docs/superpowers/reports/{change}-verify.md`
+
+升级前创建的任务按冻结快照照旧。
 
 Review 出口与确切 transition event 绑定：
 

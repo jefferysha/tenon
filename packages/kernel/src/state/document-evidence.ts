@@ -141,6 +141,15 @@ export interface DocumentEvidenceScope {
   readonly readKinds?: readonly DocumentKind[]
 }
 
+export interface DocumentEvidenceOptions {
+  /**
+   * Where a recorded document is now. A task that ended moved its whole directory while the ledger kept the paths it
+   * was recorded under; the reader of that task maps them here. The ledger is not rewritten and the report keeps
+   * naming the recorded paths. Absent: every document is where it was recorded.
+   */
+  readonly locate?: (recordedPath: string) => string
+}
+
 async function projectDocumentPresent(repoRoot: string, kind: DocumentKind, projectPath: string): Promise<boolean> {
   try {
     await resolveDocument(repoRoot, projectPath, undefined, kind)
@@ -150,9 +159,9 @@ async function projectDocumentPresent(repoRoot: string, kind: DocumentKind, proj
   }
 }
 
-async function currentRecordDigest(repoRoot: string, record: DocumentRecord): Promise<string | undefined> {
+async function currentRecordDigest(repoRoot: string, record: DocumentRecord, path: string): Promise<string | undefined> {
   try {
-    return (await resolveDocument(repoRoot, record.path, undefined, record.kind)).digest
+    return (await resolveDocument(repoRoot, path, undefined, record.kind)).digest
   } catch {
     return undefined
   }
@@ -205,7 +214,9 @@ export async function evaluateDocumentEvidence(
   phase: string,
   scope: DocumentEvidenceScope,
   policy: DocumentGovernancePolicy,
+  options: DocumentEvidenceOptions = {},
 ): Promise<DocumentEvidenceReport> {
+  const locate = options.locate ?? ((recordedPath: string): string => recordedPath)
   let ledger
   try {
     ledger = await readDocumentLedger(changeDir)
@@ -298,7 +309,7 @@ export async function evaluateDocumentEvidence(
       continue
     }
     const legacyDelta = kind === 'delta-spec'
-      ? records.filter((record) => deltaSpecSlot(record.path, changeDir) === undefined)
+      ? records.filter((record) => deltaSpecSlot(locate(record.path), changeDir) === undefined)
       : []
     if (legacyDelta.length > 0) {
       gate(
@@ -311,7 +322,7 @@ export async function evaluateDocumentEvidence(
     }
     const digests: Array<string | undefined> = []
     for (const record of records) {
-      digests.push(await currentRecordDigest(repoRoot, record))
+      digests.push(await currentRecordDigest(repoRoot, record, locate(record.path)))
     }
     if (records.some((record, index) => digests[index] !== record.sha256)) {
       gate(kind, `document '${kind}' 已缺失或内容变化；重新执行 tenon document record 后再继续`, 'stale')

@@ -1,6 +1,6 @@
 import { CommanderError } from 'commander'
 import { describe, expect, it } from 'vitest'
-import { ownerRequiredMessage, taskArchivedMessage, USER_MISSING_HINT } from '@tenon/kernel'
+import { ownerRequiredMessage, USER_MISSING_HINT } from '@tenon/kernel'
 import { buildProgram } from '../program.js'
 import { makeDeps } from '../test-support.js'
 import { collectHelpGaps, collectStaleHelpKeys, HELP_EN, helpEntries, translateUsageError } from './help.js'
@@ -63,7 +63,6 @@ describe('消息目录', () => {
 
   it('与 kernel 里仍在用的中文文案逐字一致（迁移不改既有输出）', () => {
     expect(formatMessage('zh', 'user.missing')).toBe(USER_MISSING_HINT)
-    expect(formatMessage('zh', 'change.archived', { name: 'demo' })).toBe(taskArchivedMessage('demo'))
     expect(formatMessage('zh', 'owner.required.none', { name: 'demo' })).toBe(ownerRequiredMessage('demo', null))
   })
 
@@ -85,6 +84,21 @@ describe('帮助文本', () => {
 
   it('英文表里没有中文', () => {
     for (const [key, text] of Object.entries(HELP_EN)) expect(CJK.test(text), `${key}: ${text}`).toBe(false)
+  })
+
+  /**
+   * standard / simple 通道与对话 / 自由轨道已退役（设计 §1）：帮助与消息里不再把它们当成可用入口来讲，
+   * 轻量的说法统一为「轻量轨道 / lite track」。退役提示（`init.workflowRetired` 用占位符带出被拒的工作流名，
+   * `task archive` 的报错在命令实现里）告诉用户「它没了、改用什么」，不会匹配这里的字面写法。
+   */
+  it('帮助与消息目录里没有 standard 通道 / --track standard 这类退役入口的说法', () => {
+    const RETIRED = /standard\s*(通道|lane|channel)|--track\s+(standard|simple|chat|free)\b|--workflow\s+(standard|simple)\b/iu
+    for (const entry of helpEntries(program)) expect(entry.zh, `${entry.key} 的中文帮助`).not.toMatch(RETIRED)
+    for (const [key, text] of Object.entries(HELP_EN)) expect(text, `${key} 的英文帮助`).not.toMatch(RETIRED)
+    for (const code of MESSAGE_CODES) {
+      expect(MESSAGES[code].zh, `${code} zh`).not.toMatch(RETIRED)
+      expect(MESSAGES[code].en, `${code} en`).not.toMatch(RETIRED)
+    }
   })
 
   /** 与用户看到的一致：`--help` 的完整输出，含 addHelpText 的后缀。 */

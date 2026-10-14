@@ -1,3 +1,5 @@
+import { execFileSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { appendFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -5,6 +7,8 @@ import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { IllegalTransitionError } from '../types.js'
 import { atomicWriteFile, createStateStore } from '../state/store.js'
+import { readStepOutputLedger, STEP_OUTPUT_LEDGER_FILE } from '../state/step-output-ledger.js'
+import { recordInputReads, stepOutputsContextFor } from '../documents/step-outputs.js'
 import { createTransitionRecordStore } from '../state/transition-record-store.js'
 import { ensureAgentFreeze } from '../state/agent-freeze.js'
 import { createWorkflowRunRepository } from '../state/workflow-run-repository.js'
@@ -20,11 +24,12 @@ import { createTransitionApplication } from './transition-application.js'
 import type { TransitionApplicationDeps } from './transition-application.js'
 import { INTERACTION_PROJECTION_WRITE_FAILED } from '../interaction/contract.js'
 import { compileWorkflow } from './compile.js'
-import { builtinWorkflow } from './builtin-workflows.js'
-import { compileEffectiveWorkflowPlan, documentGovernanceFingerprint, resolveEffectiveWorkflowPlan } from './effective-plan.js'
+import { legacyContractDefaultPlan, legacyDefaultInitialWorkflow, simpleWorkflow } from './test-support.js'
+import {
+  compileEffectiveWorkflowPlan, documentGovernanceFingerprint, effectiveWorkflowPlanFromIr, resolveEffectiveWorkflowPlan,
+} from './effective-plan.js'
 import type { EffectiveWorkflowPlan } from './effective-plan-types.js'
 import { IMPLICIT_COMPLETION_EVENT } from './implicit-completion.js'
-import { builtinTrack } from '../tracks/builtins.js'
 import { readCurrentRunRevision } from '../state/run-revision-store.js'
 import { testDigest } from '../test-evidence/evaluate.js'
 import { ensureTestEvidenceDirs, testRunRecordPath } from '../test-evidence/paths.js'
@@ -34,6 +39,8 @@ import type { WorkflowDef } from './types.js'
 import type { WorkflowIR } from './ir.js'
 import type { HistoryEntry } from '../types.js'
 import { createBuildRevisionToken, makeBuildRevisionBlocker, safeRevisionHash } from './build-revision.js'
+import { makeGuardFileContext } from '../infrastructure/guard-file-context.js'
+import { evaluateStepExitReport } from './step-exit-report.js'
 
 const TEST_CREATOR = { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' } as const
 const TEST_EVIDENCE_CANDIDATE = `workspace:sha256:${'e'.repeat(64)}`
@@ -53,7 +60,8 @@ async function satisfyStepTests(
   phase: string,
   track = 'backend',
 ): Promise<void> {
-  const plan = compileEffectiveWorkflowPlan('default', undefined, builtinTrack(track))
+  // 任务冻结的是升级前带契约的 default：证据要对上它自己的计划指纹，所以也用夹具算计划。
+  const plan = legacyContractDefaultPlan(track, 'phase-manifest')
   const tests = plan.workflow.steps.find((step) => step.id === phase)?.tests ?? []
   const runId = (await readCurrentRunRevision(changeDir))?.state.runMetadata?.runId
   if (runId === undefined) throw new Error('fixture run identity missing')
@@ -137,6 +145,8 @@ function makeDeps(overrides: Partial<TransitionApplicationDeps> = {}): Transitio
 async function initChange(deps: ReturnType<typeof makeDeps>, root: string, name: string): Promise<string> {
   const { changeDir } = await deps.runRepository.initChange({
     repoRoot: root, name, track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock: FIXED_CLOCK,
+    // 这些用例验的是旧引擎（phase-manifest）：用升级前冻结的在途 default 任务，新建任务一律 step-graph。
+    initialWorkflow: legacyDefaultInitialWorkflow('backend'),
   })
   await seedGovernedDocumentEvidence(root, changeDir, name)
   return changeDir
@@ -215,10 +225,10 @@ async function seedGovernedDocumentEvidence(root: string, changeDir: string, nam
   }
 }
 
-/** Fixtures record the built-in default document table (identical in every default branch). */
+/** Fixtures record the pre-upgrade default document table (identical in every default branch) that in-flight tasks froze. */
 function defaultDocumentPolicy() {
-  const policy = compileEffectiveWorkflowPlan('default').documentPolicy
-  if (policy === undefined) throw new Error('built-in default workflow must be document-governed')
+  const policy = legacyContractDefaultPlan('backend').documentPolicy
+  if (policy === undefined) throw new Error('legacy default workflow fixture must carry a document contract')
   return policy
 }
 
@@ -305,6 +315,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
         // change, so this is the real first-phase failure a normal workflow must surface.
         const { changeDir } = await deps.runRepository.initChange({
           repoRoot: root, name: `missing-evidence-${track}`, track, reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock: FIXED_CLOCK,
+          initialWorkflow: legacyDefaultInitialWorkflow(track),
         })
         const result = await createTransitionApplication(deps).execute({
           root, changeDir, changeName: `missing-evidence-${track}`, actor: TEST_CREATOR, event: 'open-complete', context: {}, loadWorkflow: NEVER_FOUND_WORKFLOW,
@@ -313,6 +324,8 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
         if (result.kind !== 'document-evidence-failed') throw new Error('expected document-evidence-failed')
         expect(result.phase).toBe('open')
         expect(result.blockers.join('\n')).toContain("document 'proposal'")
+        // 旧契约的文档证据没有观察模式的来源标记：CLI / Dashboard 据此保留「OpenSpec 文档证据」的标题。
+        expect(result.source).toBeUndefined()
         const state = await createStateStore().read(changeDir)
         expect(state.fields.phase).toBe('open')
         expect(state.runMetadata?.transitionSequence).toBe(0)
@@ -971,7 +984,8 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
           },
         ],
       }
-      const policy = compileEffectiveWorkflowPlan('governed', governed).documentPolicy
+      // 带 document_contract 的定义已被 validate 拒绝，旧契约任务靠冻结快照继续：这里直接由编译产物建计划，不经校验。
+      const policy = effectiveWorkflowPlanFromIr('governed', compileWorkflow(governed)).documentPolicy
       if (!policy) throw new Error('expected document policy')
       const { changeDir } = await deps.runRepository.initChange({
         repoRoot: root, name: 'demo', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock: FIXED_CLOCK,
@@ -1222,8 +1236,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
     test('simple 保持原行为：verify-pass 的显式 archive-run 进入 done，change/done 都不接受 archived', async () => {
       const root = await freshRepoRoot()
       const deps = makeDeps()
-      const simple = builtinWorkflow('simple')
-      if (simple === null) throw new Error('simple workflow missing')
+      const simple = simpleWorkflow()
       const dir = await initAt(deps, root, 'simple', 'change')
       const base = { root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, context: {}, loadWorkflow: loaderFor(simple) }
 
@@ -1298,6 +1311,55 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       return changeDir
     }
 
+    test('通用离开条件：context 注入的三项能力进入 guard 求值；缺失或未满足时一次列出全部且零提交，满足后放行', async () => {
+      const root = await freshRepoRoot()
+      const deps = makeDeps()
+      const wf: WorkflowDef = {
+        name: 'ug',
+        steps: [
+          {
+            id: 'build', label: '', gate: null, skills: [], inputs: [], outputs: [],
+            guards: [{ type: 'tasks-through-step' }, { type: 'not-afk-queued' }, { type: 'dependencies-ended' }],
+            transitions: [{ event: 'complete', to: 'done' }],
+          },
+          { id: 'done', label: '', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [] },
+        ],
+      }
+      const dir = await initCustom(deps, root, 'ug', 'build')
+      const app = createTransitionApplication(deps)
+      const load = (n: string) => (n === 'ug' ? compileWorkflow(wf) : null)
+      const run = (context: Parameters<typeof app.execute>[0]['context']) => app.execute({
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'complete', context, loadWorkflow: load,
+      })
+
+      const missing = await run({})
+      expect(missing).toMatchObject({ kind: 'step-guard-failed', stepId: 'build' })
+      if (missing.kind !== 'step-guard-failed') throw new Error('期望 step-guard-failed')
+      expect(missing.failures).toHaveLength(3)
+      expect(missing.failures.join('\n')).toContain('tasksThroughStep')
+
+      const stepsAsked: string[] = []
+      const unmet = await run({
+        tasksThroughStep: async (step) => { stepsAsked.push(step); return { complete: false, unchecked: ['写测试 (build)'] } },
+        afkQueued: async () => true,
+        dependencyStates: async () => [{ name: 'dep-b', ended: false }],
+      })
+      if (unmet.kind !== 'step-guard-failed') throw new Error('期望 step-guard-failed')
+      expect(unmet.failures).toHaveLength(3)
+      expect(unmet.failures.join('\n')).toContain('写测试 (build)')
+      expect(unmet.failures.join('\n')).toContain('dep-b')
+      expect(stepsAsked).toEqual(['build'])
+      expect((await createStateStore().read(dir)).fields.phase).toBe('build')
+
+      const passed = await run({
+        tasksThroughStep: async () => ({ complete: true, unchecked: [] }),
+        afkQueued: async () => false,
+        dependencyStates: async () => [{ name: 'dep-a', ended: true }],
+      })
+      expect(passed.kind).toBe('applied')
+      expect((await createStateStore().read(dir)).fields.phase).toBe('done')
+    })
+
     test('edge action mark-verification-passed 真改字段：verify_result 落盘 pass、verified_at 落时钟（patch 在 commit 前并入 nextFields）', async () => {
       const root = await freshRepoRoot()
       const deps = makeDeps()
@@ -1350,14 +1412,13 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
           { id: 'ship', label: '', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [] },
         ],
       }
-      const policy = compileEffectiveWorkflowPlan('governed', wf).documentPolicy
-      if (!policy) throw new Error('expected document policy')
+      // build_sha 的 inputs / outputs 推断修订生命周期只对旧 IR 生效（新定义不能再声明 inputs / outputs）：不经校验，直接由编译产物建计划。
+      // openspec: true 只选 OpenSpec 生命周期（governed），没有声明文档契约 = 观察模式：固定生命周期照 governed 注入。
+      const plan = effectiveWorkflowPlanFromIr('governed', compileWorkflow(wf))
+      expect(plan.capabilities.documents).toEqual({ governed: true, mode: 'observed' })
       const { changeDir: dir } = await deps.runRepository.initChange({
         repoRoot: root, name: 'demo', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock: FIXED_CLOCK,
-        initialWorkflow: {
-          workflow: 'governed', phase: 'build', documentProfile: 'document-v1',
-          documentGovernanceFingerprint: documentGovernanceFingerprint(policy),
-        },
+        initialWorkflow: { workflow: 'governed', phase: 'build' },
       })
       await createStateStore().setMany(dir, {
         build_mode: 'direct', isolation: 'in-place', direct_override: 'true',
@@ -1730,7 +1791,7 @@ describe('步骤测试证据（每步测试登记）', () => {
   }
 
   function planFor(track: 'backend'): EffectiveWorkflowPlan {
-    const plan = resolveEffectiveWorkflowPlan('tested', loadTested, builtinTrack(track))
+    const plan = resolveEffectiveWorkflowPlan('tested', loadTested, track)
     if (plan === null) throw new Error('fixture plan missing')
     return plan
   }
@@ -1950,5 +2011,228 @@ describe('退回边的技能门：不要求归属执行者 / 评审者 agent 的
       kind: 'step-skills-incomplete', workflowName: 'owned', stepId: 'build',
       missing: ['test-driven-development', 'frontend-design'],
     })
+  })
+})
+
+describe('观察模式：冻结计划没有文档契约的任务在离开步骤时记录产出、拦截未读输入', () => {
+  const OBSERVED_WF: WorkflowDef = {
+    name: 'observed-flow',
+    steps: [
+      { id: 'explore', label: 'explore', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [{ event: 'explore-complete', to: 'spec' }] },
+      {
+        id: 'spec', label: 'spec', gate: null, skills: [], inputs: [], outputs: [], guards: [],
+        transitions: [
+          { event: 'spec-complete', to: 'build' },
+          { event: 'requirements-changed', to: 'explore' },
+          { event: 'scope-expanded', to: 'escalated', actions: [{ type: 'archive-run' }] },
+        ],
+      },
+      { id: 'build', label: 'build', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [] },
+      { id: 'escalated', label: 'escalated', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [] },
+    ],
+  }
+  const loadObserved = (name: string): WorkflowIR | null => (name === 'observed-flow' ? compileWorkflow(OBSERVED_WF) : null)
+  const DESIGN = 'docs/superpowers/specs/demo-design.md'
+
+  function git(root: string, ...args: string[]): void {
+    execFileSync('git', ['-c', 'user.email=t@t.test', '-c', 'user.name=t', ...args], { cwd: root, stdio: 'ignore' })
+  }
+  async function gitRoot(): Promise<string> {
+    const root = await freshRepoRoot()
+    git(root, 'init', '-q', '-b', 'main')
+    await writeFile(join(root, 'README.md'), '# readme\n', 'utf8')
+    git(root, 'add', '-A')
+    git(root, 'commit', '-q', '-m', 'init')
+    return root
+  }
+  async function initObserved(deps: ReturnType<typeof makeDeps>, root: string): Promise<string> {
+    const { changeDir } = await deps.runRepository.initChange({
+      repoRoot: root, name: 'demo', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full',
+      clock: FIXED_CLOCK, initialWorkflow: { workflow: 'observed-flow', phase: 'explore' },
+    })
+    return changeDir
+  }
+  const commandOf = (root: string, dir: string, event: string) => ({
+    root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event, context: {}, loadWorkflow: loadObserved,
+  })
+  async function writeDesign(root: string): Promise<void> {
+    await mkdir(join(root, 'docs', 'superpowers', 'specs'), { recursive: true })
+    await writeFile(join(root, DESIGN), '# design\n', 'utf8')
+    await mkdir(join(root, 'src'), { recursive: true })
+    await writeFile(join(root, 'src', 'a.ts'), 'export const a = 1\n', 'utf8')
+  }
+  /** 在 explore 步写出设计文档与一个代码文件，离开 explore，停在 spec（交接输入 = 设计文档）。 */
+  async function toSpec(deps: ReturnType<typeof makeDeps>, root: string): Promise<string> {
+    const dir = await initObserved(deps, root)
+    await writeDesign(root)
+    const left = await createTransitionApplication(deps).execute(commandOf(root, dir, 'explore-complete'))
+    expect(left.kind).toBe('applied')
+    return dir
+  }
+
+  test('初始化时开始第一次访问；离开 explore 时记下新增文件（含代码）并为 spec 开始下一次访问', async () => {
+    const root = await gitRoot()
+    const deps = makeDeps()
+    const dir = await toSpec(deps, root)
+    const ledger = await readStepOutputLedger(dir)
+    const first = ledger.visits.find((visit) => visit.sequence === 0)
+    expect(first).toMatchObject({ step: 'explore', checkpoint: null, exit: { event: 'explore-complete', to: 'spec', observation: 'observed' } })
+    expect(first?.outputs.map((output) => [output.path, output.change])).toEqual([[DESIGN, 'added'], ['src/a.ts', 'added']])
+    const second = ledger.visits.find((visit) => visit.sequence === 1)
+    expect(second).toMatchObject({ step: 'spec', exit: null })
+    expect(second?.checkpoint).not.toBeNull()
+    expect(ledger.visits.every((visit) => visit.run_id === first?.run_id)).toBe(true)
+  })
+
+  test('spec 步有未读输入：spec-complete 与 requirements-changed 都被拒，blockers 以「本步输入」开头，状态零推进', async () => {
+    const root = await gitRoot()
+    const deps = makeDeps()
+    const dir = await toSpec(deps, root)
+    const before = await readCurrentRunRevision(dir)
+    for (const event of ['spec-complete', 'requirements-changed']) {
+      const result = await createTransitionApplication(deps).execute(commandOf(root, dir, event))
+      expect(result.kind, event).toBe('document-evidence-failed')
+      if (result.kind !== 'document-evidence-failed') throw new Error('expected document-evidence-failed')
+      expect(result.phase).toBe('spec')
+      expect(result.source).toBe('unread-inputs')
+      expect(result.blockers).toHaveLength(1)
+      expect(result.blockers[0]).toMatch(new RegExp(`^本步输入 ${DESIGN.replaceAll('.', '\\.')}（explore 的产出）`, 'u'))
+      expect(result.blockers[0]).toContain('tenon document read demo all')
+    }
+    expect((await createStateStore().read(dir)).fields.phase).toBe('spec')
+    expect((await readCurrentRunRevision(dir))?.revision).toBe(before?.revision)
+    // 被拒的转换没有写离开记录：spec 访问仍在进行。
+    expect((await readStepOutputLedger(dir)).visits.find((visit) => visit.sequence === 1)?.exit).toBeNull()
+  })
+
+  test('放弃边（scope-expanded）不要求读完输入', async () => {
+    const root = await gitRoot()
+    const deps = makeDeps()
+    const dir = await toSpec(deps, root)
+    const result = await createTransitionApplication(deps).execute(commandOf(root, dir, 'scope-expanded'))
+    expect(result).toMatchObject({ kind: 'applied', from: 'spec', to: 'escalated' })
+  })
+
+  test('读完后转换成功：账本里有 spec 访问的离开记录与下一次访问的检查点', async () => {
+    const root = await gitRoot()
+    const deps = makeDeps()
+    const dir = await toSpec(deps, root)
+    expect(await recordInputReads(stepOutputsContextFor(dir), 'all', FIXED_CLOCK())).toEqual([DESIGN])
+    await writeFile(join(root, 'docs', 'plan.md'), '# plan\n', 'utf8')
+    const result = await createTransitionApplication(deps).execute(commandOf(root, dir, 'spec-complete'))
+    expect(result).toMatchObject({ kind: 'applied', from: 'spec', to: 'build' })
+    const ledger = await readStepOutputLedger(dir)
+    const spec = ledger.visits.find((visit) => visit.sequence === 1)
+    expect(spec).toMatchObject({ step: 'spec', checkpoint: null, exit: { event: 'spec-complete', to: 'build', observation: 'observed' } })
+    expect(spec?.outputs.map((output) => output.path)).toEqual(['docs/plan.md'])
+    expect(spec?.reads.map((read) => read.path)).toEqual([DESIGN])
+    const build = ledger.visits.find((visit) => visit.sequence === 2)
+    expect(build).toMatchObject({ step: 'build', exit: null })
+    expect(build?.checkpoint).not.toBeNull()
+  })
+
+  test('读完后回退到 explore 也放行；回退后的访问有新的检查点', async () => {
+    const root = await gitRoot()
+    const deps = makeDeps()
+    const dir = await toSpec(deps, root)
+    await recordInputReads(stepOutputsContextFor(dir), 'all', FIXED_CLOCK())
+    const result = await createTransitionApplication(deps).execute(commandOf(root, dir, 'requirements-changed'))
+    expect(result).toMatchObject({ kind: 'applied', from: 'spec', to: 'explore' })
+    const revisit = (await readStepOutputLedger(dir)).visits.find((visit) => visit.sequence === 2)
+    expect(revisit).toMatchObject({ step: 'explore', exit: null })
+  })
+
+  test('项目不是 git 工作区：转换照常成功，这次访问记 unavailable、没有产出，下一次访问没有检查点', async () => {
+    const root = await freshRepoRoot()
+    const deps = makeDeps()
+    const dir = await toSpec(deps, root)
+    const ledger = await readStepOutputLedger(dir)
+    expect(ledger.visits.find((visit) => visit.sequence === 0)).toMatchObject({
+      exit: { observation: 'unavailable' }, outputs: [],
+    })
+    expect(ledger.visits.find((visit) => visit.sequence === 1)).toMatchObject({ step: 'spec', checkpoint: null })
+    // 没有可信的观察就没有伪造的输入，下一步不被卡住。
+    const result = await createTransitionApplication(deps).execute(commandOf(root, dir, 'spec-complete'))
+    expect(result).toMatchObject({ kind: 'applied', from: 'spec', to: 'build' })
+  })
+
+  test('账本损坏：失败关闭并点名文件，状态零推进', async () => {
+    const root = await gitRoot()
+    const deps = makeDeps()
+    const dir = await initObserved(deps, root)
+    await writeFile(join(dir, STEP_OUTPUT_LEDGER_FILE), '{not json', 'utf8')
+    const before = await readCurrentRunRevision(dir)
+    const result = await createTransitionApplication(deps).execute(commandOf(root, dir, 'explore-complete'))
+    expect(result.kind).toBe('document-evidence-failed')
+    if (result.kind !== 'document-evidence-failed') throw new Error('expected document-evidence-failed')
+    expect(result.phase).toBe('explore')
+    expect(result.source).toBe('step-output-ledger')
+    expect(result.blockers).toHaveLength(1)
+    expect(result.blockers[0]).toContain('步骤产出账本损坏')
+    expect(result.blockers[0]).toContain('openspec/changes/demo/.pipeline-step-outputs.json')
+    expect((await readCurrentRunRevision(dir))?.revision).toBe(before?.revision)
+    expect((await createStateStore().read(dir)).fields.phase).toBe('explore')
+  })
+
+  test('status / check 的出口报告与转换同口径：未读输入阻断前进与回退（不阻断放弃边），读完后清零，没有 documents 段', async () => {
+    const root = await gitRoot()
+    const deps = makeDeps()
+    const dir = await toSpec(deps, root)
+    const reportOf = async () => evaluateStepExitReport({
+      repoRoot: root, changeName: 'demo', changeDir: dir, state: await createStateStore().read(dir),
+      plan: effectiveWorkflowPlanFromIr('observed-flow', compileWorkflow(OBSERVED_WF)),
+      guardCheck: () => ({ pass: true, failures: [] }), guardContext: {},
+      fileContext: makeGuardFileContext(root, { automationRunner: false })('demo'),
+      testEvidence: { context: undefined },
+      skills: async () => ({ completedSkillIds: new Set<string>(), slots: [] }),
+      agentBlockers: async () => [],
+    })
+    const blockersOf = (report: Awaited<ReturnType<typeof reportOf>>, event: string) =>
+      report.exits.find((exit) => exit.event === event)?.blockers ?? []
+
+    const before = await reportOf()
+    expect(before.documents).toBeUndefined()
+    for (const event of ['spec-complete', 'requirements-changed']) {
+      expect(blockersOf(before, event), event).toEqual([{
+        source: 'document', code: 'input-unread', subject: DESIGN, state: 'unread',
+        message: expect.stringMatching(/^本步输入 docs\/superpowers\/specs\/demo-design\.md（explore 的产出）.*tenon document read demo all$/u),
+      }])
+    }
+    expect(blockersOf(before, 'scope-expanded')).toEqual([])
+
+    await recordInputReads(stepOutputsContextFor(dir), 'all', FIXED_CLOCK())
+    const after = await reportOf()
+    for (const event of ['spec-complete', 'requirements-changed', 'scope-expanded']) expect(blockersOf(after, event), event).toEqual([])
+  })
+
+  test('出口报告遇到损坏的账本：不抛，非放弃边各带一条 step-output-ledger-invalid 阻断', async () => {
+    const root = await gitRoot()
+    const deps = makeDeps()
+    const dir = await initObserved(deps, root)
+    await writeFile(join(dir, STEP_OUTPUT_LEDGER_FILE), '{not json', 'utf8')
+    const report = await evaluateStepExitReport({
+      repoRoot: root, changeName: 'demo', changeDir: dir, state: await createStateStore().read(dir),
+      plan: effectiveWorkflowPlanFromIr('observed-flow', compileWorkflow(OBSERVED_WF)),
+      guardCheck: () => ({ pass: true, failures: [] }), guardContext: {},
+      fileContext: makeGuardFileContext(root, { automationRunner: false })('demo'),
+      testEvidence: { context: undefined },
+      skills: async () => ({ completedSkillIds: new Set<string>(), slots: [] }),
+      agentBlockers: async () => [],
+    })
+    expect(report.exits.find((exit) => exit.event === 'explore-complete')?.blockers).toEqual([
+      { source: 'document', code: 'step-output-ledger-invalid', message: expect.stringContaining('步骤产出账本损坏') },
+    ])
+  })
+
+  test('契约模式（冻结计划带旧契约）一个字节都不变：不建产出账本，不记录产出', async () => {
+    const root = await gitRoot()
+    const deps = makeDeps()
+    const dir = await initChange(deps, root, 'demo')
+    expect(existsSync(join(dir, STEP_OUTPUT_LEDGER_FILE))).toBe(false)
+    const result = await createTransitionApplication(deps).execute({
+      root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'open-complete', context: {}, loadWorkflow: NEVER_FOUND_WORKFLOW,
+    })
+    expect(result.kind).toBe('applied')
+    expect(existsSync(join(dir, STEP_OUTPUT_LEDGER_FILE))).toBe(false)
   })
 })

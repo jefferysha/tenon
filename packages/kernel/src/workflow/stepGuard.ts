@@ -3,10 +3,9 @@ import path from 'node:path'
 import type { AgentBlocker } from './agent-verdict.js'
 import { compileStepGuards } from './compile.js'
 import { evaluateGuards, type GuardEvaluation } from './guard-handlers.js'
-import type { CompiledGuardConfig, GuardInput, StepIR } from './ir.js'
+import type { CompiledGuardConfig, GuardInput, StepIR, UniversalGuardCapabilities } from './ir.js'
 import type { StepDef } from './types.js'
 import type { PipelineState, GuardResult } from '../types.js'
-import { normalizeDefaultGuardFields } from '../flow/default-event-policy.js'
 import { safeRevisionHash } from './build-revision.js'
 
 /**
@@ -16,7 +15,7 @@ import { safeRevisionHash } from './build-revision.js'
  * 仍按既有可选能力语义处理，但 build-head-unchanged 现在必须绑定 revision assessor，缺失
  * capability 会 fail-closed 为 typed revision blocker，绝不 skipped/pass。
  */
-export interface StepGuardContext {
+export interface StepGuardContext extends UniversalGuardCapabilities {
   readonly changeDirAbs: string
   readonly fileExists?: (repoRelativePath: string) => boolean
   readonly gitHeadSha?: () => Promise<string>
@@ -55,6 +54,7 @@ export function buildStepGuardInput(state: PipelineState, ctx: StepGuardContext)
     stateHash: safeRevisionHash(state.fields),
     rawBuildSha: state.fields.build_sha,
     track: fieldStr(state.fields.track),
+    change: path.basename(path.resolve(ctx.changeDirAbs)),
     readText: (rel) => readChangeText(ctx.changeDirAbs, rel),
     fileExists: ctx.fileExists,
     gitHeadSha: ctx.gitHeadSha,
@@ -62,25 +62,42 @@ export function buildStepGuardInput(state: PipelineState, ctx: StepGuardContext)
     specMigrationStatus: ctx.specMigrationStatus,
     assessBuildRevision: ctx.assessBuildRevision,
     currentStep: ctx.currentStep ?? fieldStr(state.fields.phase),
+    tasksThroughStep: ctx.tasksThroughStep,
+    afkQueued: ctx.afkQueued,
+    dependencyStates: ctx.dependencyStates,
+    requiredOutput: ctx.requiredOutput,
   }
 }
 
-/** Default transitions share the same infrastructure capabilities but preserve legacy fstr fields. */
-export function buildDefaultGuardInput(state: PipelineState, ctx: StepGuardContext): GuardInput {
-  return {
-    ...buildStepGuardInput(state, ctx),
-    fields: normalizeDefaultGuardFields(state.fields),
-    track: fieldStr(state.fields.track),
-    currentStep: ctx.currentStep ?? fieldStr(state.fields.phase),
-  }
+/** 失败文案里回显的条目（任务说明、依赖名）来自任务状态或 tasks.md；带控制字符（换行等）时转义成单行，
+ *  不能借它伪造出额外的失败行。 */
+function displayItem(item: string): string {
+  return /[\u0000-\u001f\u007f]/.test(item) ? JSON.stringify(item) : item
+}
+
+/** 通用离开条件的失败文案：先说清「无法判定」的三种原因（缺能力 / 评估出错 / 当前步骤未知），
+ *  其余才是具体未满足项（`unmet` 由各条件自己给出）。 */
+function renderUniversalFailure(
+  stepId: string,
+  requirement: string,
+  decision: Extract<GuardEvaluation['decision'], { readonly kind: 'failed' }>,
+  unmet: (detail: readonly string[]) => string,
+): string {
+  const head = `step '${stepId}' 要求${requirement}`
+  if (decision.missingCapability !== undefined) return `${head}，但缺少能力 ${decision.missingCapability}，无法判定`
+  if (decision.actual === 'evaluation-error') return `${head}，评估出错，已按未满足处理`
+  if (decision.actual === 'current-step-unavailable') return `${head}，但当前步骤未知，无法判定`
+  const reason = unmet(decision.detail ?? [])
+  return reason === '' ? head : `${head}（${reason}）`
 }
 
 /**
  * 单条 failed 评估 → 面向人的失败文案。v1 两变体逐字复刻旧 evaluateStepGuards 的文案
  * （tasks-at-least / nonempty-output 展开出的 field-nonempty——check 命令等直接断言这两句，
  * 逐字不变是硬约束）；新变体给清晰的中文说明。仅在 decision.kind==='failed' 时有意义。
+ * `change` 是任务名：必须产出的路径模式里的 `{change}` 渲染成它，文案显示的就是任务里真实要写的路径。
  */
-export function renderGuardFailure(ev: GuardEvaluation, stepId: string): string {
+export function renderGuardFailure(ev: GuardEvaluation, stepId: string, change?: string): string {
   const g = ev.guard
   const d = ev.decision
   if (d.kind !== 'failed') return ''
@@ -118,6 +135,19 @@ export function renderGuardFailure(ev: GuardEvaluation, stepId: string): string 
       return `step '${stepId}' 要求当前 HEAD 等于 build 冻结的 SHA（build_sha=${d.expected?.[0] ?? ''}，HEAD=${d.actual ?? ''}）`
     case 'spec-migration-applied':
       return `step '${stepId}' 要求主规格迁移已由机器证据确认（当前=${d.actual ?? '未知'}）`
+    case 'tasks-through-step':
+      return renderUniversalFailure(stepId, '截至本步的 tasks.md 任务都已勾选', d, (detail) =>
+        detail.map(displayItem).join('；'))
+    case 'not-afk-queued':
+      return renderUniversalFailure(stepId, '任务未在 AFK 队列中', d, () =>
+        'automation=queued 已入队调度器；想手动跑先 set automation off')
+    case 'dependencies-ended':
+      return renderUniversalFailure(stepId, '依赖任务都已结束', d, (detail) =>
+        detail.length === 0 ? '' : `未结束：${detail.map(displayItem).join('、')}`)
+    case 'required-output': {
+      const shown = change === undefined ? g.path : g.path.replaceAll('{change}', change)
+      return renderUniversalFailure(stepId, `产出匹配 ${displayItem(shown)} 的文件`, d, () => '本任务里这一步还没有写出这样的文件')
+    }
     default: {
       const exhaustive: never = g
       return `step '${stepId}' guard 未通过：${JSON.stringify(exhaustive)}`
@@ -138,7 +168,7 @@ export async function evaluateCompiledGuards(
   const evals = await evaluateGuards(guards, input, { stopOnFirstFailure: false })
   const failures = evals
     .filter((e) => e.decision.kind === 'failed')
-    .map((e) => renderGuardFailure(e, stepId))
+    .map((e) => renderGuardFailure(e, stepId, input.change))
   const blockers = evals
     .flatMap((e) => e.decision.kind === 'failed' && e.decision.blocker !== undefined
       ? [e.decision.blocker]

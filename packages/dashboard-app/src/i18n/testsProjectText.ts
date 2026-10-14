@@ -22,7 +22,18 @@ export const zh: Dict = {
   threshold: {
     lines: '行',
     branches: '分支',
+    functions: '函数',
+    statements: '语句',
     changed_lines: '变更行',
+  },
+  level: {
+    required: '必需',
+    touched: '碰到才跑',
+    thresholds: '门槛',
+    source: { catalog: '目录', default: '内建缺省' },
+    flaky: '不稳定 ≤ {n}',
+    baseline: '基线',
+    scenarios: { required: '场景映射', passing: '场景通过' },
   },
   baseline: {
     profile: '画像',
@@ -67,7 +78,18 @@ export const en: Dict = {
   threshold: {
     lines: 'Lines',
     branches: 'Branches',
+    functions: 'Functions',
+    statements: 'Statements',
     changed_lines: 'Changed lines',
+  },
+  level: {
+    required: 'Required',
+    touched: 'Touched',
+    thresholds: 'Thresholds',
+    source: { catalog: 'Catalog', default: 'Built-in default' },
+    flaky: 'Flaky ≤ {n}',
+    baseline: 'Baseline',
+    scenarios: { required: 'Scenarios mapped', passing: 'Scenarios passing' },
   },
   baseline: {
     profile: 'Profile',

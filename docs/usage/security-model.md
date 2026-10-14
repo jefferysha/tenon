@@ -163,18 +163,38 @@ a hostile process that can read your files.
   cannot approve them). Known failures name one case and expire within 30 days.
 - **Reports and the candidate are pinned.** A report must be newer than the run and is
   copied, with its digest, into the run's artifact directory. The workspace fingerprint
-  excludes only test outputs that the catalog or the frozen workflow declares, so nothing
-  can hide under a directory that merely looks like test output.
+  excludes the test outputs that the catalog or the frozen workflow declares, plus files under a
+  `test-results/`, `playwright-report/` or `coverage/` directory that git does not track and whose
+  extension is an evidence format (log, txt, xml, md, csv, images, video, lcov, info). Source and
+  script extensions, files without an extension, tracked files, and formats that code or a browser
+  can load or unpack (json, html, htm, zip, gz, har) still count, and an unreadable git state counts
+  everything, so a directory that merely looks like test output cannot hide code or a page; a
+  suite that really produces json, html, zip or har declares it as an output in the catalog.
 - **Repository-provided commands are untrusted on first use.** `tenon test run` executes
   catalog and inline-test commands only after you ran `tenon test trust` on this machine
-  for their exact text; CI declares `TENON_TEST_TRUST=1`. The hook refuses an agent call
-  that contains either.
+  for each command's exact text; CI declares `TENON_TEST_TRUST=1`. The hook refuses an agent call
+  that contains either, and refuses any write into a `test-trust/` path. It also refuses an agent
+  call that rewrites Tenon's state directory (`TENON_RUNTIME_HOME`, `TENON_RUNTIME_ROOTS`, and
+  `HOME` / `XDG_STATE_HOME` ahead of a `tenon` call), so the trust store cannot be pointed at a
+  location the agent made. The trust is keyed by user,
+  repository and single command: it lives in your user-level state directory
+  (`<state>/test-trust/`, HMAC-signed with a `0600` key beside it, not in the repository), every
+  worktree of the same repository shares it, and the checkout must be listed by `git worktree list`
+  so that a copied tree with a forged `.git` pointer gets none. A seal left in the checkout by an
+  earlier release counts only in a project that is not a git repository; in a git repository it is
+  ignored (the seal and its key could arrive with the repository or an archive), only the user-level
+  store counts, and commands you trusted in a checkout need one `tenon test trust` in your own
+  terminal. Editing one command asks again for that command only. The repository identity is the
+  path of the git common directory, not a content
+  digest, so a different repository later cloned to the same path inherits the command-level trust
+  (the same level as pulling new commits into a trusted repository); read the commands before you
+  confirm.
 - **Reviewers cannot be rerun into a pass.** Every run of a reviewer on the same candidate
   counts and the most severe verdict wins, unless the rerun carries a recorded reason.
 
-Residual risk: a process with your privileges can read the seal key and forge a consistent
-seal, build a path the hook cannot parse, or edit `.pipeline/workflows/*.yaml` through the
-Dashboard; the human confirmation in review is the backstop for the last two.
+Residual risk: a process with your privileges can read the seal key or the trust key and forge a
+consistent seal or trust file, build a path the hook cannot parse, or edit `.pipeline/workflows/*.yaml`
+through the Dashboard; the human confirmation in review is the backstop for the last two.
 
 CI has no seal key. `tenon verify --ci` re-derives the chain, the plan, the verdicts, the candidate
 tree and the protected-file approval lines from committed files, which catches every edit that does

@@ -2,7 +2,6 @@
  * 契约类型 —— 与 docs/CONTRACT.md 互为镜像。
  * 字段序/引号/列表语义以老内核 state-init.sh heredoc 为准，改动 = human gate（LOOP.md）。
  */
-import type { CoverageProfile, ReviewSeed, TrackId } from './tracks/types.js'
 import type { AutomationPolicySnapshot } from './loops/automation-policy.js'
 import type { WorkflowPlanSnapshot } from './workflow/effective-plan.js'
 import { PRE_VERIFY_REVIEW_FIELD } from './review-gate-fields.js'
@@ -52,8 +51,11 @@ export const FIELD_ORDER = [
   // 上一候选的 pass。继续严格末尾追加，使旧窄解析器把这一行及其后的提交元数据原样保留。
   PRE_VERIFY_REVIEW_FIELD,
   'review_acknowledged_via',
-  // 任务级验证轮次上限覆盖（1–20）。严格末尾追加；值为空时不进 wire 与 YAML 投影（state/omit-when-empty-fields.ts）。
+  // 任务级可选字段，严格末尾追加，空值不进 wire 与 YAML 投影（state/omit-when-empty-fields.ts）：max_rounds 验证轮次上限覆盖（1–20）；task_result 任务结果
+  // finished | escalated | terminated（只由 `tenon task finish|terminate` 在移动目录前写）；domain 轻量任务创建时（`tenon init --domain`）记下的领域轨道（`tenon set` 也能改，读它的一侧自己校验）。
   'max_rounds',
+  'task_result',
+  'domain',
   'start_sha', // 任务起点（建任务时的 HEAD）：末尾追加的逻辑字段，物理值在伴随文件（state/start-sha-store.ts），不进 wire 与 YAML 投影；tenon set|set-many|cas 拒写
 ] as const
 export type FieldName = (typeof FIELD_ORDER)[number]
@@ -66,12 +68,6 @@ export const DOCUMENT_PROFILE_IDS = ['legacy-full', 'document-v1'] as const
 export type DocumentProfileId = (typeof DOCUMENT_PROFILE_IDS)[number]
 export const DOCUMENT_LOCALES = ['zh-CN', 'en'] as const
 export type DocumentLocale = (typeof DOCUMENT_LOCALES)[number]
-
-// track 合法性全集不再是 types.ts 的写死常量：运行时权威改由动态 Track Registry 承载
-// （GOAL.md 清单 T · R2）。内建 Track 的 id/默认/排序单一真相源在 tracks/builtins.ts 的
-// BUILTIN_TRACK_IDS；任意 track id 的运行时校验走 registry 的 requireTrack（应用层校验，
-// 见 cli/commands/{fields,init}.ts 与 server POST /api/changes）。故 InitOptions.track
-// 收成开放的 TrackId=string——闭集判定挪到 registry，不再由本类型收窄。
 
 /** 门 marker 文件名（项目根），age ≤ GATE_TTL_MS[kind] 视为新鲜（age > TTL 才陈旧，同老内核 fresh()） */
 export const GATE_MARKERS = ['.pipeline-pending-confirm', '.pipeline-pending-review', '.pipeline-pending-interaction'] as const
@@ -204,21 +200,20 @@ export interface PipelineState {
 export interface InitOptions extends InitStartOptions {
   repoRoot: string
   name: string
-  /** registry 已校验的 track id（合法性由调用方经 requireTrack 保证；store.init 只负责落盘，不再收窄闭集）。 */
-  track: TrackId
-  /** requireTrack 得到的 effective policy 值；StateStore 不按 track id 猜测能力。 */
-  reviewSeed: ReviewSeed
+  /** 调用方已按所选工作流的分支声明校验过的轨道 id；store.init 只负责落盘，不判断它是否存在。 */
+  track: string
+  domain?: string // 轻量任务记下的领域轨道（调用方已校验是同工作流里另一条分支）；缺省 = 不记
+  /** 两个已退役评审字段的槽位初值；StateStore 不按 track id 猜测。 */
+  reviewSeed: 'pending' | 'skipped'
   preset: string
   /** Declared identity; `created_by` and the first `assignee` are its user ref `Name <id>`. */
   creator: RecordActor
   /** 测试注入时钟；业务码禁止散落 new Date() */
   clock?: () => string
   /**
-   * W1 第二增量：预生成的 run 身份，随 init 的独占创建（`wx`）一次性写入 .pipeline.yaml，
-   * 不是创建后再补一次 write（第五轮 codex review 抓到：两步之间有竞态窗口，且第二步失败会
-   * 被调用方吞掉、init 仍报成功，"新 change 身份已钉死"这条保证名不副实）。不提供 → 产出的
-   * change 没有 runMetadata（老行为，供不需要 run 身份的调用方/测试用，StateStore 本身不
-   * 依赖 WorkflowRunRepository，不自己生成 ID）。
+   * W1 第二增量：预生成的 run 身份，随 init 的独占创建（`wx`）一次性写入 .pipeline.yaml，不是创建后再补一次
+   * write（两步之间有竞态窗口，且第二步失败会被调用方吞掉、init 仍报成功）。不提供 → 产出的 change 没有
+   * runMetadata（老行为；StateStore 本身不依赖 WorkflowRunRepository，不自己生成 ID）。
    */
   runId?: string
   /** Presentation locale pinned in a rollback-safe Change sidecar; omitted callers receive the product default. */
@@ -364,6 +359,9 @@ export interface GuardResult {
   warnings?: string[]
 }
 
+/** spec 出口 coverage 矩阵的适用剖面；只有按旧 phase-manifest 规则走完的在途任务会取到 'none' 以外的值。 */
+export type CoverageProfile = 'none' | 'pm' | 'frontend' | 'backend'
+
 /**
  * guardCheck 的注入依赖（BACKLOG #12 加法扩展，全部可选）。
  * 老 guard 在项目根以 bash 直接摸文件系统；kernel 纯函数化后由 CLI 注入等价原语。
@@ -372,7 +370,7 @@ export interface GuardResult {
  * 所有路径参数均为**相对项目根**的相对路径（老 guard 运行于项目根，字段值直接 `[ -f ]`）。
  */
 export interface GuardContext {
-  /** requireTrack 得到的 effective coverage policy；coverage 不按 state.track 猜测矩阵。 */
+  /** 来自本次转换绑定的冻结计划（`capabilities.track.coverageProfile`）；coverage 不按 state.track 猜测矩阵。 */
   coverageProfile: CoverageProfile
   /**
    * canonical state 存在性。提供时优先于旧 `.pipeline.yaml` fileNonempty 探针；调用方必须实现

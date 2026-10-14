@@ -4,7 +4,7 @@
  * 才会加载、解析、消费这里定义的形状。
  *
  * 分层（G2 P2，2026-07-17）：本文件是**定义层**——parse 产出、serialize 写回、validate 校验、
- * 编辑器/测试夹具直接构造的形状（guard 的 9 变体闭集 + 4 action 变体 + edge 级 guards/actions +
+ * 编辑器/测试夹具直接构造的形状（guard 的 13 变体闭集 + 5 action 变体 + edge 级 guards/actions +
  * when 谓词）。运行层（归一化、编译期展开 nonempty-output、字段收窄进 FIELD_ORDER 闭集）是
  * ./ir.ts 的 CompiledGuardConfig / WorkflowIR，由 compileWorkflow（./compile.ts）从本层翻译产出。
  * 运行层的 CompiledGuardConfig 从本层 WorkflowGuardConfig 派生（Exclude 掉 nonempty-output），
@@ -13,6 +13,7 @@
 import type { ReviewerHost } from '../agents/types.js'
 import type { FieldName } from '../types.js'
 import type { TrackPredicate } from './predicates.js'
+import type { TestLevel } from './test-level.js'
 
 export type FieldType = 'string' | 'file_path' | 'boolean'
 export type GateKind = 'review' | 'auto' | null
@@ -86,6 +87,17 @@ export type WorkflowGuardConfig =
   | ({ readonly type: 'build-head-unchanged'; readonly field: 'build_sha' } & WorkflowConditional)
   /** Ship 硬门禁：存在主规格迁移输入时，必须有身份/摘要绑定且与当前主规格一致的应用结果。 */
   | ({ readonly type: 'spec-migration-applied' } & WorkflowConditional)
+  /** 截至当前步骤的 tasks.md 任务都已勾选（设计 §1b Q5）；能力 `tasksThroughStep`，缺失即失败。 */
+  | ({ readonly type: 'tasks-through-step' } & WorkflowConditional)
+  /** 任务未在 AFK 队列中，避免人工与自动化同时推进同一任务（设计 §1b Q7）；能力 `afkQueued`。 */
+  | ({ readonly type: 'not-afk-queued' } & WorkflowConditional)
+  /** `depends_on` 列出的依赖任务都已结束（设计 §1b Q8）；能力 `dependencyStates`。 */
+  | ({ readonly type: 'dependencies-ended' } & WorkflowConditional)
+  /**
+   * 本任务里这一步必须产出匹配 `path` 的文件（项目相对 POSIX 路径模式：`{change}` 展开任务名，`*` 段内通配，
+   * `**` 独占一段匹配任意多段）；能力 `requiredOutput`，缺失即失败。模式在编译期按 `validateOutputPattern` 校验。
+   */
+  | ({ readonly type: 'required-output'; readonly path: string } & WorkflowConditional)
 
 /**
  * 每个 guard 变体在定义层允许的**顶层 data 键**（不含通用的 `type` 与可选 `when`）——附加字段闭集
@@ -108,6 +120,10 @@ export const GUARD_DATA_KEYS = {
   'full-direct-override': [],
   'build-head-unchanged': ['field'],
   'spec-migration-applied': [],
+  'tasks-through-step': [],
+  'not-afk-queued': [],
+  'dependencies-ended': [],
+  'required-output': ['path'],
 } as const satisfies Record<WorkflowGuardConfig['type'], readonly string[]>
 
 /**
@@ -301,10 +317,38 @@ export interface StepDef {
   readonly tests?: readonly StepTestDef[]
   /** 本步的测试策略；缺省 = 无策略（编译后不出现 test_policy 键，指纹逐字不变）。 */
   readonly test_policy?: StepTestPolicyDef
+  /**
+   * 本步的测试档位（YAML 键 `test`）：none | plan | changed | full。档位含义在求值时读项目测试目录的 `levels`。
+   * 与 `test_policy` 互斥（编译报错）；缺省 = 未声明（编译后不出现 test 键，指纹逐字不变）。
+   */
+  readonly test?: TestLevel
   /** 本步的执行者与评审者；两个列表都空时等同缺省。 */
   readonly agents?: StepAgentsDef
   readonly guards: readonly WorkflowGuardConfig[]
   readonly transitions: readonly StepTransition[]
+}
+
+/** 分支是否走 OpenSpec（文档台账、骨架、规格迁移检查、`openspec archive` 收尾）；YAML 键 `spec`。 */
+export type TrackSpec = 'openspec' | 'none'
+
+/**
+ * 分支参与自动路由的打分数据（YAML 键 `route`）。不写 `route` 的分支不参与自动路由，只能点名使用。
+ * 定义层字段齐全：parse 补 `exclude: []` 与 `fallback: false`，compile 对结构化输入做同样的补齐。
+ */
+export interface TrackRoute {
+  readonly keywords: readonly string[]
+  readonly exclude: readonly string[]
+  readonly priority: number
+  /** 被排除词挡掉、又没有分支认领时落到的分支。 */
+  readonly fallback: boolean
+}
+
+/** 分支的自动化设置（YAML 键 `automation: { eligible, enqueue_after_spec }`）。 */
+export interface TrackAutomation {
+  /** 能否进 AFK。 */
+  readonly eligible: boolean
+  /** 规格完成后是否自动入队。 */
+  readonly enqueueAfterSpec: boolean
 }
 
 /**
@@ -313,9 +357,13 @@ export interface StepDef {
  */
 export interface TrackBranchDef {
   readonly label?: string
-  /** 本分支的文档契约（引用本分支 steps）；有 tracks 时文档契约只写在分支下。 */
+  /** 本分支的文档契约（引用本分支 steps）；有 tracks 时文档契约只写在分支下。`spec: none` 的分支不得声明。 */
   readonly documentContract?: WorkflowDocumentContractV1
   readonly steps: readonly StepDef[]
+  /** 缺省继承工作流顶层：`openspec: true` 视为 `openspec`，否则 `none`。 */
+  readonly spec?: TrackSpec
+  readonly route?: TrackRoute
+  readonly automation?: TrackAutomation
 }
 
 export interface WorkflowDef {
@@ -328,6 +376,8 @@ export interface WorkflowDef {
   readonly documentContract?: WorkflowDocumentContractV1
   readonly steps: readonly StepDef[]
   readonly tracks?: Readonly<Record<string, TrackBranchDef>>
+  /** 平铺工作流（没有 tracks）的路由数据，作为它唯一隐式分支的 `route`；有 tracks 时写在 tracks.<id> 下。 */
+  readonly route?: TrackRoute
 }
 
 export interface WorkflowDocumentSlot {

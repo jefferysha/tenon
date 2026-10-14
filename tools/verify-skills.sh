@@ -79,7 +79,6 @@ RUNTIME_BOOTSTRAP="$ROOT/runtime/tenon-bootstrap.mjs"
 CLI_BUNDLE="$ROOT/packages/cli/dist/tenon.mjs"
 DASHBOARD_SERVER_BUNDLE="$ROOT/packages/server/dist/dashboard.mjs"
 DASHBOARD_WEB_INDEX="$ROOT/packages/dashboard-app/dist/index.html"
-SIMPLE_WORKFLOW_TEMPLATE="$ROOT/templates/workflows/simple.yaml"
 DOCUMENT_TEMPLATE_REGISTRY="$ROOT/templates/documents/registry.v1.yaml"
 DOCUMENT_TEMPLATE_ZH="$ROOT/templates/documents/locales/zh-CN.yaml"
 DOCUMENT_TEMPLATE_EN="$ROOT/templates/documents/locales/en.yaml"
@@ -147,10 +146,6 @@ fi
   || add_fail "缺失 dashboard server bundle: packages/server/dist/dashboard.mjs" "完整插件 dashboard runtime" "运行 npm run build，并提交 packages/server/dist/dashboard.mjs"
 [ -f "$DASHBOARD_WEB_INDEX" ] && [ -r "$DASHBOARD_WEB_INDEX" ] \
   || add_fail "缺失 dashboard SPA: packages/dashboard-app/dist/index.html" "完整插件 dashboard runtime" "运行 npm run build，并提交 packages/dashboard-app/dist/"
-[ -f "$SIMPLE_WORKFLOW_TEMPLATE" ] && [ -r "$SIMPLE_WORKFLOW_TEMPLATE" ] \
-  || add_fail "缺失内建轻量 workflow 模板: templates/workflows/simple.yaml" \
-              "simple Track 的发行资产" \
-              "把 templates/workflows/simple.yaml 纳入发布包，并与 kernel 内建定义保持一致"
 for document_asset in \
   "$DOCUMENT_TEMPLATE_REGISTRY" \
   "$DOCUMENT_TEMPLATE_ZH" \
@@ -215,6 +210,11 @@ if [ -f "$HOOKS_JSON" ]; then
   N_PATH=$((N_PATH + 1))
   [ -f "$ROOT/hooks/lib/ack-command.sh" ] \
     || add_fail "缺失 hook 辅助脚本: hooks/lib/ack-command.sh" "hooks/gate.sh" "把 hooks/lib/ack-command.sh 纳入发布包"
+  # protected-writes.sh 在命令段里出现信任 / 状态目录字样时才加载的识别（tenon test trust、TENON_TEST_TRUST=、改写状态目录）：
+  # 缺了它，门对出现这些字样的命令段一律失败关闭拒绝。
+  N_PATH=$((N_PATH + 1))
+  [ -f "$ROOT/hooks/lib/trust-command.sh" ] \
+    || add_fail "缺失 hook 辅助脚本: hooks/lib/trust-command.sh" "hooks/lib/protected-writes.sh" "把 hooks/lib/trust-command.sh 纳入发布包"
   while IFS= read -r shell_file; do
     [ -n "$shell_file" ] || continue
     N_PATH=$((N_PATH + 1))

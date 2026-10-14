@@ -5,10 +5,11 @@
  * 重复跑什么都不改（幂等）；登记被拒的那份如实报出、其余照常登记。每一步都与逐份的 `document scaffold` /
  * `document record` 是同一批命令函数，台账里的结果相同。
  */
-import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { appendFile, readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { FIXED_CLOCK, freshHarness, rm, type Harness } from './integration-harness.js'
+import { putFile } from './test-git-fixture.js'
 
 const CHANGE = 'doc-batch'
 const DOCS: Readonly<Record<string, string>> = {
@@ -30,11 +31,7 @@ afterEach(async () => { await rm(h.cwd, { recursive: true, force: true }) })
 
 const changeDir = (): string => join(h.cwd, 'openspec', 'changes', CHANGE)
 
-async function put(rel: string, body: string): Promise<void> {
-  const abs = join(h.cwd, rel)
-  await mkdir(dirname(abs), { recursive: true })
-  await writeFile(abs, body, 'utf8')
-}
+const put = (rel: string, body: string): Promise<void> => putFile(h.cwd, rel, body)
 
 /** 宿主加载一个技能（hook 的历史行 + 内部回执命令），时间跟 harness 的固定时钟走。 */
 async function loadSkill(skill: string): Promise<void> {
@@ -48,8 +45,9 @@ async function stepRun(): Promise<StepRunJson> {
   return JSON.parse(h.out.join('\n')) as StepRunJson
 }
 
+/** 批量 scaffold / record 只服务契约模式：升级前创建、冻结着文档契约的 default 任务。 */
 async function startOpen(): Promise<void> {
-  expect(await h.run(['init', CHANGE, '--track', 'backend', '--preset', 'full']), h.err.join('\n')).toBe(0)
+  expect(await h.initLegacyContractDefault(CHANGE, 'backend'), h.err.join('\n')).toBe(0)
   expect(await h.run(['session', 'activate', CHANGE, '--host-session', 'batch-session']), h.err.join('\n')).toBe(0)
 }
 

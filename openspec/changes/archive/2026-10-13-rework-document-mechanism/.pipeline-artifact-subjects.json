@@ -1,0 +1,268 @@
+{
+  "version": 1,
+  "records": [
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-rework-document-mechanism-252c10516b79:8138344f8e10a21dce4fd37072f485df",
+        "namespace": "change-rework-document-mechanism-252c10516b79",
+        "version": "sha256:f30796b9a9df5b2e8f5319cfd8a17d15b0d0e5a81adb50dc0095cd35d9706780",
+        "projection": "document",
+        "content_digest": "sha256:f30796b9a9df5b2e8f5319cfd8a17d15b0d0e5a81adb50dc0095cd35d9706780",
+        "source": {
+          "path": "../../../docs/adr/rework-document-mechanism.md",
+          "document_kind": "adr"
+        }
+      },
+      "logicalKey": "document:adr",
+      "projection": "document",
+      "path": "../../../docs/adr/rework-document-mechanism.md",
+      "documentKind": "adr",
+      "status": "committed",
+      "receiptId": "submission:change-rework-document-mechanism-252c10516b79:document:bcd2a546a518cf153c7c47d14d10be29",
+      "recordedAt": "2026-10-12T00:58:50Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-rework-document-mechanism-252c10516b79:151ef269d8e899bfe0ba2ecef8e9cb55",
+        "namespace": "change-rework-document-mechanism-252c10516b79",
+        "version": "sha256:bea41b8a197039588626c7328b1ab3794c086e99cc209d5fca7d33b91c8ddd97",
+        "projection": "field",
+        "content_digest": "sha256:bea41b8a197039588626c7328b1ab3794c086e99cc209d5fca7d33b91c8ddd97",
+        "source": {
+          "path": "../../../docs/superpowers/specs/rework-document-mechanism-design.md",
+          "document_kind": "superpower-design",
+          "field": "design_doc"
+        }
+      },
+      "logicalKey": "field:design_doc",
+      "projection": "field",
+      "path": "../../../docs/superpowers/specs/rework-document-mechanism-design.md",
+      "field": "design_doc",
+      "status": "committed",
+      "receiptId": "submission:change-rework-document-mechanism-252c10516b79:field:2c70108e623d859f84d45e38e0780238",
+      "recordedAt": "2026-10-12T01:02:56.509Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-rework-document-mechanism-252c10516b79:757293141190843e3ea04115856ec2b3",
+        "namespace": "change-rework-document-mechanism-252c10516b79",
+        "version": "sha256:a9fff09e228ee02ea3fb8e4e1222a97db736fb09c71944bb477e17bae344baaa",
+        "projection": "document",
+        "content_digest": "sha256:a9fff09e228ee02ea3fb8e4e1222a97db736fb09c71944bb477e17bae344baaa",
+        "source": {
+          "path": "design.md",
+          "document_kind": "openspec-design"
+        }
+      },
+      "logicalKey": "document:openspec-design",
+      "projection": "document",
+      "path": "design.md",
+      "documentKind": "openspec-design",
+      "status": "committed",
+      "receiptId": "submission:change-rework-document-mechanism-252c10516b79:document:6551d8927377ff88e8d8b7cb9d700ba9",
+      "recordedAt": "2026-10-12T01:33:44Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-rework-document-mechanism-252c10516b79:1e57cbd21f4b518e2d345bba66d5408c",
+        "namespace": "change-rework-document-mechanism-252c10516b79",
+        "version": "sha256:823deecdbff664cc16e9023d31d6141c6ccde170e885a4c8bd7b3d8ded6a9ca4",
+        "projection": "document",
+        "content_digest": "sha256:823deecdbff664cc16e9023d31d6141c6ccde170e885a4c8bd7b3d8ded6a9ca4",
+        "source": {
+          "path": "proposal.md",
+          "document_kind": "proposal"
+        }
+      },
+      "logicalKey": "document:proposal",
+      "projection": "document",
+      "path": "proposal.md",
+      "documentKind": "proposal",
+      "status": "committed",
+      "receiptId": "submission:change-rework-document-mechanism-252c10516b79:document:bf15fc96d8e686217eb1f36fe69612f7",
+      "recordedAt": "2026-10-12T01:37:40Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-rework-document-mechanism-252c10516b79:e8049d71a6ac6a272f8a9110a5324093",
+        "namespace": "change-rework-document-mechanism-252c10516b79",
+        "version": "sha256:77679635612c235a9f76b48327294e066f217c6190fcc58f9cade1149a7c427c",
+        "projection": "document",
+        "content_digest": "sha256:77679635612c235a9f76b48327294e066f217c6190fcc58f9cade1149a7c427c",
+        "source": {
+          "path": "../../../docs/superpowers/plans/rework-document-mechanism.md",
+          "document_kind": "superpower-plan"
+        }
+      },
+      "logicalKey": "document:superpower-plan",
+      "projection": "document",
+      "path": "../../../docs/superpowers/plans/rework-document-mechanism.md",
+      "documentKind": "superpower-plan",
+      "status": "committed",
+      "receiptId": "submission:change-rework-document-mechanism-252c10516b79:document:660e74b73695a0d42d9c7999cd671555",
+      "recordedAt": "2026-10-12T01:44:03Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-rework-document-mechanism-252c10516b79:e8049d71a6ac6a272f8a9110a5324093",
+        "namespace": "change-rework-document-mechanism-252c10516b79",
+        "version": "sha256:77679635612c235a9f76b48327294e066f217c6190fcc58f9cade1149a7c427c",
+        "projection": "document",
+        "content_digest": "sha256:77679635612c235a9f76b48327294e066f217c6190fcc58f9cade1149a7c427c",
+        "source": {
+          "path": "../../../docs/superpowers/plans/rework-document-mechanism.md",
+          "document_kind": "plan"
+        }
+      },
+      "logicalKey": "document:plan",
+      "projection": "document",
+      "path": "../../../docs/superpowers/plans/rework-document-mechanism.md",
+      "documentKind": "plan",
+      "status": "committed",
+      "receiptId": "submission:change-rework-document-mechanism-252c10516b79:document:cdd727d4071a9df9cf9775191595ae0f",
+      "recordedAt": "2026-10-12T01:44:03Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-rework-document-mechanism-252c10516b79:151ef269d8e899bfe0ba2ecef8e9cb55",
+        "namespace": "change-rework-document-mechanism-252c10516b79",
+        "version": "sha256:f5da8d8c36be8d33b7d0a22d5d847132b6862ce70ab298f1792bf45b8c99bfce",
+        "projection": "document",
+        "content_digest": "sha256:f5da8d8c36be8d33b7d0a22d5d847132b6862ce70ab298f1792bf45b8c99bfce",
+        "source": {
+          "path": "../../../docs/superpowers/specs/rework-document-mechanism-design.md",
+          "document_kind": "superpower-design"
+        }
+      },
+      "logicalKey": "document:superpower-design",
+      "projection": "document",
+      "path": "../../../docs/superpowers/specs/rework-document-mechanism-design.md",
+      "documentKind": "superpower-design",
+      "status": "committed",
+      "receiptId": "submission:change-rework-document-mechanism-252c10516b79:document:1093f5c4c0dd7d9ee196c15fd0f2c11d",
+      "recordedAt": "2026-10-12T01:44:49Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-rework-document-mechanism-252c10516b79:e8049d71a6ac6a272f8a9110a5324093",
+        "namespace": "change-rework-document-mechanism-252c10516b79",
+        "version": "sha256:a7a16aeaff6d183b7474aeafed9e3c95a95871d86dd0837735185fc67392f623",
+        "projection": "field",
+        "content_digest": "sha256:a7a16aeaff6d183b7474aeafed9e3c95a95871d86dd0837735185fc67392f623",
+        "source": {
+          "path": "../../../docs/superpowers/plans/rework-document-mechanism.md",
+          "document_kind": "superpower-plan",
+          "field": "plan"
+        }
+      },
+      "logicalKey": "field:plan",
+      "projection": "field",
+      "path": "../../../docs/superpowers/plans/rework-document-mechanism.md",
+      "field": "plan",
+      "status": "committed",
+      "receiptId": "submission:change-rework-document-mechanism-252c10516b79:field:bcefee8c4f7c9991a0a59b6103c71a72",
+      "recordedAt": "2026-10-12T01:45:38.219Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-rework-document-mechanism-252c10516b79:3fa66ec2a6872671929968c28a929e98",
+        "namespace": "change-rework-document-mechanism-252c10516b79",
+        "version": "sha256:f469e3f340155090fd72b60bb1108cf42f985f7a888d0f2e4019e5bcaa60b3a0",
+        "projection": "document",
+        "content_digest": "sha256:f469e3f340155090fd72b60bb1108cf42f985f7a888d0f2e4019e5bcaa60b3a0",
+        "source": {
+          "path": "specs/document-evidence-timeline/spec.md",
+          "document_kind": "delta-spec"
+        }
+      },
+      "logicalKey": "document:delta-spec",
+      "projection": "document",
+      "path": "specs/document-evidence-timeline/spec.md",
+      "documentKind": "delta-spec",
+      "status": "committed",
+      "receiptId": "submission:change-rework-document-mechanism-252c10516b79:document:cb588cb769d8f3e42aeeb8baadc0003e",
+      "recordedAt": "2026-10-12T01:47:09Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-rework-document-mechanism-252c10516b79:6bacae482b715cc25168d71a4a56a4e7",
+        "namespace": "change-rework-document-mechanism-252c10516b79",
+        "version": "sha256:064969b6d28e85d9c1113eed43838437115078d9f9d01176a22b71955c95ae17",
+        "projection": "field",
+        "content_digest": "sha256:064969b6d28e85d9c1113eed43838437115078d9f9d01176a22b71955c95ae17",
+        "source": {
+          "path": "../../../docs/superpowers/reports/rework-document-mechanism-verify.md",
+          "document_kind": "verification-report",
+          "field": "verification_report"
+        }
+      },
+      "logicalKey": "field:verification_report",
+      "projection": "field",
+      "path": "../../../docs/superpowers/reports/rework-document-mechanism-verify.md",
+      "field": "verification_report",
+      "status": "committed",
+      "receiptId": "submission:change-rework-document-mechanism-252c10516b79:field:7babd00243187fc2a41eb9d24274beff",
+      "recordedAt": "2026-10-13T01:12:58.031Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-rework-document-mechanism-252c10516b79:6bacae482b715cc25168d71a4a56a4e7",
+        "namespace": "change-rework-document-mechanism-252c10516b79",
+        "version": "sha256:b36248930f7f84131d1bcdbbdf375674ed7c21c39b936c642722c66c21da2434",
+        "projection": "document",
+        "content_digest": "sha256:b36248930f7f84131d1bcdbbdf375674ed7c21c39b936c642722c66c21da2434",
+        "source": {
+          "path": "../../../docs/superpowers/reports/rework-document-mechanism-verify.md",
+          "document_kind": "verification-report"
+        }
+      },
+      "logicalKey": "document:verification-report",
+      "projection": "document",
+      "path": "../../../docs/superpowers/reports/rework-document-mechanism-verify.md",
+      "documentKind": "verification-report",
+      "status": "committed",
+      "receiptId": "submission:change-rework-document-mechanism-252c10516b79:document:81e88e6e6b98d0cfeff42ce5ca67d3cd",
+      "recordedAt": "2026-10-13T04:14:25Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-rework-document-mechanism-252c10516b79:b71498efe9a47a0e63760e32e859ed39",
+        "namespace": "change-rework-document-mechanism-252c10516b79",
+        "version": "sha256:aae755be3a4bc367e38db1d5c56e14daa2e698f5f9ad64acf8f157af9c0681ae",
+        "projection": "document",
+        "content_digest": "sha256:aae755be3a4bc367e38db1d5c56e14daa2e698f5f9ad64acf8f157af9c0681ae",
+        "source": {
+          "path": "applied-spec.md",
+          "document_kind": "applied-spec"
+        }
+      },
+      "logicalKey": "document:applied-spec",
+      "projection": "document",
+      "path": "applied-spec.md",
+      "documentKind": "applied-spec",
+      "status": "committed",
+      "receiptId": "submission:change-rework-document-mechanism-252c10516b79:document:acf25d032273140b286226dcc01aa056",
+      "recordedAt": "2026-10-13T09:01:51Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-rework-document-mechanism-252c10516b79:676954505afabd82a240156cda152667",
+        "namespace": "change-rework-document-mechanism-252c10516b79",
+        "version": "sha256:3df7bafcf43d354085c9d675f465f43086baf779f01c85c5e9d95444a813366c",
+        "projection": "document",
+        "content_digest": "sha256:3df7bafcf43d354085c9d675f465f43086baf779f01c85c5e9d95444a813366c",
+        "source": {
+          "path": "tasks.md",
+          "document_kind": "tasks"
+        }
+      },
+      "logicalKey": "document:tasks",
+      "projection": "document",
+      "path": "tasks.md",
+      "documentKind": "tasks",
+      "status": "committed",
+      "receiptId": "submission:change-rework-document-mechanism-252c10516b79:document:9fd98c78c1d6b051ab64938608074984",
+      "recordedAt": "2026-10-13T09:46:46Z"
+    }
+  ]
+}

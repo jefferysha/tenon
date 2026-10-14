@@ -63,19 +63,21 @@ async function finishedNames(): Promise<readonly string[]> {
 }
 
 describe('已完结的 change：status / check / list 同一口径', () => {
-  test('transition archived 之后、openspec archive 之前：不在 active_changes，next 是 finish-change', async () => {
+  test('transition archived 之后、tenon task finish 之前：不在 active_changes，next 是 finish-change', async () => {
     const status = await statusOf()
     expect(status.active_changes).toEqual([])
     expect(status.finished_changes).toEqual([expect.objectContaining({ name: CHANGE, archived_at: '2026-09-20T00:00:00Z' })])
     expect(status.step?.next.map((action) => action.action)).toEqual(['finish-change'])
+    expect(status.step?.next[0]).toMatchObject({ command: `tenon task finish ${CHANGE}` })
     expect(await finishedNames()).toEqual([CHANGE])
     expect(await h.run(['status', '--json'])).toBe(0)
     expect(JSON.parse(h.out.join('\n'))).toEqual({ active_changes: [] })
+    // 目录还没搬进 archive/：只说「已完结」，不抢在搬移之前声称已归档。
     expect(await h.run(['check', CHANGE])).toBe(0)
-    expect(h.out.join('\n')).toBe(`change '${CHANGE}' 已完结（已归档），无需检查`)
+    expect(h.out.join('\n')).toBe(`change '${CHANGE}' 已完结，无需检查`)
   })
 
-  test('openspec archive 搬走目录之后：check 不再报 FAIL，status 不再当它活跃', async () => {
+  test('目录搬进 archive/ 之后：check 不再报 FAIL，status 不再当它活跃', async () => {
     await moveToArchive()
     expect(await h.run(['check', CHANGE])).toBe(0)
     expect(h.out.join('\n')).toBe(`change '${CHANGE}' 已完结（已归档），无需检查`)
@@ -160,6 +162,7 @@ describe('finish-change 的提交：一次成功', () => {
    * 被上层规则忽略的（`git add` 会 exit 1）不列。
    */
   test('状态目录的 .gitignore：未跟踪的一起提交；被忽略的不列', async () => {
+    await mkdir(join(h.cwd, '.pipeline'), { recursive: true })
     await writeFile(join(h.cwd, '.pipeline', '.gitignore'), '*.lock\n', 'utf8')
     await mkdir(join(h.cwd, '.tenon'), { recursive: true })
     await writeFile(join(h.cwd, '.tenon', '.gitignore'), 'users/*/local/\n', 'utf8')
@@ -216,17 +219,29 @@ describe('finish-change 的提交：一次成功', () => {
  * 真机验收 F7：design-system 任务归档只提交了 openspec/changes/archive 与几个 .gitignore，`DESIGN.md`（10 章）和
  * `design/`（模型、方向文档、预览页，约 2350 行）留在工作区，随后的前端任务 `tenon test code-size` 把它们算成
  * 候选改动（4354 行）。设计体系任务的收尾提交要带上它们；别的工作流不动项目根的 DESIGN.md。
+ *
+ * design-system 工作流不再走 OpenSpec（模板删掉了顶层 `openspec: true`，收尾由 Tenon 直接移目录），收尾走「整个工作区」的提交
+ * （`paths: ['.', …排除本机门禁标记]`）——DESIGN.md 与 design/ 在 `.` 之内，照样随这次提交入库；只提交 archive/ 与 `.gitignore`
+ * 的 OpenSpec 形态（以及专门列出设计文件）是 default 这类走 OpenSpec 的工作流的写法。
+ *
+ * 设计体系工作流**没有验证步**：走完最后一步（隐式完结边）本身就是成功收尾，`verify_result` 从来不会是 pass。所以「该不该提交」
+ * 不能看 verify_result，而看是不是放弃出口——否则 DESIGN.md 与 design/ 又留在工作区，F7 原样复现。
  */
 describe('finish-change 的提交：design-system 任务带上 DESIGN.md 与 design/', () => {
   const DS = 'shop-design'
 
-  async function archivedDesignSystem(): Promise<Commit> {
-    expect(await h.run(['init', DS, '--workflow', 'design-system', '--track', 'free', '--preset', 'full']), h.err.join('\n')).toBe(0)
-    await h.seedPhase(DS, 'review')
+  /** 真实的设计体系任务走完最后一步的状态：archived=true、停在最后一步，没有 verify_result。 */
+  async function finishDesignSystem(phase: string): Promise<StatusJson> {
+    expect(await h.run(['init', DS, '--workflow', 'design-system', '--preset', 'full']), h.err.join('\n')).toBe(0)
+    await h.seedPhase(DS, phase)
     await h.seedArtifact(DS, 'archived', 'true')
     await h.seedArtifact(DS, 'archived_at', '2026-09-20T00:00:00Z')
     expect(await h.run(['status', DS, '--json']), h.err.join('\n')).toBe(0)
-    const action = (JSON.parse(h.out.join('\n')) as StatusJson).step?.next[0]
+    return JSON.parse(h.out.join('\n')) as StatusJson
+  }
+
+  async function archivedDesignSystem(): Promise<Commit> {
+    const action = (await finishDesignSystem('review')).step?.next[0]
     expect(action?.action).toBe('finish-change')
     expect(action?.commit).toBeTruthy()
     return action!.commit!
@@ -239,7 +254,8 @@ describe('finish-change 的提交：design-system 任务带上 DESIGN.md 与 des
     await writeFile(join(h.cwd, 'design', 'preview.html'), '<html></html>\n', 'utf8')
     expect(git(['init', '-q']).status).toBe(0)
     const commit = await archivedDesignSystem()
-    expect(commit.paths).toEqual(expect.arrayContaining(['DESIGN.md', 'design', 'openspec/changes/archive']))
+    expect(commit.paths).toContain('.')
+    expect(commit.message).toBe(`chore(tenon): finish ${DS}`)
     const root = join(h.cwd, 'openspec', 'changes')
     await mkdir(join(root, 'archive'), { recursive: true })
     await rename(join(root, DS), join(root, 'archive', `2026-09-20-${DS}`))
@@ -251,6 +267,11 @@ describe('finish-change 的提交：design-system 任务带上 DESIGN.md 与 des
     expect(git(['ls-files', '--', 'DESIGN.md', 'design']).output.trim().split('\n'))
       .toEqual(expect.arrayContaining(['DESIGN.md', 'design/design-model.yaml', 'design/preview.html']))
     expect(git(['status', '--porcelain', '--', 'DESIGN.md', 'design']).output).toBe('')
+  })
+
+  test('不是 git 仓：不发提交（commit: null）', async () => {
+    const status = await finishDesignSystem('review')
+    expect(status.step?.next[0]).toMatchObject({ action: 'finish-change', commit: null })
   })
 
   test('被忽略或不存在的设计文件不进 paths（git add 会整条失败）；default 工作流的收尾不带它们', async () => {

@@ -192,7 +192,7 @@ describe.each(RELEASE_TAGS)('%s 留下的卡死任务：当前版本上的出路
     expect(request.err).toContain('已获确认')
   }, 120_000)
 
-  it('出路：归档卡死的任务、新建一个任务；新任务里只确认一次目录改写，之后 transition 通过', async () => {
+  it('出路：终止卡死的任务、新建一个任务；新任务里只确认一次目录改写，之后 transition 通过', async () => {
     const stuck = await stuckTask()
     const { current } = stuck
     const must = (run: Run, label: string): Run => {
@@ -200,7 +200,7 @@ describe.each(RELEASE_TAGS)('%s 留下的卡死任务：当前版本上的出路
       return run
     }
 
-    must(current('task', 'archive', 'demo', '--yes'), 'task archive demo --yes')
+    must(current('task', 'terminate', 'demo', '--yes'), 'task terminate demo --yes')
     must(current('init', 'demo2', '--track', 'backend', '--workflow', 'trusted', '--preset', 'full'), 'init demo2')
     must(current('test', 'register', 'demo2', '--suite', 'unit'), 'test register demo2')
     must(current('test', 'run', 'demo2', '--stage'), 'test run demo2 --stage')
@@ -221,8 +221,7 @@ describe.each(RELEASE_TAGS)('%s 留下的卡死任务：当前版本上的出路
     must(current('transition', 'demo2', 'build-done'), 'transition demo2 build-done')
     // 目录里的批准人是旧任务里确认过的那位，新任务没有重写它。
     expect(await readFile(join(stuck.cwd, CATALOG_PATH), 'utf8')).toBe(stuck.approvedCatalog)
-    // 归档不是删除：卡死的任务还在，可以取回。
-    must(current('task', 'unarchive', 'demo', '--yes'), 'task unarchive demo --yes')
+    // 终止不是删除：卡死的任务移进了 archive/，仍然查得到（想继续就像这里一样新建任务）。
     expect(current('status', 'demo', '--json').code).toBe(0)
   }, 180_000)
 })

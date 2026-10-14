@@ -1,8 +1,11 @@
 import {
   CONTEXT_BUNDLE_DOCUMENT_KINDS,
+  CONTEXT_BUNDLE_HANDOFF_KIND,
+  CONTEXT_BUNDLE_HANDOFF_REASON_CODE,
   CONTEXT_BUNDLE_PHASES,
   CONTEXT_BUNDLE_REASON_CODES,
   type ContextBundleDocumentKind,
+  type ContextBundleReasonCode,
   type ContextBundleMode,
   type ContextBundleErrorDetail,
   type ContextBundlePhase,
@@ -42,6 +45,10 @@ function isPhase(value: unknown): value is ContextBundlePhase {
   return typeof value === 'string' && PHASES.has(value)
 }
 
+function isReasonCode(value: unknown): value is ContextBundleReasonCode {
+  return typeof value === 'string' && REASON_CODES.has(value)
+}
+
 function decodeMode(value: unknown): ContextBundleMode | null {
   if (value === 'full' || value === 'summary' || value === 'reference') return value
   return null
@@ -68,9 +75,10 @@ function isSafeRelativePath(value: unknown): value is string {
 function decodeInput(value: unknown): ContextBundlePreviewInput | null {
   if (!isRecord(value)) return null
   const mode = decodeMode(value.mode)
-  const kind = decodeDocumentKind(value.kind)
+  const handoff = value.kind === CONTEXT_BUNDLE_HANDOFF_KIND
+  const kind = handoff ? null : decodeDocumentKind(value.kind)
   if (
-    kind === null
+    (!handoff && kind === null)
     || !isSafeRelativePath(value.path)
     || typeof value.digest !== 'string'
     || !DIGEST.test(value.digest)
@@ -78,22 +86,31 @@ function decodeInput(value: unknown): ContextBundlePreviewInput | null {
     || value.reason.length === 0
     || value.reason.length > 256
     || typeof value.reasonCode !== 'string'
-    || !REASON_CODES.has(value.reasonCode)
     || mode === null
     || !isNonNegativeSafeInteger(value.sourceBytes)
     || !isNonNegativeSafeInteger(value.materializedBytes)
     || 'content' in value
   ) return null
-  return {
-    kind,
+  const base = {
     path: value.path,
     digest: value.digest,
     reason: value.reason,
-    reasonCode: value.reasonCode as ContextBundlePreviewInput['reasonCode'],
     mode,
     sourceBytes: value.sourceBytes,
     materializedBytes: value.materializedBytes,
   }
+  if (handoff) {
+    // 交接输入：原因码只有一种，必须带来源步骤与来源技能（字符串或 null）。
+    if (
+      value.reasonCode !== CONTEXT_BUNDLE_HANDOFF_REASON_CODE
+      || typeof value.fromStep !== 'string'
+      || !/^[A-Za-z0-9_-]+$/.test(value.fromStep)
+      || (value.skill !== null && typeof value.skill !== 'string')
+    ) return null
+    return { ...base, kind: CONTEXT_BUNDLE_HANDOFF_KIND, reasonCode: CONTEXT_BUNDLE_HANDOFF_REASON_CODE, fromStep: value.fromStep, skill: value.skill }
+  }
+  if (kind === null || !isReasonCode(value.reasonCode) || 'fromStep' in value || 'skill' in value) return null
+  return { ...base, kind, reasonCode: value.reasonCode }
 }
 
 function decodePreviewBase(value: unknown): {

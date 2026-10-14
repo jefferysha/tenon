@@ -1,35 +1,13 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { randomUUID } from 'node:crypto'
-import { lstatSync } from 'node:fs'
-import { join, resolve as resolvePath } from 'node:path'
+import { join } from 'node:path'
 import {
-  applyLevelChange,
-  assertWorkflowAllowed,
-  builtinWorkflow,
   createEffectiveSkillResolver,
-  createTrack,
-  decodeWorkflowDef,
-  firstStep,
-  listAutomationPolicyTemplates,
-  loadTrackRegistry,
-  loadWorkflow,
-  requireTrackForRoot,
+  loadCompiledWorkflow,
+  planAutomationPolicy,
+  requireRunPlan,
+  resolveWorkflowName,
   stateStorageExistsSync,
-  validateWorkflow,
-  validateWorkflowTrackReferences,
-  withTrackRegistryLock,
-  type CreateTrackSpec,
-  type ExtendedManifestData,
-  type FlowEngine,
-  type GraduationFs,
-  type HistoryWriter,
-  type StateStore,
-  type TrackDefinition,
-  type TrackRegistry,
-  type TrackValidationContext,
-  type WorkflowDef,
-  type WorkflowRunRepository,
-  isArchivedForUser,
 } from '@tenon/kernel'
 import {
   cancelAfkRun,
@@ -37,44 +15,13 @@ import {
   enqueueAfkRun,
   retryAfkRun,
 } from './afk.js'
-import { validateAutomationSettingsBody, writeAutomationSettings } from './automationConfig.js'
-import {
-  activateChangeSession,
-  notRequestedSessionActivation,
-  parseChangeSessionActivation,
-  parseChangeTaskPrompt,
-  writeChangeTaskPrompt,
-} from './changeLaunch.js'
-import { validateMandatorySkillsBody, writeMandatorySkills } from './config.js'
 import { hostAgentLibraryReaderOf } from './hostAgentPrune.js'
-import { validateHookToggleBody, writeHookToggle } from './hooksConfig.js'
-import { applyLoopsUpdate, type LoopActivationValidator } from './loops.js'
-import { parsePipelineCliJson, type PipelineCliRunner } from './operations.js'
-import { addProjectToRegistry, removeProjectFromRegistry } from './projects.js'
-import {
-  applyRouterDraft,
-  parseRouterDraft,
-  previewTrackRouting,
-  type RouterPatternScorer,
-} from './routerPreview.js'
 import { validateSecretWriteBody, writeSecret } from './secrets.js'
-import { tokenFromHeaders, tokensMatch } from './token.js'
+import { resolveTrackPolicyFor } from './trackPolicy.js'
 import { performTransition } from './transition.js'
-import type { ServerPaths } from './types.js'
-import {
-  assertWorkflowRootAnchor,
-  captureWorkflowRootAnchor,
-  closeWorkflowRootAnchor,
-  ensureWorkflowProjectCoordinationPath,
-  readWorkflowForApi,
-  WorkflowNotFoundError,
-  writeWorkflowForApi,
-  type WorkflowRootAnchor,
-} from './workflows.js'
 import type { PostRouteDeps } from './serverPostRoutes.js'
 import { handlePostDecisionRoutes } from './serverPostDecisionRoutes.js'
 import { readAnchoredChange } from './serverTaskPlanRoutes.js'
-import { TASK_ARCHIVED_HTTP_ERROR } from './serverTaskLifecycleRoutes.js'
 import {
   applyTaskRunOperationForChange,
   resolveTaskRunOperation,
@@ -88,17 +35,11 @@ export async function handlePostExecutionRoutes(
   deps: PostRouteDeps,
 ): Promise<void> {
   const {
-    sendJson, readJsonBody, routerPatternScorer, workflowRootForRequest,
-    trackValidationContextFor, executeOperation, operationRunner, operationsAvailable,
-    isRegisteredRoot, store, clock, history, workflowRootAnchors, trackSkillProfiles,
+    sendJson, readJsonBody, workflowRootForRequest,
+    isRegisteredRoot, store, clock, history,
     loadedManifest, runRepo, flow, fileExists, gitHeadSha, workspaceFingerprint, breadcrumb,
-    manifestPath, paths, validateLoopActivation, mutateTrackForApi, trackRegistryBody,
-    sendTrackError, errMsg,
+    paths, errMsg,
   } = deps
-  const REAL_GRADUATION_FS = deps.realGraduationFs
-  function isWorkflowName(name: string): boolean {
-    return name !== '' && /^[\p{L}\p{N}\p{M}_-]+$/u.test(name)
-  }
     if (/^\/api\/task-runs\/[^/]+\/operations$/.test(path)) {
       const rawBody = await readJsonBody(req)
       const result = await resolveTaskRunOperation(path, rawBody, {
@@ -215,29 +156,20 @@ export async function handlePostExecutionRoutes(
       if (!stateStorageExistsSync(dir)) {
         return sendJson(res, 400, { ok: false, error: '找不到该 change（无 canonical/legacy 状态）' })
       }
-      let track: TrackDefinition
+      let eligibility: { automationEligible: boolean; trackLabel: string }
       try {
-        const rawTrack = await store.get(dir, 'track')
-        const trackId = Array.isArray(rawTrack) ? rawTrack.join(',') : (rawTrack ?? '')
-        const trackCtx: TrackValidationContext = {
-          workflowExists: (id) => {
-            if (id === 'default') return true
-            try {
-              return loadWorkflow(root, id) !== null
-            } catch {
-              return false
-            }
-          },
-          skillProfiles: trackSkillProfiles,
-        }
-        track = requireTrackForRoot(loadTrackRegistry(root, trackCtx), trackId, root)
+        // 计划取自任务冻结的快照（没有快照才读现行工作流），资格读选中分支的 automation，不查登记表。
+        const state = await store.read(dir)
+        const trackId = Array.isArray(state.fields.track) ? state.fields.track.join(',') : (state.fields.track ?? '')
+        const plan = requireRunPlan(
+          resolveWorkflowName(state), trackId, state.runMetadata?.workflowPlanSnapshot,
+          (workflowName) => loadCompiledWorkflow(root, workflowName),
+        )
+        eligibility = { automationEligible: planAutomationPolicy(plan).automationEligible, trackLabel: plan.capabilities.track.id ?? trackId }
       } catch (e) {
         return sendJson(res, 400, { ok: false, error: errMsg(e) })
       }
-      const result = await enqueueAfkRun(store, dir, clock, {
-        automationEligible: track.policyProfile.automationEligible,
-        trackLabel: track.label,
-      })
+      const result = await enqueueAfkRun(store, dir, clock, eligibility)
       return sendJson(res, result.ok ? 200 : 400, result)
     }
 
@@ -256,32 +188,6 @@ export async function handlePostExecutionRoutes(
         return sendJson(res, 200, { ok: true, key: validated.value.key, ...info })
       } catch (e) {
         return sendJson(res, 500, { ok: false, error: errMsg(e) })
-      }
-    }
-
-    // ── v3 Studio：POST /api/tracks 创建额外 Track。revision 在 registry 锁内比较。──
-    if (path === '/api/tracks') {
-      const rawBody = await readJsonBody(req)
-      if (typeof rawBody !== 'object' || rawBody === null || Array.isArray(rawBody)) {
-        return sendJson(res, 400, { ok: false, error: '请求体须为 JSON 对象' })
-      }
-      const trackBody = rawBody as Record<string, unknown>
-      const root = typeof trackBody.root === 'string' ? trackBody.root : ''
-      const revision = typeof trackBody.revision === 'string' ? trackBody.revision : ''
-      const track = trackBody.track
-      if (revision === '' || typeof track !== 'object' || track === null || Array.isArray(track)) {
-        return sendJson(res, 400, { ok: false, error: 'revision 与 track 对象为必填' })
-      }
-      const rootCheck = workflowRootForRequest(root)
-      if (!rootCheck.ok) return sendJson(res, rootCheck.code, { ok: false, error: rootCheck.error })
-      try {
-        const mutation = await mutateTrackForApi(rootCheck.anchor, revision, async ({ config }) => ({
-          next: createTrack(config, track as CreateTrackSpec),
-          result: undefined,
-        }))
-        return sendJson(res, 200, trackRegistryBody(mutation.registry))
-      } catch (error) {
-        return sendTrackError(res, error)
       }
     }
 
@@ -312,17 +218,6 @@ export async function handlePostExecutionRoutes(
     const segment = mTr[1]
     if (segment === undefined) return sendJson(res, 400, { ok: false, error: '非法 change 路径' })
     const name = decodeURIComponent(segment)
-    // 归档只对该查看者生效：已归档的任务不接受推进，先取消归档。
-    if (await isArchivedForUser(root, deps.resolveUser(root), name)) {
-      return sendJson(res, 409, { ok: false, code: 'task-archived', error: TASK_ARCHIVED_HTTP_ERROR })
-    }
-    const loadEffectiveTrackRegistry = () => loadTrackRegistry(root, {
-      workflowExists: (workflowId) => {
-        if (workflowId === 'default') return true
-        try { return loadWorkflow(root, workflowId) !== null } catch { return false }
-      },
-      skillProfiles: trackSkillProfiles,
-    })
     // history 注入（G20 / v5-T1）：转换成功 → .pipeline-history.jsonl 记账，guard 拒绝零记账。
     const outcome = await performTransition(
       {
@@ -338,16 +233,10 @@ export async function handlePostExecutionRoutes(
         breadcrumb,
         resolveUser: deps.resolveUser,
         hostAgentLibrary: hostAgentLibraryReaderOf(paths),
-        // 这里用的正是 Dashboard 当前 root 的 effective Track Registry，而不是靠 track id
-        // 写死 PM。自定义 track 也可通过 auto_enqueue_on_spec_complete 显式接入同一条后置编排。
-        resolveTrackPolicy: (trackId) => requireTrackForRoot(loadEffectiveTrackRegistry(), trackId, root).policyProfile,
-        resolveTrack: (trackId) => requireTrackForRoot(loadEffectiveTrackRegistry(), trackId, root),
-        skillResolver: loadedManifest
-          ? createEffectiveSkillResolver({
-              registry: loadEffectiveTrackRegistry,
-              manifest: loadedManifest,
-            })
-          : undefined,
+        // 规格完成后是否自动入队，读任务自己冻结的快照里该轨道的 automation 设置（旧引擎的 default 任务
+        // 按旧策略表），不靠 track id 写死 PM；转换里的轨道也由内核按同一份快照解析，宿主无需注入。
+        resolveTrackPolicy: await resolveTrackPolicyFor(store, root, name),
+        skillResolver: loadedManifest ? createEffectiveSkillResolver(loadedManifest) : undefined,
       },
       root,
       name,

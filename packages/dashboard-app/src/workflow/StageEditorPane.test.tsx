@@ -2,11 +2,10 @@ import { act, cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import gsap from 'gsap'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
-import type { WbEffectiveIo, WbSkillEntry, WbStepDef, WbWorkflowDef } from '../api/governanceTypes'
+import type { WbSkillEntry, WbStepDef, WbWorkflowDef } from '../api/governanceTypes'
 import { I18nProvider } from '../i18n'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import type { WorkflowEditor } from '../workbench/useWorkflowEditor'
-import { producerSkills } from './producers'
 import { SECTION_STAGGER, StageEditorPane } from './StageEditorPane'
 
 vi.mock('@xyflow/react', () => import('./reactFlowTestDouble'))
@@ -15,30 +14,14 @@ vi.mock('@xyflow/react/dist/style.css', () => ({}))
 const EXPLORE: WbStepDef = {
   id: 'explore', label: '调研', gate: 'review',
   skills: [{ id: 'tenon-explore' }, { id: 'brainstorming', depends_on: ['tenon-explore'] }, { id: 'grill-with-docs', depends_on: ['tenon-explore'] }],
-  inputs: [], outputs: [{ field: 'design_doc', type: 'file_path' }], guards: [], transitions: [{ event: 'explore-complete', to: 'spec' }],
+  inputs: [], outputs: [], guards: [{ type: 'required-output', path: 'docs/superpowers/specs/*.md' }], transitions: [{ event: 'explore-complete', to: 'spec' }],
 }
 const SPEC: WbStepDef = {
   id: 'spec', label: '规格', gate: null, skills: [{ id: 'tenon-spec' }],
-  inputs: [{ field: 'design_doc', type: 'file_path' }], outputs: [{ field: 'plan', type: 'file_path' }], guards: [],
+  inputs: [], outputs: [], guards: [],
   transitions: [{ event: 'spec-back', to: 'explore', actions: [{ type: 'reset-pre-verify-review' }] }],
 }
 const DEF: WbWorkflowDef = { name: 'default', steps: [EXPLORE, SPEC] }
-const IO: WbEffectiveIo = {
-  explore: {
-    inputs: [],
-    outputs: [
-      { kind: 'document', id: 'superpower-design', producers: ['brainstorming', 'superpowers:brainstorming'], consumers: ['spec'], role: 'produce', scope: 'change' },
-      { kind: 'field', id: 'design_doc', type: 'file_path', producer: null, consumers: ['spec'] },
-    ],
-  },
-  spec: {
-    inputs: [
-      { kind: 'document', id: 'superpower-design', producers: ['explore'], consumers: [], role: 'read', scope: 'change' },
-      { kind: 'field', id: 'design_doc', type: 'file_path', producer: 'explore', consumers: [] },
-    ],
-    outputs: [{ kind: 'field', id: 'plan', type: 'file_path', producer: null, consumers: [] }],
-  },
-}
 const AGENTS = [
   { name: 'builder', source: 'builtin' as const, description: '实现', skills: [], tools: ['Read'], digest: 'sha256:a' },
   { name: 'security', source: 'custom' as const, description: '安全评审', skills: [], tools: ['Read'], digest: 'sha256:b' },
@@ -51,13 +34,13 @@ const REGISTRY: WbSkillEntry[] = [
 function fakeEditor(step: WbStepDef, overrides: Partial<WorkflowEditor> = {}): WorkflowEditor {
   const labels = new Map(DEF.steps.map((candidate) => [candidate.id, candidate.label]))
   return {
-    def: DEF, effectiveIo: IO, canWrite: true, lint: [], lintBlocked: false, dirty: false, changeCount: 0, saving: false, saveStatus: { kind: 'idle' },
+    def: DEF, canWrite: true, lint: [], lintBlocked: false, dirty: false, changeCount: 0, saving: false, saveStatus: { kind: 'idle' },
     wfName: 'default', branch: 'pm', branches: [{ id: 'pm', label: '产品' }],
     labelOf: (id: string) => labels.get(id) ?? id,
-    mandatory: { registry: REGISTRY },
+    skillRegistry: REGISTRY,
     agents: AGENTS,
     setAgents: vi.fn(),
-    setTestPolicy: vi.fn(),
+    setTestLevel: vi.fn(),
     renameStep: vi.fn(), removeStage: vi.fn(), setGate: vi.fn(), setSkills: vi.fn(), save: vi.fn(), discardDraft: vi.fn(), reloadDefinition: vi.fn(),
     setStageBack: vi.fn(),
     ...overrides,
@@ -82,7 +65,7 @@ beforeAll(() => {
 })
 
 describe('StageEditorPane · 两栏定稿', () => {
-  it('没有面包屑与「n / N」：工作流名与轨道只在左栏；标题输入直接改名；段落顺序 输入 → 技能 → 输出 → 门禁', async () => {
+  it('没有面包屑与「n / N」：工作流名与轨道只在左栏；标题输入直接改名；段落顺序 技能 → 门禁', async () => {
     const user = userEvent.setup()
     const editor = renderPane(EXPLORE)
     expect(screen.queryByTestId('wb-crumbs')).toBeNull()
@@ -93,69 +76,37 @@ describe('StageEditorPane · 两栏定稿', () => {
     expect(screen.getByTestId('wb-lane-name-input-explore')).toHaveValue('调研')
     await user.type(screen.getByTestId('wb-lane-name-input-explore'), '!')
     expect(editor.renameStep).toHaveBeenCalledWith('explore', '调研!')
-    const order = ['stage-inputs', 'stage-skills', 'stage-outputs', 'stage-gate'].map((id) => screen.getByTestId(id))
+    const order = ['stage-skills', 'stage-gate'].map((id) => screen.getByTestId(id))
     for (let i = 1; i < order.length; i += 1) expect(order[i - 1]!.compareDocumentPosition(order[i]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.queryByTestId('workflow-runtime-artifacts')).toBeNull()
   })
 
-  // 用户定稿：输入 / 输出是同一张等分表（文件 · 来源阶段 · 来源技能），不显示读取阶段。
-  it('输出表与输入表同列同表头：文件 · 来源阶段 · 来源技能，不列读取阶段；输出的来源阶段 = 本阶段', () => {
+  it('没有输入表与输出表：不手写每步的输入输出，也没有 + 输入 / + 输出的入口', () => {
     renderPane(EXPLORE)
-    const table = screen.getByTestId('io-outputs')
-    expect(within(table).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['文件', '来源阶段', '来源技能'])
-    expect(within(screen.getByTestId('io-inputs')).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['文件', '来源阶段', '来源技能'])
-    expect(table).not.toHaveTextContent('规格')
-    expect(within(table).getByTestId('slot-stage-superpower-design')).toHaveTextContent('调研')
-    expect(within(table).getByTestId('slot-stage-design_doc')).toHaveTextContent('调研')
-    expect(within(table).getByTestId('slot-skills-superpower-design')).toHaveTextContent('brainstorming')
-    expect(within(table).getByTestId('slot-skills-superpower-design')).not.toHaveTextContent('superpowers:')
-    expect(within(table).getByTestId('slot-skills-design_doc')).toHaveTextContent('tenon-explore, brainstorming, grill-with-docs')
-    expect(screen.getByTestId('slot-field-design_doc')).toHaveAttribute('title', 'tracks.pm.steps[explore].outputs[design_doc]')
-    expect(screen.queryByTestId('output-picker')).toBeNull()
-  })
-
-  it('同一概念只显示一个名字：verification_report 并进 verification-report，字段只在 title 里', () => {
-    const verify: WbStepDef = {
-      id: 'verify', label: '验证', gate: 'review', skills: [], inputs: [],
-      outputs: [{ field: 'verification_report', type: 'file_path' }], guards: [], transitions: [],
+    for (const gone of ['stage-inputs', 'stage-outputs', 'io-inputs', 'io-outputs', 'io-inputs-empty', 'stage-outputs-empty', 'wb-inputs-edit', 'wb-outputs-add', 'stage-document-lint']) {
+      expect(screen.queryByTestId(gone), gone).toBeNull()
     }
-    renderPane(verify, {
-      effectiveIo: {
-        ...IO,
-        verify: {
-          inputs: [],
-          outputs: [
-            { kind: 'document', id: 'verification-report', producers: ['verification-before-completion'], consumers: [], role: 'produce', scope: 'change' },
-            { kind: 'field', id: 'verification_report', type: 'file_path', producer: null, consumers: [] },
-          ],
-        },
-      },
-    })
-    const table = screen.getByTestId('io-outputs')
-    expect(within(table).getAllByRole('row')).toHaveLength(2)
-    expect(within(table).queryByTestId('slot-field-verification_report')).toBeNull()
-    expect(within(table).getByTestId('slot-document-verification-report').getAttribute('title')).toContain('verification_report')
+    expect(screen.queryByRole('columnheader')).toBeNull()
+    cleanup()
+    // 可编辑、开启 OpenSpec 也一样：入口随输入输出表一起没有了。
+    renderPane(EXPLORE, { def: { ...DEF, openspec: true } })
+    expect(screen.queryByTestId('wb-outputs-add')).toBeNull()
+    expect(screen.queryByTestId('wb-inputs-edit')).toBeNull()
+    expect(screen.queryByTestId('io-outputs')).toBeNull()
   })
 
-  it('输入表三列：来源阶段 + 该阶段里产出它的技能；无输入显示空态', () => {
-    const { unmount } = render(<I18nProvider><TooltipProvider><StageEditorPane editor={fakeEditor(SPEC)} step={SPEC} /></TooltipProvider></I18nProvider>)
-    const table = screen.getByTestId('io-inputs')
-    expect(table).toHaveTextContent('来源阶段')
-    expect(within(table).getByTestId('slot-stage-superpower-design')).toHaveTextContent('调研')
-    expect(within(table).getByTestId('slot-skills-superpower-design')).toHaveTextContent('brainstorming')
-    expect(within(table).getByTestId('slot-stage-design_doc')).toHaveTextContent('调研')
-    expect(screen.queryByTestId('input-check-field-design_doc')).toBeNull()
-    unmount()
+  it('必须产出列在门禁段：必须产出 <路径>，一条一行', () => {
     renderPane(EXPLORE)
-    expect(within(screen.getByTestId('io-inputs')).getByRole('status')).toHaveTextContent('无')
+    expect(within(screen.getByTestId('stage-gate')).getByTestId('stage-leave-conditions')).toHaveTextContent('必须产出 docs/superpowers/specs/*.md')
+    expect(screen.getByTestId('stage-editor-pane')).not.toHaveTextContent('契约')
   })
 
-  it('只读且本阶段什么都没有（也没有 OpenSpec 注入）：段内只写「无」，不渲染空画布；可编辑时有动作的空泳道（执行者、评审者）各留一个「＋」', () => {
-    renderPane({ ...EXPLORE, skills: [] }, { effectiveIo: {}, canWrite: false, readOnly: true })
+  it('只读且本阶段什么都没有：段内只写「无」，不渲染空画布；可编辑时有动作的空泳道（执行者、评审者）各留一个「＋」', () => {
+    renderPane({ ...EXPLORE, skills: [] }, { canWrite: false })
     expect(screen.getByTestId('stage-skills-empty')).toHaveTextContent('无')
     expect(within(screen.getByTestId('stage-skills')).queryByTestId('orchestration-stage')).toBeNull()
     cleanup()
-    renderPane({ ...EXPLORE, skills: [] }, { effectiveIo: {} })
+    renderPane({ ...EXPLORE, skills: [] })
     const canvas = within(screen.getByTestId('stage-skills')).getByTestId('orchestration-stage')
     expect(['executor', 'reviewer'].map((kind) => within(canvas).getByTestId(`orch-lane-${kind}`).textContent)).toEqual(['执行者0', '评审者0'])
     // 技能、测试没有泳道动作：空着就不画；有动作的空泳道是一个幽灵「＋」，点它 = 该泳道的动作。
@@ -236,10 +187,10 @@ describe('StageEditorPane · 两栏定稿', () => {
     expect(await screen.findByTestId('skill-preview')).toBeInTheDocument()
   })
 
-  it('右栏只有四段：输入 → 技能 → 输出 → 门禁；执行者 / 测试 / 评审者是技能画布里的泳道，退回与测试策略在门禁段里', () => {
+  it('右栏只有两段：技能 → 门禁；执行者 / 测试 / 评审者是技能画布里的泳道，退回与测试策略在门禁段里', () => {
     renderPane(SPEC)
     const sections = [...screen.getByTestId('stage-editor-pane').querySelectorAll('[data-stage-sections] > section')].map((section) => section.getAttribute('data-testid'))
-    expect(sections).toEqual(['stage-inputs', 'stage-skills', 'stage-outputs', 'stage-gate'])
+    expect(sections).toEqual(['stage-skills', 'stage-gate'])
     for (const gone of ['stage-executors', 'stage-reviewers']) expect(screen.queryByTestId(gone)).toBeNull()
     expect(screen.getByTestId('stage-gate').contains(screen.getByTestId('stage-back'))).toBe(true)
     expect(screen.getByTestId('stage-gate').contains(screen.getByTestId('stage-tests'))).toBe(true)
@@ -346,155 +297,63 @@ describe('StageEditorPane · 切换阶段的进场', () => {
     expect(call).toBeDefined()
     expect(call![1]).toMatchObject({ autoAlpha: 0, y: 4 })
     const sections = document.querySelectorAll('[data-stage-sections] > *')
-    expect(sections.length).toBe(4)
+    expect(sections.length).toBe(2)
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
   })
 })
 
-describe('StageEditorPane · OpenSpec 文档 IO', () => {
-  const GOV_OPEN: WbStepDef = {
-    id: 'open', label: '立项', gate: null, skills: [{ id: 'openspec-propose' }],
-    inputs: [], outputs: [], guards: [], transitions: [{ event: 'open-complete', to: 'build' }],
-  }
-  const GOV_BUILD: WbStepDef = {
-    id: 'build', label: '实现', gate: null, skills: [{ id: 'tenon-build' }],
-    inputs: [], outputs: [], guards: [], transitions: [],
-  }
-  const GOVERNED: WbWorkflowDef = {
-    name: 'mine',
-    openspec: true,
-    documentContract: { version: 'v1', slots: [{ kind: 'proposal', ownerStep: 'open', producers: ['openspec-propose'] }], reads: [] },
-    steps: [GOV_OPEN, GOV_BUILD],
-  }
-  const GOVERNED_IO: WbEffectiveIo = {
-    open: { inputs: [], outputs: [{ kind: 'document', id: 'proposal', role: 'produce', scope: 'change', producers: ['openspec-propose'], consumers: [] }] },
-    build: { inputs: [], outputs: [] },
-  }
-
-  function renderGoverned(step: WbStepDef, overrides: Partial<WorkflowEditor> = {}): WorkflowEditor {
-    const editor = fakeEditor(step, {
-      def: GOVERNED,
-      effectiveIo: GOVERNED_IO,
-      addDocumentOutput: vi.fn(),
-      removeDocumentSlot: vi.fn(),
-      setDocumentInputs: vi.fn(),
-      ...overrides,
-    })
-    render(<I18nProvider><TooltipProvider><StageEditorPane editor={editor} step={step} /></TooltipProvider></I18nProvider>)
-    return editor
-  }
-
-  it('+ 输出：只列本分支技能能产出、本阶段还没声明的文档；选中写回；文档行可移除', async () => {
-    const user = userEvent.setup()
-    const editor = renderGoverned(GOV_OPEN)
-    await user.click(screen.getByTestId('wb-outputs-add'))
-    const picker = screen.getByTestId('wb-outputs-picker')
-    expect(within(picker).queryByTestId('wb-output-option-proposal')).toBeNull()
-    expect(within(picker).getByTestId('wb-output-option-openspec-design')).toHaveTextContent('openspec-propose')
-    await user.click(within(picker).getByTestId('wb-output-option-tasks'))
-    expect(editor.addDocumentOutput).toHaveBeenCalledWith('open', 'tasks')
-    await user.click(screen.getByTestId('slot-remove-proposal'))
-    expect(editor.removeDocumentSlot).toHaveBeenCalledWith('open', 'proposal', 'outputs')
-  })
-
-  it('+ 输入：勾选上游已声明的输出与项目文档（无来源显示 —），勾选写回', async () => {
-    const user = userEvent.setup()
-    const editor = renderGoverned(GOV_BUILD)
-    await user.click(screen.getByTestId('wb-inputs-edit'))
-    expect(screen.getByTestId('wb-input-option-proposal')).toHaveAttribute('aria-checked', 'false')
-    expect(screen.getByTestId('wb-input-option-design-md')).toHaveTextContent('—')
-    await user.click(screen.getByTestId('wb-input-option-proposal'))
-    expect(editor.setDocumentInputs).toHaveBeenCalledWith('build', ['proposal'])
-  })
-
-  it('文档 lint 显示在输出下方；未开启 OpenSpec 时没有 + 输入 / + 输出', () => {
-    renderGoverned(GOV_OPEN, { lint: [{ kind: 'document-chain-gap', stepId: 'open', document: 'proposal', missing: 'tasks', severity: 'warning' }] })
-    expect(screen.getByTestId('stage-document-lint')).toHaveTextContent('缺 tasks')
-    cleanup()
-    renderPane(EXPLORE)
-    expect(screen.queryByTestId('wb-outputs-add')).toBeNull()
-    expect(screen.queryByTestId('wb-inputs-edit')).toBeNull()
-  })
-})
-
-describe('StageEditorPane · OpenSpec 注入的技能', () => {
-  // default 的立项：阶段自己没声明技能，文档契约要求 openspec-propose（≡ opsx:propose）产出 proposal / tasks。
+describe('StageEditorPane · 技能只来自 YAML', () => {
+  // default 的立项：阶段自己没声明技能。草稿画布只画声明的技能，不叠加任何注入。
   const OPEN: WbStepDef = {
     id: 'open', label: '立项', gate: null, skills: [],
     inputs: [], outputs: [], guards: [], transitions: [{ event: 'open-complete', to: 'explore' }],
   }
-  const NEXT: WbStepDef = { ...EXPLORE, skills: [{ id: 'tenon-explore' }] }
-  const OPEN_IO: WbEffectiveIo = {
-    open: {
-      inputs: [],
-      outputs: [
-        { kind: 'document', id: 'proposal', role: 'produce', scope: 'change', producers: ['openspec-propose', 'opsx:propose'], consumers: ['explore'] },
-        { kind: 'document', id: 'tasks', role: 'produce', scope: 'change', producers: ['openspec-propose', 'opsx:propose'], consumers: [] },
-      ],
-    },
-    explore: {
-      inputs: [{ kind: 'document', id: 'proposal', role: 'read', scope: 'change', producers: ['open'], consumers: [] }],
-      outputs: [{ kind: 'document', id: 'proposal', role: 'update', scope: 'change', producers: ['tenon'], consumers: [] }],
-    },
-  }
-  const OPEN_DEF: WbWorkflowDef = { name: 'default', openspec: true, steps: [OPEN, NEXT] }
+  const OPEN_DEF: WbWorkflowDef = { name: 'default', openspec: true, steps: [OPEN, EXPLORE] }
 
-  it('阶段画布显示契约注入的技能（契约图标 + 计数），输出来源技能写出它', () => {
-    renderPane(OPEN, { def: OPEN_DEF, effectiveIo: OPEN_IO })
-    const skills = screen.getByTestId('stage-skills')
-    expect(within(skills).queryByTestId('stage-skills-empty')).toBeNull()
-    expect(within(skills).getByTestId('orchestration-stage')).toHaveAttribute('data-nodes', '1')
-    const node = within(skills).getByTestId('orch-node-skill-openspec-propose')
-    expect(node).toHaveAttribute('data-source', 'openspec')
-    expect(within(node).getByTestId('orch-source-openspec')).toHaveAttribute('aria-label', expect.stringContaining('OpenSpec'))
-    expect(skills.querySelector('h2')).toHaveTextContent('1')
-    expect(screen.getByTestId('slot-skills-proposal')).toHaveTextContent('openspec-propose')
-    expect(screen.getByTestId('slot-skills-tasks')).toHaveTextContent('openspec-propose')
+  it('没声明技能的阶段不会凭空多出技能节点', () => {
+    renderPane(OPEN, { def: OPEN_DEF, canWrite: false })
+    expect(screen.getByTestId('stage-skills-empty')).toHaveTextContent('无')
+    expect(screen.queryByTestId('orch-source-openspec')).toBeNull()
+    expect(screen.queryByTestId('orch-node-skill-openspec-propose')).toBeNull()
   })
 
-  it('下游阶段的输入：来源技能同样算上上游注入的技能；update 槽位（tenon）不注入', () => {
-    renderPane(NEXT, { def: OPEN_DEF, effectiveIo: OPEN_IO })
-    const inputs = screen.getByTestId('io-inputs')
-    expect(within(inputs).getByTestId('slot-skills-proposal')).toHaveTextContent('openspec-propose')
-    expect(within(screen.getByTestId('stage-skills')).queryByTestId('orch-node-skill-tenon')).toBeNull()
-  })
-
-  it('阶段已声明别名（opsx:propose）时不重复注入', () => {
-    renderPane({ ...OPEN, skills: [{ id: 'opsx:propose' }] }, { def: OPEN_DEF, effectiveIo: OPEN_IO })
+  it('声明了的技能原样画出，别名也不会被另行注入', () => {
+    renderPane({ ...OPEN, skills: [{ id: 'opsx:propose' }] }, { def: OPEN_DEF })
     expect(within(screen.getByTestId('stage-skills')).getByTestId('orchestration-stage')).toHaveAttribute('data-nodes', '1')
     expect(screen.queryByTestId('orch-source-openspec')).toBeNull()
   })
 })
 
 describe('StageEditorPane · 自动门禁与只读', () => {
-  it('没有输出的阶段设为「自动」：门禁旁出警示图标（说明在 Tooltip）；有输出或非自动时不出', () => {
-    const bare: WbStepDef = { ...SPEC, gate: 'auto', outputs: [] }
-    renderPane(bare, { effectiveIo: { ...IO, spec: { inputs: [], outputs: [] } } })
+  it('自动门禁的阶段完全没有离开条件：门禁旁出警示图标（说明在 Tooltip）；有任何离开条件或非自动时不出', () => {
+    const bare: WbStepDef = { ...SPEC, gate: 'auto' }
+    renderPane(bare)
     const warning = screen.getByTestId('stage-gate-auto-warning')
-    expect(warning).toHaveAttribute('aria-label', '本阶段没有输出，自动门禁无从判断产物齐全')
+    expect(warning).toHaveAttribute('aria-label', '没有离开条件')
     expect(screen.getByTestId('stage-gate').contains(warning)).toBe(true)
     cleanup()
-    renderPane({ ...SPEC, gate: 'auto' })
+    // 必须产出、别的离开条件（这里是任务勾选）都算离开条件。
+    renderPane({ ...SPEC, gate: 'auto', guards: [{ type: 'required-output', path: 'docs/plans/{change}-plan.md' }] })
     expect(screen.queryByTestId('stage-gate-auto-warning')).toBeNull()
     cleanup()
-    renderPane({ ...bare, gate: 'review' }, { effectiveIo: { ...IO, spec: { inputs: [], outputs: [] } } })
+    renderPane({ ...SPEC, gate: 'auto', guards: [{ type: 'tasks-through-step' }] })
+    expect(screen.queryByTestId('stage-gate-auto-warning')).toBeNull()
+    cleanup()
+    // 挂在通向下一阶段的转换上的条件同样算。
+    const forward: WbStepDef = { ...SPEC, gate: 'auto', transitions: [{ event: 'spec-complete', to: 'build', guards: [{ type: 'not-afk-queued' }] }] }
+    renderPane(forward, { def: { ...DEF, steps: [EXPLORE, forward, { ...SPEC, id: 'build', label: '实现' }] } })
+    expect(screen.queryByTestId('stage-gate-auto-warning')).toBeNull()
+    cleanup()
+    renderPane({ ...bare, gate: 'review' })
     expect(screen.queryByTestId('stage-gate-auto-warning')).toBeNull()
   })
 
-  it('插件内建只读（readOnly）：不报缺凭证错误，写入口照样置灰', () => {
-    renderPane(EXPLORE, { canWrite: false, readOnly: true })
-    expect(screen.queryByTestId('wb-no-token')).toBeNull()
+  it('不能写入（缺凭证）：报缺凭证错误，写入口置灰', () => {
+    renderPane(EXPLORE, { canWrite: false })
+    expect(screen.getByTestId('wb-no-token')).toBeInTheDocument()
     expect(screen.getByTestId('wb-lane-name-input-explore')).toBeDisabled()
     expect(screen.queryByTestId('wb-skills-edit')).toBeNull()
-  })
-})
-
-describe('producerSkills', () => {
-  it('候选与阶段技能按裸名匹配；无命中为空，不编造不在阶段里的技能', () => {
-    expect(producerSkills(['brainstorming', 'superpowers:brainstorming'], ['tenon-explore', 'brainstorming'])).toEqual(['brainstorming'])
-    expect(producerSkills(['openspec-propose', 'opsx:propose'], ['tenon-open'])).toEqual([])
-    expect(producerSkills(['tenon:tenon-verify'], ['tenon-verify'])).toEqual(['tenon-verify'])
   })
 })
 
@@ -577,22 +436,23 @@ describe('StageEditorPane · 测试', () => {
     expect(screen.queryByTestId('wb-test-command')).toBeNull()
   })
 
-  it('没有独立的测试段：测试策略在门禁段里，顺序 门禁 → 退回 → 测试策略', () => {
+  it('没有独立的测试段：测试档位在门禁段里，顺序 门禁 → 退回 → 测试档位', () => {
     renderPane(STEP_WITH_TESTS, { def: { ...DEF, steps: [EXPLORE, STEP_WITH_TESTS] } })
     expect(screen.getAllByTestId('stage-tests')).toHaveLength(1)
     const gate = screen.getByTestId('stage-gate')
     expect(gate.contains(screen.getByTestId('stage-tests'))).toBe(true)
     const order = [screen.getByTestId('wb-lane-gate-spec'), screen.getByTestId('stage-back'), screen.getByTestId('stage-tests')]
     for (let i = 1; i < order.length; i += 1) expect(order[i - 1]!.compareDocumentPosition(order[i]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    // 输出与门禁之间没有夹着别的段。
+    // 技能与门禁之间没有夹着别的段。
     const sections = [...screen.getByTestId('stage-editor-pane').querySelectorAll('[data-stage-sections] > section')].map((node) => node.getAttribute('data-testid'))
-    expect(sections).toEqual(['stage-inputs', 'stage-skills', 'stage-outputs', 'stage-gate'])
+    expect(sections).toEqual(['stage-skills', 'stage-gate'])
   })
 
-  it('策略表单改动经 setTestPolicy 回草稿；旧步骤测试是只读行，只给转成目录套件的命令', async () => {
+  it('选档位经 setTestLevel 回草稿；旧策略只读显示摘要，旧步骤测试是只读行，只给转成目录套件的命令', async () => {
     const editor = renderPane(STEP_WITH_TESTS, { def: { ...DEF, steps: [EXPLORE, STEP_WITH_TESTS] } })
-    await userEvent.click(screen.getByTestId('wb-policy-scope-changed'))
-    expect(editor.setTestPolicy).toHaveBeenLastCalledWith('spec', { plan: 'required', run: ['unit'], scope: 'changed' })
+    expect(screen.getByTestId('wb-policy-legacy')).toHaveTextContent('单测')
+    await userEvent.click(screen.getByTestId('wb-test-level-changed'))
+    expect(editor.setTestLevel).toHaveBeenLastCalledWith('spec', 'changed')
 
     expect(screen.getByTestId('wb-test-unit')).toBeInTheDocument()
     await userEvent.click(screen.getByTestId('wb-test-unit'))
@@ -600,17 +460,18 @@ describe('StageEditorPane · 测试', () => {
     expect(screen.getByTestId('wb-test-convert-unit-text')).toHaveTextContent('tenon test catalog add --from unit')
   })
 
-  it('没有策略的阶段：测试子块有「策略」添加动作，点它写入 { plan: required }', async () => {
+  it('没有声明的阶段：「不要求」被选中，没有添加 / 移除动作；选另一档经 setTestLevel 写入', async () => {
     const editor = renderPane(EXPLORE)
-    expect(screen.queryByTestId('wb-policy')).toBeNull()
-    await userEvent.click(screen.getByTestId('wb-policy-add'))
-    expect(editor.setTestPolicy).toHaveBeenCalledWith('explore', { plan: 'required' })
-  })
-
-  it('无写入凭证：策略表单只读，没有添加 / 移除动作', () => {
-    renderPane(STEP_WITH_TESTS, { canWrite: false, def: { ...DEF, steps: [EXPLORE, STEP_WITH_TESTS] } })
+    expect(screen.getByTestId('wb-test-level-none')).toHaveAttribute('aria-checked', 'true')
     expect(screen.queryByTestId('wb-policy-add')).toBeNull()
     expect(screen.queryByTestId('wb-policy-remove')).toBeNull()
-    expect(screen.getByTestId('wb-policy-scope-changed')).toBeDisabled()
+    await userEvent.click(screen.getByTestId('wb-test-level-full'))
+    expect(editor.setTestLevel).toHaveBeenCalledWith('explore', 'full')
+  })
+
+  it('无写入凭证：档位单选只读', () => {
+    renderPane(STEP_WITH_TESTS, { canWrite: false, def: { ...DEF, steps: [EXPLORE, STEP_WITH_TESTS] } })
+    expect(screen.getByTestId('wb-test-level-changed')).toBeDisabled()
+    expect(screen.getByTestId('wb-test-level-full')).toBeDisabled()
   })
 })

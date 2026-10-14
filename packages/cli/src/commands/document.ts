@@ -4,50 +4,38 @@
  * The workflow state remains in the canonical StateStore; this command owns only the sidecar
  * evidence ledger.  Every mutation is performed under the same change lock as a transition so a
  * phase cannot move between "checked" and "recorded/read".
+ *
+ * 这些命令只服务升级前创建、冻结计划带文档契约的任务（契约模式）。新任务（观察模式）的产出由 Tenon 在离开步骤时
+ * 自动记录：scaffold / record / init / migrate-delta 以退出码 2 拒绝，read / status 委托 document-observed.ts。
  */
 import {
-  atomicLinkPublish,
-  effectiveWorkflowPlanBinding,
-  ensureDocumentLedger,
-  evaluateDocumentEvidence,
-  isDocumentKind,
-  isDocumentPolicyStep,
-  migrateLegacyDeltaDocument,
-  recordDocument,
-  currentDocumentSkillConfirmation, recordDocumentReads,
-  renderDocumentTemplate,
-  documentPathForKind,
-  documentTemplateIdForKind,
-  readDocumentLedger, assertOwner,
+  atomicLinkPublish, effectiveWorkflowPlanBinding, ensureDocumentLedger, evaluateDocumentEvidence, isDocumentKind,
+  isDocumentPolicyStep, migrateLegacyDeltaDocument, recordDocument, currentDocumentSkillConfirmation, recordDocumentReads,
+  renderDocumentTemplate, documentPathForKind, documentTemplateIdForKind, readDocumentLedger, assertOwner,
 } from '@tenon/kernel'
 import {
   recordCanonicalDocumentSkillInvocation,
   withSkillInvocationChangeLock,
 } from '../../../kernel/dist/skill-invocation/producer-internal.js'
 import type {
-  DocumentContractPhase,
-  DocumentEvidenceReport,
-  DocumentGovernancePolicy,
-  DocumentKind,
-  PipelineState,
-  DocumentLocale,
+  DocumentContractPhase, DocumentEvidenceReport, DocumentGovernancePolicy, DocumentKind, PipelineState, DocumentLocale,
 } from '@tenon/kernel'
 import { lstat } from 'node:fs/promises'
 import { relative, resolve } from 'node:path'
 import { errMsg, type CliDeps } from '../deps.js'
 import { changeDir, isValidChangeName, resolveChangeDir } from '../paths.js'
 import { requireActor } from '../userIdentity.js'
-import { refuseArchived } from '../archivedGuard.js'
+import { refuseArchived } from '../endedTaskGuard.js'
 import { refuseUnfilledDocument } from './documentPlaceholderGate.js'
 import { reconcileCodexSkillEvidence } from '../codexSkillReceipt.js'
 import { resolveChangeDocumentLocale } from '../documentLocale.js'
 import {
-  assertSafeChangeRoot,
-  ensureSafeDocumentParent,
-  ordinaryDocumentFile,
-  requiredDeltaCapability,
+  assertSafeChangeRoot, ensureSafeDocumentParent, ordinaryDocumentFile, requiredDeltaCapability,
 } from './documentScaffoldSafety.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
+import {
+  cmdDocumentObservedRead, cmdDocumentObservedStatus, isObservedChange, observedPlanOf, refuseObservedDocumentCommand,
+} from './document-observed.js'
 
 interface GovernedDocumentContext {
   readonly workflowName: string
@@ -75,6 +63,8 @@ export async function cmdDocumentScaffold(
 ): Promise<number> {
   const dir = assertChangeName(deps, name)
   if (!dir) return 1
+  const refused = await refuseObservedDocumentCommand(deps, name, 'document scaffold')
+  if (refused !== undefined) return refused
   if (!isDocumentKind(kind)) return reject(deps, `未知 document kind: '${kind}'`)
   try {
     await assertSafeChangeRoot(deps.cwd, dir)
@@ -179,6 +169,8 @@ function assertGoverned(context: GovernedDocumentContext): {
 export async function cmdDocumentInit(deps: CliDeps, name: string): Promise<number> {
   const dir = assertChangeName(deps, name)
   if (!dir) return 1
+  const refused = await refuseObservedDocumentCommand(deps, name, 'document init')
+  if (refused !== undefined) return refused
   try {
     const state = await deps.store.read(dir)
     const plan = effectiveWorkflowForState(deps, state)
@@ -315,6 +307,8 @@ export async function cmdDocumentMigrateDelta(
 ): Promise<number> {
   const dir = assertChangeName(deps, name)
   if (!dir) return 1
+  const refused = await refuseObservedDocumentCommand(deps, name, 'document migrate-delta')
+  if (refused !== undefined) return refused
   if (!legacyPath || !canonicalPath) return reject(deps, 'legacy-path 与 canonical-path 均不得为空')
   try {
     await deps.store.withLock(dir, async () => {
@@ -339,6 +333,8 @@ export async function cmdDocumentRead(deps: CliDeps, name: string, kind: string)
   if (!dir) return 1
   // 读取回执写进台账，所以这条命令与 record 一样过写入闸。
   if (await refuseArchived(deps, name)) return 1
+  // 观察模式（新任务）：回执写进步骤产出账本，参数是 all 或本步交接输入的路径，不是文档 kind。
+  if (await isObservedChange(deps, dir)) return cmdDocumentObservedRead(deps, name, dir, kind)
   if (kind !== 'all' && !isDocumentKind(kind)) return reject(deps, `未知 document kind: '${kind}'`)
   try {
     await deps.store.withLock(dir, async () => {
@@ -374,16 +370,10 @@ export async function cmdDocumentStatus(deps: CliDeps, name: string, json: boole
   if (!dir) return 1
   try {
     const state = await deps.store.read(dir)
+    const observed = observedPlanOf(deps, state)
+    if (observed !== undefined) return await cmdDocumentObservedStatus(deps, name, dir, state, observed, json)
+    // 没有契约的任务都在上面走了观察模式；到这里必有策略，assertGoverned 对不变量失败关闭。
     const context = governedDocumentContext(deps, state)
-    if (!context.governed) {
-      const value = { change: name, workflow: context.workflowName, governed: false }
-      if (json) deps.io.out(JSON.stringify(value))
-      else {
-        deps.io.out(`[DOCUMENT] ${name} (workflow=${context.workflowName})`)
-        deps.io.out('  [SKIP] 当前 workflow 未声明文档治理契约（自由模式）')
-      }
-      return 0
-    }
     const report = await evaluateDocumentEvidence(deps.cwd, dir, context.phase, {}, assertGoverned(context).policy)
     if (json) {
       deps.io.out(JSON.stringify({ change: name, workflow: context.workflowName, governed: true, ...report }))

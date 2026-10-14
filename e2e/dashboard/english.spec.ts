@@ -1,6 +1,7 @@
 /**
- * 英文界面：内置工作流数据（出厂阶段名、轨道名、测试方向名）显示英文，表格里的内置词不被截断，汇总计数词是正确的名词。
- * 种子项目用的是出厂 default 工作流，所以阶段 / 轨道 / 测试项名都还是出厂中文名。
+ * 英文界面：界面词是英文，而工作流数据的名称（阶段、轨道、测试项）有 label 显示 label、没有显示 id，前端不翻译；
+ * 表格里的界面词不被截断，汇总计数词是正确的名词；名称较长的轨道页签条放不下时照样滚动、渐隐、把选中的页签滚进来。
+ * 种子项目的 default 工作流名称是中文，`wide-tabs` 工作流的轨道名较长（support/seed.mjs）。
  */
 import type { Locator, Page } from 'playwright/test'
 import { expect, openView, test } from './support/fixtures'
@@ -23,35 +24,32 @@ async function openTests(page: Page): Promise<void> {
   }).toPass({ timeout: 20_000 })
 }
 
-test.describe('英文界面 · 内置工作流数据', () => {
-  test('工作台：任务卡状态与阶段轨显示英文阶段名', async ({ page, server }) => {
+test.describe('英文界面 · 名称不翻译', () => {
+  test('工作台：任务卡状态与阶段轨显示存下来的阶段名', async ({ page, server }) => {
     await openView(page, 'workspace', { root: server.project, change: 'add-login', step: 'verify' })
-    await expect(page.getByTestId('task-card-add-login')).toContainText('Open · 5 blocked')
+    await expect(page.getByTestId('task-card-add-login')).toContainText('立项 · 3 blocked')
     const rail = page.getByTestId('stage-rail')
-    for (const [id, label] of [['open', 'Open'], ['explore', 'Explore'], ['spec', 'Spec'], ['build', 'Build'], ['verify', 'Verify'], ['ship', 'Ship'], ['archive', 'Done']] as const) {
+    for (const [id, label] of [['open', '立项'], ['explore', '调研'], ['spec', '规格'], ['build', '实现'], ['verify', '验证'], ['ship', '交付'], ['archive', '完结']] as const) {
       await expect(rail.getByTestId(`stage-rail-${id}`)).toHaveText(label)
     }
-    await expect(page.getByTestId('task-card-add-login')).not.toContainText('立项')
   })
 
-  test('工作流：左栏阶段、轨道页签、总览与阶段画布（含出厂测试项）显示英文', async ({ page }) => {
+  test('工作流：左栏阶段、轨道页签、总览与阶段画布（含测试项）显示存下来的名称', async ({ page }) => {
     await openView(page, 'workflow', { wf: 'default', track: 'backend', step: 'verify' })
-    await expect(page.getByTestId('wb-step-open')).toContainText('Open')
-    await expect(page.getByTestId('wb-step-verify')).toContainText('Verify')
-    for (const [id, label] of [['chat', 'Chat'], ['pm', 'Product'], ['frontend', 'Frontend'], ['backend', 'Backend'], ['free', 'Free']] as const) {
+    await expect(page.getByTestId('wb-step-open')).toContainText('立项')
+    await expect(page.getByTestId('wb-step-verify')).toContainText('验证')
+    for (const [id, label] of [['lite', '轻量'], ['pm', '产品'], ['frontend', '前端'], ['backend', '后端']] as const) {
       await expect(page.getByTestId(`wb-track-${id}`)).toHaveText(label)
     }
-    // 阶段画布里的出厂测试项（代码规模）。
-    await expect(page.getByTestId('orch-node-test-code-size')).toContainText('Code size')
+    await expect(page.getByTestId('orch-node-test-code-size')).toContainText('代码规模')
     // 阶段标题（编辑框）与左栏显示同一个名字。
-    await expect(page.getByTestId('wb-lane-name-input-verify')).toHaveValue('Verify')
-    await expect(page.getByTestId('wb-lane-name-verify')).toHaveText('Verify')
+    await expect(page.getByTestId('wb-lane-name-input-verify')).toHaveValue('验证')
+    await expect(page.getByTestId('wb-lane-name-verify')).toHaveText('验证')
 
     await openView(page, 'workflow', { wf: 'default', track: 'backend', step: ':overview' })
-    await expect(page.getByTestId('orch-stage-open')).toContainText('Open')
-    await expect(page.getByTestId('orch-stage-archive')).toContainText('Done')
-    await expect(page.getByTestId('orch-node-test-code-size')).toContainText('Code size')
-    await expect(page.getByTestId('workflow-overview-pane')).not.toContainText('立项')
+    await expect(page.getByTestId('orch-stage-open')).toContainText('立项')
+    await expect(page.getByTestId('orch-stage-archive')).toContainText('完结')
+    await expect(page.getByTestId('orch-node-test-code-size')).toContainText('代码规模')
   })
 })
 
@@ -159,91 +157,102 @@ async function expectFocusRingInsideStrip(page: Page, track: string): Promise<vo
   }
 }
 
-test.describe('英文界面 · 轨道页签条', () => {
-  test('300px 的左栏放不下五个英文页签：选中的页签完整可见，被藏起来的那一侧渐隐，「+」始终在条外', async ({ page }) => {
-    for (const track of ['chat', 'pm', 'frontend', 'backend', 'free']) {
-      await openView(page, 'workflow', { wf: 'default', track, step: 'verify' })
+/**
+ * 轨道名称较长的工作流（`wide-tabs`）：四个页签放不进 300px 左栏。名称是什么就显示什么（前端不翻译），所以长名称由工作流自己带；
+ * 每条轨道只有一个阶段，内容与页签条的行为无关。工作流页读全局工作流存储，经 PUT 导入接口放进去（同名覆盖，重复放没有副作用）。
+ */
+const WIDE_TABS_YAML = `name: wide-tabs\ntracks:\n${[['lite', 'Lite'], ['pm', 'Product'], ['frontend', 'Frontend'], ['backend', 'Backend']].map(([id, label]) => [
+  `  ${id}:`, `    label: ${label}`, '    steps:', '      - id: build', '        label: Build', '        gate: null',
+  '        skills: []', '        inputs: []', '        outputs: []', '        guards: []', '        transitions: []',
+].join('\n')).join('\n')}\n`
+
+async function putWideTabs(page: Page): Promise<void> {
+  await page.goto('/')
+  await expect(page.getByTestId('primary-nav')).toBeVisible()
+  const status = await page.evaluate(async (yaml) => {
+    const token = (window as unknown as { __TENON_DASHBOARD_TOKEN__?: string }).__TENON_DASHBOARD_TOKEN__ ?? ''
+    const response = await fetch('/api/workflows/wide-tabs/yaml?root=', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'text/yaml; charset=utf-8', Authorization: `Bearer ${token}` },
+      body: yaml,
+    })
+    return response.status
+  }, WIDE_TABS_YAML)
+  expect(status, '放进 wide-tabs 工作流').toBe(200)
+}
+
+test.describe('轨道页签条 · 名称较长', () => {
+  test.beforeEach(async ({ page }) => { await putWideTabs(page) })
+
+  test('300px 的左栏放不下四个较长的页签：选中的页签完整可见，被藏起来的那一侧渐隐，「+」始终在条外', async ({ page }) => {
+    for (const track of ['lite', 'pm', 'frontend', 'backend']) {
+      await openView(page, 'workflow', { wf: 'wide-tabs', track, step: 'build' })
       await expect(page.getByTestId(`wb-track-${track}`)).toHaveAttribute('aria-selected', 'true')
       const state = await expectTabRevealed(page, track)
-      expect(state.overflowing, '前提：英文五个页签确实放不下').toBe(true)
+      expect(state.overflowing, '前提：四个页签确实放不下').toBe(true)
     }
     // 第一个：左边没有隐藏内容、右边有；最后一个反过来。渐隐真的画出来了：mask 生效，
     // 宽度变量跟着状态走（有 140ms 过渡，所以轮询），没有隐藏内容的那一侧宽度为 0。
-    await openView(page, 'workflow', { wf: 'default', track: 'chat', step: 'verify' })
+    await openView(page, 'workflow', { wf: 'wide-tabs', track: 'lite', step: 'build' })
     await expect(async () => {
-      const chat = await tabStripState(page, 'chat')
-      expect([chat.fadeStart, chat.fadeEnd]).toEqual([false, true])
-      expect(chat.masked).toBe(true)
-      expect(chat.padding).toBe(24)
-      expect([chat.fadeStartWidth, chat.fadeEndWidth]).toEqual([0, 24])
+      const lite = await tabStripState(page, 'lite')
+      expect([lite.fadeStart, lite.fadeEnd]).toEqual([false, true])
+      expect(lite.masked).toBe(true)
+      expect(lite.padding).toBe(24)
+      expect([lite.fadeStartWidth, lite.fadeEndWidth]).toEqual([0, 24])
     }).toPass({ timeout: 5_000 })
-    await openView(page, 'workflow', { wf: 'default', track: 'free', step: 'verify' })
+    await openView(page, 'workflow', { wf: 'wide-tabs', track: 'backend', step: 'build' })
     await expect(async () => {
-      const free = await tabStripState(page, 'free')
-      expect([free.fadeStart, free.fadeEnd]).toEqual([true, false])
-      expect([free.fadeStartWidth, free.fadeEndWidth]).toEqual([24, 0])
+      const backend = await tabStripState(page, 'backend')
+      expect([backend.fadeStart, backend.fadeEnd]).toEqual([true, false])
+      expect([backend.fadeStartWidth, backend.fadeEndWidth]).toEqual([24, 0])
     }).toPass({ timeout: 5_000 })
   })
 
-  // 真机验收：用 URL 直接打开 `track=backend`，English 下选中的 Backend 页签被渐隐截成 "Ba"——滚进可见范围只在换选时跑过。
-  test('直达 URL：选中的页签在挂载时就完整可见（中间的 backend、最后的 free）', async ({ page }) => {
-    for (const track of ['backend', 'free']) {
-      await page.goto(`/?${new URLSearchParams({ view: 'workflow', wf: 'default', track, step: 'verify' }).toString()}`)
+  // 真机验收：用 URL 直接打开 `track=frontend`，选中的页签被渐隐截断——滚进可见范围只在换选时跑过。
+  test('直达 URL：选中的页签在挂载时就完整可见（中间的 frontend、最后的 backend）', async ({ page }) => {
+    for (const track of ['frontend', 'backend']) {
+      await page.goto(`/?${new URLSearchParams({ view: 'workflow', wf: 'wide-tabs', track, step: 'build' }).toString()}`)
       await expect(page.getByTestId('primary-nav')).toBeVisible()
       await expect(page.getByTestId(`wb-track-${track}`)).toHaveAttribute('aria-selected', 'true')
       const state = await expectTabRevealed(page, track)
-      expect(state.overflowing, '前提：英文五个页签确实放不下').toBe(true)
+      expect(state.overflowing, '前提：四个页签确实放不下').toBe(true)
     }
   })
 
-  // 名称在挂载之后才变宽（切到英文）、页签条在挂载之后才变窄（视口回到两栏）：选中的页签数量没变、也没换选，也要重新滚进来。
-  test('直达 URL 之后名称变宽、页签条变窄：选中的页签重新滚进可见范围', async ({ page }) => {
-    await openView(page, 'workflow', { wf: 'default', track: 'backend', step: 'verify' })
-    await expectTabRevealed(page, 'backend')
-    const setLanguage = async (lang: 'zh' | 'en'): Promise<void> => {
-      await page.getByTestId('nav-settings').click()
-      await expect(page.getByTestId('nav-settings-panel')).toBeVisible()
-      await page.getByTestId(`lang-option-${lang}`).click()
-      await page.keyboard.press('Escape')
-      await expect(page.getByTestId('nav-settings-panel')).toBeHidden()
-    }
-    await setLanguage('zh')
-    await expect(page.getByTestId('wb-track-backend')).toHaveText('后端')
-    expect((await tabStripState(page, 'backend')).overflowing, '前提：中文名放得下，条没有滚动').toBe(false)
-    await setLanguage('en')
-    await expect(page.getByTestId('wb-track-backend')).toHaveText('Backend')
-    await expectTabRevealed(page, 'backend')
-
-    // 单栏（≤900px）时条占满整行，放得下；回到两栏条又变回 300px 左栏里的宽度。
+  // 页签条在挂载之后才变窄（视口回到两栏）：选中的页签数量没变、也没换选，也要重新滚进来。
+  test('直达 URL 之后页签条变窄：选中的页签重新滚进可见范围', async ({ page }) => {
     await page.setViewportSize({ width: 880, height: 900 })
+    await openView(page, 'workflow', { wf: 'wide-tabs', track: 'backend', step: 'build' })
+    // 单栏（≤900px）时条占满整行，放得下；回到两栏条又变回 300px 左栏里的宽度。
     await expect(async () => expect((await tabStripState(page, 'backend')).overflowing).toBe(false)).toPass({ timeout: 5_000 })
     await page.setViewportSize({ width: 1440, height: 900 })
     const state = await expectTabRevealed(page, 'backend')
-    expect(state.overflowing, '前提：回到两栏后英文页签又放不下').toBe(true)
+    expect(state.overflowing, '前提：回到两栏后页签又放不下').toBe(true)
   })
 
   // 焦点用 focus() 逐个移过去：macOS 的 WebKit 默认 Tab 不停在按钮上，按键本身是浏览器的事；这里验的是焦点落到哪个页签、哪个页签就被滚进来。
   test('焦点逐个越过页签：每个获得焦点的页签都完整可见；滚动后渐隐的两侧跟着变', async ({ page }) => {
-    await openView(page, 'workflow', { wf: 'default', track: 'chat', step: 'verify' })
+    await openView(page, 'workflow', { wf: 'wide-tabs', track: 'lite', step: 'build' })
     // 先有一次键盘操作：之后脚本移动焦点都按键盘焦点算（:focus-visible），焦点环才会画出来。
     await page.keyboard.press('Shift')
-    await page.getByTestId('wb-track-chat').focus()
-    await expectTabRevealed(page, 'chat')
-    await expectFocusRingInsideStrip(page, 'chat')
-    for (const track of ['pm', 'frontend', 'backend', 'free']) {
+    await page.getByTestId('wb-track-lite').focus()
+    await expectTabRevealed(page, 'lite')
+    await expectFocusRingInsideStrip(page, 'lite')
+    for (const track of ['pm', 'frontend', 'backend']) {
       await page.getByTestId(`wb-track-${track}`).focus()
       await expect(page.getByTestId(`wb-track-${track}`)).toBeFocused()
       await expectTabRevealed(page, track)
       await expectFocusRingInsideStrip(page, track)
     }
-    await expect(async () => expect((await tabStripState(page, 'free')).fadeEnd, '焦点到了最后一个：右边没有隐藏内容').toBe(false)).toPass({ timeout: 5_000 })
-    for (const track of ['backend', 'frontend', 'pm', 'chat']) {
+    await expect(async () => expect((await tabStripState(page, 'backend')).fadeEnd, '焦点到了最后一个：右边没有隐藏内容').toBe(false)).toPass({ timeout: 5_000 })
+    for (const track of ['frontend', 'pm', 'lite']) {
       await page.getByTestId(`wb-track-${track}`).focus()
       await expect(page.getByTestId(`wb-track-${track}`)).toBeFocused()
       await expectTabRevealed(page, track)
       await expectFocusRingInsideStrip(page, track)
     }
-    await expect(async () => expect((await tabStripState(page, 'chat')).fadeStart, '焦点回到第一个：左边没有隐藏内容').toBe(false)).toPass({ timeout: 5_000 })
+    await expect(async () => expect((await tabStripState(page, 'lite')).fadeStart, '焦点回到第一个：左边没有隐藏内容').toBe(false)).toPass({ timeout: 5_000 })
   })
 })
 
@@ -254,28 +263,30 @@ test.describe('英文界面 · 测试页签', () => {
   })
 
   test('汇总的计数词：Suites / Cases / Failed / Flaky', async ({ page }) => {
-    await expect(page.getByTestId('tests-stat-suite')).toHaveText('3Suites')
+    await expect(page.getByTestId('tests-stat-suite')).toHaveText('4Suites')
     await expect(page.getByTestId('tests-stat-case')).toHaveText('2Cases')
     await expect(page.getByTestId('tests-stat-fail')).toHaveText('1Failed')
     await expect(page.getByTestId('tests-stat-flaky')).toHaveText('0Flaky')
   })
 
-  test('策略表：内置种类名、要求、结果和短标签都完整可见，不被截成 Integr…', async ({ page }) => {
+  test('策略表：内置测试类名、要求、结果和短标签都完整可见，不被截成 Integr…', async ({ page }) => {
     const matrix = page.getByTestId('tests-matrix')
     await expect(matrix).toBeVisible()
-    for (const kind of ['unit', 'integration', 'e2e', 'benchmark', 'code-size']) {
-      const row = page.getByTestId(`tests-kind-${kind}`)
+    for (const cls of ['unit', 'integration', 'e2e', 'static', 'benchmark']) {
+      const row = page.getByTestId(`tests-kind-${cls}`)
       await expect(row).toBeVisible()
-      expect(await fits(row.getByTestId(`tests-kind-label-${kind}`).locator('span').last()), `${kind} 种类名`).toBe(true)
-      expect(await fits(row.getByTestId(`tests-requirement-${kind}`)), `${kind} 要求`).toBe(true)
+      expect(await fits(row.getByTestId(`tests-kind-label-${cls}`).locator('span').last()), `${cls} 类名`).toBe(true)
+      expect(await fits(row.getByTestId(`tests-requirement-${cls}`)), `${cls} 要求`).toBe(true)
     }
     await expect(page.getByTestId('tests-kind-label-integration')).toHaveText('Integration')
     await expect(page.getByTestId('tests-kind-label-e2e')).toHaveText('End-to-end')
+    await expect(page.getByTestId('tests-kind-label-static')).toHaveText('Static')
     await expect(page.getByTestId('tests-kind-label-benchmark')).toHaveText('Benchmark')
-    await expect(page.getByTestId('tests-requirement-benchmark')).toHaveText('If registered')
+    await expect(page.getByTestId('tests-requirement-unit')).toHaveText('Required')
+    await expect(page.getByTestId('tests-requirement-benchmark')).toHaveText('Touched')
     expect(await fits(page.getByTestId('tests-blocker-label-integration')), '缺项短标签').toBe(true)
-    // 出厂测试项名（代码规模）也是英文。
-    await expect(page.getByTestId('tests-suite-step:code-size')).toHaveText('Code size')
+    // 测试项名不翻译：有 label 显示 label（代码规模）。
+    await expect(page.getByTestId('tests-suite-step:code-size')).toHaveText('代码规模')
   })
 
   test('完整性与阻塞表：信号名、明细、短标签完整可见；对象先让位', async ({ page }) => {

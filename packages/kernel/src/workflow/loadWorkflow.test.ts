@@ -5,30 +5,21 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fileURLToPath } from 'node:url'
 import { loadWorkflow } from './loadWorkflow.js'
 import { globalWorkflowRoot, workflowsDirUnder } from './global-store.js'
-import { projectWorkflowNames } from './branch-track-lookup.js'
+import { projectWorkflowNames } from './track-lookup.js'
 import { parseWorkflow } from './parse.js'
 import { selectTrackBranch } from './validate.js'
 
 describe('loadWorkflow', () => {
-  it('simple 是不可被项目文件覆盖的内建轻量 workflow，含两个终态与 scope-expanded', async () => {
+  it('simple 已退役（由 default 的 lite 轨道取代）：不再有内建定义，没有同名项目文件时加载不到', async () => {
     const root = await mkdtemp(join(tmpdir(), 'wf-load-simple-'))
-    await mkdir(join(root, '.pipeline', 'workflows'), { recursive: true })
-    await writeFile(join(root, '.pipeline', 'workflows', 'simple.yaml'), 'name: poisoned\nsteps:\n', 'utf8')
-    const wf = loadWorkflow(root, 'simple')
-    expect(wf?.name).toBe('simple')
-    expect(wf?.steps.map((step) => step.id)).toEqual(['change', 'verify', 'done', 'escalated'])
-    expect(wf?.steps[0]?.transitions).toEqual(expect.arrayContaining([
-      expect.objectContaining({ event: 'change-complete', to: 'verify' }),
-      expect.objectContaining({ event: 'scope-expanded', to: 'escalated' }),
-    ]))
-    expect(wf?.openspecContract).toBeUndefined()
+    expect(loadWorkflow(root, 'simple')).toBeNull()
   })
 
-  it('内建 simple workflow 与发行模板逐字段一致，避免 setup 产物漂移', async () => {
-    const __dirname = dirname(fileURLToPath(import.meta.url))
-    const repoRoot = dirname(dirname(dirname(dirname(__dirname))))
-    const template = parseWorkflow(await readFile(join(repoRoot, 'templates', 'workflows', 'simple.yaml'), 'utf8'))
-    expect(loadWorkflow(repoRoot, 'simple')).toStrictEqual(template)
+  it('不再有不可覆盖的内建：项目里叫 simple 的文件是普通项目工作流，照常加载', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'wf-load-simple-file-'))
+    await mkdir(join(root, '.pipeline', 'workflows'), { recursive: true })
+    await writeFile(join(root, '.pipeline', 'workflows', 'simple.yaml'), 'name: simple\nsteps:\n', 'utf8')
+    expect(loadWorkflow(root, 'simple')?.name).toBe('simple')
   })
   it('存在的 workflow 文件 → 解析返回 WorkflowDef', async () => {
     const root = await mkdtemp(join(tmpdir(), 'wf-load-'))
@@ -106,15 +97,15 @@ steps:
     expect(wf.steps).toHaveLength(7)
     expect(wf.steps.map((s) => s.id)).toEqual(['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive'])
     const specStep = wf.steps.find((s) => s.id === 'spec')
-    expect(specStep?.guards).toHaveLength(1)
-    expect(specStep?.guards[0]).toEqual({ type: 'tasks-at-least', n: 3 })
+    expect(specStep?.guards.map((guard) => guard.type)).toEqual(['required-output', 'required-output', 'tasks-at-least', 'tasks-through-step'])
+    expect(specStep?.guards[2]).toEqual({ type: 'tasks-at-least', n: 3 })
   })
 
   it('default 项目覆盖：`.pipeline/workflows/default.yaml` 按 default 契约加载（effective-phase-skills 合法），并可改技能', async () => {
     const __dirname = dirname(fileURLToPath(import.meta.url))
     const repoRoot = dirname(dirname(dirname(dirname(__dirname))))
     const content = await readFile(join(repoRoot, 'templates', 'workflows', 'default.yaml'), 'utf8')
-    // chat 分支不声明技能；在它的第一步补一条，验证项目覆盖文件可以改技能。
+    // lite 分支的立项步不声明技能；在它补一条，验证项目覆盖文件可以改技能。
     const edited = content.replace('        skills: []\n', '        skills:\n          - id: brainstorming\n')
 
     const tempRoot = await mkdtemp(join(tmpdir(), 'wf-load-real-'))
@@ -122,7 +113,7 @@ steps:
     await writeFile(join(tempRoot, '.pipeline', 'workflows', 'default.yaml'), edited, 'utf8')
 
     const wf = loadWorkflow(tempRoot, 'default')
-    expect(wf?.tracks?.chat?.steps[0]?.skills.map((skill) => skill.id)).toEqual(['brainstorming'])
+    expect(wf?.tracks?.lite?.steps[0]?.skills.map((skill) => skill.id)).toEqual(['brainstorming'])
     expect(wf?.tracks?.backend?.steps[0]?.skills.map((skill) => skill.id)).toEqual(['openspec-propose'])
   })
 
@@ -140,15 +131,17 @@ steps:
     expect(() => loadWorkflow(tempRoot, 'default')).toThrow(/openspec_contract|7 个标准阶段|archive/)
   })
 
-  it('custom 槽里的 effective-phase-skills artifact 仍被 custom 契约拒绝', async () => {
+  it('custom 槽里升级前的 default 副本（带 artifacts / document_contract）加载被拒，并给出替代写法', async () => {
+    // 升级前的模板副本是用户最可能留在项目里的旧文件：新定义不再接受这些键，错误里必须点名替代写法。
     const __dirname = dirname(fileURLToPath(import.meta.url))
     const repoRoot = dirname(dirname(dirname(dirname(__dirname))))
-    const content = await readFile(join(repoRoot, 'templates', 'workflows', 'default.yaml'), 'utf8')
+    const content = await readFile(join(repoRoot, 'tools', 'fixtures', 'legacy-default-workflow.yaml'), 'utf8')
     const tempRoot = await mkdtemp(join(tmpdir(), 'wf-load-custom-slot-'))
     await mkdir(join(tempRoot, '.pipeline', 'workflows'), { recursive: true })
     await writeFile(join(tempRoot, '.pipeline', 'workflows', 'copy.yaml'), content.replace('name: default', 'name: copy'), 'utf8')
 
-    expect(() => loadWorkflow(tempRoot, 'copy')).toThrow(/effective-phase-skills/)
+    expect(() => loadWorkflow(tempRoot, 'copy')).toThrow(/document_contract 已删除.*required-output/su)
+    expect(() => loadWorkflow(tempRoot, 'copy')).toThrow(/artifacts 已删除/u)
   })
 
   it('G2 P2：非法新 guard（scalar guard 挂列表字段 scope）→ 加载入口经 validate→compile 深校验 fail-loud', async () => {
@@ -212,7 +205,7 @@ describe('loadWorkflow · 全局存储', () => {
     const root = await mkdtemp(join(tmpdir(), 'wf-global-names-'))
     await mkdir(join(root, '.pipeline', 'workflows'), { recursive: true })
     await writeFile(join(root, '.pipeline', 'workflows', 'p1.yaml'), 'name: p1\nsteps:\n', 'utf8')
-    expect(projectWorkflowNames(root).sort()).toEqual(['default', 'design-system', 'g1', 'p1', 'standard'])
+    expect(projectWorkflowNames(root).sort()).toEqual(['default', 'design-system', 'g1', 'p1'])
   })
 
   it('TENON_RUNTIME_HOME 重定向全局存储位置', async () => {

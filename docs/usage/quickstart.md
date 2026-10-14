@@ -35,8 +35,11 @@ Add keyboard navigation to the project switcher and test it.
 ```
 
 Do not start by manually choosing an old Change unless you intend to resume it.
-The router suppresses pure discussion, sends only tightly bounded low-risk edits
-to simple, and otherwise creates a new Change with the selected Track/Workflow.
+The router suppresses pure discussion. For a development request without a heavy
+signal the agent first reads the code, runs `tenon assess` on the files it expects
+to change and shows you the recommendation (the lightweight Track, or a heavy
+Track when the change is too large); a new Change is created only after you
+confirm. Heavy requests such as a migration go straight to a heavy Track.
 
 ### 2. Identify the Change
 
@@ -58,14 +61,15 @@ not in the directory you started from. `tenon list` shows where
 
 ### 3. Inspect evidence
 
-For a governed Workflow:
-
 ```bash
 tenon document status <change-name>
 tenon check <change-name>
 ```
 
-`tenon check` is a guard report. It does not advance the state.
+`tenon document status` lists the current step's inputs (the documents the previous step
+wrote, with read or unread), the files this step has written so far with the Skill that
+wrote each, and the required outputs. `tenon check` is a guard report. Neither advances the
+state.
 
 ### 4. Open the workbench
 
@@ -73,9 +77,10 @@ tenon check <change-name>
 tenon dashboard --open
 ```
 
-Progress and Todo use the effective steps of this Change. Default shows seven
-phases; simple shows its own four nodes including the escalation terminal; free
-and custom retain the selected Workflow.
+Progress and Todo use the effective steps of this Change. A heavy Track of the
+default Workflow shows seven phases; the lightweight Track shows its own five nodes
+including the escalation terminal; custom Workflows keep their own steps. Once
+the task ends it moves to the Ended category with its result.
 
 ### 5. Resume only when explicit
 
@@ -151,17 +156,17 @@ that lives in a worktree works the same way: the dispatch carries
 **Preparing the worktree (`setup`).** A new worktree has no installed
 dependencies or build output. The test catalog can declare a top-level `setup`
 command, and `tenon init` runs it in the new worktree (output forwarded to
-stderr) when the catalog is trusted there:
+stderr) when that command is trusted:
 
-- Trust is by command digest. `init` copies your trusted digests from the main
-  checkout's local seal into the worktree's, so a committed catalog, whose
-  digest is the same, is trusted at once. If the main checkout's catalog has
-  uncommitted edits, the worktree holds the committed version, whose digest is
-  not in your record: `setup` is **not** run, and `init` prints the command and
-  asks you to run `tenon test trust` yourself in the worktree (an agent cannot
-  confirm it for you), then run the setup by hand. Changing a command in the
-  worktree later needs a new confirmation, as anywhere else. Review approvals
-  and test-record chain heads are not copied.
+- Trust is per user, per repository and per command digest, and every worktree of
+  the repository shares it, so there is nothing to copy: if you already trusted
+  this `setup` command (with `tenon test trust` in the main checkout or in any
+  worktree), it runs at once. A `setup` that is not trusted yet is **not** run:
+  `init` prints the command and asks you to run `tenon test trust` yourself (an
+  agent cannot confirm it for you), then run the setup by hand. The worktree
+  holds the committed catalog, so if the main checkout has uncommitted edits to
+  `setup`, the committed command is the one that counts. Changing the command
+  later needs a new confirmation, as anywhere else.
 - Trust binds the command text (the catalog's command digest). It does not bind
   the repository files the command reads when it runs, such as the `package.json`
   lifecycle scripts or the scripts they call. This is the same trust model as
@@ -229,7 +234,7 @@ you want the line.
 ## Expected result
 
 - discussion created no Change, or
-- a new simple/default/custom Change exists for the current request;
+- a new lightweight, heavy-Track or custom Change exists for the current request;
 - the status, Todo, and Dashboard agree on its Workflow and phase;
 - an unrelated prior Change remains untouched.
 
@@ -240,8 +245,9 @@ tenon status <change-name> --json
 tenon document status <change-name> --json
 ```
 
-For simple, document status may correctly report that no default document
-contract applies.
+The lightweight Track declares no required output, so its list of required outputs is
+empty. A Change created before the upgrade shows its document ledger (records and reads)
+instead of inputs and outputs.
 
 ## Common failures
 

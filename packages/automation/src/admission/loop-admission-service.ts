@@ -50,8 +50,7 @@ import {
 export function createLoopAdmission(deps: LoopAdmissionDeps): ConfiguredLoopAdmission {
   const {
     repoRoot, ledger, loadRegistry, clock, level, image, getAutomation, isSkillProfileKnown,
-    bindAutomationPolicy, bindWorkflowActionAuthority,
-    withWorkflowActionAuthorityLock, workflowActionAuthority,
+    bindAutomationPolicy, bindWorkflowActionAuthority, workflowActionAuthority,
   } = deps
   const ttlMs = deps.reservationTtlMs ?? DEFAULT_TTL_MS
   const newId = deps.newId ?? makeIdGen()
@@ -199,7 +198,6 @@ export function createLoopAdmission(deps: LoopAdmissionDeps): ConfiguredLoopAdmi
           context: outcome.context,
           bindAutomationPolicy,
           bindWorkflowActionAuthority,
-          withWorkflowActionAuthorityLock,
           workflowActionAuthority,
         })
         if (authorization.allowed) return { ok: true, context }
@@ -475,7 +473,7 @@ export function createLoopAdmission(deps: LoopAdmissionDeps): ConfiguredLoopAdmi
   }
   const claimWithFreshWorkflowAuthority: ConfiguredLoopAdmission['claimWithFreshWorkflowAuthority'] =
     (context, claim) => claimWithFreshAfkWorkflowAuthority({
-      context, bindAutomationPolicy, bindWorkflowActionAuthority, withWorkflowActionAuthorityLock,
+      context, bindAutomationPolicy, bindWorkflowActionAuthority,
       workflowActionAuthority, claim, clock, close, closeRecord,
     })
   return {

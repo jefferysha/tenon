@@ -206,7 +206,8 @@ describe('真实 e2e —— 全命令驱动真 kernel + 真 fs（GOAL C9）', ()
   })
 
   test('document：真实 CLI 为多个 capability delta 分别登记并读取证据', async () => {
-    await h.run(['init', 'multi', '--track', 'backend', '--preset', 'full'])
+    // 文档台账里按 kind 登记 / 读取：升级前创建、冻结着文档契约的 default 任务（契约模式）。
+    await h.initLegacyContractDefault('multi', 'backend')
     await h.seedGovernedDocumentEvidence('multi')
     await h.seedArtifact('multi', 'design_doc', 'openspec/changes/multi/design.md')
     expect(await h.run(['transition', 'multi', 'open-complete'])).toBe(0)
@@ -258,7 +259,7 @@ describe('真实 e2e —— 全命令驱动真 kernel + 真 fs（GOAL C9）', ()
   })
 
   test('document migrate-delta：真实 CLI 仅按显式路径做同 digest 幂等迁移', async () => {
-    await h.run(['init', 'legacy-doc', '--track', 'backend', '--preset', 'full'])
+    await h.initLegacyContractDefault('legacy-doc', 'backend')
     const legacy = 'docs/legacy-doc-delta.md'
     const canonical = 'openspec/changes/legacy-doc/specs/capability/spec.md'
     const content = '# unchanged legacy delta\n'

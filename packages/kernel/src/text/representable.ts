@@ -9,12 +9,10 @@
  *   tab 与其余控制符超出窄序列化子集；
  * - 首尾空白：读回时被解析器的 `\s*` / trim 吞掉，往返丢失；
  * - 未配对 UTF-16 surrogate（高位后不跟低位、或低位前不接高位）：writeFileSync(..,'utf8') 落盘把
- *   孤立代理替换成 U+FFFD，读回值变（tracks/representable.ts 同款拒绝，两处以此对齐——见
- *   workflow/representable.test.ts 的 cross-check 钉死通用域一致性）。
+ *   孤立代理替换成 U+FFFD，读回值变。
  *
  * 刻意不拒（属 schema 层各自裁量，不在通用域）：单/双引号（bare 值无引号语义、quoted 值只拒同含
- * 两款）、U+2028/U+2029（能否往返取决于 parser 是否开 dotAll——workflow 的 `.` 读不回故其自身叠加拒，
- * tracks 的值捕获已放宽到 [\s\S]* 故不拒）。
+ * 两款）、U+2028/U+2029（能否往返取决于 parser 是否开 dotAll——workflow 的 `.` 读不回故其自身叠加拒）。
  *
  * @returns null = 可表示；否则返回可直接拼进错误信息的人话原因。
  */

@@ -13,10 +13,12 @@
 import {
   buildHandoff,
   compileLedgerContextBundle,
+  compileObservedContextBundle,
   nodeHandoffFs,
-  resolveWorkflowName,
   type CompileLedgerContextBundleInput,
+  type CompileObservedContextBundleInput,
   type CompiledLedgerContextBundle,
+  type CompiledObservedContextBundle,
   type HandoffFs,
   type HandoffResult,
 } from '@tenon/kernel'
@@ -45,6 +47,10 @@ export type HandoffLocaleResolver = (changeDirPath: string) => Promise<DocumentL
 export type LedgerContextBundleCompiler = (
   input: CompileLedgerContextBundleInput,
 ) => Promise<CompiledLedgerContextBundle>
+/** 观察模式（新任务）的包编译器：输入是当前步骤的交接输入，没有文档策略。 */
+export type ObservedContextBundleCompiler = (
+  input: CompileObservedContextBundleInput,
+) => Promise<CompiledObservedContextBundle>
 
 function scalarField(v: string | string[] | undefined): string {
   if (v === undefined) return ''
@@ -112,6 +118,7 @@ export async function cmdHandoff(
   fs: HandoffFs | undefined = undefined,
   localeResolver: HandoffLocaleResolver = resolveChangeDocumentLocale,
   bundleCompiler: LedgerContextBundleCompiler = compileLedgerContextBundle,
+  observedBundleCompiler: ObservedContextBundleCompiler = compileObservedContextBundle,
 ): Promise<number> {
   if (name === undefined || name === '' || !isValidChangeName(name)) {
     deps.io.err(`ERROR: ${msg(deps, 'change.nameInvalid', { name: name ?? '' })}`)
@@ -130,22 +137,31 @@ export async function cmdHandoff(
   if (opts.bundle) {
     try {
       const plan = effectiveWorkflowForState(deps, state)
-      const policy = plan?.capabilities.documents.policy
-      if (policy === undefined) {
-        deps.io.err(`ERROR: workflow '${plan?.id ?? resolveWorkflowName(state)}' 未开启 openspec，--bundle 不适用`)
+      if (plan === null) {
+        deps.io.err(`ERROR: ${msg(deps, 'step.workflowUnavailable', { name })}`)
         return 1
       }
-      const { bundle } = await bundleCompiler({
-        root: deps.cwd,
-        change: name,
-        from: phase,
-        target: opts.target ?? '',
-        policy,
+      const tuning = {
         ...(opts.budgetBytes === undefined ? {} : { budgetBytes: opts.budgetBytes }),
         ...(fs === undefined ? {} : { fs }),
-      })
-      deps.io.out(opts.json ? JSON.stringify(bundle) : JSON.stringify(bundle, null, 2))
-      return 0
+      }
+      const print = (bundle: object): number => {
+        deps.io.out(opts.json ? JSON.stringify(bundle) : JSON.stringify(bundle, null, 2))
+        return 0
+      }
+      if (plan.capabilities.documents.mode === 'observed') {
+        // 新任务没有文档契约：包的输入是当前步骤的交接输入（直接上游的文档产出），所以包只为当前步骤编译，
+        // --target 缺省取当前步骤；--phase 只改包里的 from 标签。
+        const { bundle } = await observedBundleCompiler({
+          root: deps.cwd, change: name, from: phase, target: opts.target ?? scalarField(state.fields.phase), ...tuning,
+        })
+        return print(bundle)
+      }
+      const policy = plan.capabilities.documents.policy
+      // 契约模式恒有策略（模式就是按策略有无分流的）；没有说明计划构造出错，不带着缺失的策略去编译。
+      if (policy === undefined) throw new Error(`workflow '${plan.id}' 的计划处于契约模式却没有文档策略`)
+      const { bundle } = await bundleCompiler({ root: deps.cwd, change: name, from: phase, target: opts.target ?? '', policy, ...tuning })
+      return print(bundle)
     } catch (error) {
       deps.io.err(`ERROR: ${errMsg(error)}`)
       return 1

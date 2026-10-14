@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # fixture: backend-full — backend track 全生命周期（init → … → archived）
 #
+# 已退出 `npm run oracle`（consolidate-workflow-tracks）：default 改为按 default.yaml 执行（step-graph）之后，
+# 这条老状态机生命周期不再是它的行为准绳——build_mode / isolation / direct_override / branch_status 检查已删除（设计 §1b
+# Q1、Q2），出口要求步骤声明的技能、文档、测试、评审者证据，老脚本一条都不认识，逐字双跑只会把有意的变化报成不一致。
+# 新 default 的生命周期由 packages/cli 的 transition-effects / lite-track 集成测试覆盖。
+# 本文件只留作 tools/oracle/harness.test.ts 的 harness 机制自测输入（用 stub CLI 验证三面 diff / 白名单归一）。
+#
 # 用法: backend-full.sh <target-dir>
 # 产物:
 #   <target>/.oracle-post-init/t6-be/{proposal.md,design.md,tasks.md} # init 后覆盖的 check fixture

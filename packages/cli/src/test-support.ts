@@ -15,12 +15,11 @@ import {
   FIELD_ORDER,
   IllegalTransitionError,
   LIST_FIELDS,
-  loadTrackRegistry,
   PHASES,
   resolveWorkflowName,
   workflowPlanSnapshot,
-  DEFAULT_WORKFLOW_SOURCE, parseWorkflow,
 } from '@tenon/kernel'
+import { legacyContractDefaultPlan, legacyDefaultPlan, legacyDefaultWorkflow } from '@tenon/kernel/workflow/test-support'
 import type { AgentFreezeInput, AgentLibrary, WorkflowDef } from '@tenon/kernel'
 import type {
   CommitResult,
@@ -36,12 +35,9 @@ import type {
   ManifestData,
   Phase,
   PipelineState,
-  ProjectTrackConfig,
   SkillTable,
   StateWriteIntent,
   StateWriteResult,
-  TrackRegistry,
-  TrackValidationContext,
   TransitionRecord,
   TransitionResult,
   WorkflowRun,
@@ -53,6 +49,13 @@ export {
   recordCanonicalDocumentSkillInvocation,
   recordNativeDocumentSkillConfirmation,
 } from '../../kernel/dist/skill-invocation/producer-internal.js'
+
+/**
+ * 升级前创建的在途 default 任务冻结的快照：phase-manifest、带文档契约，含全部分支（恢复时按任务的轨道选分支）。
+ * 定义取自升级前的 default 原文（`tools/fixtures/legacy-default-workflow.yaml`）：当前模板已经没有契约，新任务是观察模式
+ * （要观察模式的 mock 状态用 `mockObservedDefaultState`）。
+ */
+const DEFAULT_PLAN_SNAPSHOT = workflowPlanSnapshot(legacyContractDefaultPlan('backend', 'phase-manifest'))
 
 // === 调用记录 spy（不引 vitest，纯手写） ===
 
@@ -80,32 +83,29 @@ export function mockState(fields: Partial<Record<FieldName, string | string[]>> 
     // assignee 缺省为 makeDeps 的默认用户，负责人规则下 mock 转换照常放行。
     all[f] = f === 'workflow' ? 'default' : f === 'assignee' ? 'Tester <tester@tenon.test>' : (LIST_FIELDS as readonly string[]).includes(f) ? [] : ''
   }
-  return { fields: { ...all, ...fields }, opaqueTail: '' }
+  const merged = { ...all, ...fields }
+  // default 任务按它冻结的计划走：mock 的 default 状态是升级前创建的在途任务（快照记着 phase-manifest），
+  // 新建任务一律 step-graph。有分支的工作流必须带轨道，缺省记 backend。
+  if (resolveWorkflowName({ fields: merged, opaqueTail: '' }) !== 'default') return { fields: merged, opaqueTail: '' }
+  return {
+    fields: merged.track === '' ? { ...merged, track: 'backend' } : merged,
+    opaqueTail: '',
+    runMetadata: {
+      runId: 'mock-default-run',
+      transitionSequence: 0,
+      workflowPlanFingerprint: DEFAULT_PLAN_SNAPSHOT.workflowFingerprint,
+      workflowPlanSnapshot: DEFAULT_PLAN_SNAPSHOT,
+    },
+  }
 }
 
 /**
  * 技能矩阵并入 YAML 之前的 default 定义（step 不声明技能，全部来自 manifest 叠加）：manifest a|b
  * 备选、机器级 mandatory/recommended 表这些 manifest-overlay 机制的单测，用它冻结成 run 快照后仍按旧口径求值。
  */
-export function legacyDefaultWorkflowDef(): WorkflowDef {
-  const def = parseWorkflow(DEFAULT_WORKFLOW_SOURCE)
-  // 分支化之前 default 只有一条 pipeline：驱动技能 + spec 的 plan artifact 带 PM 豁免谓词。用 frontend 分支（含其文档契约）还原它。
-  const branch = def.tracks?.frontend
-  const frontend = branch?.steps ?? def.steps
-  return {
-    ...def,
-    tracks: undefined,
-    ...(branch?.documentContract === undefined ? {} : { documentContract: branch.documentContract }),
-    steps: frontend.map((step) => ({
-      ...step,
-      skills: [],
-      ...(step.id === 'spec' && step.artifacts !== undefined
-        ? { artifacts: step.artifacts.map((artifact) => artifact.field === 'plan' ? { ...artifact, requiredWhen: { kind: 'track-not-in' as const, values: ['pm'] } } : artifact) }
-        : {}),
-    })),
-  }
-}
-const LEGACY_DEFAULT_PLAN = compileEffectiveWorkflowPlan('default', legacyDefaultWorkflowDef())
+export const legacyDefaultWorkflowDef: () => WorkflowDef = legacyDefaultWorkflow
+// 定义带已删除的 `document_contract` / `artifacts`，不经 `validateWorkflow`，直接按 default 的编译入口建计划。
+const LEGACY_DEFAULT_PLAN = legacyDefaultPlan({ executionModel: 'phase-manifest' })
 const LEGACY_DEFAULT_PLAN_SNAPSHOT = workflowPlanSnapshot(LEGACY_DEFAULT_PLAN)
 
 /** mockState + 冻结的 legacy default 计划：让 artifact / manifest-overlay 单测沿用 manifest 表语义。 */
@@ -121,17 +121,43 @@ export function mockLegacyDefaultState(fields: Partial<Record<FieldName, string 
   }
 }
 
+/**
+ * mockState + 当前模板冻结的 default 计划（step-graph、没有文档契约 = 观察模式）：新建的 default 任务。
+ * 计划按任务的轨道编出（缺省 backend）。
+ */
+export function mockObservedDefaultState(fields: Partial<Record<FieldName, string | string[]>> = {}): PipelineState {
+  const state = mockState(fields)
+  const track = typeof state.fields.track === 'string' && state.fields.track !== '' ? state.fields.track : 'backend'
+  const plan = compileEffectiveWorkflowPlan('default', undefined, { track })
+  return {
+    ...state,
+    runMetadata: {
+      runId: 'mock-observed-run',
+      transitionSequence: 0,
+      workflowPlanFingerprint: plan.workflowFingerprint,
+      workflowPlanSnapshot: workflowPlanSnapshot(plan),
+    },
+  }
+}
+
 // Keep the fixture on the production default Workflow identity while opting its frozen interaction
 // policy into AFK. This lets CLI tests exercise the default-track preparation path and still satisfy
-// the authoritative WorkflowRun/StepVisit identity binding.
-const MOCK_AFK_PLAN = compileEffectiveWorkflowPlan('default', {
-  name: 'default',
-  interaction: { version: 'v1', mode: 'afk' },
-  steps: [{
+// the authoritative WorkflowRun/StepVisit identity binding. AFK 项目层只读冻结计划里所选分支的
+// `automation`，所以 backend 分支显式声明 `eligible`（没写 automation 的分支不可进入 AFK）。
+export function mockAfkWorkflowDef(
+  steps: WorkflowDef['steps'] = [{
     id: 'build', label: 'Build', gate: null,
     skills: [], inputs: [], outputs: [], guards: [], transitions: [],
   }],
-})
+): WorkflowDef {
+  return {
+    name: 'default',
+    interaction: { version: 'v1', mode: 'afk' },
+    steps: [],
+    tracks: { backend: { steps, automation: { eligible: true, enqueueAfterSpec: false } } },
+  }
+}
+const MOCK_AFK_PLAN = compileEffectiveWorkflowPlan('default', mockAfkWorkflowDef(), { track: 'backend' })
 const MOCK_AFK_PLAN_SNAPSHOT = workflowPlanSnapshot(MOCK_AFK_PLAN)
 
 /** A canonical frozen AFK WorkflowRun fixture; bindAutomationPolicy fills its exact loop iteration. */
@@ -300,6 +326,9 @@ export function mockWorkflowRunRepository(store: MockStore, clock: () => string 
           id: 'mock-run', workflowId: resolveWorkflowName(state), currentStep: '', lifecycle: 'active',
           transitionSequence: sequence, transitionHead: undefined, createdAt: '', updatedAt: '', automationPolicy,
           policyId: automationPolicy?.policy_id, policyVersion: automationPolicy?.policy_version, loopId, iterationId,
+          // 与生产 deriveRun 同源：冻结的计划随 run 走，旧引擎的在途任务才按旧规则判定。
+          workflowPlanFingerprint: state.runMetadata?.workflowPlanFingerprint,
+          workflowPlanSnapshot: state.runMetadata?.workflowPlanSnapshot,
           workflowActionAuthority,
         }
         const tx: WorkflowRunTransaction = {
@@ -578,15 +607,6 @@ export function makeDeps(o: MakeDepsOpts = {}): TestDeps {
   const registeredRoots: string[] = []
   const changes = o.changes ?? (o.states ? Object.keys(o.states) : [])
   const store = mockStore(o.states ?? o.state ?? mockState())
-  // Track Registry：单测 cwd（缺省 '/repo'，无 .pipeline/tracks.yaml）→ loadTrackRegistry 返回
-  // 内建 Track builtin-only，requireTrack/assertWorkflowAllowed 行为与旧写死 TRACKS 校验逐字一致。
-  // 上下文里 workflowExists/skillProfiles 只在 tracks.yaml 存在时被 validateTrackRegistry 查——
-  // 单测 cwd 无该文件，故取内建 skill profile 集合、workflowExists 恒 default 即可（不被消费）。
-  const trackCtx: TrackValidationContext = {
-    workflowExists: (id) => id === 'default',
-    skillProfiles: new Set(['pm', 'frontend', 'backend']),
-  }
-  const emptyConfig: ProjectTrackConfig = { version: 1 }
   const deps: TestDeps = {
     store,
     // Mock states intentionally do not materialize the real binding sidecar. Keep this explicit
@@ -599,15 +619,8 @@ export function makeDeps(o: MakeDepsOpts = {}): TestDeps {
     // mock 掉的 store 没有真冻结内容与台账；需要断言 agent 拦截的单测自行覆写这一项。
     stepAgents: async () => [],
     runRepo: mockWorkflowRunRepository(store),
-    // R3：无记忆化（每次 fresh load）。单测 cwd 无 tracks.yaml → 内建 Track，恒新鲜。
-    loadRegistry: () => loadTrackRegistry(o.cwd ?? '/repo', trackCtx),
-    // registry 锁 mock：无 fs，直接以「当前 deps.loadRegistry() 快照」回调（late-bind——fields/init
-    // 测试常覆写 deps.loadRegistry 注入自定义轨，故这里读 deps.loadRegistry 而非构造期捕获）。
-    withRegistryLock: async (cb) => cb({ registry: deps.loadRegistry(), config: emptyConfig }),
-    // mutate-under-lock 无 mock 语义：tracks CRUD 全走 *.integration.test.ts 真 fs（本 mock 拒调）。
-    mutateRegistry: async () => {
-      throw new Error('makeDeps mock 未实现 mutateRegistry —— tracks CRUD 请用真 fs 集成测试')
-    },
+    // 项目协调锁 mock：无 fs，直接回调（真互斥由 kernel project-lock.test 与各 *.integration.test 覆盖）。
+    withProjectLock: async (cb) => cb(),
     flow: mockFlow(),
     resolver: o.resolver ?? testEffectiveSkillResolver,
     documentEvidence: o.documentEvidence ?? (async (
@@ -643,7 +656,7 @@ export function makeDeps(o: MakeDepsOpts = {}): TestDeps {
     workspaceFingerprint: o.workspaceFingerprint,
     listChanges: spy(async (_root: string): Promise<string[]> => changes),
     // 严格候选枚举（Track CRUD 引用扫描专用）。mock 世界里所有 change 都有 state（无「目录在但不可读」态），
-    // 故与 listChanges 同返 changes 集；且 tracks CRUD 走真 fs 集成测试（mutateRegistry mock 拒调），本值不被消费。
+    // 故与 listChanges 同返 changes 集；本值不被消费。
     listChangeDirs: spy(async (_root: string): Promise<string[]> => changes),
     guardCtx: o.guardCtx,
     doctor: mockDoctorProbes(o.doctor),

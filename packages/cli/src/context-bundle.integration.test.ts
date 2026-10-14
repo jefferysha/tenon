@@ -16,7 +16,8 @@ let h: Harness
 
 beforeEach(async () => {
   h = await freshHarness()
-  expect(await h.run(['init', 'bundle-demo', '--track', 'free', '--preset', 'full'])).toBe(0)
+  // 按 document policy 顺序、绑账本摘要生成的 bundle 只服务契约模式：升级前创建、冻结着文档契约的 default 任务。
+  expect(await h.initLegacyContractDefault('bundle-demo', 'backend')).toBe(0)
 })
 
 afterEach(async () => {

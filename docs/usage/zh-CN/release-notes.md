@@ -12,6 +12,102 @@ Tenon 的发布说明用于回答三个问题：这一版改变了什么、用�
 
 面向用户的解释、影响与操作步骤默认使用中文。
 
+## 未发布
+
+内建工作流收敛为两个：`default`，它的轨道现在是轻量（`lite`）、产品（`pm`）、前端（`frontend`）、后端（`backend`），以及平铺的 `design-system`。轻量轨道取代了 `standard` 与 `simple` 工作流，开发请求在建任务前先评估，所有任务都在 `openspec/changes/archive/` 里结束，工作台新增「已结束」分类。文档机制也一并重做：工作流不再声明每一步的输入、输出文档，Tenon 记录每一步实际写出了什么，步骤只能按路径要求某个文件。升级项目前先读「退役与迁移」。
+
+### 退役与迁移
+
+- `standard`、`simple` 工作流已删除。`tenon init <name> --workflow standard` 与 `--workflow simple` 报错，并提示改用 `--workflow default --track lite`。
+- `default` 的 `chat`（对话）、`free`（自由）轨道已删除，也不再需要中立轨道：没有 `tracks:` 的工作流本身就是唯一的轨道，所以 `tenon init <name> --workflow design-system` 不写 `--track`。把已退役的轨道 id（`standard`、`simple`、`chat`、`free`）传给 `--track` 会报错，并列出该工作流可选的轨道。
+- 内建轨道登记表与 `.pipeline/tracks.yaml` 不再读取；文件还在时 Tenon 只打印一行提示。轨道现在只是工作流 YAML 里的分支（`tracks.<id>`），把你留在 `tracks.yaml` 里的路由词写进分支的 `route`。
+- 「隐藏」已删除。`tenon task archive`、`tenon task unarchive`、工作台「已归档」开关和每用户的 `archived.json` 都不再存在；两个旧子命令退出码 `1` 并指向 `tenon task terminate` 与 `tenon task finish`。此前被隐藏的任务重新出现在「进行中」。
+- 新任务不再有 `build_mode`、`isolation`、`direct_override`、`branch_status` 这几个字段及其检查，statefile、立项字面路径、规格 coverage 矩阵的检查也已删除。升级前创建的任务保留自己的字段。
+- manifest 的技能矩阵（`mandatory_skills`）及写它的 Dashboard 接口、`POST /api/changes`（Dashboard 不再新建任务）、路由预览都已删除；技能只来自工作流 YAML。
+- 旧的 phase-manifest 引擎现在只服务升级前已创建的任务，按它们冻结的快照执行，下个版本删除。在途的 `standard`、`simple`、对话或自由任务按开工时冻结的快照走完。
+- 文档机制：工作流定义不再接受 `document_contract`（顶层或轨道分支下）以及步骤的 `inputs`、`outputs`、`artifacts`，依赖 `outputs` 的 `nonempty-output` 守卫也一并删除。保存工作流、创建任务和编译新计划时都会报错并点名替代写法：文档自动记录，文件条件写 `required-output` 守卫，字段条件写 `field-nonempty` 或 `field-equals`。空的 `inputs: []`、`outputs: []`、`artifacts: []` 仍然能加载，保存时不再写出。`default` 与 `design-system` 一个都不再声明，契约里「`adr` 由 `brainstorming` 产出」那条规定也随之消失。
+- 新任务不再铺 proposal、design 骨架，也没有文档账本（`.pipeline-documents.json`）；`spec: openspec` 的轨道只铺 `tasks.md` 骨架。`tenon document scaffold`、`record`、`init`、`migrate-delta`（退出码 `2`）和 `tenon artifact register`（退出码 `1`）只服务升级前创建的任务，新任务运行它们会被告知产出由 Tenon 自动记录。
+- `gate: auto` 不再由步骤的 `outputs` 推导：自动门禁在离开条件满足时放行。要为验证步冻结构建修订的新自定义工作流，要像 `default` 一样自己写 `build-complete` 边上的 `freeze-build-sha` 和 `verify-pass` 边上的 `build-head-unchanged`。
+- frontend 轨道不再要求立项前 `DESIGN.md` 就绪（这条规则来自旧文档契约）。`DESIGN.md` 的有效性仍由交付步的 `design-system` 测试检查。升级前创建的任务不受影响。
+- 升级前创建的任务按它冻结的计划走完，旧文档契约也一样：文档账本、按 kind 的读取，以及 `scaffold-document`、`record-document`、`register-field` 动作都与之前一致。
+- 工作流 API 不再返回 `effectiveIo`，`GET /api/change/:name/orchestration` 的 `io` 字段换成 `stepIo`。
+
+### 新增
+
+- `default` 按 YAML 执行。它的规则写成离开条件，其中三个是通用的：`tasks-through-step`、`not-afk-queued`、`dependencies-ended`。不带 event 的 `tenon check <name>` 列出步骤 guards 与前进边 guards，一次列出全部未满足的条件，退出码 `2`；`tenon advance` 只走唯一的前进边。
+- 轨道的 `spec`（`openspec` 或 `none`）、`route`（`keywords`、`exclude`、`priority`、`fallback`）与 `automation`（`eligible`、`enqueue_after_spec`）写在分支上。AFK 资格只看 `automation.eligible`；没写 `automation` 的轨道不可入队（`tenon afk enqueue` 退出码 `3`，带 `--json` 时 `reason: "track-not-afk-eligible"`）。`tenon tracks list` 列出全部工作流的轨道。
+- 路由数据从工作流分支生成（缓存 `router.v6`，任一工作流文件变化就重建），不再按关键词决定轻重：不带重型信号的开发请求，dispatch 带 `assess: required` 和两行 `candidate:`（轻量轨道与领域重型轨道）。
+- `tenon assess --files <路径>...` 在任务建立之前，按与改动风险探针相同的分类规则，用轻量轨道的阈值评估预计要改的文件（退出码 `0` 未超限，`3` 超限并列出被突破的阈值，`1` 出错）。`tenon` 技能把结果与推荐摆给你，你确认后才创建任务。
+- `tenon init --domain <track>` 记下轻量任务将升级到的重型轨道，这样探针的 `escalate.then` 直接点名它。
+- `tenon task finish <name>` 与 `tenon task terminate <name>` 把任务移进 `openspec/changes/archive/<日期>-<name>/` 并记下结果：完结、已升级或已终止。`step.next` 的 `finish-change` 现在执行 `tenon task finish`，OpenSpec 轨道由 Tenon 自己调用 `openspec archive <name> --skip-specs --yes --json`，`terminate` 只提交任务目录。`tenon list --finished` 列出已结束的任务。
+- 工作台分类为 全部 · 需要你 · 进行中 · 已结束。已结束的卡片带结果标记，「全部」也包含已结束的任务，排在进行中之后。工作流页可改轨道的规范与路由关键词，并只读列出每步的离开条件；`GET /api/change/:dir/snapshot?archived=1` 读取已结束的任务。
+- 步骤产出：进入步骤时记下检查点（git `HEAD` 和与之不同的文件及其 SHA-256）；离开步骤时在转换锁内与检查点比较，把本步新增、修改、删除的文件连同写出它们的技能（Tenon 判断不出时记「未知」）记进 `.pipeline-step-outputs.json`。每条轨道、每个工作流都一样，shell 与子代理写的文件也算。不在 git 仓库里时什么都不记，也不阻断任何转换。
+- 按直接上游交接：下一步只拿到直接上游步骤产出的 Markdown 文档；`step.next` 用 `read-documents` 列出未读的，`tenon document read <name> all`（或一个路径）写读取回执，输入没读完时除终止任务外的任何边都走不了（退出码 `1`）。读完之后本步又改了它不用再读，改动记为本步产出。`tenon document status` 打印本步的输入、产出与必须产出，`step.documents` 带同样的内容。
+- `required-output` 守卫，`{ type: required-output, path: <模式> }`，写在步骤或边上：本步必须在这个任务里写出过匹配的文件才能离开（退出码 `2`）。`{change}` 是任务名，`*` 匹配一段内的字符，`**` 匹配任意多段，`?` 匹配一个字符。`default` 用它要求 proposal、设计、delta spec、计划和验证报告，`design-system` 用它要求方向文件和 `DESIGN.md`。
+- 文档机制不再依赖 OpenSpec：观察、交接、读取回执和必须产出对轻量轨道、`spec: none` 和平铺的自定义工作流同样生效，`spec: openspec` 只管 OpenSpec 自己的生命周期。Spec Kit 风格的流程就是一个要求 `specs/*/spec.md`、`plan.md`、`tasks.md` 的普通工作流。
+- 工作台显示每一步真实的输入（文件、来源阶段、来源技能、已读 / 未读）和输出（文件、新增 / 修改 / 删除、来源技能）；工作流页不再有输入、输出表，门禁下列出「必须产出 `<path>`」。
+
+### 升级动作
+
+1. 把脚本和笔记里的 `--workflow standard` / `--workflow simple` 换成 `--workflow default --track lite`，`design-system` 任务去掉 `--track`。
+2. 把 `tenon task archive <name>` 换成 `tenon task terminate <name>`（放弃任务）或 `tenon task finish <name>`（已走到终点的任务）。
+3. 把 `.pipeline/tracks.yaml` 里的规则写进工作流分支的 `route`。
+4. 如果你在全局存储里保存过自己的 `default`，它照常加载，但缺 `lite` 分支的副本会让 `tenon assess` 报「没有改动风险阈值」而不是去猜；要用评估，就加一条带 `diff-risk` 测试的 `lite` 分支。
+5. 回滚到更早的版本之前，先完结或终止升级后新建的任务。更早的版本不认识三个通用离开条件，新建的 `default` 任务在 `tenon status` 里步骤投影只显示一行警告；它不认识的轨道上新建的任务会被直接拒绝读取：`lite`，以及没有 `tracks:` 的工作流（`design-system` 或你自己的平铺工作流，轨道记的是工作流名）（见[更新、恢复与卸载](updates-recovery-and-uninstall.md)）。
+6. 如果你的工作流保存失败并点名 `document_contract`、`inputs`、`outputs` 或 `artifacts`，删掉这些键；步骤必须产出的文件写 `required-output`，字段条件写 `field-nonempty` 或 `field-equals`。靠自己 `outputs` 检查的 `gate: auto` 步骤，要把那些检查改写成守卫。读工作流 API 的 `effectiveIo` 或 `GET /api/change/:name/orchestration` 的 `io` 的脚本，改读 `stepIo`。
+
+### 测试设置简化
+
+步骤现在用一个档位声明测试要求，取代十几个策略字段，围绕测试的手工登记也一并去掉。
+
+- 档位。工作流步骤接受 `test: none | plan | changed | full`，取代多字段 `test_policy`（同一步不能两个都写；冻结的 `test_policy` 仍可读取）。
+  `default` 在实现步用 `changed`、验证步用 `full`（lite、frontend、backend），frontend 与 backend 的规格步用 `plan`，pm 的规格步用 `none`，
+  不再要求映射场景。默认的 `full` 不再把全部集成与端到端套件都跑一遍：全量跑单测类，其他类只跑改动碰到的。
+- `levels`。目录（`.tenon/tests/catalog.yaml`）接受可选顶层键 `levels`，用六个键（`required`、`touched`、`scenarios`、`coverage`、`flaky`、
+  `require_baseline`）定义 `plan`、`changed`、`full`；没写的取内建缺省（`required: [unit]`，不设覆盖率门槛，`scenarios: off`）。
+  默认工作流原来在 frontend、backend 验证步写的 80% 行覆盖率门槛，现在改由想要它的项目写进 `levels.full.coverage`。
+  目录仍是受保护的测试配置：任务改了 `levels`，`tenon review request` 的改动摘要逐档逐键标出放宽或收紧，排在套件变化之前。
+- 五个测试类。`unit`、`integration`、`e2e`、`static`、`benchmark`（外加只在点名时运行的 `custom`）把 17 个种类归类；套件的 `kind` 可写类名或旧种类名
+  （别名），冻结的 `test_policy` 仍按旧名逐字匹配。
+- 认领，不登记。本任务新增或修改的测试文件，在步骤求值时由 `files` glob 匹配它的套件认领，从不写进 `test-plan.yaml`；`test-file-unregistered` 不再产生。
+  没有套件认领的文件是孤儿（`test-file-orphan`），`tenon test register <change> --auto` 把该文件的精确路径追加进合适的套件来解决
+  （不再放宽 glob，也不再扫整个仓库）。`openspec/`、`.tenon/`、`.pipeline/` 下的路径和没有源码扩展名的文件（`.spec.report`、`data.spec.json`）
+  从来不是测试文件。`step.next` 只为孤儿下发 `test-register-files`，只为缺必需类或档位要求映射下发 `test-plan-map`。
+- 没写 `covers` 的套件。改动文件匹配套件的 `files` 或 `covers` glob 才算碰到它，所以没写 `covers` 的套件只有它自己的测试文件改了才算被碰到。
+  改动只含源码文件时，`changed` 与 `full` 档不跑这类套件，`tenon test status` 与 `tenon test run --stage` 给出不阻断的提示 `suites-without-covers` 并点名它们；
+  要让源码改动触发它，用 `tenon test catalog set <id> --cover-glob "<glob>"` 写上 `covers`。
+- 目录写回保留注释。`catalog add|set|rm|not-applicable` 与 `register --auto` 只改变化的行，注释、空行和排版原样保留（被改键上的行内注释是唯一的损失）。
+- 场景映射默认关闭。`scenarios: off` 时没有场景会挡出口，追溯矩阵列出已映射的行，另加一行「另有 N 条…未映射」，不再逐条写「未覆盖」。
+- 测试信任按用户、仓库、命令记录。`tenon test trust` 把决定存在你的用户状态目录（`<state>/test-trust/`），同一仓库的所有 worktree 共享，
+  改一条命令只让这一条重新问。检出必须出现在 `git worktree list` 里，hook 拒绝 agent 写入 `test-trust/` 路径。你早先写在检出封存里的信任只在不是 git 仓库的项目里继续有效（那里新的信任也写进检出封存），不做迁移；
+  git 仓库里一律不认检出里的旧封存，不论它是否被 git 跟踪，因为封存和它的密钥可能随仓库或压缩包带来，能给仓库自己授信。
+  只有检出目录及其所有上级都没有 `.git` 才算「不是 git 仓库」；有 `.git` 却读不出仓库身份（git 出错、超时或伪造的指针）一律未信任：
+  `tenon test run` 提示先修好 git，`tenon test trust` 拒绝写入。
+- `code-size` 默认没有上限。默认工作流和 `code-size` 方向里 2000 行的 `lines_added` 限制已删除；探针仍报指标、退出码 0，实测值照样记进运行记录，
+  `code-size` 评审者在提示里读到它并据此判断。想要上限的项目在工作流里给该测试写 `pass.metrics`。`review request`、报告和评审者提示里列出的 `test:<id>` 豁免，
+  现在在你的理由旁边显示最新实测值。
+- 运行记录带相对路径。新记录在算摘要之前把仓库根改写成相对路径、用户主目录改写成 `~/`；已有记录不回写。
+- 测试输出不再让候选失效。`test-results/`、`playwright-report/`、`coverage/` 之下未跟踪、扩展名是证据格式（log、txt、xml、md、csv、png、jpg、jpeg、gif、webp、webm、mp4、lcov、info）的文件不计入候选指纹，
+  所以 e2e 服务写日志不会让冻结的版本过期。已跟踪的文件、脚本、没有扩展名的文件，以及能被代码或浏览器加载、解包的格式（json、html、htm、zip、gz、har）仍然计入；
+  真会产出这些文件的套件在测试目录里把它们声明为输出。
+- Dashboard。工作流页用一个单选为步骤选档位；项目测试页显示生效的档位定义；任务测试页标出被认领的文件并收起场景追溯。
+
+回滚（N-1）。上一个版本读不了步骤的 `test` 键和目录的 `levels` 键：读这样的工作流会失败，读这样的目录会报未知键。回滚之前，先完结或终止用新 `test` 键建的任务，
+并把 `levels` 从 `.tenon/tests/catalog.yaml` 里删掉。指纹规则变化：工作区里有未声明测试输出（例如未跟踪的 `test-results/**/*.log`）的在途任务，
+升级后第一次校验可能出现一次 `revision-stale`，因为那个文件不再计入；按冻结版本过期的惯常办法处理，回到实现步重新捕获当前版本。没有这类文件的任务不受影响。
+
+升级注意。升级后在 git 仓库里首次运行测试，需要在你自己的终端里重新运行一次 `tenon test trust`：检出里的旧信任不再被认。
+
+### 验证
+
+```bash
+tenon tracks list
+tenon assess --files <路径>... --json
+tenon init demo --workflow standard
+```
+
+`tracks list` 列出 `default` 的 `lite`、`pm`、`frontend`、`backend`、`design-system` 和你自己的工作流；`assess` 对预计要改的文件给出是否超限；最后一条退出码 `1` 并提示 `--workflow default --track lite`（`demo` 只是示例名，没有创建任何东西）。升级后创建的任务，`tenon document status <name> --json` 报告 `mode: "observed"` 以及 `inputs`、`outputs`、`required`；升级前创建、带旧文档契约的任务，`tenon status <name> --json` 里是 `step.documents.mode: "contract"`。
+
 ## v0.3.2 · 2026-10-07
 
 v0.3.1 的修复版，来自它的补充验收。`tenon runtime repair --rollback` 不再让安装卡死，任务开始之前就已提交的 `not_applicable` 条目在批准之后不再挡住任务，`tenon test discover` 写出的基准命令能在 vitest 5 上运行。
@@ -147,7 +243,7 @@ v0.3 让 Tenon 在普通项目里能用，也更难被糊弄。小改动现在�
 ### 标准通道
 
 - `standard` 是内建的工作流与轨道：`open → build → verify → done`，没有 Explore 阶段，也没有 OpenSpec 文档。Build 跑单测和改动风险探针，Verify 只有一道评审门，评审者是 `code-review` 和 `security`（后者只在碰到鉴权、依赖或契约路径时挂载）。
-- 实现类请求（修、加、重构，中英文都认）路由到 `standard`；带重型信号的请求（架构、schema、鉴权、依赖升级、发布）仍走 `default`。见[标准通道](routing-and-workflows.md#标准通道)。
+- 实现类请求（修、加、重构，中英文都认）路由到 `standard`；带重型信号的请求（架构、schema、鉴权、依赖升级、发布）仍走 `default`。见[轻量轨道](routing-and-workflows.md#轻量轨道)，它后来取代了标准通道。
 - 看上去在改代码、却没有任何轨道命中的提示，会收到一行「未被治理」的说明。
 - `tenon test diff-risk [<change>] [--json]` 是 Build 要求的改动风险探针：源码文件多于 8 个、动了契约、鉴权、依赖或迁移路径、删了测试、改了测试配置，任一项都不通过（阈值是 `pass.metrics`）。
 - 探针不过时，`step.next` 只剩一条带 `escalate` 载荷的 `scope-expanded` 转换，提示改开 `default` 任务。

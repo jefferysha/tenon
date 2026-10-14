@@ -47,8 +47,8 @@ text(result);
 不要再让用户说「确认继续」，也不要说「这道门只认某句话」。
 
 「按推荐」在评审门上只表示确认这道门，不是采纳你自己的建议。之后要设置字段时仍以 `next` 给的
-`recommended` 为准；你自己的偏好与 CLI 的推荐不同（例如想用 `build_mode=direct` 而推荐是
-`subagent-driven-development`）时，先明确问用户，得到回答再设，不要把一句「按推荐」当成授权。
+`recommended` 为准；你自己的偏好与 CLI 的推荐不同（例如 `next` 推荐了某个取值而你想用另一个）
+时，先明确问用户，得到回答再设，不要把一句「按推荐」当成授权。
 
 ## 进入
 
@@ -59,14 +59,22 @@ text(result);
    请用户点名其中一个，然后结束回合；`intent: resume` → 只接手点名的那个任务，dispatch 带
    `worktree_path` 说明它建在那个 worktree 里（见第 3 步）。没有 dispatch 的手动 `/tenon`：
    `tenon list --json`，多于一个就问（每个任务的 `worktree` 是它所在 worktree 的路径，`null` 表示就在当前目录）。
+   选通道以 dispatch 为准，不自己按关键词定轻重：`track_basis: user-named` 表示 `track` 是用户在消息里
+   点名的轨道，建任务时照用，不评估；`score` 是按内容评分的推测，用户另有说法以用户为准。
+   dispatch 带 `assess: required` 时，`candidate: workflow=<w>;track=<t>` 各行是可选的轨道（轻量一条、
+   领域重型一条），轻重由预计改动范围决定：建任务前先读相关代码，列出预计要改的文件，运行
+   `tenon assess --files <文件…> [--json]`——退出码 0 = 未超轻量阈值（推荐轻量候选），3 = 超限（输出列出
+   被突破的阈值，如 `auth_files 1 > 0`，推荐领域重型候选），1 = 出错（如路径越出仓库，改正后重跑）。
+   把评估结果与推荐摆给用户确认：interactive 结束回合等回复；continuous / afk 直接采用推荐。确认之后才
+   `tenon init`；选了轻量候选时加 `--domain <另一个 candidate 的轨道>`，升级时 `next` 就能直接给出领域轨道。
    以 `/` 开头的提示词是显式命令，路由钩子不处理，所以 `/tenon <请求>` 要新建任务时由你选通道，选法与钩子一致：
-   用户点名了工作流或轨道就照用；否则修缺陷、加函数、改一个模块这类实现类请求用
-   `--workflow standard --track standard`；只有大型或跨领域、需要需求与设计文档的工作（架构、鉴权、迁移、依赖、契约）
-   才用 `default`（轨道按内容选）；项目自定义的工作流只在用户点名时用，不要自己挑一个。拿不准就选 `standard`：
-   越界时它的 `scope-expanded` 会升级到 `default`。
-   `track_basis: user-named` 表示 `track` 是用户在消息里点名的轨道，建任务时照用，不按内容另选；
-   `score` 是按内容评分的推测，用户另有说法以用户为准。
-3. 新建：`tenon init <c> --workflow <w> --track <t> --preset full`（用户可以点别的 preset）；
+   用户点名了工作流或轨道就照用，不评估；请求带重型信号（架构、跨模块、迁移、schema、鉴权、依赖升级、
+   发布、全栈）就直接选对应领域的重型轨道；其余实现类请求同样先评估——读代码、列出预计要改的文件、
+   `tenon assess --files <文件…>`（不带 `--workflow` / `--track` 时评估默认工作流的轻量轨道），用
+   `tenon tracks list` 看有哪些轨道，再按上一段把评估与推荐摆给用户确认。
+   项目自定义的工作流只在用户点名时用，不要自己挑一个。
+3. 新建：`tenon init <c> --workflow <w> --track <t> --preset full`（用户可以点别的 preset；dispatch 的
+   `track` 与 `workflow` 同名时是平铺工作流，省略 `--track`）；
    `tenon init` 会为新任务建自己的 worktree，输出里给出它的绝对路径（文本最后两行的 `worktree: <路径>`，
    `--json` 的 `worktree`）。先切进该路径，再 `tenon session activate <c> --host-session <host_session_id> [--continuous]`：
    Claude Code 用 `EnterWorktree` 的 `path` 切进去，之后的命令、评审确认与 hook 都以该 worktree 为项目根；
@@ -96,9 +104,9 @@ repeat:
   做完 finish-change → 任务结束，不必再 status
 ```
 
-`tenon step run <c> --json` 读的是同一份 `step`，并先把 `next` 里确定性的部分一次做完——铺文档骨架、登记已经写好的文档、
-读取回执、生成测试计划初稿——再给出最新的 `next`（`did` 是它做了什么，`stopped` 是它为什么停）。它能代替循环开头的 `status`，
-文档类步骤上一次调用顶过去逐份 scaffold / record / read 的好几次。它不加载技能、不派 agent、不写文档内容、不跑测试：这些仍照动作表做。
+`tenon step run <c> --json` 读的是同一份 `step`，并先把 `next` 里确定性的部分一次做完——读取回执、生成测试计划初稿
+（升级前创建的任务还会铺文档骨架、登记已写好的文档）——再给出最新的 `next`（`did` 是它做了什么，`stopped` 是它为什么停）。它能代替循环开头的 `status`，
+文档类步骤上一次调用顶过去逐份 read 的好几次（升级前创建的任务还有 scaffold / record）。它不加载技能、不派 agent、不写文档内容、不跑测试：这些仍照动作表做。
 
 ## 动作表（闭集，与 `step.next` 一一对应）
 
@@ -106,43 +114,41 @@ repeat:
 | --- | --- |
 | `stop` | 报告 `message` 后结束。`code: rounds-exhausted`（验证轮次用完，必需测试仍失败）时，把失败的测试、剩余阻断与 `message` 里的出路摆给用户，结束回合等用户决定，不要自行选一条出路。`code: finished` 且带非空 `cleanup` 时，同 `finish-change` 的 `cleanup`：原样转告用户，不要自己执行。 |
 | `load-tenon` | 重新加载本技能（Claude 用 Skill 工具；Codex 按上面的读取规则整读一次）。 |
-| `read-documents` | 逐个读完 `documents` 列出的文件，把内容读进上下文（不得丢弃输出：`cat … >/dev/null` 这类读取不算读过），再 `tenon document read <c> all`。这些是已登记的输入：只有 `editable` 里的 kind 本步可以改（改完照 `next` 重新登记），其余只读——需求语义变了走 `requirements-changed` 回到规格步，不要直接改已登记的规格文档；tasks.md 只勾当前步骤标题下的复选框。 |
+| `read-documents` | 逐个读完 `documents` 列出的文件，把内容读进上下文（不得丢弃输出：`cat … >/dev/null` 这类读取不算读过），再 `tenon document read <c> all`。新任务里它们是直接上游步骤的产出：本步可以改，改动会记为本步产出；升级前创建的任务里它们是已登记的输入，只有 `editable` 里的 kind 本步可以改（改完照 `next` 重新登记），需求语义变了走 `requirements-changed` 回到规格步。tasks.md 只勾当前步骤标题下的复选框。 |
 | `run-agent` | 逐项：`tenon agent prompt <c> <agent> --host <host> --json`（`<host>` 是本宿主 id：Claude Code 用 `claude`，Codex 用 `codex`；agent 声明了 `hosts` 且不含本宿主时 exit 2，照报错告诉用户，不换宿主硬跑）→ 用返回的 `subagent_type` 派发子代理跑返回的 `prompt`（Claude 用 Agent 工具；Codex 用子任务或 `codex exec`；没有子代理的宿主就在主线顺序跑）→ 把报告写到返回的 `report_path`（正文末尾一个 `tenon-result` 代码块）→ `tenon agent record <c> <run_id>`。`subagent_type` 是 `tenon-<agent>` 时，Claude Code 按该 agent 的 `tools` 白名单执行；Codex 没有按 agent 的工具白名单，只在工具里没有写或执行能力时设只读沙箱，其余限制就是 agent 正文里的指令；`subagent_type` 是通用类型时返回里带 `reason` 与 `hint`，照用即可并把 `hint` 转告用户；派发仍报找不到时改用通用子代理跑同一份提示词，登记时加 `--subagent <实际用的类型>`；完全没有派发、在主线顺序跑的，登记时加 `--subagent none`。返回的 `host.run_on` 非空（`action` 里带 `host` 的评审者）时，这个评审者必须在另一个宿主上跑（跨厂商评审：Claude 写、Codex 审）：不要在本宿主里自己审；从仓库根目录执行 `run_on.command`（它读 `run_on.prompt_file`；这是另一家的 CLI，由你执行，Tenon 不会替你起），评审写完报告并登记后继续；对方登记不了 Tenon 状态时，在本宿主执行 `run_on.record`（带 `--host`）。在不符的宿主上登记会被拒（exit 2），台账里宿主不符的结论无效。`host.run_on` 为空照常派发。同一波并行。执行者的正文只做「一个 task」（如 `builder`）时，本步未勾的独立任务各起一个同类型子代理并行，提示词后面写明各自的任务；全部回来后主线合成一份报告写到 `report_path`，只 record 一次。带 `status: running` 与 `run_id` 的项是已经开始的那次运行：不要重新 prompt，等它跑完把报告写到给出的 `report_path`，再 `tenon agent record <c> <run_id>`。评审者在同一份代码（候选没变）上已经有结论时，不能靠重跑换结论：`prompt` 会 exit 2——改代码换候选后再跑；确有需要（例如上一轮提示缺上下文）加 `--rerun-reason <原因>`，原因与重跑次数会展示给用户，没写原因的同候选重跑按最严结论判定。子代理还在跑的时候，主线不要去加载会向用户提问的技能（`brainstorming`、`grilling`、`domain-modeling` 等）：它们落下的待处理交互会让主线停下等用户回复；等执行者返回、报告登记之后再加载。 |
 | `load-skill` | 加载本波每个技能，按下面的「上游技能怎么用」执行。带 `review_bar` 时按下面的「下一步评审口径」审查。 |
-| `scaffold-document` | 文件不存在时先 `tenon document scaffold <c> <kind> [--capability <cap>]`，再动笔写内容：骨架里的 `[待填写…]` / `[pending…]` 占位要全部替换成真内容，留着占位符登记会被拒。`tenon step run <c>` 会替你铺。 |
-| `record-document` | `tenon document record <c> <kind> <path> --producer <producer>`；本步有好几份文档都写好了，用 `tenon document record <c> --all` 一次登记（没写完的它会列出并跳过）。 |
-| `register-field` | `tenon artifact register <c> <field> <path> --producer <producer>`。 |
+| `scaffold-document` | 只出现在升级前创建的任务：文件不存在时先 `tenon document scaffold <c> <kind> [--capability <cap>]`，再动笔写内容：骨架里的 `[待填写…]` / `[pending…]` 占位要全部替换成真内容，留着占位符登记会被拒。`tenon step run <c>` 会替你铺。 |
+| `record-document` | 只出现在升级前创建的任务：`tenon document record <c> <kind> <path> --producer <producer>`；本步有好几份文档都写好了，用 `tenon document record <c> --all` 一次登记（没写完的它会列出并跳过）。 |
+| `register-field` | 只出现在升级前创建的任务：`tenon artifact register <c> <field> <path> --producer <producer>`。 |
 | `set-field` | 先按下面的「决定」定值，再 `tenon set <c> <field> <value>`。 |
 | `validate-spec` | `tenon spec apply <c> --dry-run`；退出码 2 就按报错改 delta spec 再跑。 |
 | `apply-spec` | `tenon spec apply <c>`。 |
-| `run-test` | `tenon test run <c> <test>`；`fail` 先改代码再重跑，不改就重跑没有意义。报「未配置（test-unconfigured）」不是失败：按提示配置（见 `fix`）。 |
-| `test-discover` | 项目还没有测试目录（`tenon init` 通常已经自动识别过；没识别到就是没找到测试工具）：跑 `command`（`tenon test discover --write`），核对 `.tenon/tests/catalog.yaml`（每个套件的命令、报告路径、种类、测试文件 glob）；缺的套件补进目录（`tenon test catalog add`）。项目确实没有某类测试就在目录里声明不适用：`tenon test catalog not-applicable <kind> --reason <原因>`——它要经评审确认一次才生效。 |
-| `test-plan-seed` | 跑 `command`（`tenon test plan <c> --seed`）生成本任务的测试计划初稿。计划、基线、已知失败清单只经 `tenon test …` 写入，不要手改 `test-plan.yaml`（会被判 `test-plan-tampered`），hook 也会拒绝。 |
-| `test-plan-map` | 逐条处理 `items`，每条自带 `fix` 命令：缺的种类 `tenon test register <c> --suite <id>`，没映射的场景 `--case "<covers>" --test "<文件> › <用例名>"`（用例要真的存在）。确实不适用的种类：整个项目都不适用用 `tenon test catalog not-applicable <k> --reason <原因>`（评审确认一次后对所有任务生效），只有本任务不适用才 `tenon test waive <c> --kind <k> --reason <原因>`——两者都要评审批准，不是绕过。`show` 是查看当前计划的命令。 |
-| `test-register-files` | `files` 是本任务新增或修改、还没登记的测试文件：逐个执行各自的 `fix`（`tenon test register <c> --file <path> --suite <id>`）；没有套件认领的（`test-file-orphan`）执行它的 `fix`（`tenon test register <c> --auto`：把文件并进合适套件的 glob 并登记），没有合适的套件才先补目录。 |
-| `run-tests` | 动作带 `trust` 时先请用户在自己的终端运行 `trust.command`（把 `trust.commands` 列给用户看），得到答复后再执行，不要先撞一次拒绝。执行 `command`（`tenon test run <c> --stage`）：一条命令跑完本阶段要求的全部套件。跑完用例失败、覆盖率不足之类不是「没跑」，`next` 会改发 `fix`（评审门上有回退边就走回退边）。命令以 exit 1 报「还没有得到你的信任」时，是目录或步骤测试里的命令尚未得到用户本人确认：把它列出的命令摆给用户，请用户在自己的终端运行 `tenon test trust`，然后再重跑。不要自己运行 `tenon test trust`，也不要设置 `TENON_TEST_TRUST`（hook 会拒绝）。 |
-| `test-report` | 执行 `command`：把追溯矩阵写进验证报告。报告是已登记文档，写完会变过期，照 `next` 重新登记。 |
+| `run-test` | `tenon test run <c> <test>`；`fail` 先改代码再重跑，不改就重跑没有意义。报「未配置（test-unconfigured）」不是失败：按提示配置（见 `fix`）。报「还没有得到你的信任」按 `run-tests` 处理。 |
+| `test-discover` | 项目还没有测试目录（`tenon init` 通常已经自动识别过；没识别到就是没找到测试工具）：跑 `command`（`tenon test discover --write`），核对 `.tenon/tests/catalog.yaml`（每个套件的命令、报告路径、种类、测试文件 glob；种类写 `unit` / `integration` / `e2e` / `static` / `benchmark` / `custom` 这几类，旧种类名是别名）；glob 要覆盖测试放的位置，改动过的测试文件按它自动认领，不用逐个登记；缺的套件补进目录（`tenon test catalog add`）。项目确实没有某类测试就在目录里声明不适用：`tenon test catalog not-applicable <kind> --reason <原因>`——它要经评审确认一次才生效。 |
+| `test-plan-seed` | 跑 `command`（`tenon test plan <c> --seed`）生成本任务的测试计划初稿。按档位（`test:`）要求测试的步骤，初稿不写套件和测试文件——运行集由档位、目录和本任务改动在求值时算出，测试文件按套件 glob 自动认领，只报告缺的必需测试类。计划、基线、已知失败清单只经 `tenon test …` 写入，不要手改 `test-plan.yaml`（会被判 `test-plan-tampered`），hook 也会拒绝。 |
+| `test-plan-map` | 只在缺必需测试类（目录里没有该类套件），或档位要求场景映射（`scenarios: required` / `passing`）时下发；默认不要求映射场景。逐条处理 `items`，每条自带 `fix` 命令：缺的类照 `fix` 补套件（`tenon test catalog add`）或声明不适用，旧 `test_policy` 缺的种类 `tenon test register <c> --suite <id>`，没映射的场景（仅档位要求时）`--case "<covers>" --test "<文件> › <用例名>"`（用例要真的存在）。确实不适用的种类：整个项目都不适用用 `tenon test catalog not-applicable <k> --reason <原因>`（评审确认一次后对所有任务生效），只有本任务不适用才 `tenon test waive <c> --kind <k> --reason <原因>`——两者都要评审批准，不是绕过。`show` 是查看当前计划的命令。 |
+| `test-register-files` | 只为孤儿下发：`files` 是本任务新增或修改、像测试却没有任何套件的 glob 认领的文件（`test-file-orphan`）。执行一条 `fix`（`tenon test register <c> --auto`）认领全部：只把各文件的精确路径追加进合适套件的 `files`，不放宽 glob，也不动本任务没改过的文件；没有合适的套件才先补目录。被套件 glob 认领的改动文件不用登记，也不会下发这个动作。 |
+| `run-tests` | 动作带 `trust` 时先请用户在自己的终端运行 `trust.command`（把 `trust.commands` 列给用户看；它只列本次要执行、尚未信任的命令，信任在同一仓库的所有 worktree 共享），得到答复后再执行，不要先撞一次拒绝。执行 `command`（`tenon test run <c> --stage`）：一条命令跑完本阶段按档位要求的全部套件；改动没碰到任何套件时它说明没有要运行的套件并以 0 退出，不是失败。跑完用例失败、覆盖率不足之类不是「没跑」，`next` 会改发 `fix`（评审门上有回退边就走回退边）。命令以 exit 1 报「还没有得到你的信任」时，是本次要执行的命令里有尚未得到用户本人确认的：把它列出的命令摆给用户，请用户在自己的终端运行 `tenon test trust`，然后再重跑。不要自己运行 `tenon test trust`，也不要设置 `TENON_TEST_TRUST`（hook 会拒绝）。 |
+| `test-report` | 执行 `command`：把追溯矩阵写进验证报告。档位不要求场景映射时，矩阵只列已映射的行，另加一行「另有 N 条场景 / 任务未映射（本步不要求映射）」，那不是缺陷。报告是已登记文档，写完会变过期，照 `next` 重新登记。 |
 | `fix` | 逐条解决 `blockers[]`（改代码或文档），然后回到循环。`source: tasks` 的 blocker 带 `items`（截至本步仍未勾的任务原文）：把这些任务真的做完，再在 tasks.md 里勾上。`code: test-unconfigured`：项目没有这条必需测试要的 npm 脚本——在 package.json 加上运行本项目真正这类测试的脚本，不要复制别的测试命令凑数；在计划步提出时，把「写这类测试」列进本步的计划与 tasks，并把新增的测试脚本与测试同步写进 proposal（What Changes / Impact）与 design，删掉与之矛盾的表述（如「不改 package.json」）；在之后的步骤提出时只补 package.json 的脚本（及它要跑的测试代码），不要改已登记的规格文档（proposal / design / plan）。项目不用 npm 时停下告诉用户去改工作流的测试命令。 |
 | `request-review` | `tenon check <c>` → `tenon review request <c> --event <event>` → 把产出与结论摆给用户。动作带 `waivers` 时，里面是待用户批准的项：计划里的测试豁免（`kind:<种类>`）、目录里项目级的「不适用」声明（`not-applicable:<种类>`），以及本任务改动了的测试配置文件（目录、基线、已知失败清单、项目工作流的路径）。把 request 输出逐条列出的这些项连同理由、文件摘要一并摆给用户：用户的确认同时批准它们，确认之后配置文件再变要重新确认。委托确认（持续授权）不批准它们，只能等用户回复「确认继续」。动作带 `residual`（验证轮次已用完，必需评审者在当前候选上仍不通过）时，还要把 `review request` 输出里逐条列出的剩余阻断（评审者、阻断级发现）连同 `alternatives`（另外的出路）摆给用户：只有用户回复放行语（「确认继续」等）的人工确认才接受这些剩余阻断；持续授权的委托确认会被拒、评审保持待确认，如实告诉用户，不要自己批准也不要绕开。 |
 | `await-review` | interactive：结束回合等人。continuous：`tenon review acknowledge <c> --delegated`（计划里有待批准的测试豁免或待接受的剩余阻断时委托确认会被拒、评审仍待确认：如实告诉用户，等用户回复「确认继续」人工批准，不要自己批准也不要绕开）。afk：结束本轮。 |
 | `commit` | 交付物提交（交付步有未勾任务时它排在勾选之前：先提交，再勾「提交代码」这类任务）：`git add -A -- <commit.paths…>`；`commit.untrack` 非空时接着 `git rm --cached -q --ignore-unmatch -- <commit.untrack…>`；最后 `git commit -m "<commit.message>"`。paths / untrack 原样用、不增不减（`:(exclude)…` 是挡住仓库根门禁标记的 pathspec，照抄）。宿主不让写 `.git` 时如实告诉用户这一步留给他，不要说已提交。 |
 | `choose-exit` | 按下面的「出口」挑一条边。 |
-| `transition` | `tenon transition <c> <event>`。带 `escalate` 的 `transition`（`event: scope-expanded`）是风险升级：改动风险探针没通过，`escalate.reasons` 是被突破的阈值——照做这条转换（它不要求其余证据），然后按 `escalate.then` 新建 `default` 任务并 `tenon set <新任务> depends_on <本任务>`；不要为了让探针通过去拆改动或藏文件。当 `next` 里只剩这一条 `transition` 时直接执行，不问用户，interactive 也一样（不等「继续」，不给「升级 / 调探针阈值 / 不走流程」这类选择题）：执行前用一句话告诉用户为什么升级（`escalate.reasons`）、接下来要做什么，然后动手。 |
-| `complete` | `tenon transition <c> <event>`——走完终态自边，状态机到此结束。归档由下一条 `finish-change` 单独下发，不要在这里抢跑 `openspec archive`。 |
-| `finish-change` | `command` 不是 `null` 时照原样跑（`openspec archive <c> --skip-specs --yes --json`），把 change 目录搬进 `openspec/changes/archive/`。`commit` 不是 `null` 时再提交：`git add -A -- <commit.paths…>`；`commit.untrack` 非空时接着 `git rm --cached -q --ignore-unmatch -- <commit.untrack…>`；最后 `git commit -m "<commit.message>"`。paths / untrack 原样用、不增不减（宿主不让写 `.git` 时如实告诉用户这一步留给他，不要说已提交）；`commit` 为 `null`（不是 git 仓）就不提交。`cleanup` 不是 `null`（任务建在 worktree 里）时，把它原样转告用户：这是清理 worktree 与分支的命令，要在主检出里执行（不能在要删的 worktree 里执行），由用户自己决定何时执行，不要自己执行。 |
+| `transition` | `tenon transition <c> <event>`。带 `escalate` 的 `transition`（`event: scope-expanded`）是风险升级：改动风险探针没通过，`escalate.reasons` 是被突破的阈值——照做这条转换（它不要求其余证据），然后照 `escalate.then` 新建重型轨道任务并 `tenon set <新任务> depends_on <本任务>`（`then` 直接给出 `tenon init …` 命令；它没有领域、只列出可选轨道时，把可选项摆给用户选一个再建）；不要为了让探针通过去拆改动或藏文件。当 `next` 里只剩这一条 `transition` 时直接执行，不问用户，interactive 也一样（不等「继续」，不给「升级 / 调探针阈值 / 不走流程」这类选择题）：执行前用一句话告诉用户为什么升级（`escalate.reasons`）、接下来要做什么，然后动手。 |
+| `complete` | `tenon transition <c> <event>`——走完终态自边，状态机到此结束。归档由下一条 `finish-change` 单独下发，不要在这里抢跑 `tenon task finish`。 |
+| `finish-change` | `command` 不是 `null` 时照原样跑（`tenon task finish <c>`）：Tenon 把 change 目录搬进 `openspec/changes/archive/` 并记下任务结果，不要自己执行 `openspec` 命令。`commit` 不是 `null` 时再提交：`git add -A -- <commit.paths…>`；`commit.untrack` 非空时接着 `git rm --cached -q --ignore-unmatch -- <commit.untrack…>`；最后 `git commit -m "<commit.message>"`。paths / untrack 原样用、不增不减（宿主不让写 `.git` 时如实告诉用户这一步留给他，不要说已提交）；`commit` 为 `null`（不是 git 仓）就不提交。`cleanup` 不是 `null`（任务建在 worktree 里）时，把它原样转告用户：这是清理 worktree 与分支的命令，要在主检出里执行（不能在要删的 worktree 里执行），由用户自己决定何时执行，不要自己执行。 |
 
 ## 决定、字段、出口
 
 - 带 `allowed` 的字段是一次决定：interactive 把 `recommended` 排在第一位问；continuous / afk
-  直接用 `recommended`。决定在动手之前下发（build 的 `build_mode` / `isolation` 先于测试配置与实现技能），
-  按你接下来真的要用的方式填，之后照它执行。
+  直接用 `recommended`。决定在动手之前下发，按你接下来真的要用的方式填，之后照它执行。
 - `kind: outcome` 的字段只在本步必需测试与评审者都过了之后才出现在 `next` 里；它们没有 `recommended`，填 `required` 给的值。`pre_verify_review_result` / `verify_result` 是通过结论：CLI 写入前核对本步证据，被拒就按错误里点名的测试或 agent 去补，不要换个写法绕过。
 - 下一步评审口径：动作带 `review_bar`（下一步声明的评审者，每项 `step` / `agent` / `required` /
   `block_at` / `focus`）时，本步的实现与自审——技能自带的代码评审、子代理审查、写
   `pre_verify_review_result` 之前的就绪审查——按同一口径判级：落在这些评审者关注点上、级别达到其
   `block_at`（`medium` 即 medium 及以上）的问题就是阻断，在本步修完，不要判成「建议」留给下一步；
   下一步的评审者会以同一级别打回，多走一轮回退。派发审查子代理时把 `review_bar` 原样写进提示。
-- `direct_override` 是 full 预设下 `build_mode=direct` 的风险确认，没有推荐值：interactive 问人，continuous / afk 不选 `direct`（取 `build_mode` 的推荐值即可免去这一项）。
 - `pr_url`、`prd_path` 和各类文件路径只填真值，绝不编造。`pr_url` 是真实的 http(s) PR 地址；仓库没有 远端时 `next` 会推荐 `no-remote`（本地交付、没有 PR，CLI 会复核确实没有远端）。有远端却开不了 PR 就停下说明。
 - 暂停等用户（评审门、interactive 的「继续」）之前如实报告工作区：以 `git status --short` 为准。
   交付步照 `next` 做完、走出口之前，工作区应当是干净的（`set pr_url` 写下的状态文件已由 `next` 点名的
@@ -157,19 +163,22 @@ repeat:
   就不提交；技能自带的提交步骤同样不做。
 - 出口：`ready` 的前进边直接走；回退边只在它的含义成立时走（必需测试或评审者不通过 → 回到实现
   的那条边；已确认的需求变了 → 回到规格的那条边）；interactive 先问。走到终态的
-  `scope-expanded` 表示目标超出了这个工作流：之后新建一个 `default` 任务，并
-  `tenon set <new> depends_on <old>`（standard 通道由改动风险探针触发，`next` 会直接给出它；它是 `next` 里唯一的 `transition` 时不用问，见动作表的 `transition`）。
+  `scope-expanded` 表示目标超出了这条轨道：之后按 `escalate.then` 新建重型轨道任务，并
+  `tenon set <new> depends_on <old>`（由改动风险探针触发时，`next` 会直接给出它；它是 `next` 里唯一的 `transition` 时不用问，见动作表的 `transition`）。
 - 验证轮次上限 `max_rounds` 是用户的决定：不要自行执行 `tenon set <c> max_rounds <N>`，只在用户明确指示时执行；设置会改变任务状态，已发起或已批准的评审请求随之失效，执行后重读 `next` 并重新 `tenon review request`。上限用完时回退边会被拒，不要换事件、改状态或删 marker 绕过，照 `stop` / `request-review` 把出路摆给用户。
 
 ## 上游技能怎么用
 
 - 任务已经存在且已绑定：不要 `openspec new change`，也不要另选或另建 change。
-- 文档写在 `step.documents` 给的 `path` 上；缺结构先 `scaffold-document`。
-- `path` 为 `null` = 这一条的路径还要你拍板：按 `path_template` 里剩下的占位符定值再 scaffold
-  （delta-spec 缺 `{capability}`，即 `tenon document scaffold <c> delta-spec --capability <x>`）。
-- 只经 `record-document` 登记。技能自带的「提交」「归档」「同步规格」「推送」「建 PR」等收尾动作，
-  只有 `step.next` 点名时才做。
-- tasks 只勾当前步骤标题下的复选框；它的重新登记会出现在 `step.documents.updates` 里。
+- 技能按它自己的 SKILL.md 写文件，路径由技能决定。Tenon 在离开步骤时自动记录本步新增、修改、删除的文件与
+  来源技能，不需要登记。
+- 步骤要求的「必须产出」（`required-output`）没写出时，出口阻断（`fix`）会点名路径：让技能把文件写出来。
+- 技能自带的「提交」「归档」「同步规格」「推送」「建 PR」等收尾动作，只有 `step.next` 点名时才做。
+- tasks 只勾当前步骤标题下的复选框。
+- 升级前创建的任务（`step.documents.mode` 为 `contract`）照旧：文档写在 `step.documents` 给的 `path` 上，
+  缺结构先 `scaffold-document`；`path` 为 `null` = 这一条的路径还要你拍板，按 `path_template` 里剩下的占位符定值再 scaffold
+  （delta-spec 缺 `{capability}`，即 `tenon document scaffold <c> delta-spec --capability <x>`）；只经 `record-document`
+  登记；tasks 的重新登记会出现在 `step.documents.updates` 里。
 
 ## 出错时
 
@@ -178,6 +187,6 @@ repeat:
 | 没有 `tenon` | 停下，给重装提示 |
 | 技能加载不了 | 停下，提示 `tenon setup --<host>` / `tenon update --<host>` |
 | `lacks exact host confirmation` | 按上面的读取规则重新加载产出者技能，再登记一次 |
-| `stop` 且 `code: retired-skills` | 告诉用户新建任务；旧任务可以在工作台归档或删除 |
+| `stop` 且 `code: retired-skills` | 告诉用户新建任务；旧任务可以终止（`tenon task terminate`）或删除 |
 | 评审待确认、回复不是放行语 | 继续等；hook 会打印解锁提示 |
 | 回退边被拒、报「验证轮次已用完」 | 不要换事件或调高上限绕过；把已用轮次、上限与出路摆给用户，等用户决定 |

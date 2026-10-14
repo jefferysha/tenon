@@ -79,8 +79,8 @@ site to the browser and shows the sign-in prompt again.
 
 The five operational destinations in the primary shell (`?view=` ids in order: workspace → workflow → projects → library → skills; the old ids `progress` and `workbench` redirect) are:
 
-- Workspace — tasks by status; the detail shows the stage, what blocks it, the next step and inputs/outputs
-- Workflow — Workflows, Tracks, stages, skills, inputs/outputs and gates
+- Workspace — tasks by category (All · Needs you · Running · Ended); the detail shows the stage, what blocks it, the next step and, per step, the inputs and outputs that really happened; an Ended card carries its result (Finished, Escalated or Terminated), and All also includes ended tasks after the running ones
+- Workflow — Workflows, Tracks, stages, skills and gates
 - Projects — per project, the enabled agent clients and, for each, its project-level and user-level instruction file (`AGENTS.md`, `CLAUDE.md`,
   `GEMINI.md`), plus creating a project from an existing or new directory
 - Library — the instruction template library: built-in blocks synced from the
@@ -112,16 +112,47 @@ unattended automation.
 <img src="../../docs-site/public/images/dashboard-workflow-editor.webp" alt="Tenon Dashboard workflow editor" width="1280" height="800" loading="lazy">
 
 The workflow editor lists a Workflow's Tracks and stages; each stage page shows
-its inputs, skills, outputs, gate, and test policy. The settings menu holds the
-theme and language controls and never changes the canonical Workflow state.
+its skills, gate, and test policy. There is no input or output table: a Workflow does
+not declare the documents of a step, so the page neither shows nor edits them (the
+Workspace shows what a task really produced). Track settings edit the
+Track's spec (OpenSpec or none) and its routing keywords; exclusions, priority
+and automation stay in the YAML. Under a gate, the editor lists the step's leave
+conditions read-only, one per line (for example “implementation review passed”,
+“tasks through this step checked”, “dependencies ended”, and “Required output
+`<path>`” for each `required-output` guard). The settings menu holds
+the theme and language controls and never changes the canonical Workflow state.
+
+### Workspace inputs and outputs
+
+For the selected task, each step lists what actually happened, read live from the
+task's step-output records (the current step is compared with its checkpoint at
+read time; an ended task keeps showing the records it was archived with):
+
+- **Inputs**: file · source stage · source skill (or “Unknown”) · Read or Unread. These
+  are the documents the direct upstream step produced, which the step must read before
+  it can be left.
+- **Outputs**: file · Added, Modified or Deleted · source skill (or “Unknown”). Code and
+  other non-document files appear here too.
+
+A step with nothing to show says “No inputs for this step” or “No outputs for this
+step yet”. A task created before the upgrade shows its document ledger in the same
+shape: each registered document is an output of its owner step with the producer as
+source skill, and its reads are inputs with their read state. The data is the
+`stepIo` of `GET /api/change/:name/orchestration?root=<project root>`:
+`stepIo[<step>] = { inputs, outputs, required }`, where a file is
+`{ path, change?, skill, fromStep?, read? }` (`skill` is `null` when unknown) and
+`required` lists `{ path, produced }` for the step's `required-output` guards. Paths are
+relative to the project root; the response carries no digests, visit ids or absolute
+paths. The former `io` field of this response is gone, and the Workflow API
+(`GET /api/workflows/:name` and its Track views) no longer returns `effectiveIo`.
 
 ### Workflow overview
 
 <img src="../../docs-site/public/images/dashboard-workbench.webp" alt="Tenon Dashboard workflow overview" width="1280" height="800" loading="lazy">
 
-The overview canvas places Tracks, the seven-phase DAG, and the skills each step
-declares on one page. The read-only default baseline, custom Workflows,
-and each Workflow's free Track come from the same effective plan.
+The overview canvas places Tracks, each Track's step DAG, and the skills each step
+declares on one page. The default Workflow, custom Workflows and each Workflow's
+Tracks come from the same effective plan.
 
 ### Projects
 
@@ -162,15 +193,24 @@ page performs no network access and starts no installation.
 
 ### Tests
 
-The Dashboard only reads test data and edits the workflow's test policy; it never runs or
+The Dashboard only reads test data and edits each workflow step's test level; it never runs or
 registers tests (`tenon test ...` does). The project page has a client/tests segment
-(catalog suites, baselines per machine profile, known failures), the workbench task has a
-tests tab (policy matrix, scenario trace, unregistered files) with a run drawer (failed
-cases, artifacts, coverage, benchmark against baseline, logs), the workflow page edits each
-stage's `test_policy`, and the library lists read-only test templates.
+(catalog suites with their test class, the effective level definitions, baselines per machine
+profile, known failures), the workbench task has a
+tests tab (requirement matrix by test class, scenario trace, test files marked as
+auto-claimed or orphaned) with a run drawer (failed
+cases, artifacts, coverage, benchmark against baseline, logs), the workflow page picks each
+step's level (`none`, `plan`, `changed` or `full`) with a single choice, and the library lists
+read-only test templates. The info icon next to the level choice names the file that defines the
+levels (`levels` in `.tenon/tests/catalog.yaml`) in its tooltip; a step that still holds a legacy `test_policy` shows a read-only
+summary until you pick a level, which replaces it. When a level does not ask for scenario mapping
+the trace shows one summary line instead of an "uncovered" row per scenario.
 
 - `GET /api/tests/catalog?root=` → the parsed catalog (`missing`, `invalid` with line-numbered
-  issues, or `ok`), the known failures and the latest result per suite.
+  issues, or `ok`), the effective `levels` (`plan`, `changed` and `full`, each marked as coming
+  from the catalog or from the built-in default), the known failures and the latest result per suite.
+- `POST /api/workflows/:name` accepts `test` on a step and answers `400` when a step carries both
+  `test` and `test_policy`.
 - `GET /api/tests/baselines?root=&suite=` → baselines per machine profile with history.
 - `GET /api/tests/plan?root=&change=` → the task's test plan state (`missing`, `tampered`, `ok`).
 - `GET /api/tests/records?root=&change=[&suite=]` → v2 run records, newest first, with the
@@ -188,7 +228,8 @@ stage's `test_policy`, and the library lists read-only test templates.
   saved download keeps its name instead of arriving as `artifact.zip`.
 
 Each change in `GET /api/snapshot` also carries `testPolicy` (the verdict of every stage
-that declares a policy), `testPlan` and `testUser`. Every `testPolicy` entry lists the catalog's
+that declares a test level or a legacy policy; an entry derived from a level carries
+`level: { name, required, touched, source }`), `testPlan` and `testUser`. Every `testPolicy` entry lists the catalog's
 project-wide `not_applicable` declarations as `notApplicable: [{kind, reason, approved}]`
 (`approved: false` = still waiting for the review confirmation), so the Tests tab shows an
 approved kind as "not applicable" rather than missing. The Dashboard itself reads the lighter
@@ -203,7 +244,7 @@ list tier described under "Local API" and fetches this per-change evidence from
 | Waiting | A review, user interaction, queue admission, or gate is pending | inspect exact pending interaction and Change phase |
 | Queued | AFK work is admitted but no worker is currently running it | inspect AFK readiness and queue |
 | Blocked/failed | A guard, verification, worker, or operation failed | read the recorded reason before changing state |
-| Complete/archived | The Workflow reached its terminal delivery/archive state | inspect final evidence |
+| Ended | The task was archived with a result: Finished, Escalated or Terminated | inspect final evidence under Ended |
 
 “Waiting” is not a synonym for “broken.” The UI must not infer running merely
 from an unfinished Todo.
@@ -246,7 +287,10 @@ sharing.
 
 The loopback API exposes current health/snapshot/SSE plus local operations for
 projects, Changes/runs, Workflows, Tracks, hooks, automation, loops, AFK,
-configuration, and diagnostics.
+configuration, and diagnostics. The Dashboard does not create tasks: there is no
+`POST /api/changes`, no router preview and no write endpoint for the skill matrix.
+A task starts from `/tenon` in the agent (which assesses first) or from
+`tenon init`.
 
 The Host Plan endpoints are strictly read-only. They accept only registered
 Tenon hosts and the `setup` or `update` operation, return
@@ -290,10 +334,18 @@ the sub-trees many changes share (workflow rules, current-step readiness, stage 
 owner/creator references) written once per project in a `shared` table that a change
 points at by integer. The evidence of one change comes from
 `GET /api/change/:name/snapshot?root=<project root>`: the same object the full snapshot
-holds for it, plus `rev` (and `archive` for a change the viewer archived). A list row's
+holds for it, plus `rev`. A list row's
 `rev` moves whenever any input of that change moves, so a reader re-reads the detail
 exactly when its `rev` changes. With 30 projects x 30 changes the list body is about
 0.6 MB (about 21 KB gzipped) where the full snapshot is 11 MB.
+
+Ended tasks are listed apart from the changes: each project carries `ended`, one
+summary per directory under `openspec/changes/archive/` (name, workflow, track, result,
+end time, PR link, owner; newest first, with `endedTotal` when the list is truncated).
+Summaries are read only, cached by directory identity and not part of live change
+detection. The detail of an ended task is
+`GET /api/change/:dir/snapshot?root=<project root>&archived=1`, where `:dir` is the
+archive directory name; it is read-only.
 
 The list stream sends one full `snapshot` event and afterwards a `snapshot-delta` event
 holding only the projects whose serialized bytes changed, plus `roots` (the registry
@@ -303,7 +355,8 @@ whole full snapshot as `snapshot` events.
 A `step-exit` readiness blocker (`readinessByTransition[...].blockers[]`) carries the
 human sentence in `message` (the same text as the CLI, shown only as a tooltip) and the
 machine-readable parts in `code`, `source` and the optional `subject`, `state` and
-`count`: `subject` is the blocked object (document kind, skill token, test display name,
+`count`: `subject` is the blocked object (document kind, or the input path for the
+`input-unread` blocker of a new Change, skill token, test display name,
 the reviewer whose host does not match), `state` its state (documents
 `missing|stale|unread`, skills `not-run|unrecorded`, inline tests
 `running|missing|stale|failed`, test-policy blockers `integrity` and `diff-unavailable`
@@ -316,8 +369,8 @@ The Dashboard labels blockers from `code` and these fields only and never parses
 kernel blocker code such as `reviewer-wrong-host`).
 
 The snapshot is cached per project. Each project's list build, full build and change
-details are keyed by that project's input fingerprint (state, tasks, documents, test-record
-directories, archive, git HEAD, terminal activity, and the viewer identity), so a change in
+details are keyed by that project's input fingerprint (state, tasks, documents, step-output
+records, test-record directories, archive, git HEAD, terminal activity, and the viewer identity), so a change in
 one project rebuilds that project only. An unchanged build is reused, with its original
 `generated_at`, for at most 30 seconds; at most four aged-out projects are refreshed per read
 so a cold start does not expire into one large rebuild. A write request drops the projects it
@@ -377,8 +430,9 @@ tenon dashboard --dry-run
 curl --fail http://127.0.0.1:18765/api/health
 ```
 
-In the browser, confirm that default, simple, free, and custom Changes show their
-own step shapes rather than one hard-coded Todo.
+In the browser, confirm that lightweight, heavy-Track and custom Changes show their
+own step shapes rather than one hard-coded Todo, and that a finished or terminated
+task appears under Ended with its result.
 
 ## Common failures
 

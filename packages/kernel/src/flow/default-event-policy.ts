@@ -194,7 +194,7 @@ function fieldStr(state: PipelineState, k: FieldName): string {
  *     绝不回写 state.fields。transition 推进后的 typed action（freeze/verify/archive，applyActions）
  *     仍读真实 state.fields（含原始数组），故 action patch 不受本归一污染（B 已判 action 逐字一致，
  *     此处不动 action 求值面）。
- *   · **只 default 轨放宽**：custom 轨（planCustomTransition→evaluateGuards 直吃原始 state.fields）
+ *   · **只 default 轨放宽**：custom 轨（planStepGraphTransition→evaluateGuards 直吃原始 state.fields）
  *     不经本归一，scalar guard 遇数组继续 fail-loud throw（guard-handlers.scalarValue 抛错）——
  *     列表字段进 scalar guard 在 custom 轨仍是须暴露的越界；default 轨的 guard 字段全来自受控
  *     FIELD_ORDER 的非列表字段（LIST_FIELDS 不进任何 default guard），join 归一是老 switch 既有的、

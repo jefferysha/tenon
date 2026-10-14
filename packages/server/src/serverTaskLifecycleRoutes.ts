@@ -1,8 +1,9 @@
 /**
- * 删除 / 归档 / 取消归档 over HTTP. Every decision — reasons, refusals and records — comes from the shared
- * kernel application, so the Dashboard and the CLI can never disagree, and the server re-checks the reasons
- * under the lock rather than trusting the codes the dialog echoed back. The read is loopback-only like
- * `/history`; the writes pass the same Host + token (+ JSON) gates as every other mutation.
+ * 删除 / 终止 over HTTP. Every decision — reasons, refusals and records — comes from the shared kernel
+ * application, so the Dashboard and the CLI can never disagree, and the server re-checks the reasons under
+ * the lock rather than trusting the codes the dialog echoed back. The read is loopback-only like
+ * `/history`; the writes pass the same Host + token (+ JSON) gates as every other mutation. There is no
+ * "hide": a task ends by `terminate` (any unfinished task) or by `tenon task finish` in the terminal.
  */
 import { join } from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
@@ -14,8 +15,7 @@ import type {
 } from '@tenon/kernel'
 
 const DELETE_FAILED = '删除失败'
-/** Fixed 409 body text for every entry that refuses an archived Change. */
-export const TASK_ARCHIVED_HTTP_ERROR = '任务已归档，先取消归档'
+const INVALID_NAME = '非法 change 名（仅允许 a-z A-Z 0-9 - _，且不能是 archive）'
 const REASON_CODES: readonly TaskLifecycleReasonCode[] = [
   'afk-running', 'afk-queued', 'review-pending', 'host-session-live', 'has-dependents', 'owned-by-other',
 ]
@@ -29,7 +29,7 @@ export interface TaskLifecycleRouteDeps {
   readonly viewer: (root: string) => TenonUserResolution
   /** Drop the cached artifact service of a Change whose directory is gone. */
   readonly evictChange: (changeDir: string) => void
-  /** 任务删除 / 归档之后清理旧版本留在项目里的宿主 agent 文件（尽力而为，失败只 WARN）。 */
+  /** 任务删除 / 终止之后清理旧版本留在项目里的宿主 agent 文件（尽力而为，失败只 WARN）。 */
   readonly cleanupLegacyHostAgents: (repoRoot: string) => Promise<void>
 }
 
@@ -39,7 +39,7 @@ export interface TaskLifecycleHandlerDeps {
   readonly taskLifecycle?: TaskLifecycleRouteDeps
 }
 
-/** The archive / unarchive writes are the only handler that reads a body. */
+/** The terminate write is the only handler that reads a body. */
 export interface TaskLifecycleBodyDeps extends TaskLifecycleHandlerDeps {
   readonly readJsonBody: (req: IncomingMessage) => Promise<unknown>
 }
@@ -76,9 +76,16 @@ export function createTaskLifecycleRouteDeps(input: {
   readonly artifactServices: Map<string, unknown>
   /** 清理旧宿主 agent 文件时读 agent 库（「内容与当前库渲染一致」这条依据）；读失败退回只按所有权清单。 */
   readonly hostAgentLibrary: HostAgentLibraryReader
+  /** `openspec archive` for OpenSpec-governed tasks; tests inject a stand-in, production calls the installed CLI. */
+  readonly runOpenspecArchive?: (repoRoot: string, change: string) => Promise<void>
 }): TaskLifecycleRouteDeps {
   return {
-    app: createTaskLifecycleApplication({ store: input.store, clock: input.clock, nowMs: () => Date.now() }),
+    app: createTaskLifecycleApplication({
+      store: input.store,
+      clock: input.clock,
+      nowMs: () => Date.now(),
+      ...(input.runOpenspecArchive === undefined ? {} : { runOpenspecArchive: input.runOpenspecArchive }),
+    }),
     viewer: input.viewer,
     evictChange: (changeDir) => { input.artifactServices.delete(changeDir) },
     cleanupLegacyHostAgents: (repoRoot) => cleanupLegacyHostAgentsBestEffort(repoRoot, input.hostAgentLibrary),
@@ -91,7 +98,7 @@ function refusalOf(
 ): { status: number; body: Record<string, unknown> } | null {
   switch (outcome.kind) {
     case 'invalid-name':
-      return { status: 400, body: { ok: false, code: 'invalid-name', error: '非法 change 名（仅允许 a-z A-Z 0-9 - _，且不能是 archive）' } }
+      return { status: 400, body: { ok: false, code: 'invalid-name', error: INVALID_NAME } }
     case 'not-found':
       return { status: 404, body: { ok: false, code: 'task-not-found', error: '找不到该 change（无 canonical/legacy 状态）' } }
     case 'identity-missing':
@@ -100,13 +107,29 @@ function refusalOf(
       return { status: 409, body: { ok: false, code: 'task-blocked', error: '任务被阻止', reasons: outcome.reasons } }
     case 'confirmation-required':
       return { status: 409, body: { ok: false, code: 'confirmation-required', error: '需要确认', reasons: outcome.reasons } }
-    case 'archive-store-corrupt':
-      return { status: 409, body: { ok: false, code: 'archive-store-corrupt', error: `归档记录损坏: ${outcome.path}` } }
+    case 'already-terminal':
+      return { status: 409, body: { ok: false, code: 'task-terminal', error: '任务的状态机已走完，不能终止；在终端执行 tenon task finish 归档它' } }
+    case 'archive-failed':
+      return { status: 500, body: { ok: false, code: 'archive-failed', error: `归档失败: ${outcome.cause}` } }
     case 'delete-failed':
       return { status: 500, body: { ok: false, code: 'delete-failed', error: DELETE_FAILED } }
     default:
       return null
   }
+}
+
+/** 路径里的 change 名解码；畸形百分号编码（如 `%E0%A4%A`）会让 `decodeURIComponent` 抛 URIError，这里返回 null。 */
+function decodeChangeName(segment: string | undefined): string | null {
+  try {
+    return decodeURIComponent(segment ?? '')
+  } catch {
+    return null
+  }
+}
+
+function sendInvalidName(sendJson: TaskLifecycleHandlerDeps['sendJson'], res: ServerResponse): true {
+  sendJson(res, 400, { ok: false, code: 'invalid-name', error: INVALID_NAME })
+  return true
 }
 
 function codesOf(values: readonly unknown[]): readonly TaskLifecycleReasonCode[] | null {
@@ -130,8 +153,8 @@ export async function handleTaskLifecycleGet(
   const { sendJson, workflowRootForRequest, taskLifecycle } = deps
   const query = new URL(req.url ?? '/', 'http://localhost').searchParams
   const action = query.get('action') ?? ''
-  if (action !== 'delete' && action !== 'archive') {
-    sendJson(res, 400, { ok: false, code: 'invalid-action', error: 'action 须为 delete | archive' })
+  if (action !== 'delete' && action !== 'terminate') {
+    sendJson(res, 400, { ok: false, code: 'invalid-action', error: 'action 须为 delete | terminate' })
     return true
   }
   const rootCheck = workflowRootForRequest(query.get('root') ?? '')
@@ -139,10 +162,12 @@ export async function handleTaskLifecycleGet(
     sendJson(res, rootCheck.code, { ok: false, error: rootCheck.error })
     return true
   }
+  const change = decodeChangeName(match[1])
+  if (change === null) return sendInvalidName(sendJson, res)
   const repoRoot = rootCheck.anchor.path
   const assessed = await taskLifecycle.app.assess({
     repoRoot,
-    change: decodeURIComponent(match[1] ?? ''),
+    change,
     action,
     user: taskLifecycle.viewer(repoRoot),
   })
@@ -153,7 +178,7 @@ export async function handleTaskLifecycleGet(
   }
   // 删除前告诉用户能不能从 git 找回：目录里没有任何被跟踪的文件 = 不可恢复；探测失败不猜（null）。
   const tracking = action === 'delete'
-    ? await probeChangeTracked(repoRoot, decodeURIComponent(match[1] ?? ''))
+    ? await probeChangeTracked(repoRoot, change)
     : undefined
   sendJson(res, 200, {
     ok: true,
@@ -172,7 +197,7 @@ export async function handleTaskLifecyclePost(
   path: string,
   deps: TaskLifecycleBodyDeps,
 ): Promise<boolean> {
-  const match = /^\/api\/change\/([^/]+)\/(archive|unarchive)$/u.exec(path)
+  const match = /^\/api\/change\/([^/]+)\/terminate$/u.exec(path)
   if (!match || deps.taskLifecycle === undefined) return false
   const { sendJson, readJsonBody, workflowRootForRequest, taskLifecycle } = deps
   const body = await readJsonBody(req)
@@ -192,27 +217,31 @@ export async function handleTaskLifecyclePost(
     sendJson(res, rootCheck.code, { ok: false, error: rootCheck.error })
     return true
   }
+  const change = decodeChangeName(match[1])
+  if (change === null) return sendInvalidName(sendJson, res)
   const repoRoot = rootCheck.anchor.path
-  const change = decodeURIComponent(match[1] ?? '')
-  const command = { repoRoot, change, user: taskLifecycle.viewer(repoRoot), channel: 'dashboard' as const }
-  const outcome = match[2] === 'archive'
-    ? await taskLifecycle.app.archive({ ...command, acknowledged })
-    : await taskLifecycle.app.unarchive(command)
+  const outcome = await taskLifecycle.app.terminate({
+    repoRoot, change, user: taskLifecycle.viewer(repoRoot), channel: 'dashboard', acknowledged,
+  })
   const refusal = refusalOf(outcome)
   if (refusal !== null) {
     sendJson(res, refusal.status, refusal.body)
     return true
   }
-  if (outcome.kind === 'archived') {
-    await taskLifecycle.cleanupLegacyHostAgents(repoRoot)
-    sendJson(res, 200, {
-      ok: true, changed: outcome.changed, archived_at: outcome.entry.archivedAt, phase: outcome.entry.phase,
-    })
+  if (outcome.kind !== 'terminated') {
+    sendJson(res, 500, { ok: false, code: 'terminate-failed', error: '终止失败' })
     return true
   }
-  sendJson(res, outcome.kind === 'unarchived' ? 200 : 500, outcome.kind === 'unarchived'
-    ? { ok: true, changed: outcome.changed }
-    : { ok: false, code: 'delete-failed', error: DELETE_FAILED })
+  taskLifecycle.evictChange(join(repoRoot, 'openspec', 'changes', change))
+  await taskLifecycle.cleanupLegacyHostAgents(repoRoot)
+  sendJson(res, 200, {
+    ok: true,
+    result: outcome.archived.result,
+    archived_dir: outcome.archived.archivedDir,
+    ended_at: outcome.archived.endedAt,
+    commit: outcome.commit.kind,
+    ...(outcome.warnings.length === 0 ? {} : { warnings: outcome.warnings }),
+  })
   return true
 }
 
@@ -237,8 +266,9 @@ export async function handleTaskLifecycleDelete(
     sendJson(res, rootCheck.code, { ok: false, error: rootCheck.error })
     return true
   }
+  const change = decodeChangeName(match[1])
+  if (change === null) return sendInvalidName(sendJson, res)
   const repoRoot = rootCheck.anchor.path
-  const change = decodeURIComponent(match[1] ?? '')
   const outcome = await taskLifecycle.app.delete({
     repoRoot, change, user: taskLifecycle.viewer(repoRoot), channel: 'dashboard', acknowledged,
   })
@@ -254,7 +284,10 @@ export async function handleTaskLifecycleDelete(
   taskLifecycle.evictChange(join(repoRoot, 'openspec', 'changes', change))
   await taskLifecycle.cleanupLegacyHostAgents(repoRoot)
   sendJson(res, 200, {
-    ok: true, removed: outcome.removed, uncommittedDeletions: outcome.uncommittedDeletions,
+    ok: true,
+    removed: outcome.removed,
+    uncommittedDeletions: outcome.uncommittedDeletions,
+    ...(outcome.warnings.length === 0 ? {} : { warnings: outcome.warnings }),
   })
   return true
 }

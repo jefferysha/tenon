@@ -41,7 +41,7 @@ tenon doctor                                     # identity:release 为警告（
 
 ### 2. 遵守包边界
 
-- Kernel：纯领域规则、状态、Workflow、document contract 和持久化原语；
+- Kernel：纯领域规则、状态、Workflow、步骤产出观察和持久化原语；
 - CLI：参数、I/O 和应用编排；
 - Server：本地 API/SSE；
 - Dashboard：React 本地控制面；
@@ -56,7 +56,7 @@ tenon doctor                                     # identity:release 为警告（
 
 ### 4. 同步分发资产
 
-Workflow 改动必须更新 schema、codegen/freshness 和集成测试。文档模板以 `templates/documents` 为单一事实源，通过生成器产出 runtime registry；必须保持 `zh-CN`/`en` key parity、稳定 token、simple/custom 边界和历史不变。
+Workflow 改动必须更新 schema、codegen/freshness 和集成测试。文档模板以 `templates/documents` 为单一事实源，通过生成器产出 runtime registry；必须保持 `zh-CN`/`en` key parity、稳定 token、短流程/自定义工作流边界和历史不变。
 
 ### 5. 构建公共文档
 

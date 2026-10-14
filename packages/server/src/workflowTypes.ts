@@ -3,8 +3,6 @@ import type { FileIdentity } from './workflowTrustedFs.js'
 export class WorkflowNotFoundError extends Error {}
 
 export type WorkflowReferenceKind =
-  | 'track-default'
-  | 'track-allowed'
   | 'active-change'
   | 'loop-binding'
   | 'policy-template-recommended'

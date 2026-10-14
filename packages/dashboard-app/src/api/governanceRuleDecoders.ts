@@ -1,6 +1,6 @@
-/** Workflow-definition decoders for step rules: predicates, guards, transitions, artifacts, documents, tests. */
+/** Workflow-definition decoders for step rules: predicates, guards, transitions, artifacts, tests. */
 import type {
-  WbActionConfig, WbArtifactConfig, WbDocumentContract, WbGuardConfig, WbStepTest, WbTestInput,
+  WbActionConfig, WbArtifactConfig, WbGuardConfig, WbStepTest, WbTestInput,
   WbTestMetric, WbTestOutput, WbTestOutputKind, WbTrackPredicate, WbTransition,
 } from './governanceTypes'
 import { decodeArray, exactKeys, record, strings } from './governanceBaseDecoders'
@@ -31,6 +31,10 @@ export const GUARD_DATA_KEYS = {
   'full-direct-override': [],
   'build-head-unchanged': ['field'],
   'spec-migration-applied': [],
+  'tasks-through-step': [],
+  'not-afk-queued': [],
+  'dependencies-ended': [],
+  'required-output': ['path'],
 } as const satisfies Record<WbGuardConfig['type'], readonly string[]>
 
 export function isGuardType(value: string): value is WbGuardConfig['type'] {
@@ -85,6 +89,16 @@ export function decodeGuard(value: unknown): WbGuardConfig | null {
         : null
     case 'spec-migration-applied':
       return withWhen({ type: 'spec-migration-applied' }, when)
+    case 'tasks-through-step':
+      return withWhen({ type: 'tasks-through-step' }, when)
+    case 'not-afk-queued':
+      return withWhen({ type: 'not-afk-queued' }, when)
+    case 'dependencies-ended':
+      return withWhen({ type: 'dependencies-ended' }, when)
+    case 'required-output':
+      return typeof item.path === 'string' && item.path !== ''
+        ? withWhen({ type: 'required-output', path: item.path }, when)
+        : null
     default:
       return null
   }
@@ -129,28 +143,6 @@ export function decodeArtifact(value: unknown): WbArtifactConfig | null {
     producerPolicy: item.producerPolicy,
     ...(requiredWhen === undefined ? {} : { requiredWhen }),
   }
-}
-
-export function decodeDocumentSlot(value: unknown): WbDocumentContract['slots'][number] | null {
-  const item = record(value)
-  if (!item || typeof item.kind !== 'string' || typeof item.ownerStep !== 'string' || !strings(item.producers)) return null
-  if (item.role !== undefined && item.role !== 'update' && item.role !== 'require') return null
-  return { kind: item.kind, ownerStep: item.ownerStep, ...(item.role === undefined ? {} : { role: item.role }), producers: item.producers }
-}
-
-export function decodeDocumentRead(value: unknown): WbDocumentContract['reads'][number] | null {
-  const item = record(value)
-  return item && typeof item.step === 'string' && strings(item.kinds)
-    ? { step: item.step, kinds: item.kinds }
-    : null
-}
-
-export function decodeDocumentContract(value: unknown): WbDocumentContract | null {
-  const item = record(value)
-  if (!item || item.version !== 'v1') return null
-  const slots = decodeArray(item.slots, decodeDocumentSlot)
-  const reads = decodeArray(item.reads, decodeDocumentRead)
-  return slots === null || reads === null ? null : { version: 'v1', slots, reads }
 }
 
 export const TEST_OUTPUT_KINDS: readonly string[] = ['report', 'coverage', 'metrics', 'trace', 'screenshot', 'log', 'other']

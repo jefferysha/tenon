@@ -1,39 +1,38 @@
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
-import { BUILTIN_TRACK_DEFINITIONS, QuoteGateError } from '@tenon/kernel'
-import type { FieldName, PipelineState, TrackDefinition, TrackRegistry } from '@tenon/kernel'
+import { compileEffectiveWorkflowPlan, QuoteGateError, workflowPlanSnapshot } from '@tenon/kernel'
+import type { FieldName, PipelineState } from '@tenon/kernel'
 import { cmdCas, cmdGet, cmdSet, cmdSetMany } from './fields.js'
 import { FIXED_CLOCK, makeDeps, mockLegacyDefaultState, mockState, spy } from '../test-support.js'
 
-/**
- * 旁路测试用的自定义轨 registry（R2）：makeDeps 缺省 loadRegistry 只有内建 Track（allowed='*'
- * 恒放行，无法证明「最终组合校验」真的拦得住旁路）。这里直接构造一条 allowed 受限的额外 track，
- * 经 deps.loadRegistry 覆写注入——registry 的消费方（requireTrack/assertWorkflowAllowed）只读
- * ordered/byId/workflow.allowed，与「从 tracks.yaml load 出来的 project-file registry」同构。
- */
-function customTrack(id: string, allowed: '*' | readonly string[], defaultWorkflow = 'default'): TrackDefinition {
-  return {
-    id,
-    label: id,
-    builtin: false,
-    workflow: { default: defaultWorkflow, allowed },
-    policyProfile: {
-      reviewSeed: 'pending',
-      automationEligible: true,
-      coverageProfile: 'none',
-      routing: { enabled: false },
-      skills: { matrix: false, profile: '_all' },
-    },
-  }
-}
+/** 一条只有一步的分支（工作流 YAML 的 `tracks.<id>`）。 */
+const branch = (id: string): string => `  ${id}:
+    steps:
+      - id: only
+        label: only
+        gate: null
+        skills: []
+        inputs: []
+        outputs: []
+        guards: []
+        transitions: []
+`
 
-function registryWith(extra: TrackDefinition): TrackRegistry {
-  const ordered = [...BUILTIN_TRACK_DEFINITIONS, extra]
-  return {
-    ordered,
-    byId: new Map(ordered.map((t) => [t.id, t])),
-    revision: 'test-rev',
-    source: 'project-file',
-  }
+/**
+ * 旁路测试用的真工作流（轨道只认工作流分支）：`other` 有 data 分支，`other2` 只有 ops 分支，
+ * `other3` 两条都有。`makeDeps({ cwd })` 指向这个临时项目，轨道校验经 kernel 真加载工作流。
+ */
+async function projectWithBranches(): Promise<string> {
+  const cwd = await mkdtemp(join(tmpdir(), 'fields-branches-'))
+  await mkdir(join(cwd, '.pipeline', 'workflows'), { recursive: true })
+  const write = (name: string, ids: readonly string[]) =>
+    writeFile(join(cwd, '.pipeline', 'workflows', `${name}.yaml`), `name: ${name}\ntracks:\n${ids.map(branch).join('')}`, 'utf8')
+  await write('other', ['data'])
+  await write('other2', ['ops'])
+  await write('other3', ['data', 'ops'])
+  return cwd
 }
 
 describe('get —— stdout 裸值 / exit 契约（CONTRACT §3）', () => {
@@ -158,6 +157,12 @@ describe('set —— 无输出 / 四闸拒写 exit 1', () => {
     expect(deps.store.write.calls[0]?.[1].fields.depends_on).toEqual([])
   })
 
+  test('domain 是普通标量字段（创建时由 init --domain 记下，之后补记走 set）：值原样落盘，取值由读它的一侧校验', async () => {
+    const deps = makeDeps()
+    expect(await cmdSet(deps, 'demo', 'domain', 'backend')).toBe(0)
+    expect(deps.store.write.calls[0]?.[1].fields.domain).toBe('backend')
+  })
+
   test('四闸拒写（QuoteGateError）exit 1，stderr 有原因（P6：四闸在锁内 store.write→serialize 触发）', async () => {
     const deps = makeDeps()
     deps.store.write = spy(async (_d: string, _s: PipelineState): Promise<void> => {
@@ -174,6 +179,71 @@ describe('set —— 无输出 / 四闸拒写 exit 1', () => {
     const code = await cmdSet(deps, 'demo', 'nope', 'v')
     expect(code).toBe(1)
     expect(deps.store.set.calls).toHaveLength(0)
+  })
+})
+
+/**
+ * build_mode / isolation / direct_override / branch_status 的可选值（设计 §1b Q1、Q2 删除的决定）只属于旧执行模型：
+ * 新任务不再有这些决定，`set` 不再替它们校验取值；快照记着旧模型的在途任务照旧只收合法取值。
+ */
+describe('已删除的决定字段：可选值只对旧执行模型的任务生效', () => {
+  /** 新建的 default 任务：冻结的是按 YAML 执行（step-graph）的计划（`mockState` 的 default 是升级前的在途任务）。 */
+  const NEW_DEFAULT_SNAPSHOT = workflowPlanSnapshot(compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' }))
+  const newDefaultState = (fields: Partial<Record<FieldName, string | string[]>>): PipelineState => ({
+    ...mockState(fields),
+    runMetadata: {
+      runId: 'mock-new-default-run',
+      transitionSequence: 0,
+      workflowPlanFingerprint: NEW_DEFAULT_SNAPSHOT.workflowFingerprint,
+      workflowPlanSnapshot: NEW_DEFAULT_SNAPSHOT,
+    },
+  })
+
+  test.each([
+    ['build_mode', 'whatever'],
+    ['isolation', 'bogus'],
+    ['direct_override', 'maybe'],
+    ['branch_status', 'sideways'],
+  ] as const)('新任务 set %s %s：不再校验取值，照常写入', async (field, value) => {
+    const deps = makeDeps({ state: newDefaultState({ phase: 'build', track: 'backend' }) })
+    expect(await cmdSet(deps, 'demo', field, value), deps.errLines.join('\n')).toBe(0)
+    expect(deps.store.write.calls[0]?.[1].fields[field]).toBe(value)
+    expect(deps.errLines.join('\n')).not.toContain('非法值')
+  })
+
+  test('新任务 set-many 同样不校验这些字段的取值', async () => {
+    const deps = makeDeps({ state: newDefaultState({ phase: 'build', track: 'backend' }) })
+    expect(await cmdSetMany(deps, 'demo', ['isolation=bogus', 'branch_status=sideways']), deps.errLines.join('\n')).toBe(0)
+    expect(deps.store.write.calls[0]?.[1].fields.isolation).toBe('bogus')
+  })
+
+  test.each([
+    ['build_mode', 'whatever', 'direct subagent-driven-development parallel-team prototype'],
+    ['isolation', 'bogus', 'branch worktree in-place'],
+    ['direct_override', 'maybe', 'true false'],
+    ['branch_status', 'sideways', 'pending pass fail handled skipped'],
+  ] as const)('旧快照任务 set %s %s：照旧拒绝非法值并列出允许的取值', async (field, value, allowed) => {
+    const deps = makeDeps({ state: mockLegacyDefaultState({ phase: 'build', track: 'backend' }) })
+    expect(await cmdSet(deps, 'demo', field, value)).toBe(1)
+    expect(deps.errLines).toContain(`ERROR: 非法值 '${value}'，允许: ${allowed}`)
+    expect(deps.store.write.calls).toHaveLength(0)
+  })
+
+  test('读不到任务状态时如实报错并拒写，不当成「新任务」放行', async () => {
+    const deps = makeDeps({ state: newDefaultState({ phase: 'build', track: 'backend' }) })
+    deps.store.read = spy(async (): Promise<PipelineState> => { throw new Error('ENOENT: 任务状态读不到') })
+    expect(await cmdSet(deps, 'demo', 'isolation', 'bogus')).toBe(1)
+    expect(deps.errLines.join('\n')).toContain('ENOENT: 任务状态读不到')
+    expect(deps.store.write.calls).toHaveLength(0)
+  })
+
+  test('旧快照任务 set-many 整批拒绝非法值、零落盘；合法取值照常写入', async () => {
+    const bad = makeDeps({ state: mockLegacyDefaultState({ phase: 'build', track: 'backend' }) })
+    expect(await cmdSetMany(bad, 'demo', ['build_mode=direct', 'isolation=bogus'])).toBe(1)
+    expect(bad.store.write.calls).toHaveLength(0)
+    const ok = makeDeps({ state: mockLegacyDefaultState({ phase: 'build', track: 'backend' }) })
+    expect(await cmdSetMany(ok, 'demo', ['build_mode=direct', 'isolation=worktree']), ok.errLines.join('\n')).toBe(0)
+    expect(ok.store.write.calls[0]?.[1].fields.isolation).toBe('worktree')
   })
 })
 
@@ -464,15 +534,14 @@ describe('cas —— 0 成功 / 3 不匹配 / 1 错误', () => {
 })
 
 /**
- * track/workflow —— 动态 Track Registry 驱动校验（GOAL.md 清单 T · R2）。
- * makeDeps 的 loadRegistry 缺 tracks.yaml → 内建 Track builtin-only（allowed='*' 恒放行）。
+ * track/workflow —— 最终组合校验（轨道须是所选工作流的分支）。
  * R2 关 TOCTOU：track/workflow 四写入口都在 store.withLock 内 read→校验最终组合→store.write，
  * 不再走 store.set/setMany/cas（那三者各自 withLock、无法与校验同锁）。故这些用例断言「锁内落盘
  * 的最终 state」（store.write），而非旧的 store.set/cas/setMany 旁路调用。
  */
-describe('set/cas/set-many track & workflow —— registry 驱动校验（R2；builtin-only 零回归）', () => {
+describe('set/cas/set-many track & workflow —— 最终组合校验（R2）', () => {
   test('set track 合法内建轨：锁内落盘 track=frontend（不走 store.set）', async () => {
-    const deps = makeDeps({ state: mockState({ track: 'chat', workflow: 'default' }) })
+    const deps = makeDeps({ state: mockState({ track: 'pm', workflow: 'default' }) })
     const code = await cmdSet(deps, 'demo', 'track', 'frontend')
     expect(code).toBe(0)
     expect(deps.store.set.calls).toHaveLength(0)
@@ -480,45 +549,52 @@ describe('set/cas/set-many track & workflow —— registry 驱动校验（R2；
     expect(deps.store.write.calls[0]?.[1].fields.track).toBe('frontend')
   })
 
-  test('set track 未注册值：exit 1，不落盘，stderr 报未注册', async () => {
-    const deps = makeDeps({ state: mockState({ track: 'chat' }) })
+  test('set track 工作流没有的轨道：exit 1，不落盘，stderr 报没有该轨道', async () => {
+    const deps = makeDeps({ state: mockState({ track: 'pm' }) })
     const code = await cmdSet(deps, 'demo', 'track', 'devops')
     expect(code).toBe(1)
     expect(deps.store.write.calls).toHaveLength(0)
     expect(deps.store.set.calls).toHaveLength(0)
-    expect(deps.errLines.join('\n')).toContain("未注册的 track 'devops'")
+    expect(deps.errLines.join('\n')).toContain("工作流 'default' 没有轨道 'devops'")
   })
 
   test('cas track 合法内建轨：expect 命中 → 锁内落盘 track=backend（不走 store.cas）', async () => {
-    const deps = makeDeps({ state: mockState({ track: 'chat', workflow: 'default' }) })
-    expect(await cmdCas(deps, 'demo', 'track', 'chat', 'backend')).toBe(0)
+    const deps = makeDeps({ state: mockState({ track: 'pm', workflow: 'default' }) })
+    expect(await cmdCas(deps, 'demo', 'track', 'pm', 'backend')).toBe(0)
     expect(deps.store.cas.calls).toHaveLength(0)
     expect(deps.store.write.calls[0]?.[1].fields.track).toBe('backend')
   })
 
   test('cas track expect 不命中：exit 3，不落盘', async () => {
-    const deps = makeDeps({ state: mockState({ track: 'chat' }) })
+    const deps = makeDeps({ state: mockState({ track: 'pm' }) })
     expect(await cmdCas(deps, 'demo', 'track', 'frontend', 'backend')).toBe(3)
     expect(deps.store.write.calls).toHaveLength(0)
   })
 
-  test('cas track 未注册新值：exit 1，不落盘（不留旁路）', async () => {
-    const deps = makeDeps({ state: mockState({ track: 'chat' }) })
-    expect(await cmdCas(deps, 'demo', 'track', 'chat', 'devops')).toBe(1)
+  test('cas track 工作流没有的新值：exit 1，不落盘（不留旁路）', async () => {
+    const deps = makeDeps({ state: mockState({ track: 'pm' }) })
+    expect(await cmdCas(deps, 'demo', 'track', 'pm', 'devops')).toBe(1)
     expect(deps.store.cas.calls).toHaveLength(0)
     expect(deps.store.write.calls).toHaveLength(0)
   })
 
-  test('set workflow：内建轨 allowed=* 恒放行（读旧 track 后校验最终组合），锁内落盘', async () => {
-    const deps = makeDeps({ state: mockState({ track: 'backend', workflow: 'default' }) })
-    const code = await cmdSet(deps, 'demo', 'workflow', 'anything')
+  test('set workflow：读旧 track 后校验最终组合（default 有 backend 分支 → 放行），锁内落盘', async () => {
+    const deps = makeDeps({ state: mockState({ track: 'backend', workflow: 'other', phase: 'open' }) })
+    const code = await cmdSet(deps, 'demo', 'workflow', 'default')
     expect(code).toBe(0)
     expect(deps.store.set.calls).toHaveLength(0)
-    expect(deps.store.write.calls[0]?.[1].fields.workflow).toBe('anything')
+    expect(deps.store.write.calls[0]?.[1].fields.workflow).toBe('default')
+  })
+
+  test('set workflow 不存在的工作流：exit 1，不落盘（任务没有绑定别的工作流的冻结计划）', async () => {
+    const deps = makeDeps({ state: mockState({ track: 'backend', workflow: 'other', phase: 'open' }) })
+    expect(await cmdSet(deps, 'demo', 'workflow', 'anything')).toBe(1)
+    expect(deps.store.write.calls).toHaveLength(0)
+    expect(deps.errLines.join('\n')).toContain("workflow 'anything' 未找到")
   })
 
   test('set-many track+workflow：按最终组合校验（内建轨放行），锁内一次落盘两字段', async () => {
-    const deps = makeDeps({ state: mockState({ track: 'chat', workflow: 'default' }) })
+    const deps = makeDeps({ state: mockState({ track: 'pm', workflow: 'default' }) })
     const code = await cmdSetMany(deps, 'demo', ['track=frontend', 'workflow=default'])
     expect(code).toBe(0)
     expect(deps.store.setMany.calls).toHaveLength(0)
@@ -527,26 +603,45 @@ describe('set/cas/set-many track & workflow —— registry 驱动校验（R2；
     expect(written?.workflow).toBe('default')
   })
 
-  test('set-many track=<未注册>：exit 1，不落盘', async () => {
-    const deps = makeDeps({ state: mockState({ track: 'chat' }) })
+  test('set-many track=<工作流没有的轨道>：exit 1，不落盘', async () => {
+    const deps = makeDeps({ state: mockState({ track: 'pm' }) })
     const code = await cmdSetMany(deps, 'demo', ['track=devops'])
     expect(code).toBe(1)
     expect(deps.store.setMany.calls).toHaveLength(0)
     expect(deps.store.write.calls).toHaveLength(0)
   })
 
-  test('set-many 不触及 track/workflow：P6 只取 change 锁（read→write），不进 registry 锁、不走 store.setMany', async () => {
+  test('set track|workflow 先取项目协调锁再取 change 锁（锁序 项目锁 → 任务锁），与 server 工作流删除互斥', async () => {
+    const deps = makeDeps({ state: mockState({ track: 'pm', workflow: 'default' }) })
+    const order: string[] = []
+    const origProject = deps.withProjectLock
+    deps.withProjectLock = async (cb) => {
+      order.push('project:enter')
+      const result = await origProject(cb)
+      order.push('project:exit')
+      return result
+    }
+    const origWithLock = deps.store.withLock
+    deps.store.withLock = spy(async (dir: string, fn: () => Promise<unknown>): Promise<unknown> => {
+      order.push('change:enter')
+      return origWithLock(dir, fn)
+    })
+    expect(await cmdSet(deps, 'demo', 'track', 'frontend')).toBe(0)
+    expect(order).toEqual(['project:enter', 'change:enter', 'project:exit'])
+  })
+
+  test('set-many 不触及 track/workflow：P6 只取 change 锁（read→write），不进项目协调锁、不走 store.setMany', async () => {
     const deps = makeDeps()
-    let registryLocked = false
-    const origRL = deps.withRegistryLock
-    deps.withRegistryLock = async (cb) => {
-      registryLocked = true
-      return origRL(cb)
+    let projectLocked = false
+    const origPL = deps.withProjectLock
+    deps.withProjectLock = async (cb) => {
+      projectLocked = true
+      return origPL(cb)
     }
     const code = await cmdSetMany(deps, 'demo', ['build_mode=direct', 'isolation=branch'])
     expect(code).toBe(0)
-    // 非 track/workflow：不触发 registry→change 锁序（runComboWrite），只在 change 锁内 read→write
-    expect(registryLocked).toBe(false)
+    // 非 track/workflow：不触发 项目锁→任务锁 锁序（runComboWrite），只在 change 锁内 read→write
+    expect(projectLocked).toBe(false)
     expect(deps.store.withLock.calls).toHaveLength(1)
     expect(deps.store.setMany.calls).toHaveLength(0)
     expect(deps.store.write.calls[0]?.[1].fields.build_mode).toBe('direct')
@@ -554,66 +649,57 @@ describe('set/cas/set-many track & workflow —— registry 驱动校验（R2；
 })
 
 /**
- * 旁路关闭证明（codex R2 阻断）：自定义轨 data 的 allowed=['default']（不含 'other'）。
- * 现状（旧代码）能绕——set track 只 requireTrack（不看旧 workflow）、cas track 同样、cas workflow
- * 完全无 registry 校验，命中即写。修复后：四写入口都按最终 {track,workflow} 组合校验，命中即拒、
- * 且绝不落盘（store.write 零调用）。对照内建轨 allowed='*' 的放行由上一 describe 锚定（零回归）。
+ * 旁路关闭证明（codex R2 阻断）：轨道 data 只在工作流 other / other3 里有分支，other2 没有。
+ * 旧代码能绕——set track 只看轨道（不看旧 workflow）、cas track 同样、cas workflow 完全不校验，命中即写。
+ * 修复后：四写入口都按最终 {track,workflow} 组合校验（该工作流真加载、真有这条轨道），命中即拒、
+ * 且绝不落盘（store.write 零调用）。轨道不再有独立登记表，组合是否成立只看工作流自己的分支。
  */
-describe('track/workflow 旁路关闭 —— 最终组合校验（R2；自定义轨 allowed 受限）', () => {
-  test('set track：新轨 data 已注册，但 data.allowed=[other] 不含旧 workflow=other2 → 拒、不落盘', async () => {
-    const deps = makeDeps({ state: mockState({ track: 'chat', workflow: 'other2' }) })
-    deps.loadRegistry = () => registryWith(customTrack('data', ['other'], 'other'))
+describe('track/workflow 旁路关闭 —— 最终组合校验（轨道只认工作流分支）', () => {
+  test('set track：data 在 other2 里没有分支 → 拒、不落盘，stderr 列出 other2 的轨道', async () => {
+    const deps = makeDeps({ cwd: await projectWithBranches(), state: mockState({ track: 'ops', workflow: 'other2', phase: 'only' }) })
     const code = await cmdSet(deps, 'demo', 'track', 'data')
     expect(code).toBe(1); expect(deps.store.write.calls).toHaveLength(0)
-    expect(deps.errLines.join('\n')).toContain("不允许绑定 workflow 'other2'")
+    expect(deps.errLines.join('\n')).toContain("工作流 'other2' 没有轨道 'data'")
   })
-  test('set track：切到 data 且旧 workflow=other（在 allowed 内）→ 放行、落盘 track=data', async () => {
-    const deps = makeDeps({ state: mockState({ track: 'chat', workflow: 'other' }) })
-    deps.loadRegistry = () => registryWith(customTrack('data', ['other'], 'other'))
+  test('set track：切到 data 且旧 workflow=other3（有 data 分支）→ 放行、落盘 track=data', async () => {
+    const deps = makeDeps({ cwd: await projectWithBranches(), state: mockState({ track: 'ops', workflow: 'other3', phase: 'only' }) })
     expect(await cmdSet(deps, 'demo', 'track', 'data')).toBe(0)
     expect(deps.store.write.calls[0]?.[1].fields.track).toBe('data')
   })
   test('cas track：expect 命中新值 data，但最终组合 data+other2 非法 → 拒、不落盘', async () => {
-    const deps = makeDeps({ state: mockState({ track: 'chat', workflow: 'other2' }) })
-    deps.loadRegistry = () => registryWith(customTrack('data', ['other'], 'other'))
-    expect(await cmdCas(deps, 'demo', 'track', 'chat', 'data')).toBe(1)
+    const deps = makeDeps({ cwd: await projectWithBranches(), state: mockState({ track: 'ops', workflow: 'other2', phase: 'only' }) })
+    expect(await cmdCas(deps, 'demo', 'track', 'ops', 'data')).toBe(1)
     expect(deps.store.write.calls).toHaveLength(0)
-    expect(deps.errLines.join('\n')).toContain("不允许绑定 workflow 'other2'")
+    expect(deps.errLines.join('\n')).toContain("工作流 'other2' 没有轨道 'data'")
   })
-  test('cas workflow：把 workflow 换成旧 track=data 的 allowed 外值 other2 → 拒、不落盘', async () => {
-    const deps = makeDeps({ state: mockState({ track: 'data', workflow: 'other' }) })
-    deps.loadRegistry = () => registryWith(customTrack('data', ['other'], 'other'))
+  test('cas workflow：把 workflow 换成没有旧 track=data 分支的 other2 → 拒、不落盘', async () => {
+    const deps = makeDeps({ cwd: await projectWithBranches(), state: mockState({ track: 'data', workflow: 'other', phase: 'only' }) })
     expect(await cmdCas(deps, 'demo', 'workflow', 'other', 'other2')).toBe(1)
     expect(deps.store.write.calls).toHaveLength(0)
-    expect(deps.errLines.join('\n')).toContain("不允许绑定 workflow 'other2'")
+    expect(deps.errLines.join('\n')).toContain("工作流 'other2' 没有轨道 'data'")
   })
   test('cas workflow：expect 不命中→ exit 3', async () => {
-    const deps = makeDeps({ state: mockState({ track: 'data', workflow: 'other' }) })
-    deps.loadRegistry = () => registryWith(customTrack('data', ['other', 'other2'], 'other'))
-    expect(await cmdCas(deps, 'demo', 'workflow', 'stale', 'other2')).toBe(3)
+    const deps = makeDeps({ cwd: await projectWithBranches(), state: mockState({ track: 'data', workflow: 'other', phase: 'only' }) })
+    expect(await cmdCas(deps, 'demo', 'workflow', 'stale', 'other3')).toBe(3)
   })
-  test('cas workflow：allowed 内值放行', async () => {
-    const deps = makeDeps({ state: mockState({ track: 'data', workflow: 'other' }) })
-    deps.loadRegistry = () => registryWith(customTrack('data', ['other', 'other2'], 'other'))
-    expect(await cmdCas(deps, 'demo', 'workflow', 'other', 'other2')).toBe(0)
-    expect(deps.store.write.calls[0]?.[1].fields.workflow).toBe('other2')
+  test('cas workflow：换成同样有 data 分支的 other3 → 放行', async () => {
+    const deps = makeDeps({ cwd: await projectWithBranches(), state: mockState({ track: 'data', workflow: 'other', phase: 'only' }) })
+    expect(await cmdCas(deps, 'demo', 'workflow', 'other', 'other3')).toBe(0)
+    expect(deps.store.write.calls[0]?.[1].fields.workflow).toBe('other3')
   })
-  test('set workflow：旧 track=data、新 workflow=other2 不在 data.allowed → 拒、不落盘', async () => {
-    const deps = makeDeps({ state: mockState({ track: 'data', workflow: 'other' }) })
-    deps.loadRegistry = () => registryWith(customTrack('data', ['other'], 'other'))
+  test('set workflow：旧 track=data、新 workflow=other2 没有 data 分支 → 拒、不落盘', async () => {
+    const deps = makeDeps({ cwd: await projectWithBranches(), state: mockState({ track: 'data', workflow: 'other', phase: 'only' }) })
     expect(await cmdSet(deps, 'demo', 'workflow', 'other2')).toBe(1)
     expect(deps.store.write.calls).toHaveLength(0)
-    expect(deps.errLines.join('\n')).toContain("不允许绑定 workflow 'other2'")
+    expect(deps.errLines.join('\n')).toContain("工作流 'other2' 没有轨道 'data'")
   })
   test('set-many：track=data + workflow=other2 最终组合非法', async () => {
-    const deps = makeDeps({ state: mockState({ track: 'chat', workflow: 'other' }) })
-    deps.loadRegistry = () => registryWith(customTrack('data', ['other'], 'other'))
+    const deps = makeDeps({ cwd: await projectWithBranches(), state: mockState({ track: 'data', workflow: 'other', phase: 'only' }) })
     expect(await cmdSetMany(deps, 'demo', ['track=data', 'workflow=other2'])).toBe(1)
     expect(deps.store.write.calls).toHaveLength(0)
   })
   test('set-many：旧 workflow=other2 单独切 track=data，本非法但同批补 workflow=other 合法', async () => {
-    const deps = makeDeps({ state: mockState({ track: 'chat', workflow: 'other2' }) })
-    deps.loadRegistry = () => registryWith(customTrack('data', ['other'], 'other'))
+    const deps = makeDeps({ cwd: await projectWithBranches(), state: mockState({ track: 'ops', workflow: 'other2', phase: 'only' }) })
     expect(await cmdSetMany(deps, 'demo', ['track=data', 'workflow=other'])).toBe(0)
     const written = deps.store.write.calls[0]?.[1].fields
     expect(written?.track).toBe('data'); expect(written?.workflow).toBe('other')
@@ -628,7 +714,7 @@ describe('track/workflow 旁路关闭 —— 最终组合校验（R2；自定义
  */
 describe('track/workflow 写入 —— 校验与落盘同锁（R2 · TOCTOU 锚点）', () => {
   test('set track：read→write 都在 store.withLock 区间内（同锁，非锁外读+锁内写）', async () => {
-    const deps = makeDeps({ state: mockState({ track: 'chat', workflow: 'default' }) })
+    const deps = makeDeps({ state: mockState({ track: 'pm', workflow: 'default' }) })
     const order: string[] = []
     const origWithLock = deps.store.withLock
     const origRead = deps.store.read
@@ -654,7 +740,7 @@ describe('track/workflow 写入 —— 校验与落盘同锁（R2 · TOCTOU 锚�
 
 /**
  * P6 —— set/set-many/cas 对「当前有效 artifact 字段」cutover：旧写入口拒、改走 tenon artifact
- * register（default 轨判定源 defaultArtifactsForStep，与 register 同口径 effectiveArtifactFields）。
+ * register（判定源是 effectiveArtifactFields，与 register 同口径）。
  * custom 轨拒写 + fail-loud 在 artifact.integration.test.ts 端到端覆盖。
  */
 describe('P6 —— set/set-many/cas 对当前有效 artifact 字段 cutover', () => {
@@ -809,6 +895,37 @@ describe('archived 由转换管理，不接受字段写入', () => {
     const cas = makeDeps({ state: mockState({ phase: 'archive', archived: 'false' }) })
     expect(await cmdCas(cas, 'demo', 'archived', 'false', 'true')).toBe(1)
     expect(cas.store.write.calls).toHaveLength(0)
+  })
+})
+
+/**
+ * 任务结果（task_result）是系统专写字段：只由 `tenon task finish` / `terminate` 在移动任务目录之前写入，
+ * 手写一个结果会让任务在没有归档的情况下看起来已经结束（或把真实结果改掉）。
+ */
+describe('task_result 只由 tenon task finish / terminate 写入，不接受字段写入', () => {
+  test('set → exit 1、零落盘，文案点名 tenon task finish / terminate', async () => {
+    const deps = makeDeps({ state: mockState({ phase: 'build' }) })
+    expect(await cmdSet(deps, 'demo', 'task_result', 'terminated')).toBe(1)
+    expect(deps.store.write.calls).toHaveLength(0)
+    const err = deps.errLines.join('\n')
+    expect(err).toContain('task_result')
+    expect(err).toContain('tenon task finish')
+    expect(err).toContain('terminate')
+  })
+
+  test('set-many 与 cas 走同一条边界（含清空：不能借 cas 清掉真实结果）', async () => {
+    const many = makeDeps({ state: mockState({ phase: 'build' }) })
+    expect(await cmdSetMany(many, 'demo', ['task_result=finished', 'branch=x'])).toBe(1)
+    expect(many.store.write.calls).toHaveLength(0)
+    const cas = makeDeps({ state: mockState({ phase: 'build', task_result: 'terminated' }) })
+    expect(await cmdCas(cas, 'demo', 'task_result', 'terminated', '')).toBe(1)
+    expect(cas.store.write.calls).toHaveLength(0)
+  })
+
+  test('get 照常读得到', async () => {
+    const deps = makeDeps({ state: mockState({ phase: 'build', task_result: 'terminated' }) })
+    expect(await cmdGet(deps, 'demo', 'task_result')).toBe(0)
+    expect(deps.outLines).toEqual(['terminated'])
   })
 })
 

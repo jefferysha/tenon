@@ -9,13 +9,15 @@ import { cleanupLegacyHostAgents, loadAgentLibrary, renderCurrentFromLibrary } f
 import type { AgentLibrary, HostAgentHost, StateStore } from '@tenon/kernel'
 import { repoRootForSkills } from './serverSupport.js'
 import { errText } from './transitionResult.js'
-import type { ServerPaths } from './types.js'
 
 /** 读 `root` 项目可见的 agent 库（官方 + 自定义 + 该项目层）；清理据此判断「内容是否仍是旧版本写的」。 */
 export type HostAgentLibraryReader = (root: string) => Promise<AgentLibrary>
 
-/** 服务端的库读取：与 agent 库路由同一份产品配置根和插件根。 */
-export function hostAgentLibraryReaderOf(paths: ServerPaths): HostAgentLibraryReader {
+/**
+ * 服务端的库读取：与 agent 库路由同一份产品配置根和插件根。只需要配置根，所以入参取最小形状
+ * （不 import ServerPaths：那会把整个 server 契约类型拉进 dashboard 的类型检查）。
+ */
+export function hostAgentLibraryReaderOf(paths: { readonly configRoot: string }): HostAgentLibraryReader {
   return (root) => loadAgentLibrary({ payloadRoot: repoRootForSkills(), configRoot: paths.configRoot, projectRoot: root })
 }
 

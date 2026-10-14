@@ -9,12 +9,16 @@
  */
 import { execFile } from 'node:child_process'
 import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
+import { compileEffectiveWorkflowPlan } from '@tenon/kernel'
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { makeHarness, type Harness } from './integration-harness.js'
+
+// afkloop 的 phases：下方 loops.yaml 与「子进程 HOME 里要装哪些技能」共用这一份，避免两处漂移。
+const AFK_LOOP_PHASES = ['explore', 'build'] as const
 
 /**
  * GOAL H · Stage C：afk run 现经 admission 权威闸门——change 必须归属到一个 active loop 才被 admit。
@@ -40,8 +44,7 @@ loops:
     change_prefix: null
     skill_bundle_id: _all
     phases:
-      - explore
-      - build
+${AFK_LOOP_PHASES.map((phase) => `      - ${phase}`).join('\n')}
     human_gates:
       - verify
     state: .superpowers/loops/progress.md
@@ -58,19 +61,23 @@ loops:
       - .sandcastle-build/**
 `
 
+// AFK 资格只读分支的 automation.eligible：夹具工作流用一条声明了它的 backend 分支，而不是平铺。
 const CUSTOM_BUILD_WORKFLOW = `name: h7s3-custom-workflow
 interaction:
   version: v1
   mode: afk
-steps:
-  - id: build
-    label: Build
-    gate: null
-    skills: []
-    inputs: []
-    outputs: []
-    guards: []
-    transitions: []
+tracks:
+  backend:
+    automation: { eligible: true }
+    steps:
+      - id: build
+        label: Build
+        gate: null
+        skills: []
+        inputs: []
+        outputs: []
+        guards: []
+        transitions: []
 `
 
 const AFK_BUILD_WORKFLOW_ID = 'afk-build-fixture'
@@ -78,15 +85,18 @@ const AFK_BUILD_WORKFLOW = `name: ${AFK_BUILD_WORKFLOW_ID}
 interaction:
   version: v1
   mode: afk
-steps:
-  - id: build
-    label: Build
-    gate: null
-    skills: []
-    inputs: []
-    outputs: []
-    guards: []
-    transitions: []
+tracks:
+  backend:
+    automation: { eligible: true }
+    steps:
+      - id: build
+        label: Build
+        gate: null
+        skills: []
+        inputs: []
+        outputs: []
+        guards: []
+        transitions: []
 `
 
 async function seedLoops(cwd: string): Promise<void> {
@@ -113,10 +123,46 @@ interface BundleRunResult {
   readonly stderr: string
 }
 
+/**
+ * afkloop 在 default 工作流（backend 分支，同 automation 的 LOOP_DEFAULT_TRACK）各 phase 声明的技能 id。
+ * 不手抄清单：工作流 YAML 改了步骤技能，这里跟着变。`_all` profile 不会再叠加别的技能——CLI 的 resolver
+ * 没有覆写 resolveExplicitProfile，resolveSkillBundle 只取计划冻结的步骤声明——所以只取 phases 对应的步骤。
+ */
+function loopSkillIds(): string[] {
+  const { steps } = compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' }).capabilities.skills
+  const phases: readonly string[] = AFK_LOOP_PHASES
+  const ids = [...new Set(steps.filter((step) => phases.includes(step.stepId)).flatMap((step) => step.requiredSkillIds))]
+  if (ids.length === 0) throw new Error(`default 工作流 backend 分支在 ${phases.join('/')} 上没有声明任何技能，夹具无从安装`)
+  return ids
+}
+
+/**
+ * 给真实 CLI 子进程的隔离 HOME。AFK loop 接线核验（productionSkillContentRoots）按 `$HOME` 下的技能根定位 phase 声明的外部技能
+ * （openspec-explore、brainstorming 等，只在正式安装包和开发机的技能目录里，源码仓 skills/ 没有）；继承宿主 HOME
+ * 会让本测试只在装好技能的开发机上过、在干净的 CI 上失败。所以按真实安装的形状放占位技能：
+ * `<home>/.agents/skills/<id>/SKILL.md`——skills CLI 的全局安装落点，Codex 与 Claude 两个 runner 档都读它，
+ * 不绑死 loop 的 runner。定位器只认「根下有同名目录」，SKILL.md 带 name/description 是为了贴近真实形状。
+ * 运行时根与身份不受 HOME 影响：TENON_RUNTIME_HOME / TENON_USER 由 vitest 隔离 setup 显式设置，
+ * resolveProductPaths 里它们优先于从 HOME 派生的路径，下面 env 照旧继承。
+ * docker CLI 的 context（本机 Docker Desktop / OrbStack 的 socket）记在 `$HOME/.docker`，HOME 换掉后会找不到 daemon，
+ * 所以 DOCKER_CONFIG 钉回宿主的 docker 客户端配置（只含 docker 自己的配置，不涉及 Tenon / Claude / Codex 状态）。
+ */
+async function makeSkillHome(): Promise<string> {
+  const home = await mkdtemp(join(tmpdir(), 'afk-run-home-'))
+  for (const id of loopSkillIds()) {
+    const dir = join(home, '.agents', 'skills', id)
+    await mkdir(dir, { recursive: true })
+    await writeFile(join(dir, 'SKILL.md'), `---\nname: ${id}\ndescription: AFK 接线核验用的占位技能\n---\n\n占位内容，仅让技能定位器在隔离 HOME 里命中 ${id}。\n`)
+  }
+  return home
+}
+
 /** H14 digest 诚实门要求生产 run 必须来自真实 dist；不能再用源码内 buildProgram 冒充 bundle。 */
 async function runBundle(cwd: string, args: readonly string[]): Promise<BundleRunResult> {
+  const home = await makeSkillHome()
   try {
-    const result = await execFileAsync(process.execPath, [bundlePath, ...args], { cwd })
+    const env = { ...process.env, HOME: home, DOCKER_CONFIG: process.env.DOCKER_CONFIG ?? join(homedir(), '.docker') }
+    const result = await execFileAsync(process.execPath, [bundlePath, ...args], { cwd, env })
     return { code: 0, stdout: result.stdout, stderr: result.stderr }
   } catch (error) {
     const failed = error as NodeJS.ErrnoException & { stdout?: string; stderr?: string }
@@ -125,6 +171,8 @@ async function runBundle(cwd: string, args: readonly string[]): Promise<BundleRu
       stdout: failed.stdout ?? '',
       stderr: failed.stderr ?? failed.message,
     }
+  } finally {
+    await rm(home, { recursive: true, force: true })
   }
 }
 

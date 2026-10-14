@@ -302,7 +302,7 @@ describe('checkDefaultEventPreconditions —— verify-pass（老仓 L163-199，
       ...base, phase: 'verify', track: 'pm', isolation: 'branch', build_sha: [token],
     })
     const before = structuredClone(state)
-    const plan = compileEffectiveWorkflowPlan('default')
+    const plan = compileEffectiveWorkflowPlan('default', undefined, { track: 'pm', executionModel: 'phase-manifest' })
     const readiness = await readinessByTransition(plan, state, {
       changeDirAbs: '/tmp/issue-42-default-readiness',
       fileExists: () => true,

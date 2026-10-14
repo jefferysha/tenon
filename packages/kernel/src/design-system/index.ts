@@ -7,5 +7,3 @@ export type { DesignFileReader, DesignSystemCheck, DesignSystemStatus } from './
 export {
   DESIGN_PROPOSAL_SCHEMA, designBaseDigest, designProposalBase, designProposalPath, renderDesignProposal,
 } from './proposal.js'
-export { ProjectDocumentPreconditionError, assertCreationPreconditions } from './precondition.js'
-export type { CreationPreconditionInput, ProjectDocumentKindSpec } from './precondition.js'

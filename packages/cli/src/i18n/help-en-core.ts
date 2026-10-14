@@ -10,7 +10,8 @@ export const HELP_EN_CORE: Readonly<Record<string, string>> = {
   tenon: 'Tenon state machine CLI (CONTRACT §3)',
   '--version': 'Print the Tenon version',
   init: 'Initialize a change (in the main checkout of a git repository it is created in its own worktree under .worktrees/<name>; stdout stays empty; path details go to stderr)',
-  'init --track': 'chat | simple | pm | frontend | backend | free | custom',
+  'init --track': "the workflow's track (see tenon tracks list); required for a workflow with branches, omitted for a flat workflow",
+  'init --domain': 'the domain track recorded with a lite task (another track of the same workflow); used to name the track of the follow-up task when the lite task escalates',
   'init --preset': 'full | hotfix | tweak (required for the default workflow; may be omitted with an explicit --workflow)',
   'init --workflow': 'custom workflow name (.pipeline/workflows/<name>.yaml); default when omitted',
   'init --document-locale': 'governed document language: zh-CN (default) | en',
@@ -113,7 +114,7 @@ export const HELP_EN_CORE: Readonly<Record<string, string>> = {
   'document record --all': 'Record every document of the current step whose file is already written (no kind / path; documents that are already current are left alone, unfinished ones are listed and skipped)',
   'document record --backfill': 'Only when upgrading an old Change: record earlier phases\' unrecorded documents for the first time; never overwrites an existing record and still needs real skill evidence',
   'document migrate-delta': 'Explicitly migrate one old delta record; replaced atomically only when the canonical file matches the old digest exactly, and safe to retry',
-  'document read': "Record that the current phase read a document (kind may be 'all')",
+  'document read': "Record that the current phase read documents (tasks created before the upgrade: a document kind or 'all'; new tasks: 'all' or the path of one handoff input)",
   'document status': 'Show document artifacts, content digests and the current phase\'s read receipts (exit 2 when incomplete)',
   'document status --json': 'JSON output',
 

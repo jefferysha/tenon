@@ -7,28 +7,23 @@ import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { promisify } from 'node:util'
 import {
-  builtinTrack,
   changedFilesForState,
   changeStartOfFields,
   compileEffectiveWorkflowPlan,
   effectiveWorkflowPlanFromSnapshot,
-  effectiveWorkflowPlanBinding,
   ensureDocumentLedger,
   isCurrentTaskPlanProjectionForChange,
-  loadEffectiveWorkflowPlan,
   protectedChangesSinceChangeStart,
   publishTaskPlanRevision,
   TERMINAL_ACTIVITY_TTL_MS,
   type TaskPlanRevisionV1,
-  workflowPlanSnapshot,
-  parseWorkflow,
-  DEFAULT_WORKFLOW_SOURCE,
 } from '@tenon/kernel'
 import { ArtifactScopeMigrationError } from '@tenon/automation'
 import { buildSnapshot, computeFingerprint } from './snapshot.js'
 import { createProjectScanContext } from './snapshotChangeScan.js'
 import { countProjectDeletions } from './serverTaskLifecycleRoutes.js'
-import { ensureUserLocalDir, isProcessLocalFdPath, serializeTaskArchive, type TenonUserResolution } from '@tenon/kernel'
+import { ensureUserLocalDir, isProcessLocalFdPath, serializeWorkflow } from '@tenon/kernel'
+import { legacyDefaultInitialWorkflow, legacyDefaultPlan, simpleWorkflow } from '@tenon/kernel/workflow/test-support'
 import { snapshotWorkflowRules } from './workflowSnapshot.js'
 import { readTasksMarkdown } from './snapshotTasks.js'
 import {
@@ -38,7 +33,7 @@ import {
 } from './changeSnapshot.js'
 import { captureChangePathAnchor } from './contextBundlePreviewSupport.js'
 import { readRegistry } from './registry.js'
-import { initChange, makeProject, makeTempHome, newStore, sleep, testFlow } from './test-support.js'
+import { initChange, legacyContractInitialWorkflow, makeProject, makeTempHome, newStore, sleep, testFlow } from './test-support.js'
 import { captureWorkflowRootAnchor, closeWorkflowRootAnchor } from './workflows.js'
 import type { WorkflowRootAnchor } from './workflowRootAnchor.js'
 
@@ -86,7 +81,7 @@ describe('snapshotWorkflowRules policy diagnostics', () => {
   })
 
   it('separates configured, frozen, and fail-closed effective authority', () => {
-    const plan = compileEffectiveWorkflowPlan('default')
+    const plan = compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' })
     const rules = snapshotWorkflowRules(plan, {
       status: 'available',
       workflowFingerprint: plan.workflowFingerprint,
@@ -117,7 +112,7 @@ describe('snapshotWorkflowRules policy diagnostics', () => {
   })
 
   it('reports current-definition drift without replacing frozen run policy', () => {
-    const plan = compileEffectiveWorkflowPlan('default')
+    const plan = compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' })
     const rules = snapshotWorkflowRules(plan, {
       status: 'available',
       workflowFingerprint: 'changed-definition-fingerprint',
@@ -140,7 +135,7 @@ describe('snapshotWorkflowRules policy diagnostics', () => {
   })
 
   it('keeps missing configured state distinct from permission grants', () => {
-    const rules = snapshotWorkflowRules(compileEffectiveWorkflowPlan('default'), { status: 'missing' })
+    const rules = snapshotWorkflowRules(compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' }), { status: 'missing' })
 
     expect(rules.policy.configured).toEqual({ status: 'missing' })
     expect(rules.policy.drift).toEqual({
@@ -1128,8 +1123,15 @@ describe('buildSnapshot —— 真读多项目 .pipeline.yaml', () => {
       },
     })
     expect(Object.keys(beta.workflowExecution.readinessByTransition)).toEqual(['open'])
+    // 刚立项的任务：proposal.md 还没写（必须产出，路径模式原样给出、显示时才换成任务名）、tasks.md 里立项那项还没勾（通用离开条件「本阶段任务已勾选」），都挡着。
     expect(beta.workflowExecution.readinessByTransition.open).toEqual({
-      'open-complete': { ready: true, blockers: [] },
+      'open-complete': {
+        ready: false,
+        blockers: [
+          { kind: 'guard-failed', guardType: 'required-output', actual: 'missing', path: 'openspec/changes/{change}/proposal.md' },
+          { kind: 'guard-failed', guardType: 'tasks-through-step' },
+        ],
+      },
     })
     expect((snap.projects.find((p) => p.root === b) as unknown as {
       workflowRules: Record<string, { nonemptyOutputByStep: Record<string, boolean> }>
@@ -1205,6 +1207,9 @@ describe('buildSnapshot —— 真读多项目 .pipeline.yaml', () => {
     kind: 'agents-incomplete',
     agents: [{ agent: 'builder', reason: 'executor-missing' }],
   }
+  // 实现步的通用离开条件：刚立项的任务 tasks.md 里实现那项没勾；这个用例不带文件面，依赖是否结束读不了，失败关闭。
+  const TASKS_UNCHECKED = { kind: 'guard-failed', guardType: 'tasks-through-step' }
+  const DEPENDENCIES_UNREADABLE = { kind: 'guard-failed', guardType: 'dependencies-ended', actual: 'capability-unavailable' }
 
   it('default Build readiness 投影 pre-Verify 全量收敛门，pending 不得显示可冻结', async () => {
     const store = newStore()
@@ -1231,18 +1236,18 @@ describe('buildSnapshot —— 真读多项目 .pipeline.yaml', () => {
         field: 'pre_verify_review_result',
         actual: 'pending',
         expected: ['pass'],
-      }, BUILDER_PENDING],
+      }, TASKS_UNCHECKED, DEPENDENCIES_UNREADABLE, BUILDER_PENDING],
     })
 
     await store.set(dir, 'pre_verify_review_result', 'pass')
     const ready = await buildSnapshot({
       registry: () => [root], store, version: '1', clock: () => 't',
     })
-    // guard 已过；default 的实现步骤声明了 builder 执行者，没跑之前仍然只剩这一条阻断。
+    // 实现前评审的 guard 已过，不再出现；builder 执行者没跑之前仍有阻断，其余通用离开条件原样在列。
     expect(
       ready.projects[0]?.changes[0]?.workflowExecution
         .readinessByTransition.build?.['build-complete'],
-    ).toEqual({ ready: false, blockers: [BUILDER_PENDING] })
+    ).toEqual({ ready: false, blockers: [TASKS_UNCHECKED, DEPENDENCIES_UNREADABLE, BUILDER_PENDING] })
   })
 
   it('非当前 phase 不求值 workspace fingerprint，当前求值异常只投影 blocker 而不让项目离线', async () => {
@@ -1295,7 +1300,7 @@ describe('buildSnapshot —— 真读多项目 .pipeline.yaml', () => {
     })
   })
 
-  it('条件 nonempty guard 只为适用 Track 投影必需输出', async () => {
+  it('条件 field-nonempty guard 只为适用 Track 投影必需字段', async () => {
     const store = newStore()
     const root = await makeProject()
     await mkdir(join(root, '.pipeline', 'workflows'), { recursive: true })
@@ -1305,14 +1310,13 @@ steps:
     label: Shape
     gate: review
     skills: []
-    inputs: []
-    outputs:
-      - field: plan
-        type: file_path
-      - field: scope
-        type: string
     guards:
-      - type: nonempty-output
+      - type: field-nonempty
+        field: plan
+        when:
+          track_in: [backend]
+      - type: field-nonempty
+        field: design_doc
         when:
           track_in: [backend]
     transitions:
@@ -1340,7 +1344,7 @@ steps:
     // which is gated by the same conditional step guard.
     const backendBlockers = [
       { kind: 'guard-failed', guardType: 'field-nonempty', field: 'plan', actual: 'null' },
-      { kind: 'guard-failed', guardType: 'output-present', field: 'scope', actual: 'null' },
+      { kind: 'guard-failed', guardType: 'field-nonempty', field: 'design_doc', actual: 'null' },
     ]
     expect(byName.get('conditional-backend')?.workflowExecution.readinessByTransition.shape)
       .toEqual({
@@ -1404,14 +1408,11 @@ steps:
     label: Review
     gate: review
     skills: []
-    inputs: []
-    outputs:
-      - field: plan
-        type: file_path
-      - field: scope
-        type: string
     guards:
-      - type: nonempty-output
+      - type: field-nonempty
+        field: plan
+      - type: field-nonempty
+        field: design_doc
     transitions:
       - event: accept
         to: done
@@ -1447,7 +1448,7 @@ steps:
           ready: false,
           blockers: [
             { kind: 'guard-failed', guardType: 'field-nonempty', field: 'plan', actual: 'null' },
-            { kind: 'guard-failed', guardType: 'output-present', field: 'scope', actual: 'null' },
+            { kind: 'guard-failed', guardType: 'field-nonempty', field: 'design_doc', actual: 'null' },
             { kind: 'guard-failed', guardType: 'field-nonempty', field: 'verification_report', actual: 'null' },
           ],
         },
@@ -1455,7 +1456,7 @@ steps:
           ready: false,
           blockers: [
             { kind: 'guard-failed', guardType: 'field-nonempty', field: 'plan', actual: 'null' },
-            { kind: 'guard-failed', guardType: 'output-present', field: 'scope', actual: 'null' },
+            { kind: 'guard-failed', guardType: 'field-nonempty', field: 'design_doc', actual: 'null' },
           ],
         },
       },
@@ -1635,10 +1636,6 @@ steps:
     label: Implement
     gate: null
     skills: []
-    inputs: []
-    outputs:
-      - field: build_sha
-        type: string
     guards: []
     transitions:
       - event: ready
@@ -1647,10 +1644,6 @@ steps:
     label: Assure
     gate: review
     skills: []
-    inputs:
-      - field: build_sha
-        type: string
-    outputs: []
     guards:
       - type: build-head-unchanged
         field: build_sha
@@ -1750,6 +1743,28 @@ steps:
     const todo = snapshot.projects[0]?.changes[0]?.todo
     expect(todo?.hasTaskSource).toBe(true)
     expect(todo?.stages.map((stage) => stage.id)).toEqual(['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive'])
+    // 新任务没有预先规定的文档，Todo 里只有 tasks.md 的勾选项。
+    expect(todo?.stages.find((stage) => stage.id === 'open')?.tasks).toEqual([{ text: 'Confirm scope', completed: true }])
+    expect(todo?.stages.find((stage) => stage.id === 'build')?.tasks).toEqual([{ text: 'Implement the endpoint', completed: false }])
+  })
+
+  it('升级前创建的 default 任务（冻结计划带文档契约）：Todo 照旧把契约要登记的文档列在 owner 阶段前面', async () => {
+    const store = newStore()
+    const root = await makeProject()
+    const dir = await initChange(store, root, 'todo-legacy', { initialWorkflow: legacyDefaultInitialWorkflow('backend', 'step-graph') })
+    await store.set(dir, 'phase', 'build')
+    await writeFile(join(dir, 'tasks.md'), `# Tasks
+
+## Open
+- [x] Confirm scope
+
+## Build
+- [ ] Implement the endpoint
+`, 'utf8')
+
+    const snapshot = await buildSnapshot({ registry: () => [root], store, version: '1', clock: () => 't' })
+    const todo = snapshot.projects[0]?.changes[0]?.todo
+    expect(todo?.stages.map((stage) => stage.id)).toEqual(['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive'])
     expect(todo?.stages.find((stage) => stage.id === 'open')?.tasks).toEqual([
       { text: '[document] proposal', completed: false },
       { text: '[document] openspec-design', completed: false },
@@ -1759,11 +1774,11 @@ steps:
     expect(todo?.stages.find((stage) => stage.id === 'build')?.tasks).toEqual([{ text: 'Implement the endpoint', completed: false }])
   })
 
-  it('三步 document-v1 workflow 只投影真实 step，并把文档挂到声明的 owner step', async () => {
+  it('升级前创建的三步 document-v1 任务（冻结计划带契约）只投影真实 step，并把文档挂到声明的 owner step', async () => {
     const store = newStore()
     const root = await makeProject()
-    await mkdir(join(root, '.pipeline', 'workflows'), { recursive: true })
-    await writeFile(join(root, '.pipeline', 'workflows', 'compact-governed.yaml'), `name: compact-governed
+    // 新定义不再允许 document_contract：旧原文只用来编译并冻结快照，任务照旧走完。
+    const compactSource = `name: compact-governed
 openspec: true
 document_contract:
   version: v1
@@ -1804,21 +1819,16 @@ steps:
     outputs: []
     guards: []
     transitions: []
-`, 'utf8')
+`
     const changeDir = await store.init({
       repoRoot: root,
       name: 'compact-change',
       track: 'backend',
-      reviewSeed: builtinTrack('backend').policyProfile.reviewSeed,
+      reviewSeed: 'pending',
       creator: TEST_CREATOR, preset: 'full',
       runId: 'compact-run',
       clock: () => '2026-07-07T00:00:00Z',
-      initialWorkflow: {
-        workflow: 'compact-governed',
-        phase: 'shape',
-        documentContract: true,
-        documentProfile: 'document-v1',
-      },
+      initialWorkflow: legacyContractInitialWorkflow('compact-governed', compactSource, 'shape'),
     })
     await ensureDocumentLedger(changeDir, '2026-07-07T00:00:00Z')
 
@@ -1841,6 +1851,7 @@ steps:
     const workflows = join(root, '.pipeline', 'workflows')
     await mkdir(workflows, { recursive: true })
     const target = join(workflows, 'bound.yaml')
+    // 新定义不再允许 document_contract：旧原文只用来编译并冻结快照。
     const governed = `name: bound
 openspec: true
 document_contract:
@@ -1861,25 +1872,19 @@ steps:
     guards: []
     transitions: []
 `
-    await writeFile(target, governed, 'utf8')
-    const plan = loadEffectiveWorkflowPlan(root, 'bound')
     const changeDir = await store.init({
       repoRoot: root,
       name: 'bound-change',
       track: 'backend',
-      reviewSeed: builtinTrack('backend').policyProfile.reviewSeed,
+      reviewSeed: 'pending',
       creator: TEST_CREATOR, preset: 'full',
       runId: 'bound-run',
       clock: () => '2026-07-07T00:00:00Z',
-      initialWorkflow: {
-        workflow: 'bound',
-        phase: 'shape',
-        ...effectiveWorkflowPlanBinding(plan),
-        workflowPlanSnapshot: workflowPlanSnapshot(plan),
-      },
+      initialWorkflow: legacyContractInitialWorkflow('bound', governed, 'shape'),
     })
     expect(await readdir(changeDir)).toContain('.pipeline-workflow-plan.json')
     expect((await store.read(changeDir)).runMetadata?.workflowPlanSnapshot).toBeDefined()
+    // 之后项目里的当前定义换成了没有契约的新写法（旧原文已经不能保存）：任务仍按冻结的快照投影。
     await writeFile(target, governed.replace(/document_contract:[\s\S]*?(?=steps:)/, ''), 'utf8')
 
     const snapshot = await buildSnapshot({ registry: () => [root], store, version: '1', clock: () => 't' })
@@ -1892,20 +1897,9 @@ steps:
   it('Tenon server 继续投影身份迁移前冻结的 default v1 workflow snapshot', async () => {
     const store = newStore()
     const root = await makeProject()
-    // 分支化之前的 default：frontend 分支 × 驱动技能 × spec plan artifact 的 PM 豁免谓词（与 kernel test-support 同口径）。
-    const branched = parseWorkflow(DEFAULT_WORKFLOW_SOURCE)
-    const legacyDef = {
-      ...branched,
-      tracks: undefined,
-      steps: (branched.tracks?.frontend?.steps ?? []).map((step) => ({
-        ...step,
-        skills: step.skills.filter((skill) => skill.id.startsWith('tenon-')),
-        ...(step.id === 'spec' && step.artifacts !== undefined
-          ? { artifacts: step.artifacts.map((artifact) => artifact.field === 'plan' ? { ...artifact, requiredWhen: { kind: 'track-not-in' as const, values: ['pm'] } } : artifact) }
-          : {}),
-      })),
-    }
-    const currentWorkflow = compileEffectiveWorkflowPlan('default', legacyDef).workflow
+    // 分支化之前的 default：升级前（f474225f）default.yaml 的 frontend 分支 × 驱动技能 × spec plan artifact 的 PM 豁免谓词。
+    // 当前 default 已经没有 inputs / outputs / artifacts，历史指纹只能从升级前的原文重建（kernel 夹具 legacyDefaultPlan 同口径）。
+    const currentWorkflow = legacyDefaultPlan().workflow
     const {
       decomposition: _decomposition,
       interaction: _interaction,
@@ -1918,9 +1912,10 @@ steps:
       ...legacyBase,
       // Historical bytes also predate step prompts (the frontend branch gained them with DESIGN.md).
       steps: legacyBase.steps.map((step) => {
-        // Historical bytes also predate step tests (2026-09 per-step test evidence), step prompts and max_rounds.
+        // Historical bytes also predate step tests (2026-09 per-step test evidence), the step test level (`test:`),
+        // step prompts and max_rounds.
         const {
-          tests: _tests, test_policy: _testPolicy, prompt: _prompt, agents: _agents, maxRounds: _maxRounds, ...legacyStep
+          tests: _tests, test_policy: _testPolicy, test: _test, prompt: _prompt, agents: _agents, maxRounds: _maxRounds, ...legacyStep
         } = step
         return {
           ...legacyStep,
@@ -1934,19 +1929,13 @@ steps:
           skills: [],
           inputs: step.id === 'ship' || step.id === 'archive' ? [] : step.inputs,
           outputs: step.id === 'ship' || step.id === 'archive' ? [] : step.outputs,
-          guards: step.id === 'build'
-            ? step.guards.filter((guard) =>
-                !(guard.type === 'field-equals' && guard.field === 'pre_verify_review_result'))
-            : step.guards,
+          // Historical bytes carry only the two guards the 2026-07 default declared; every leave condition and
+          // action that default.yaml gained when it became the executable source (设计 §1b) post-dates them.
+          guards: step.guards.filter((guard) => guard.type === 'tasks-at-least' || guard.type === 'spec-migration-applied'),
           transitions: step.transitions.map((transition) => ({
             ...transition,
-            // No default edge declares guards; the ones on the current IR are the auto gate's, which historical bytes lack.
             guards: [],
-            actions: transition.actions.filter((action) =>
-              action.type !== 'reset-pre-verify-review'
-                && !(step.id === 'verify'
-                  && transition.event === 'verify-fail'
-                  && action.type === 'mark-verification-failed')),
+            actions: [],
           })),
         }
       }),
@@ -1955,7 +1944,7 @@ steps:
       repoRoot: root,
       name: 'legacy-v1-live',
       track: 'frontend',
-      reviewSeed: builtinTrack('frontend').policyProfile.reviewSeed,
+      reviewSeed: 'pending',
       creator: TEST_CREATOR, preset: 'full',
       runId: 'legacy-v1-run',
       clock: () => '2026-07-26T00:00:00Z',
@@ -1998,15 +1987,21 @@ steps:
     })
   })
 
-  it('simple workflow 投影自己的 change→verify→done/escalated 骨架，不伪造七阶段或 OpenSpec 文档', async () => {
+  it('轻量的平铺工作流（原内建 simple 的定义）投影自己的 change→verify→done/escalated 骨架，不伪造七阶段或 OpenSpec 文档', async () => {
     const store = newStore()
     const root = await makeProject()
-    await initChange(store, root, 'tiny-fix', { track: 'simple', preset: 'tweak' })
+    await mkdir(join(root, '.pipeline', 'workflows'), { recursive: true })
+    await writeFile(join(root, '.pipeline', 'workflows', 'tiny.yaml'), serializeWorkflow({ ...simpleWorkflow(), name: 'tiny' }), 'utf8')
+    await initChange(store, root, 'tiny-fix', {
+      track: 'pm',
+      preset: 'tweak',
+      initialWorkflow: { workflow: 'tiny', phase: 'change', openspecContract: false },
+    })
 
     const snapshot = await buildSnapshot({ registry: () => [root], store, version: '1', clock: () => 't' })
     const change = snapshot.projects[0]?.changes[0]
     expect(change?.phase).toBe('change')
-    expect(change?.fields.workflow).toBe('simple')
+    expect(change?.fields.workflow).toBe('tiny')
     expect(change?.todo).toEqual({
       hasTaskSource: false,
       stages: [
@@ -2055,6 +2050,19 @@ describe('computeFingerprint —— 变更检测', () => {
     expect(denied).toContain(`unreadable:${root}`)
     expect(recovered).toBe(empty)
     expect(missing).toBe(empty)
+  })
+
+  it('任务的步骤产出账本变化改变指纹：每步的输入输出随离开步骤、读取回执刷新', async () => {
+    const root = await makeProject()
+    const changeDir = await initChange(newStore(), root, 'ledger-watch')
+    const ledger = join(changeDir, '.pipeline-step-outputs.json')
+    expect(await readFile(ledger, 'utf8')).toContain('visits')
+    const before = await computeFingerprint([root])
+    expect(before).toContain('.pipeline-step-outputs.json')
+
+    await writeFile(ledger, `${await readFile(ledger, 'utf8')}\n`, 'utf8')
+
+    expect(await computeFingerprint([root])).not.toBe(before)
   })
 
   it('registry 增加空的非 Git 项目也改变指纹', async () => {
@@ -2203,60 +2211,19 @@ describe('computeFingerprint —— 变更检测', () => {
   })
 })
 
-describe('归档划分与未提交删除（查看者视角）', () => {
-  const alice: TenonUserResolution = { id: 'a@x.io', name: 'A', slug: 'a-at-x.io', source: 'env', trust: 'declared' }
-  const bob: TenonUserResolution = { id: 'b@x.io', name: 'B', slug: 'b-at-x.io', source: 'env', trust: 'declared' }
-
-  async function archiveFor(root: string, slug: string, change: string, phase = 'build'): Promise<string> {
-    const paths = await ensureUserLocalDir(root, slug)
-    await writeFile(paths.archived, serializeTaskArchive({
-      version: 1,
-      changes: { [change]: { archivedAt: '2026-09-15T12:00:00.000Z', phase, actor: { id: 'a@x.io', name: 'A', trust: 'declared' } } },
-    }), 'utf8')
-    return paths.archived
-  }
-
-  it('把查看者已归档的 change 从 changes 划到 archived，其他查看者不受影响', async () => {
+describe('归档目录里的任务与未提交删除', () => {
+  it('openspec/changes/archive/ 里的任务不算进行中：不在 changes 里，也不计入 change_count', async () => {
     const store = newStore()
     const root = await makeProject()
-    await initChange(store, root, 'hidden')
-    await initChange(store, root, 'shown')
-    await archiveFor(root, alice.slug, 'hidden')
+    await initChange(store, root, 'running')
+    await initChange(store, root, 'ended')
+    await mkdir(join(root, 'openspec', 'changes', 'archive'), { recursive: true })
+    await rename(join(root, 'openspec', 'changes', 'ended'), join(root, 'openspec', 'changes', 'archive', '2026-09-15-ended'))
 
-    const forAlice = await buildSnapshot({
-      registry: () => [root], store, version: '1', clock: () => 't', viewer: () => alice,
-    })
-    const project = forAlice.projects[0]!
-    expect(project.changes.map((change) => change.name)).toEqual(['shown'])
-    expect(project.archived?.map((change) => change.name)).toEqual(['hidden'])
-    expect(project.archived?.[0]?.archive).toEqual({
-      archivedAt: '2026-09-15T12:00:00.000Z', phase: 'build', actor: { id: 'a@x.io', name: 'A', trust: 'declared' },
-    })
-    expect(forAlice.change_count).toBe(1)
-
-    const forBob = await buildSnapshot({
-      registry: () => [root], store, version: '1', clock: () => 't', viewer: () => bob,
-    })
-    expect(forBob.projects[0]?.changes.map((change) => change.name)).toEqual(['hidden', 'shown'])
-    expect(forBob.projects[0]?.archived).toBeUndefined()
-    expect(forBob.change_count).toBe(2)
-  })
-
-  it('无查看者或归档记录损坏时不隐藏任何 change', async () => {
-    const store = newStore()
-    const root = await makeProject()
-    await initChange(store, root, 'hidden')
-    const archivePath = await archiveFor(root, alice.slug, 'hidden')
-
-    const anonymous = await buildSnapshot({ registry: () => [root], store, version: '1', clock: () => 't' })
-    expect(anonymous.projects[0]?.changes.map((change) => change.name)).toEqual(['hidden'])
-
-    await writeFile(archivePath, 'not json', 'utf8')
-    const corrupt = await buildSnapshot({
-      registry: () => [root], store, version: '1', clock: () => 't', viewer: () => alice,
-    })
-    expect(corrupt.projects[0]?.changes.map((change) => change.name)).toEqual(['hidden'])
-    expect(corrupt.projects[0]?.archived).toBeUndefined()
+    const snapshot = await buildSnapshot({ registry: () => [root], store, version: '1', clock: () => 't' })
+    expect(snapshot.projects[0]?.changes.map((change) => change.name)).toEqual(['running'])
+    expect(snapshot.projects[0]).not.toHaveProperty('archived')
+    expect(snapshot.change_count).toBe(1)
   })
 
   /**
@@ -2320,22 +2287,20 @@ describe('归档划分与未提交删除（查看者视角）', () => {
     expect(absent.projects[0]?.uncommittedDeletions).toBeUndefined()
   })
 
-  it('指纹在查看者 archived.json 写入后与提交日志变化后都改变', async () => {
+  it('指纹在提交日志变化后改变；遗留的每用户 archived.json 不再进指纹', async () => {
     const root = await makeProject()
     const store = newStore()
     await initChange(store, root, 'one')
-    const before = await computeFingerprint([root], 1, undefined, undefined, () => alice)
-    await archiveFor(root, alice.slug, 'one')
-    const afterArchive = await computeFingerprint([root], 1, undefined, undefined, () => alice)
-    expect(afterArchive).not.toBe(before)
+    const before = await computeFingerprint([root], 1)
 
     await mkdir(join(root, '.git', 'logs'), { recursive: true })
     await writeFile(join(root, '.git', 'logs', 'HEAD'), 'commit one\n', 'utf8')
-    const afterCommit = await computeFingerprint([root], 1, undefined, undefined, () => alice)
-    expect(afterCommit).not.toBe(afterArchive)
-    // Another viewer's store is not part of this viewer's fingerprint.
-    await archiveFor(root, bob.slug, 'one')
-    expect(await computeFingerprint([root], 1, undefined, undefined, () => alice)).toBe(afterCommit)
+    const afterCommit = await computeFingerprint([root], 1)
+    expect(afterCommit).not.toBe(before)
+
+    const paths = await ensureUserLocalDir(root, 'a-at-x.io')
+    await writeFile(join(paths.localDir, 'archived.json'), '{"version":1,"changes":{}}\n', 'utf8')
+    expect(await computeFingerprint([root], 1)).toBe(afterCommit)
   })
 })
 

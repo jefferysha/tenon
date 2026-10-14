@@ -2,13 +2,14 @@
  * The shared snapshot through the real HTTP server: page-load concurrency builds once, an unchanged
  * fingerprint serves the cached bytes, a server write is visible on the next read and drops only the project it
  * names, the stream sends a full frame then per-project deltas, the list tier and the change detail agree on a
- * change's `rev`, and the viewer's identity is part of the cache key.
+ * change's `rev`, and a task moved into `archive/` leaves the next read.
  */
 import { afterEach, describe, expect, it } from 'vitest'
-import { writeFile } from 'node:fs/promises'
+import { mkdir, rename } from 'node:fs/promises'
 import { get as httpGet } from 'node:http'
+import { join } from 'node:path'
 import { gunzipSync } from 'node:zlib'
-import { ensureUserLocalDir, serializeTaskArchive, type StateStore, type TenonUserResolution } from '@tenon/kernel'
+import type { StateStore, TenonUserResolution } from '@tenon/kernel'
 import { createTestDashboardServer } from './test-server.js'
 import { resolveServerPaths } from './paths.js'
 import { computeFingerprint } from './snapshot.js'
@@ -136,39 +137,33 @@ describe('共享快照 —— 真 HTTP server', () => {
     expect(h.builds()).toBe(before + 1)
   })
 
-  it('不同查看者不共用快照：经 server 切换身份后按新查看者的归档重建', async () => {
+  it('任务被移进 archive/（完结 / 终止）后下一次读取就不再含它；换一个用户看到的是同一份快照', async () => {
     const alice: TenonUserResolution = { id: 'a@x.io', name: 'A', slug: 'a-at-x.io', source: 'env', trust: 'declared' }
     const bob: TenonUserResolution = { id: 'b@x.io', name: 'B', slug: 'b-at-x.io', source: 'env', trust: 'declared' }
-    let viewer = alice
-    const h = await start({ resolveUser: () => viewer })
-    const paths = await ensureUserLocalDir(h.root, alice.slug)
-    await writeFile(paths.archived, serializeTaskArchive({
-      version: 1,
-      changes: { [h.name]: { archivedAt: '2026-09-15T12:00:00.000Z', phase: 'open', actor: { id: alice.id, name: 'A', trust: 'declared' } } },
-    }), 'utf8')
+    let user = alice
+    const h = await start({ resolveUser: () => user })
+    const before = (await reqGet(h.port, '/api/snapshot')).json<Snapshot>()
+    expect(before.projects[0]?.changes.map((change) => change.name)).toEqual([h.name])
 
-    const forAlice = (await reqGet(h.port, '/api/snapshot')).json<Snapshot>()
-    expect(forAlice.projects[0]?.changes).toEqual([])
-    expect(forAlice.projects[0]?.archived?.map((change) => change.name)).toEqual([h.name])
-
-    // The declared identity changes through the server, which drops the cached snapshot and identities.
-    viewer = bob
+    // The declared identity changes through the server; nobody's view of a task depends on who looks.
+    user = bob
     const declared = await reqPost(h.port, '/api/user', { id: bob.id, name: bob.name }, { headers: { Authorization: 'Bearer secret' } })
     expect(declared.status).toBe(200)
     const forBob = (await reqGet(h.port, '/api/snapshot')).json<Snapshot>()
     expect(forBob.projects[0]?.changes.map((change) => change.name)).toEqual([h.name])
-    expect(forBob.projects[0]?.archived).toBeUndefined()
+    expect(forBob.projects[0]).not.toHaveProperty('archived')
+
+    await mkdir(join(h.root, 'openspec', 'changes', 'archive'), { recursive: true })
+    await rename(h.changeDir, join(h.root, 'openspec', 'changes', 'archive', `2026-07-07-${h.name}`))
+    const after = (await reqGet(h.port, '/api/snapshot')).json<Snapshot>()
+    expect(after.projects[0]?.changes).toEqual([])
   })
 
-  it('查看者身份本身进入指纹：两人都没有归档记录时指纹也不同', async () => {
+  it('指纹只取决于仓库状态：同一份状态算两次一样', async () => {
     const root = await makeProject()
     await initChange(newStore(), root, 'shared')
-    const alice: TenonUserResolution = { id: 'a@x.io', name: 'A', slug: 'a-at-x.io', source: 'env', trust: 'declared' }
-    const bob: TenonUserResolution = { id: 'b@x.io', name: 'B', slug: 'b-at-x.io', source: 'env', trust: 'declared' }
-    const forAlice = await computeFingerprint([root], 1, undefined, undefined, () => alice)
-    const forBob = await computeFingerprint([root], 1, undefined, undefined, () => bob)
-    expect(forAlice).not.toBe(forBob)
-    expect(await computeFingerprint([root], 1, undefined, undefined, () => alice)).toBe(forAlice)
+    const first = await computeFingerprint([root], 1)
+    expect(await computeFingerprint([root], 1)).toBe(first)
   })
 })
 
@@ -252,6 +247,8 @@ describe('列表层级、项目级失效、增量推送与详情', () => {
     expect((await reqGet(h.port, `/api/change/ghost/snapshot?root=${root}`)).status).toBe(400)
   })
 
+  interface DeltaFrame { view: string; roots: string[]; projects: { root: string; changes: { phase: string }[] }[]; project_count: number }
+
   it('列表流：首帧是完整 snapshot，之后只推变化的项目（snapshot-delta），顺序随帧给出', async () => {
     const h = await start({ projects: 2 })
     const [rootA, rootB] = h.roots
@@ -260,9 +257,11 @@ describe('列表层级、项目级失效、增量推送与详情', () => {
     expect(JSON.parse(first.data).projects.map((project: { root: string }) => project.root)).toEqual([rootA, rootB])
     const advanced = await reqPost(h.port, `/api/change/${h.name}/transition`, { root: rootA, event: 'open-complete' }, AUTH)
     expect(advanced.status).toBe(200)
-    const delta = await stream.waitFor((event) => event.event === 'snapshot-delta', 10_000)
+    // 转换先在锁内写步骤产出账本、再提交新状态，指纹也覆盖账本：轮询可能先推一帧只有账本变了的增量，等带新阶段的那一帧。
+    const delta = await stream.waitFor((event) => event.event === 'snapshot-delta'
+      && (JSON.parse(event.data) as DeltaFrame).projects[0]?.changes[0]?.phase === 'explore', 10_000)
     stream.close()
-    const frame = JSON.parse(delta.data) as { view: string; roots: string[]; projects: { root: string; changes: { phase: string }[] }[]; project_count: number }
+    const frame = JSON.parse(delta.data) as DeltaFrame
     expect(frame.view).toBe('list')
     expect(frame.roots).toEqual([rootA, rootB])
     expect(frame.projects.map((project) => project.root)).toEqual([rootA])

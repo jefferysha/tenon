@@ -21,7 +21,6 @@ import type {
   LoopLedgerStore,
   LoopRegistry,
   SkillBundleResolutionInput,
-  TrackRegistry,
   WorkflowActionEvaluation,
   WorkflowActionAuthoritySnapshotV1,
   WorkflowPlanSnapshot,
@@ -201,7 +200,7 @@ export interface LoopAdmission {
     /** null=调用方显式覆盖 level；L1/L2/L3=selector 观察到的 loop 默认值，锁内必须仍相等。 */
     expectedAutonomyLevel?: AutomationLevel | null
   }): Promise<ReserveResult>
-  /** Final authoritative authority re-read and queued→scheduled claim under one TrackRegistry lock. */
+  /** 最终的权限事实重读，随后立刻做 queued→scheduled claim；项目层只读任务冻结计划里所选分支的 automation。 */
   claimWithFreshWorkflowAuthority?(
     ctx: ExecutionContext,
     claim: (expectedTrackId: string) => Promise<boolean>,
@@ -320,13 +319,11 @@ export interface LoopAdmissionDeps {
     readonly iterationId?: string
     readonly workflowActionAuthority?: WorkflowActionAuthoritySnapshotV1
   }>
-  /** Holds the canonical TrackRegistry read lock through fresh resolution and the state claim. */
-  readonly withWorkflowActionAuthorityLock?: <T>(
-    use: (registry: TrackRegistry) => Promise<T>,
-  ) => Promise<T>
   /**
-   * Fresh non-Workflow authorization facts. The service derives the Workflow layer only from the
-   * immutable WorkflowRun snapshot, so callers cannot replace the frozen ceiling through this port.
+   * Fresh non-Workflow authorization facts (platform / skill / run + the track the change records).
+   * The service derives the Workflow and Project layers only from the immutable WorkflowRun snapshot
+   * (interaction ceiling and the selected branch's `automation`), so callers cannot replace either
+   * frozen layer through this port.
    */
   readonly workflowActionAuthority?: (input: {
     readonly change: string
@@ -339,7 +336,6 @@ export interface LoopAdmissionDeps {
       readonly loopId?: string
       readonly iterationId?: string
     }
-    readonly registry: TrackRegistry
   }) => Promise<WorkflowActionAuthorityFacts>
 }
 

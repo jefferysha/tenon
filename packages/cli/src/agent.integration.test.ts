@@ -306,14 +306,16 @@ describe('真实 e2e —— 步骤 agent', () => {
   })
 
   test('verify 冻结了 build token 时改代码，评审结论同样过期（与测试记录同一候选）', async () => {
+    // 修订生命周期显式声明：build 出口冻结 build token（freeze-build-sha），verify 出口校验它没变（build-head-unchanged）；
+    // 原来由 build_sha 的 inputs / outputs 推断，新定义不能再写它们。
     await seed(AGENT_WF
       .replace(
-        '        label: 实现\n        gate: null\n        skills: []\n        inputs: []\n        outputs: []',
-        '        label: 实现\n        gate: null\n        skills: []\n        inputs: []\n        outputs:\n          - field: build_sha\n            type: string',
+        '          - event: build-done\n            to: verify\n',
+        '          - event: build-done\n            to: verify\n            actions:\n              - type: freeze-build-sha\n',
       )
       .replace(
-        '        label: 验证\n        gate: null\n        skills: []\n        inputs: []',
-        '        label: 验证\n        gate: null\n        skills: []\n        inputs:\n          - field: build_sha\n            type: string',
+        '          - event: verify-pass\n            to: done\n',
+        '          - event: verify-pass\n            to: done\n            guards:\n              - type: build-head-unchanged\n                field: build_sha\n',
       ))
     // 白盒预置「已进入 verify 且 build token 已冻结」（生产里由 build 出口 transition 的 freeze-build-sha 写入）。
     await h.seedArtifact('demo', 'build_sha', TEST_GIT_BUILD_TOKEN)

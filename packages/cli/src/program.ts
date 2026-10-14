@@ -34,7 +34,6 @@ import { cmdTap } from './commands/tap.js'
 import { cmdTask } from './commands/task.js'
 import { cmdUninstall } from './commands/uninstall.js'
 import { cmdList, cmdListFinished, cmdStatus } from './commands/status.js'
-import { cmdListArchived } from './commands/task-lifecycle.js'
 import { cmdTransition } from './commands/transition.js'
 import { cmdInternalSkillGate } from './commands/internalSkillGate.js'
 import { cmdInternalConstraintGate } from './commands/internalConstraintGate.js'
@@ -47,6 +46,7 @@ import { registerFieldCommands } from './program-fields.js'
 import { registerInitCommand } from './program-init.js'
 import { registerInstallCommands } from './program-install.js'
 import { registerDesignCommands, registerMotionGateCommand, registerResourceCommands } from './program-resources.js'
+import { registerAssessCommand } from './program-assess.js'
 import { registerStateCommands } from './program-state.js'
 import { registerTrackCommands } from './program-tracks.js'
 import { registerHandoffCommand, registerWorkflowCommands } from './program-workflows.js'
@@ -138,8 +138,8 @@ export function buildProgram(deps: CliDeps, runtimes: ProgramRuntimes = {}): Com
     .action(async (change: string, legacyPath: string, canonicalPath: string) =>
       bail(await cmdDocumentMigrateDelta(deps, change, legacyPath, canonicalPath)))
   document
-    .command('read <change> <kind>')
-    .description("登记当前 phase 已读取文档（kind 可为 'all'）")
+    .command('read <change> <kind|all|path>')
+    .description("登记当前 phase 已读取文档（升级前创建的任务：文档 kind 或 'all'；新任务：'all' 或某个交接输入的路径）")
     .action(async (change: string, kind: string) => bail(await cmdDocumentRead(deps, change, kind)))
   document
     .command('status <change>')
@@ -166,7 +166,7 @@ export function buildProgram(deps: CliDeps, runtimes: ProgramRuntimes = {}): Com
 
   program
     .command('advance <name>')
-    .description('auto-transition 中间档：guard 全绿自动推进，撞三门/终态/guard 不过即停（HITL，D12>Tenon runtime）')
+    .description('auto-transition 中间档：guard 全绿沿唯一的前进边自动推进（回退边只在显式 transition 时走），撞三门/终态/guard 不过即停（HITL，D12>Tenon runtime）')
     .option('--max-steps <n>', '防失控保险丝（默认 12）', (v: string) => parseInt(v, 10))
     .option('--dry-run', '只报计划不推进')
     .option('--through-gates', '放行复核相位（confirm/interaction 硬门仍不跨越）')
@@ -192,9 +192,9 @@ export function buildProgram(deps: CliDeps, runtimes: ProgramRuntimes = {}): Com
 
   program
     .command('task <sub> [args...]')
-    .description('task lifecycle：add-dep / remove-dep <name> <dep> · children / cascade / canonical / delete / archive / unarchive <name>')
-    .option('--json', 'JSON 输出（children / canonical / delete / archive / unarchive）')
-    .option('--yes', '确认 delete / archive 的全部确认项（阻止项仍会拒绝）')
+    .description('task lifecycle：add-dep / remove-dep <name> <dep> · children / cascade / canonical / delete / terminate / finish <name>')
+    .option('--json', 'JSON 输出（children / canonical / delete / terminate / finish）')
+    .option('--yes', '确认 delete / terminate 的全部确认项（阻止项仍会拒绝）')
     .action(async (sub: string, args: string[], opts: { json?: boolean; yes?: boolean }) =>
       bail(await cmdTask(deps, sub, [...args, ...(opts.json ? ['--json'] : []), ...(opts.yes ? ['--yes'] : [])])))
 
@@ -250,19 +250,9 @@ export function buildProgram(deps: CliDeps, runtimes: ProgramRuntimes = {}): Com
     .command('list')
     .description('活跃 change 表')
     .option('--json', 'JSON 输出（schema 稳定）')
-    .option('--archived', '当前用户已归档表（per-user 隐藏，可 unarchive）：NAME PHASE ARCHIVED_AT BY')
-    .option('--finished', '已完结表（archived=true 的任务，含已搬进 openspec/changes/archive/ 的）：NAME TRACK PHASE STATUS FINISHED_AT OWNER')
-    .action(async (opts: { json?: boolean; archived?: boolean; finished?: boolean }) => {
-      if (opts.archived && opts.finished) {
-        deps.io.err('ERROR: --archived（当前用户隐藏表）与 --finished（已完结表）是两张表，一次只能选一张')
-        bail(1)
-        return
-      }
-      if (opts.finished) {
-        bail(await cmdListFinished(deps, opts))
-        return
-      }
-      bail(opts.archived ? await cmdListArchived(deps, opts) : await cmdList(deps, opts))
+    .option('--finished', '已结束表（archived=true 的任务，含已搬进 openspec/changes/archive/ 的完结 / 已升级 / 已终止）：NAME TRACK PHASE STATUS FINISHED_AT OWNER')
+    .action(async (opts: { json?: boolean; finished?: boolean }) => {
+      bail(opts.finished ? await cmdListFinished(deps, opts) : await cmdList(deps, opts))
     })
 
   program
@@ -342,7 +332,7 @@ export function buildProgram(deps: CliDeps, runtimes: ProgramRuntimes = {}): Com
 
   program
     .command('_gen-router-sh <manifest> <repo-root>')
-    .description('[内部] 从 manifest + effective track registry 派生项目 router data cache（router.sh 调用）')
+    .description('[内部] 从工作流分支的 route 派生项目 router data cache（manifest 只定位插件 templates/；router.sh 调用）')
     .action(async (manifest: string, repoRoot: string) =>
       bail(await cmdGenRouterSh(deps, manifest, repoRoot)))
 
@@ -376,6 +366,7 @@ export function buildProgram(deps: CliDeps, runtimes: ProgramRuntimes = {}): Com
 
   registerStateCommands(program, deps)
   registerTrackCommands(program, deps)
+  registerAssessCommand(program, deps)
   registerUserCommands(program, deps)
   registerResourceCommands(program, deps)
   registerDesignCommands(program, deps)

@@ -1,7 +1,9 @@
 /**
- * generate-default-workflow.mjs 单测（G2 P4）——generator golden（真 default.yaml + 真 kernel types.ts
- * 生成物逐字节等于入库 default-workflow.generated.ts）+ 窄扫器结构等价 + malformed 全 fail-loud
- * （name/重复 step id/重复 field/未知 field/非法 policy/非法谓词/type 越界/缺子字段/未知子字段行）。
+ * generate-default-workflow.mjs 单测——generator golden（真 default.yaml + design-system.yaml 生成物逐字节等于入库
+ * default-workflow.generated.ts）+ 窄扫器结构等价 + malformed 全 fail-loud（name / 重复 step id / 缺 label / 未知分支字段）。
+ *
+ * 生成物只含两份工作流原文与 default 的步骤元数据；artifact 声明表已删（文档产出由 Tenon 在离开步骤时观察，
+ * 必须产出写成 required-output 守卫，不再有生产代码读那张表）。
  *
  * 直接 import 根级 .mjs 的纯函数（脚本自身零副作用 import——main 只在直跑时触发）；测试文件不进
  * kernel tsc -b（tsconfig exclude *.test.ts），故 .mjs 无类型声明不影响 build。
@@ -11,53 +13,95 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 // @ts-expect-error —— 纯 JS 工具脚本，无 .d.ts；vitest 运行时按 ESM 解析，测试不参与 kernel tsc build。
-import { extractFieldOrder, generate, parseDefaultWorkflow, validateAndNormalize } from '../../../../tools/generate-default-workflow.mjs'
+import { generate, parseDefaultWorkflow, validateDefaultWorkflow } from '../../../../tools/generate-default-workflow.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const REPO_ROOT = dirname(dirname(dirname(dirname(__dirname))))
 const readReal = (rel: string): string => readFileSync(join(REPO_ROOT, rel), 'utf8')
 
 const REAL_YAML = readReal('templates/workflows/default.yaml')
-const REAL_TYPES = readReal('packages/kernel/src/types.ts')
+// 升级前带 artifacts / document_contract 的 default 原文（f474225f）：窄扫器对这些键仍要能跳过而不是报错。
+const LEGACY_YAML = readReal('tools/fixtures/legacy-default-workflow.yaml')
 const REAL_GENERATED = readReal('packages/kernel/src/workflow/default-workflow.generated.ts')
 const REAL_DESIGN_SYSTEM = readReal('templates/workflows/design-system.yaml')
-const REAL_STANDARD = readReal('templates/workflows/standard.yaml')
 
-/** 可控 fieldOrder（malformed 用例隔离 FIELD_ORDER 变量）。 */
-const FIELDS = ['design_doc', 'plan', 'verification_report']
-
-const run = (yaml: string, fields: string[] = FIELDS): unknown =>
-  validateAndNormalize(parseDefaultWorkflow(yaml), fields)
+const run = (yaml: string): unknown => validateDefaultWorkflow(parseDefaultWorkflow(yaml))
 
 const wrap = (stepBody: string): string => `name: default\nsteps:\n${stepBody}`
 
 describe('generator golden（真生产 fixture）', () => {
-  it('generate(真 default.yaml, 真 types.ts) 逐字节等于入库 default-workflow.generated.ts（freshness 的单测镜像）', () => {
-    expect(generate(REAL_YAML, REAL_TYPES, REAL_DESIGN_SYSTEM, REAL_STANDARD)).toBe(REAL_GENERATED)
+  it('generate(真 default.yaml, 真 design-system.yaml) 逐字节等于入库 default-workflow.generated.ts（freshness 的单测镜像）', () => {
+    expect(generate(REAL_YAML, REAL_DESIGN_SYSTEM)).toBe(REAL_GENERATED)
   })
 
   it('generate 幂等：同输入两跑逐字节一致', () => {
-    expect(generate(REAL_YAML, REAL_TYPES, REAL_DESIGN_SYSTEM, REAL_STANDARD)).toBe(generate(REAL_YAML, REAL_TYPES, REAL_DESIGN_SYSTEM, REAL_STANDARD))
+    expect(generate(REAL_YAML, REAL_DESIGN_SYSTEM)).toBe(generate(REAL_YAML, REAL_DESIGN_SYSTEM))
+  })
+
+  it('生成物不再带 standard 模板：standard 已并入 default 的 lite 轨道', () => {
+    expect(REAL_GENERATED).not.toContain('STANDARD_WORKFLOW_SOURCE')
+  })
+
+  it('生成物不再带 artifact 声明表，也不再引用已删除的 default-artifacts 查询层', () => {
+    expect(REAL_GENERATED).not.toContain('DEFAULT_ARTIFACT_DECLARATIONS')
+    expect(REAL_GENERATED).not.toContain('default-artifacts')
+    expect(REAL_GENERATED).not.toContain('import ')
+  })
+
+  it('升级前带 artifacts / document_contract 的旧 default 也生成同一份步骤元数据（artifacts 块被跳过，不生成表）', () => {
+    const legacy = generate(LEGACY_YAML, REAL_DESIGN_SYSTEM) as string
+    expect(legacy).not.toContain('DEFAULT_ARTIFACT_DECLARATIONS')
+    expect(legacy).toContain('export const DEFAULT_WORKFLOW_STEPS = [')
+  })
+
+  it('DEFAULT_WORKFLOW_STEPS 是 OpenSpec 轨道的七阶段骨架，不是排在最前的 lite 的五步', () => {
+    expect(REAL_GENERATED).toContain('export const DEFAULT_WORKFLOW_STEPS = [')
+    const block = /export const DEFAULT_WORKFLOW_STEPS = \[([\s\S]*?)\] as const/.exec(REAL_GENERATED)?.[1] ?? ''
+    expect([...block.matchAll(/id: "([^"]+)"/g)].map((m) => m[1])).toEqual(['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive'])
   })
 })
 
 describe('parseDefaultWorkflow（窄扫器）结构等价', () => {
-  it('真 default.yaml → 没有顶层 steps；五条 track 分支各 7 步，frontend 仅 explore/spec/verify 带 artifact', () => {
-    const parsed = parseDefaultWorkflow(REAL_YAML) as { name: string; steps: { id: string; artifacts: unknown[] }[]; tracks: Record<string, { label?: string; steps: { id: string; artifacts: unknown[] }[] }> }
+  it('真 default.yaml → 没有顶层 steps；分支为 lite / pm / frontend / backend，lite 五步、其余七步，没有 chat / free', () => {
+    const parsed = parseDefaultWorkflow(REAL_YAML) as { name: string; steps: { id: string }[]; tracks: Record<string, { label?: string; spec?: string; steps: { id: string }[] }> }
     expect(parsed.name).toBe('default')
     expect(parsed.steps).toEqual([])
-    const withArtifacts = parsed.tracks.frontend!.steps.filter((s) => s.artifacts.length > 0).map((s) => s.id)
-    expect(withArtifacts).toEqual(['explore', 'spec', 'verify'])
-    expect(Object.keys(parsed.tracks)).toEqual(['chat', 'pm', 'frontend', 'backend', 'free'])
+    expect(Object.keys(parsed.tracks)).toEqual(['lite', 'pm', 'frontend', 'backend'])
+    expect(parsed.tracks.chat).toBeUndefined()
+    expect(parsed.tracks.free).toBeUndefined()
+    expect(parsed.tracks.lite?.label).toBe('轻量')
+    expect(parsed.tracks.lite?.spec).toBe('none')
+    expect(parsed.tracks.lite?.steps.map((s) => s.id)).toEqual(['open', 'build', 'verify', 'done', 'escalated'])
     expect(parsed.tracks.pm?.label).toBe('产品')
-    expect(parsed.tracks.pm?.steps.map((s) => s.id)).toEqual(['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive'])
+    for (const id of ['pm', 'frontend', 'backend']) {
+      expect(parsed.tracks[id]?.steps.map((s) => s.id)).toEqual(['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive'])
+    }
   })
 
-  it('分支 document_contract 块被跳过；每条分支最后一步标签是完结', () => {
+  it('分支 spec / route / automation 块被跳过，不当作未知字段', () => {
+    const yaml = [
+      'name: default', 'tracks:', '  lite:', '    label: 轻量', '    spec: none',
+      '    route:', '      keywords: [修复, typo]', '      exclude: [迁移]', '      priority: 500',
+      '    automation:', '      eligible: false', '      enqueue_after_spec: false',
+      '    steps:', '      - id: open', '        label: 立项', '',
+    ].join('\n')
+    const parsed = parseDefaultWorkflow(yaml) as { tracks: Record<string, { spec?: string; steps: { id: string }[] }> }
+    expect(parsed.tracks.lite?.spec).toBe('none')
+    expect(parsed.tracks.lite?.steps.map((step) => step.id)).toEqual(['open'])
+  })
+
+  it('分支里出现闭集之外的字段行仍然 fail-loud', () => {
+    const yaml = ['name: default', 'tracks:', '  lite:', '    label: 轻量', '    colour: red', '    steps:', '      - id: open', '        label: 立项', ''].join('\n')
+    expect(() => parseDefaultWorkflow(yaml)).toThrow(/未知字段行/)
+  })
+
+  it('每条分支第一步是立项，最后一步标签是完结；分支 document_contract 块被跳过', () => {
     const parsed = parseDefaultWorkflow(REAL_YAML) as { tracks: Record<string, { steps: { id: string; label: string }[] }> }
     for (const branch of Object.values(parsed.tracks)) {
       expect(branch.steps[0]?.id).toBe('open')
-      expect(branch.steps.at(-1)?.label).toBe('完结')
+    }
+    for (const id of ['pm', 'frontend', 'backend']) {
+      expect(parsed.tracks[id]?.steps.at(-1)?.label).toBe('完结')
     }
     const yaml = [
       'name: default', 'tracks:', '  web:', '    label: 前端', '    document_contract:', '      version: v1', '      slots:',
@@ -67,128 +111,39 @@ describe('parseDefaultWorkflow（窄扫器）结构等价', () => {
     expect(branched.tracks.web?.steps.map((step) => step.id)).toEqual(['explore'])
   })
 
-  it('pm 分支的 spec 不声明 plan artifact（PM 的 plan 文档由 OpenSpec ledger 约束）；其余分支声明', () => {
-    const parsed = parseDefaultWorkflow(REAL_YAML) as { tracks: Record<string, { steps: { id: string; artifacts: any[] }[] }> }
-    expect(parsed.tracks.pm!.steps.find((s) => s.id === 'spec')!.artifacts).toEqual([])
-    expect(parsed.tracks.backend!.steps.find((s) => s.id === 'spec')!.artifacts).toEqual([
-      { field: 'plan', type: 'file_path', producerPolicy: 'effective-phase-skills' },
-    ])
-  })
-})
-
-describe('extractFieldOrder', () => {
-  it('从 types.ts 文本提取 FIELD_ORDER（含 design_doc/plan/verification_report），跳过 // 注释', () => {
-    const fields = extractFieldOrder(REAL_TYPES) as string[]
-    expect(fields).toContain('design_doc')
-    expect(fields).toContain('plan')
-    expect(fields).toContain('verification_report')
-    // 注释里的伪 token 不得被当字段（automation_current_phase 是真字段但其上方注释含大量中文，不含 'token'）
-    expect(fields).not.toContain('token')
-  })
-
-  it('找不到 FIELD_ORDER 块 → fail-loud', () => {
-    expect(() => extractFieldOrder('export const OTHER = [] as const')).toThrow(/FIELD_ORDER/)
+  it('旧 default（带 artifacts 与 document_contract）：步骤 id 与标签照常解析，artifacts 块不影响相邻步骤', () => {
+    const parsed = parseDefaultWorkflow(LEGACY_YAML) as { tracks: Record<string, { steps: { id: string; label: string }[] }> }
+    expect(parsed.tracks.frontend?.steps.map((step) => step.id)).toEqual(['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive'])
+    expect(parsed.tracks.frontend?.steps.every((step) => typeof step.label === 'string' && step.label !== '')).toBe(true)
   })
 })
 
 describe('malformed → fail-loud', () => {
   it('name ≠ default → 拒绝', () => {
-    const yaml = 'name: custom\nsteps:\n  - id: explore\n    artifacts: []\n'
+    const yaml = 'name: custom\nsteps:\n  - id: explore\n    label: 调研\n'
     expect(() => run(yaml)).toThrow(/name 必须是 'default'/)
   })
 
-  it('重复 step id → 拒绝', () => {
-    const body = '  - id: explore\n    artifacts: []\n  - id: explore\n    artifacts: []\n'
+  it('同一分支重复 step id → 拒绝', () => {
+    const body = '  - id: explore\n    label: 调研\n  - id: explore\n    label: 调研\n'
     expect(() => run(wrap(body))).toThrow(/step id 'explore' 重复/)
   })
 
-  it('同 step 内重复 artifact field → 拒绝', () => {
-    const body =
-      '  - id: explore\n    artifacts:\n' +
-      '      - field: design_doc\n        type: file_path\n        producer_policy: effective-phase-skills\n' +
-      '      - field: design_doc\n        type: file_path\n        producer_policy: effective-phase-skills\n'
-    expect(() => run(wrap(body))).toThrow(/artifact field 'design_doc' 重复/)
+  it('分支之间可以有同名 step id（各分支是各自完整的 pipeline）', () => {
+    const yaml = [
+      'name: default', 'tracks:',
+      '  a:', '    label: A', '    steps:', '      - id: open', '        label: 立项',
+      '  b:', '    label: B', '    steps:', '      - id: open', '        label: 立项', '',
+    ].join('\n')
+    expect(() => run(yaml)).not.toThrow()
   })
 
-  it('field ∉ FIELD_ORDER → 拒绝', () => {
-    const body = '  - id: explore\n    artifacts:\n      - field: bogus_field\n        type: file_path\n        producer_policy: effective-phase-skills\n'
-    expect(() => run(wrap(body))).toThrow(/不在 FIELD_ORDER/)
+  it('缺 steps / tracks → 拒绝', () => {
+    expect(() => parseDefaultWorkflow('name: default\n')).toThrow(/缺顶层/)
   })
 
-  it('producer_policy 越出闭集 → 拒绝', () => {
-    const body = '  - id: explore\n    artifacts:\n      - field: design_doc\n        type: file_path\n        producer_policy: made-up-policy\n'
-    expect(() => run(wrap(body))).toThrow(/producer_policy 'made-up-policy' 不在闭集/)
-  })
-
-  it('type ≠ file_path → 拒绝（parse 层）', () => {
-    const body = '  - id: explore\n    artifacts:\n      - field: design_doc\n        type: string\n        producer_policy: effective-phase-skills\n'
-    expect(() => run(wrap(body))).toThrow(/type 只支持 file_path/)
-  })
-
-  it('缺 type → 拒绝', () => {
-    const body = '  - id: explore\n    artifacts:\n      - field: design_doc\n        producer_policy: effective-phase-skills\n'
-    expect(() => run(wrap(body))).toThrow(/缺 type/)
-  })
-
-  it('缺 producer_policy → 拒绝', () => {
-    const body = '  - id: explore\n    artifacts:\n      - field: design_doc\n        type: file_path\n'
-    expect(() => run(wrap(body))).toThrow(/缺 producer_policy/)
-  })
-
-  it('artifact 未知子字段行 → 拒绝', () => {
-    const body = '  - id: explore\n    artifacts:\n      - field: design_doc\n        type: file_path\n        producer_policy: effective-phase-skills\n        bogus: x\n'
-    expect(() => run(wrap(body))).toThrow(/未知字段行/)
-  })
-
-  it('required_when 谓词非 track_in/track_not_in → 拒绝（parse 层）', () => {
-    const body =
-      '  - id: spec\n    artifacts:\n      - field: plan\n        type: file_path\n        producer_policy: effective-phase-skills\n' +
-      '        required_when:\n          phase_in: [spec]\n'
-    expect(() => run(wrap(body))).toThrow(/谓词只支持 track_in\/track_not_in/)
-  })
-
-  it('required_when values 为空 → 拒绝（validate 层）', () => {
-    const body =
-      '  - id: spec\n    artifacts:\n      - field: plan\n        type: file_path\n        producer_policy: effective-phase-skills\n' +
-      '        required_when:\n          track_not_in: []\n'
-    expect(() => run(wrap(body))).toThrow(/values 不得为空/)
-  })
-
-  it('required_when values 重复 → 拒绝（validate 层）', () => {
-    const body =
-      '  - id: spec\n    artifacts:\n      - field: plan\n        type: file_path\n        producer_policy: effective-phase-skills\n' +
-      '        required_when:\n          track_not_in: [pm, pm]\n'
-    expect(() => run(wrap(body))).toThrow(/value 'pm' 重复/)
-  })
-
-  // C-1（codex review round1 阻断）：artifacts 块内非 '- field:' 起始的畸形项必须 fail-loud——
-  // 修复前 parseArtifactEntries 遇非 '- field:' 直接 break，被外层当"其余 step 字段"静默跳过、产出残缺表。
-  it('artifact 首项缺 field（- type: 起始）→ fail-loud，不静默吞', () => {
-    const body = '  - id: explore\n    artifacts:\n      - type: file_path\n        producer_policy: effective-phase-skills\n'
-    expect(() => run(wrap(body))).toThrow(/非 '- field:' 起始的畸形项/)
-  })
-
-  it('artifact 块内畸形列表项（- bogus_key:）→ fail-loud', () => {
-    const body =
-      '  - id: explore\n    artifacts:\n' +
-      '      - field: design_doc\n        type: file_path\n        producer_policy: effective-phase-skills\n' +
-      '      - bogus_key: x\n'
-    expect(() => run(wrap(body))).toThrow(/非 '- field:' 起始的畸形项/)
-  })
-
-  // C-2（codex review round1 阻断）：predicate value 须是合法 track id，杜绝引号/换行等破坏 generated
-  // TS 字符串的字符——修复前 [pm'] 会生成 values: ['pm''] 非法 TS，推迟到 tsc build 才炸。
-  it("required_when value 含单引号（pm'）→ fail-loud，不生成非法 TS", () => {
-    const body =
-      '  - id: spec\n    artifacts:\n      - field: plan\n        type: file_path\n        producer_policy: effective-phase-skills\n' +
-      "        required_when:\n          track_not_in: [pm']\n"
-    expect(() => run(wrap(body))).toThrow(/不是合法 track id/)
-  })
-
-  it('required_when value 含大写等非 track-id 字符（PM）→ fail-loud', () => {
-    const body =
-      '  - id: spec\n    artifacts:\n      - field: plan\n        type: file_path\n        producer_policy: effective-phase-skills\n' +
-      '        required_when:\n          track_not_in: [PM]\n'
-    expect(() => run(wrap(body))).toThrow(/不是合法 track id/)
+  it('用于步骤元数据的那条分支缺非空 label → 拒绝', () => {
+    const yaml = ['name: default', 'tracks:', '  a:', '    label: A', '    steps:', '      - id: open', ''].join('\n')
+    expect(() => generate(yaml, '')).toThrow(/缺非空 label/)
   })
 })

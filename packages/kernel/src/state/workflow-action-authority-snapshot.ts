@@ -153,6 +153,7 @@ function parseCore(value: unknown): Omit<WorkflowActionAuthoritySnapshotV1, 'aut
     track_registry_revision: nonEmpty(top.track_registry_revision, 'track_registry_revision'),
     layers,
   }
+  // 字段名是旧登记表时代留下的持久化名；值是冻结计划指纹的前 16 位十六进制。
   if (!/^[0-9a-f]{16}$/.test(core.track_registry_revision)) {
     throw new Error('track_registry_revision must be a registry digest')
   }

@@ -43,11 +43,16 @@ import { existsSync, readFileSync } from 'node:fs'
 import { mkdir, readFile, stat, utimes, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
-import { loadManifest, parseUpstreamSkillSources, skillsFor, type Phase } from '@tenon/kernel'
-import { FIXTURE_HISTORY_TAG, freshHarness, MANIFEST, REPO_ROOT, rm, type Harness } from './integration-harness.js'
+import { compileEffectiveWorkflowPlan, parseUpstreamSkillSources, type Phase } from '@tenon/kernel'
+import { requiredSkillsFor } from '@tenon/kernel/workflow/test-support'
+import { FIXTURE_HISTORY_TAG, freshHarness, REPO_ROOT, rm, type Harness } from './integration-harness.js'
 
 const TRACK = 'backend' as const
 const CHANGE = 'wfskill'
+
+/** 一步该加载的技能只看工作流 YAML：这里取随包 default 的 backend 分支该步声明的技能。 */
+const DEFAULT_PLAN = compileEffectiveWorkflowPlan('default', undefined, { track: TRACK })
+const phaseSkills = (phase: Phase): string[] => requiredSkillsFor(DEFAULT_PLAN, phase)
 
 interface HookResult { code: number; stdout: string; stderr: string }
 interface HistLine { ts: string; kind: string; to?: string; raw?: string; field?: string }
@@ -107,7 +112,6 @@ describe('真实 e2e —— 完整多相位 workflow × skill 编排一体化闭
   let changeDir: string
   let historyPath: string
   let routerCache: string
-  const manifest = loadManifest(MANIFEST)
   const interactiveSkills = loadInteractiveSkillSet()
 
   let unlockCount = 0
@@ -145,15 +149,15 @@ describe('真实 e2e —— 完整多相位 workflow × skill 编排一体化闭
   }
 
   /** Router does not execute a host Skill tool itself; it must nevertheless emit the exact required
-   * dispatch and the manifest-derived required slots that the root pipeline skill will execute. */
+   * dispatch (root skill, workflow, phase) that the root pipeline skill will execute. The phase's
+   * required skills are no longer copied into the router output: they come from the workflow YAML
+   * through `tenon status` (`step.next`), so the router cannot drift from the workflow definition. */
   function expectPhaseDispatch(result: HookResult, phase: Phase): void {
     expect(result.code).toBe(0)
     expect(result.stdout).toContain('<tenon-dispatch>')
     expect(result.stdout).toContain('skill: tenon')
     expect(result.stdout).toContain('workflow: default')
-    for (const skill of skillsFor(manifest.mandatorySkills, phase, TRACK)) {
-      expect(result.stdout, `${phase} dispatch should retain mandatory skill ${skill}`).toContain(skill)
-    }
+    expect(result.stdout, `${phase} dispatch should name the step`).toMatch(new RegExp(`phase[=:] ?${phase}`))
   }
 
   /**
@@ -226,12 +230,12 @@ describe('真实 e2e —— 完整多相位 workflow × skill 编排一体化闭
     return { resolved, interactive, wasBlocked }
   }
 
-  /** 走完一个相位在 backend track 下 manifest 真派生的全部 mandatory skill（skillsFor 三级回退，
-   *  非硬编码——manifest.yaml 改了这里自动跟着变，回归锚同 manifest-derive.test.ts 的单一真相源原则）。 */
+  /** 走完一个相位在 backend track 下工作流 YAML 声明的全部必需 skill（非硬编码——default.yaml 改了这里
+   *  自动跟着变，单一真相源是工作流定义）。 */
   async function runMandatorySkillsForPhase(phase: Phase): Promise<void> {
     // 每次进入步骤都先重新加载唯一的 tenon skill：它是产出登记的宿主确认来源。
     await invokeSkillThroughGate(phase, 'tenon')
-    for (const token of skillsFor(manifest.mandatorySkills, phase, TRACK)) {
+    for (const token of phaseSkills(phase)) {
       await invokeSkillThroughGate(phase, token)
     }
   }
@@ -255,7 +259,7 @@ describe('真实 e2e —— 完整多相位 workflow × skill 编排一体化闭
     expect(await pathExists(marker), `${phase} acknowledge 应清 hook 投影`).toBe(false)
   }
 
-  test('7 相位真转移 × manifest 真派生 skill 全量调用 × 真 gate veto/unlock × 单一 JSONL 因果一致', async () => {
+  test('7 相位真转移 × 工作流声明 skill 全量调用 × 真 gate veto/unlock × 单一 JSONL 因果一致', async () => {
     // 正常开发对话、尚无 Change：router 必须直接交给 default root skill，不能退回
     // AskUserQuestion 的 workflow 选择分支。hook 只能请求 host 调用 Skill，实际调用由入口 skill
     // 承担（这条边界在 adapter conformance 中也以 Codex hook envelope 覆盖）。
@@ -312,10 +316,7 @@ describe('真实 e2e —— 完整多相位 workflow × skill 编排一体化闭
     expectPhaseDispatch(r, 'build')
     expect(r.stdout).toContain('phase=build')
     await runMandatorySkillsForPhase('build')
-    expect(await h.run([
-      'set-many', CHANGE,
-      'build_mode=direct', 'isolation=worktree', 'direct_override=true',
-    ])).toBe(0)
+    // 设计 §1b Q1：不再要求 build_mode / isolation / direct_override，这里一个都不设。
     // default 的 backend 轨在 build/verify 声明了必需测试：真跑、真落记录，不旁路门禁。
     await h.satisfyStepTests(CHANGE, 'build')
     await h.satisfyStepAgents(CHANGE)
@@ -329,13 +330,7 @@ describe('真实 e2e —— 完整多相位 workflow × skill 编排一体化闭
     expectPhaseDispatch(r, 'verify')
     await runMandatorySkillsForPhase('verify')
     await h.seedArtifact(CHANGE, 'verification_report', `docs/superpowers/reports/${CHANGE}.md`) // P6：复用 hash-bound verification report
-    expect(
-      await h.run([
-        'set-many',
-        CHANGE,
-        'branch_status=handled',
-      ]),
-    ).toBe(0)
+    // 设计 §1b Q2：验证通过不再要求 branch_status=handled，这里不设。
     await h.satisfyStepTests(CHANGE, 'verify')
     await h.satisfyStepAgents(CHANGE)
     await approveReviewExit('verify')
@@ -378,9 +373,9 @@ describe('真实 e2e —— 完整多相位 workflow × skill 编排一体化闭
     expect(reviewOps).toHaveLength(6) // explore/spec/verify 各 request + acknowledge
     expect(prompts).toHaveLength(unlockCount)
     // Ship 只列可由 Skill 工具加载的 mandatory skill；规格应用由 `tenon spec apply` 完成。
-    expect(skillsFor(manifest.mandatorySkills, 'ship', TRACK)).toEqual(['finishing-a-development-branch'])
+    expect(phaseSkills('ship')).toEqual(['finishing-a-development-branch'])
 
-    // 与当前真实 manifest.yaml 的锚点（backend track 全 7 相位 mandatory skill 求和 + 每步一次 tenon）。
+    // 与当前随包 default.yaml 的锚点（backend 分支全 7 步必需 skill 求和 + 每步一次 tenon）。
     expect(toolCount).toBe(18)
     expect(unlockCount).toBe(2)
 
@@ -407,7 +402,7 @@ describe('真实 e2e —— 完整多相位 workflow × skill 编排一体化闭
     expect(seg(idxShip, idxArchive).filter((p) => p.kind === 'prompt')).toHaveLength(0) // ship 非 review 相位，全程不该有解锁
   }, 30_000)
 
-  test('registry-only dynamic track without a workflow branch fails closed', async () => {
+  test('a track that only exists in the retired tracks.yaml is not a track: no workflow branch fails closed', async () => {
     await seed('.pipeline/tracks.yaml', `version: 1
 tracks:
   - id: designer-mobile
@@ -429,7 +424,8 @@ tracks:
     `)
     const code = await h.run(['init', CHANGE, '--track', 'designer-mobile', '--preset', 'full'])
     expect(code).toBe(1)
-    expect(h.err.join('\n')).toContain("工作流 'default' 没有轨道 'designer-mobile' 的分支")
+    expect(h.err.join('\n')).toContain("工作流 'default' 没有轨道 'designer-mobile'")
+    expect(h.err.join('\n')).toContain('tracks.yaml 已不再读取')
   })
 
   test('review request 真产出的 v2 marker 陈旧超 TTL 后，gate.sh 真自愈放行（无需 AskUserQuestion）', async () => {
@@ -455,14 +451,13 @@ tracks:
 
 describe('真实 e2e —— verify-skills 零悬空覆盖本编排实际驱动的每个 skill 名（G4 收口的直接串联）', () => {
   test('本次编排用到的每个 backend track mandatory skill，真名要么本地有 SKILL.md，要么在 skills/sources.yaml 声明', () => {
-    const manifest = loadManifest(MANIFEST)
     // 上游 skill 目录由 setup/update 真装、不入库，所以声明面取 tracked 的 sources.yaml，而非 gitignore 的 lock。
     const upstream = parseUpstreamSkillSources(readFileSync(join(REPO_ROOT, 'skills', 'sources.yaml'), 'utf8'))
     const declared = new Set(upstream.skills.map((source) => source.id))
     const phases: Phase[] = ['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive']
     const used = new Set<string>()
     for (const phase of phases) {
-      for (const token of skillsFor(manifest.mandatorySkills, phase, TRACK)) {
+      for (const token of phaseSkills(phase)) {
         used.add(resolveSkillToken(token))
       }
     }

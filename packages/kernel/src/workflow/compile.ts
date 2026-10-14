@@ -15,16 +15,18 @@ import { isRoundsLimited, isValidMaxRounds } from './step-rounds.js'
 import { compileArtifacts } from './compile-artifacts.js'
 import { compileStepAgents } from './compile-agents.js'
 import { compileStepTests } from './compile-tests.js'
-import { compileStepTestPolicy } from './compile-test-policy.js'
+import { compileStepTestLevel, compileStepTestPolicy } from './compile-test-policy.js'
 import { isDefaultWorkflowName } from './identifier.js'
 import {
   compileWorkflowDecompositionPolicy,
   compileWorkflowInteractionPolicy,
 } from './policy.js'
+import { compileBranchPolicy, compileBranchRoute } from './compile-track-branch.js'
 import type {
   ActionConfig,
   StepIR,
   StepTransitionIR,
+  TrackBranchIR,
   WorkflowIR,
 } from './ir.js'
 
@@ -48,10 +50,10 @@ const ACTION_TYPES: ReadonlySet<string> = new Set<ActionConfig['type']>([
 const CUSTOM_PRODUCER_POLICIES: ReadonlySet<string> = new Set(['effective-step-skills'])
 const DEFAULT_PRODUCER_POLICIES: ReadonlySet<string> = new Set(['effective-step-skills', 'effective-phase-skills'])
 const WORKFLOW_KEYS: ReadonlySet<string> = new Set([
-  'name', 'decomposition', 'interaction', 'openspec', 'documentContract', 'steps', 'tracks',
+  'name', 'decomposition', 'interaction', 'openspec', 'documentContract', 'steps', 'tracks', 'route',
 ])
 const STEP_KEYS: ReadonlySet<string> = new Set([
-  'id', 'label', 'gate', 'prompt', 'maxRounds', 'skills', 'inputs', 'outputs', 'artifacts', 'tests', 'test_policy',
+  'id', 'label', 'gate', 'prompt', 'maxRounds', 'skills', 'inputs', 'outputs', 'artifacts', 'tests', 'test_policy', 'test',
   'agents', 'guards', 'transitions',
 ])
 const SKILL_KEYS: ReadonlySet<string> = new Set(['id', 'depends_on'])
@@ -161,13 +163,13 @@ function compileSkillRef(raw: SkillRef, path: string): SkillRef {
   }
 }
 
-function compileTransition(raw: StepTransition, path: string, outputs: readonly FieldRef[]): StepTransitionIR {
+function compileTransition(raw: StepTransition, path: string, outputs: readonly FieldRef[], stepId: string): StepTransitionIR {
   const rec = asRecord(raw, path)
   rejectExtraKeys(rec, TRANSITION_KEYS, path)
   return {
     event: nonemptyString(rec.event, `${path}.event`),
     to: nonemptyString(rec.to, `${path}.to`),
-    guards: compileGuards(rec.guards, `${path}.guards`, outputs),
+    guards: compileGuards(rec.guards, `${path}.guards`, outputs, stepId),
     actions: compileActions(rec.actions, `${path}.actions`),
   }
 }
@@ -204,18 +206,20 @@ function compileStep(step: unknown, index: number, allowedPolicies: ReadonlySet<
   const outputs = asArray(rec.outputs, `${path}.outputs`).map((r, j) => compileFieldRef(r as FieldRef, `${path}.outputs[${j}]`))
   // 不预折 `?? []`：null/非数组的显式 malformed 必须进 compileGuards 被 fail-loud 拒绝，
   // 只有 undefined（真未声明）才吃默认 []（compileGuards 自身的口径）。
-  const guards = compileGuards(rec.guards, `${path}.guards`, outputs)
+  const guards = compileGuards(rec.guards, `${path}.guards`, outputs, id)
   const artifacts = compileArtifacts(rec.artifacts, `${path}.artifacts`, outputs, `${path}.outputs`, allowedPolicies)
   // 空数组与缺省同归一为「无 tests 键」：未声明测试的工作流编译成与本特性之前逐字相同的 IR，指纹不变。
   const tests = compileStepTests(rec.tests, `${path}.tests`)
   // 同 tests：只在声明时进 IR，未声明策略的工作流指纹逐字不变。
   const testPolicy = compileStepTestPolicy(rec.test_policy, `${path}.test_policy`)
+  // 同 tests：档位键只在声明时进 IR；与 test_policy 互斥，二者同写在这里报错。
+  const testLevel = compileStepTestLevel(rec.test, rec.test_policy, `${path}.test`, id)
   // 同 tests：两个身份列表都空归一为「无 agents 键」，未声明 agent 的工作流指纹逐字不变。
   const agents = compileStepAgents(rec.agents, `${path}.agents`)
   // 门禁只有 review / auto：null 是 auto 的别名，这里归一。auto 的输出齐全守卫要知道哪些边是前进边，
   // 得看到整条步骤序，由 withAutoGateGuards 在同一份步骤序编完之后补挂（见 auto-gate.ts）。
   const transitions = asArray(rec.transitions, `${path}.transitions`).map((t, j) =>
-    compileTransition(t as StepTransition, `${path}.transitions[${j}]`, outputs))
+    compileTransition(t as StepTransition, `${path}.transitions[${j}]`, outputs, id))
   const transitionEvents = new Set<string>()
   transitions.forEach((transition, transitionIndex) => {
     if (transitionEvents.has(transition.event)) {
@@ -233,6 +237,7 @@ function compileStep(step: unknown, index: number, allowedPolicies: ReadonlySet<
     skills, inputs, outputs, guards, artifacts,
     ...(tests === undefined ? {} : { tests }),
     ...(testPolicy === undefined ? {} : { test_policy: testPolicy }),
+    ...(testLevel === undefined ? {} : { test: testLevel }),
     ...(agents === undefined ? {} : { agents }),
     transitions,
   }
@@ -326,6 +331,9 @@ function compileWith(
   const steps = withAutoGateGuards(asArray(rec.steps, 'steps').map((s, i) => compileStep(s, i, allowedPolicies)), isForwardStepEdge)
   assertMaxRoundsDeclarations(steps, 'steps', executionModel)
   const tracks = compileTracks(rec.tracks, allowedPolicies, executionModel)
+  // 平铺工作流的路由数据：与分支 route 同一套值域校验；有 tracks 时各分支自己写。
+  const route = compileBranchRoute(rec.route, 'route')
+  if (route !== undefined && tracks !== undefined) compileError('route', '有 tracks 时 route 写在 tracks.<id> 下')
   return deepFreeze({
     name,
     decomposition,
@@ -334,13 +342,17 @@ function compileWith(
     ...(documentContract === undefined ? {} : { documentContract }),
     steps,
     ...(tracks === undefined ? {} : { tracks }),
+    ...(route === undefined ? {} : { route }),
   })
 }
 
-const TRACK_BRANCH_KEYS: ReadonlySet<string> = new Set(['label', 'documentContract', 'steps'])
+const TRACK_BRANCH_KEYS: ReadonlySet<string> = new Set(['label', 'documentContract', 'steps', 'spec', 'route', 'automation'])
 const TRACK_ID_RE = /^[a-z][a-z0-9_-]{0,31}$/
 
-/** `tracks.<id>` 分支：每条分支的 steps 与顶层同构编译（路径前缀 tracks.<id>.steps），文档契约随分支编译。 */
+/**
+ * `tracks.<id>` 分支：每条分支的 steps 与顶层同构编译（路径前缀 tracks.<id>.steps），文档契约随分支编译；
+ * `spec` / `route` / `automation` 只在声明时进入 IR（见 compile-track-branch.ts）。
+ */
 function compileTracks(
   raw: unknown,
   allowedPolicies: ReadonlySet<string>,
@@ -348,7 +360,7 @@ function compileTracks(
 ): WorkflowIR['tracks'] | undefined {
   if (raw === undefined) return undefined
   const rec = asRecord(raw, 'tracks')
-  const out: Record<string, { label?: string; documentContract?: WorkflowDocumentContractV1; steps: readonly StepIR[] }> = {}
+  const out: Record<string, TrackBranchIR> = {}
   for (const [id, branchRaw] of Object.entries(rec)) {
     if (!TRACK_ID_RE.test(id)) compileError(`tracks.${id}`, '分支 id 须为小写字母开头的 a-z0-9_-（≤32）')
     const branch = asRecord(branchRaw, `tracks.${id}`)
@@ -361,6 +373,7 @@ function compileTracks(
     assertMaxRoundsDeclarations(steps, `tracks.${id}.steps`, executionModel)
     out[id] = {
       ...(branch.label === undefined ? {} : { label: branch.label }),
+      ...compileBranchPolicy(branch, `tracks.${id}`),
       ...(documentContract === undefined ? {} : { documentContract }),
       steps,
     }

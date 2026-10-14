@@ -187,17 +187,19 @@ steps:
     await symlink(join(outside, 'linked.yaml'), join(workflows, 'linked.yaml'), 'file')
     const anchor = captureWorkflowRootAnchor(root)
     try {
-      expect(readCurrentWorkflowDefinition(anchor, 'default')).toMatchObject({
+      // 有分支的 default 必须带上任务的轨道才算得出当前指纹；缺轨道按「当前定义不可用」处理。
+      expect(readCurrentWorkflowDefinition(anchor, 'default', { track: 'backend' })).toMatchObject({
         kind: 'current',
         fingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
       })
-      expect(readCurrentWorkflowDefinition(anchor, 'valid')).toMatchObject({
+      expect(readCurrentWorkflowDefinition(anchor, 'default', {})).toEqual({ kind: 'invalid' })
+      expect(readCurrentWorkflowDefinition(anchor, 'valid', {})).toMatchObject({
         kind: 'current',
         fingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
       })
-      expect(readCurrentWorkflowDefinition(anchor, 'ghost')).toEqual({ kind: 'missing' })
-      expect(readCurrentWorkflowDefinition(anchor, 'broken')).toEqual({ kind: 'invalid' })
-      expect(() => readCurrentWorkflowDefinition(anchor, 'linked')).toThrow(WorkflowPathError)
+      expect(readCurrentWorkflowDefinition(anchor, 'ghost', {})).toEqual({ kind: 'missing' })
+      expect(readCurrentWorkflowDefinition(anchor, 'broken', {})).toEqual({ kind: 'invalid' })
+      expect(() => readCurrentWorkflowDefinition(anchor, 'linked', {})).toThrow(WorkflowPathError)
     } finally {
       closeWorkflowRootAnchor(anchor)
     }
@@ -211,7 +213,7 @@ steps:
     try {
       await rename(root, original)
       await symlink(outside, root, 'dir')
-      expect(() => readCurrentWorkflowDefinition(anchor, 'default')).toThrow(WorkflowPathError)
+      expect(() => readCurrentWorkflowDefinition(anchor, 'default', { track: 'backend' })).toThrow(WorkflowPathError)
     } finally {
       closeWorkflowRootAnchor(anchor)
     }

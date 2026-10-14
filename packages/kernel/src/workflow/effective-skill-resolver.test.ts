@@ -4,12 +4,17 @@
  * 不隐式拆 `|`）两种解析能力。
  */
 import { describe, expect, it } from 'vitest'
-import { createEffectiveSkillResolver, type EffectiveSkillSlot } from './effective-skill-resolver.js'
+import {
+  createEffectiveSkillResolver,
+  resolveAvailableSkillSlots,
+  resolveExplicitProfileSkillSlots,
+  resolveRequiredSkillSlots,
+  type EffectiveSkillSlot,
+} from './effective-skill-resolver.js'
 import type { SkillTable } from '../flow/manifest.js'
 import type { StepIR } from './ir.js'
-import type { TrackRegistry } from '../tracks/types.js'
-import { compileEffectiveWorkflowPlan } from './effective-plan.js'
-import { legacyDefaultWorkflow } from './test-support.js'
+import { compileEffectiveWorkflowPlan, effectiveWorkflowPlanFromIr } from './effective-plan.js'
+import { defaultIr, legacyDefaultPlan } from './test-support.js'
 
 /** 最小 SkillTable 夹具（缺相位 → skillsFor 返 []，无须补全 Record<Phase,…>）。 */
 function table(rows: Record<string, Record<string, readonly string[]>>): SkillTable {
@@ -24,51 +29,54 @@ function step(skills: readonly { id: string }[]): StepIR {
 const flat = (slots: readonly EffectiveSkillSlot[]) => slots.map((s) => s.token)
 const alts = (slots: readonly EffectiveSkillSlot[]) => slots.flatMap((s) => s.alternatives)
 
-function registry(track: string, profile: string): TrackRegistry {
-  const def = {
-    id: track,
-    label: track,
-    builtin: false,
-    workflow: { default: 'default', allowed: '*' as const },
-    policyProfile: {
-      reviewSeed: 'pending' as const,
-      automationEligible: true,
-      coverageProfile: 'none' as const,
-      routing: { enabled: false as const },
-      skills: { matrix: true, profile },
-    },
-  }
-  return { ordered: [def], byId: new Map([[track, def]]), revision: 'test', source: 'project-file' }
+/** manifest 里为 explore 配了矩阵技能：叠加分支删除后，它不得再进入任何必需 / 可用 / 显式 profile 投影。 */
+const MATRIX = {
+  mandatorySkills: table({ explore: { backend: ['matrix-skill'], _all: ['matrix-skill'] } }),
+  recommendedSkills: table({ explore: { backend: ['matrix-recommended'] } }),
 }
 
-describe('T-R6 resolveDefault —— track registry profile 接线', () => {
-  it('以 track.policyProfile.skills.profile 查表，不再假设 profile 等于 track id', () => {
-    const manifest = {
-      mandatorySkills: table({ explore: { 'mobile-profile': ['mobile-build'], mobile: ['wrong-track-key'] } }),
+describe('技能投影只来自工作流声明，不叠加 manifest 矩阵', () => {
+  const stepGraphSkills = () => effectiveWorkflowPlanFromIr('default', defaultIr(), { track: 'backend' }).capabilities.skills
+  // 旧快照里的 default 步骤不声明技能（它们当年全靠矩阵），source 记着 manifest-overlay。
+  const legacySkills = () =>
+    legacyDefaultPlan({ track: 'backend', executionModel: 'phase-manifest' }).capabilities.skills
+  const DECLARED = ['openspec-explore', 'brainstorming', 'grilling', 'domain-modeling', 'codebase-design']
+
+  it('装配了矩阵的 resolver：必需 / 可用 / 显式 profile 三个投影都只给步骤自己声明的技能', () => {
+    const r = createEffectiveSkillResolver(MATRIX)
+    const capability = stepGraphSkills()
+    expect(flat(resolveRequiredSkillSlots(r, capability, 'explore'))).toEqual(DECLARED)
+    expect(flat(resolveAvailableSkillSlots(r, capability, 'explore'))).toEqual(DECLARED)
+    expect(flat(resolveExplicitProfileSkillSlots(r, capability, 'explore', 'backend'))).toEqual(DECLARED)
+  })
+
+  it('旧 manifest-overlay 计划也不叠加：声明为空的步骤得到空集', () => {
+    const r = createEffectiveSkillResolver(MATRIX)
+    const capability = legacySkills()
+    expect(capability.source).toBe('manifest-overlay')
+    expect(resolveRequiredSkillSlots(r, capability, 'explore')).toEqual([])
+    expect(resolveAvailableSkillSlots(r, capability, 'explore')).toEqual([])
+    expect(resolveExplicitProfileSkillSlots(r, capability, 'explore', 'backend')).toEqual([])
+  })
+
+  it('宿主没有 resolver 时同样只给声明的技能；宿主实现的覆写方法优先', () => {
+    expect(resolveRequiredSkillSlots(undefined, legacySkills(), 'explore')).toEqual([])
+    expect(flat(resolveRequiredSkillSlots(undefined, stepGraphSkills(), 'explore'))).toEqual(DECLARED)
+    expect(resolveExplicitProfileSkillSlots(undefined, legacySkills(), 'explore', 'backend')).toEqual([])
+    const override = { ...createEffectiveSkillResolver(MATRIX), resolveRequired: () => [{ token: 'host', alternatives: ['host'] }] }
+    expect(flat(resolveRequiredSkillSlots(override, stepGraphSkills(), 'explore'))).toEqual(['host'])
+  })
+})
+
+describe('resolveDefault —— 不经轨道登记表：第二个参数就是 manifest 里的 profile 名', () => {
+  it('按 profile 名查表；专属行缺失回退 _all，两层都缺失 []', () => {
+    const r = createEffectiveSkillResolver({
+      mandatorySkills: table({ explore: { 'mobile-profile': ['mobile-build'] }, open: { _all: ['shared-open'] } }),
       recommendedSkills: table({ explore: { 'mobile-profile': ['mobile-review'] } }),
-    }
-    const r = createEffectiveSkillResolver({ registry: registry('mobile', 'mobile-profile'), manifest })
-    expect(flat(r.resolveDefault('explore', 'mobile'))).toEqual(['mobile-build', 'mobile-review'])
-  })
-
-  it('profile 专属行缺失时回退 _all；两层都缺失时 []', () => {
-    const r = createEffectiveSkillResolver({
-      registry: registry('mobile', 'mobile-profile'),
-      manifest: {
-        mandatorySkills: table({ open: { _all: ['shared-open'] } }),
-        recommendedSkills: table({}),
-      },
     })
-    expect(flat(r.resolveDefault('open', 'mobile'))).toEqual(['shared-open'])
-    expect(r.resolveDefault('verify', 'mobile')).toEqual([])
-  })
-
-  it('未知 track fail-loud，不把无效引用偷降级成 _all', () => {
-    const r = createEffectiveSkillResolver({
-      registry: registry('mobile', 'mobile-profile'),
-      manifest: { mandatorySkills: table({ open: { _all: ['shared-open'] } }), recommendedSkills: table({}) },
-    })
-    expect(() => r.resolveDefault('open', 'ghost')).toThrow(/track.*ghost|ghost.*track/i)
+    expect(flat(r.resolveDefault('explore', 'mobile-profile'))).toEqual(['mobile-build', 'mobile-review'])
+    expect(flat(r.resolveDefault('open', 'ghost'))).toEqual(['shared-open'])
+    expect(r.resolveDefault('verify', 'ghost')).toEqual([])
   })
 })
 

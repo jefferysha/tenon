@@ -3,7 +3,7 @@
  * store/flow 按 types.ts 契约注入；测试全 mock，绝不 import kernel 实现。
  */
 import type { GitFinishProbe } from './gitWorkspace.js'
-import type { BoardSnapshotV2, DocumentContractPhase, DocumentEvidenceReport, EffectiveSkillResolver, FlowEngine, HistoryWriter, InteractionEventRecorder, MutationOutcome, PhaseExitFileContext, PipelineState, ProductPaths, ProjectTrackConfig, RegistrySnapshot, SkillTable, StateStore, TrackRegistry, TransitionRecordStore, WorkflowRunRepository, WorkflowPipelinePlanV2 } from '@tenon/kernel'
+import type { BoardSnapshotV2, DocumentContractPhase, DocumentEvidenceReport, EffectiveSkillResolver, FlowEngine, HistoryWriter, InteractionEventRecorder, PhaseExitFileContext, PipelineState, ProductPaths, SkillTable, StateStore, TransitionRecordStore, WorkflowRunRepository, WorkflowPipelinePlanV2 } from '@tenon/kernel'
 import type { ArtifactSubmissionService, ExecutionRuntimeV2, SkillActionAuthorityResolver } from '@tenon/automation'
 import type { AfkReadiness } from './afkReadiness.js'
 import type { CodexAuthStatus } from './codexAuth.js'
@@ -219,28 +219,11 @@ export interface CliDeps {
    */
   testEvidence?: import('@tenon/kernel').TestEvidenceReader
   /**
-   * 载入项目 Track Registry（GOAL.md 清单 T · R2 校验面切换）：缺 `<cwd>/.pipeline/tracks.yaml`
-   * → 内建 Track（builtin-only，行为与「没有本功能」逐字一致）；坏文件 fail-loud。装配处
-   * （main.ts / integration-harness realDeps）用 loadTrackRegistry(cwd, ctx) 落地，**每次都从盘读、
-   * 不跨命令记忆化**（R3 D4：CRUD 后同进程续用陈旧 registry 是真实竞态源）。**只读用途**
-   * （tracks list/show 等）走它；需要「与 change 写原子」的组合校验（init/set track|workflow/
-   * set-many/cas）改走 withRegistryLock 在 registry 锁内 fresh-load，别用本无锁读。
+   * 项目级协调锁（`<cwd>/.pipeline` 目录锁，锁序 项目锁 → 任务锁）：init 与 set track|workflow 用它把「校验工作流 →
+   * 发布引用它的任务」圈成一段，与 server 的工作流删除 / 保存（同一把锁内扫描引用）互斥。只加锁、不读任何配置。
+   * 不可重入，回调里禁止再取同一把。
    */
-  loadRegistry: () => TrackRegistry
-  /**
-   * registry 生命周期锁内 fresh-load 后运行 cb（R3 D4：锁序 registry→change 的**外层锁**）。
-   * init/fields 用它先拿 `.pipeline` 仓级锁、锁内新鲜读 registry，再进各自 change 锁做最终
-   * {track,workflow} 组合校验/写——关闭「锁外读 registry、之后才写 change」的跨锁 TOCTOU
-   * （含 delete 扫描期与 init/set track 竞争）。损坏 tracks.yaml 在锁内 load 处 fail-loud（cb 不跑）。
-   * main.ts/harness 用 kernel withTrackRegistryLock 落地；cb 内禁再取同一 registry 锁（非重入）。
-   */
-  withRegistryLock: <T>(cb: (snap: RegistrySnapshot) => Promise<T>) => Promise<T>
-  /**
-   * mutate-under-lock（`tenon tracks` CRUD 专用，R3 D4）：`.pipeline` 仓级锁内 read 最新 raw
-   * config → cb（锁内构造 next + 引用扫描）→ 完整 next 校验 → 同锁原子写。不嵌套 writeTrackRegistry、
-   * 不隐式 repairCorrupt。main.ts/harness 用 kernel mutateTrackRegistry 落地。
-   */
-  mutateRegistry: <T>(cb: (snap: RegistrySnapshot) => Promise<{ next: ProjectTrackConfig; result: T }>) => Promise<MutationOutcome<T>>
+  withProjectLock: <T>(cb: () => Promise<T>) => Promise<T>
   /** 项目根：change 定位在 <cwd>/openspec/changes/<name>/ */
   cwd: string
   /** Process environment read boundary; automation transition gates consume TENON_AFK without global reads. */
@@ -287,6 +270,11 @@ export interface CliDeps {
    * `--host` 时据此判定宿主；会话内的命令不写宿主子代理文件。缺省 undefined = 终端。
    */
   hostKind?: () => 'claude-code' | 'codex' | 'terminal'
+  /**
+   * 当前用户的主目录。`tenon test run` 写运行记录前据此把记录字符串里的主目录前缀改写成 `~`；
+   * 缺省 undefined = 不改写主目录（仓库根照常改写为相对路径）。
+   */
+  homeDir?: () => string | undefined
   /** 插件里存在的技能 id（上游来源 + 自带技能）；`tenon agent validate` 据此核对 agent 的技能。 */
   knownSkillIds?: () => ReadonlySet<string>
   /**
@@ -310,17 +298,6 @@ export interface CliDeps {
     path: () => string
     run: (script: string, folder: string, cwd: string) => Promise<number>
   }
-  /**
-   * 立项前置条件：所选分支第一个步骤声明了项目级文档 `role: require` 时，该文档必须先就绪。
-   * 返回拒绝原因，null = 可以立项。main.ts 用 kernel designSystemPrecondition 落地；
-   * 缺省 undefined = 未装配，立项不做该检查（行为与接线前逐字一致）。
-   */
-  creationPrecondition?: (input: {
-    readonly workflow: string
-    readonly track: string
-    readonly firstStep: string
-    readonly policy?: import('@tenon/kernel').DocumentGovernancePolicy
-  }) => Promise<string | null>
   /**
    * 执行测试目录的 `setup`（`tenon init` 建好 worktree 后的工作区准备）：在 `cwd` 里经 shell 执行 `command`，
    * 子进程的输出逐行交给 `log`（调用方转到 stderr，stdout 留给 `--json`），返回退出码。
@@ -435,7 +412,7 @@ export interface CliDeps {
    * check 命令的 guard 文件面注入（BACKLOG #12 guard 全量校验面）：按 change 名构造
    * GuardFileContext——fileExists/fileNonempty/readFile/dirExists/changeArchived 相对 cwd 解析，
    * changeDirRel=openspec/changes/<name>，automationRunner 读 TENON_AUTOMATION_RUNNER。
-   * coverageProfile 不允许由 fs 工厂猜测；cmdCheck 用 requireTrack 的 effective policy 合成。
+   * coverageProfile 不允许由 fs 工厂猜测；cmdCheck 取自任务冻结计划的 `capabilities.track.coverageProfile`。
    */
   guardCtx?: (name: string) => GuardFileContext
   /**
@@ -453,12 +430,10 @@ export interface CliDeps {
    */
   passthroughArgv?: string[]
   /**
-   * H10 §1/§8任务7：skill bundle profile（`skill_bundle_id`）存在性语义校验器——复用 T 线现有
-   * profile 校验器（`tracks/validate.ts::profileOk` 消费的同一份 `TrackValidationContext.
-   * skillProfiles` 集合：BUILTIN_TRACK_DEFINITIONS 的非 `_all` policy profile ∪ manifest
-   * mandatory/recommended 两表已声明的非 `_all` track 键），不另造正则/枚举、不重新解析 manifest。
-   * 装配处（main.ts / integration-harness realDeps）用 `(id) => trackCtx.skillProfiles.has(id)`
-   * 落地——与 `loadRegistry`/`withRegistryLock` 共用同一个 trackCtx 构造，零额外 I/O。
+   * H10 §1/§8任务7：skill bundle profile（`skill_bundle_id`）存在性语义校验器——集合口径是
+   * kernel `knownSkillProfiles`（随插件发布的 default 工作流的轨道 id ∪ manifest mandatory/recommended
+   * 两表已声明的非 `_all` 键），不另造正则/枚举、不重新解析 manifest。装配处（main.ts /
+   * integration-harness realDeps）用 `skillProfileChecker(manifest)` 落地，首次提问才派生。
    *
    * 消费方：
    *   · afk.ts 的 cmdAfk('run') 装配 `createLoopAdmission({ isSkillProfileKnown })`——具名

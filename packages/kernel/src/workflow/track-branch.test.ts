@@ -1,13 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { builtinTrack } from '../tracks/builtins.js'
-import { tmpdir } from 'node:os'
-import { loadTrackRegistry } from '../tracks/registry.js'
-import { resolveTrackForBranch } from '../tracks/branch-track.js'
 import { compileWorkflow } from './compile.js'
-import { defaultArtifactsForStep } from './default-artifacts.js'
+import type { WorkflowDef } from './types.js'
 import { DEFAULT_WORKFLOW_SOURCE } from './default-workflow.generated.js'
-import { compileEffectiveWorkflowPlan } from './effective-plan.js'
+import { compileEffectiveWorkflowPlan, effectiveWorkflowPlanFromIr } from './effective-plan.js'
 import { parseWorkflow } from './parse.js'
+import { UnknownTrackError } from './resolve-track.js'
 import { serializeWorkflow } from './serialize.js'
 import { selectTrackBranch, validateWorkflow, validateWorkflowForStorage, workflowBranches } from './validate.js'
 
@@ -21,10 +18,6 @@ tracks:
         gate: auto
         skills:
           - id: simple-task
-        inputs: []
-        outputs:
-          - field: design_doc
-            type: file_path
         guards: []
         transitions:
           - event: change-complete
@@ -33,8 +26,6 @@ tracks:
         label: 完成
         gate: null
         skills: []
-        inputs: []
-        outputs: []
         guards: []
         transitions: []
   mobile:
@@ -47,8 +38,6 @@ tracks:
           - id: frontend-design
           - id: browser-qa
             depends_on: [frontend-design]
-        inputs: []
-        outputs: []
         guards: []
         transitions:
           - event: design-complete
@@ -57,8 +46,6 @@ tracks:
         label: 完成
         gate: null
         skills: []
-        inputs: []
-        outputs: []
         guards: []
         transitions: []
 `
@@ -86,11 +73,11 @@ describe('track 分支 · 解析 / 序列化 / 选择', () => {
 
   it('有效计划按 change 的 track 选分支：workflow 是分支 IR、definition 是完整定义；指纹属于整份定义（各分支相同）', () => {
     const def = parseWorkflow(BRANCHED)
-    const mobile = compileEffectiveWorkflowPlan('demo', def, resolveTrackForBranch(loadTrackRegistry(tmpdir(), { workflowExists: () => true, skillProfiles: new Set() }), 'mobile', def))
+    const mobile = compileEffectiveWorkflowPlan('demo', def, { track: 'mobile' })
     expect(mobile.workflow.steps.map((step) => step.id)).toEqual(['design', 'done'])
     expect(mobile.workflow).not.toHaveProperty('tracks')
     expect(mobile.capabilities.skills.steps[0]).toMatchObject({ stepId: 'design', requiredSkillIds: ['frontend-design', 'browser-qa'] })
-    const backend = compileEffectiveWorkflowPlan('demo', def, builtinTrack('backend'))
+    const backend = compileEffectiveWorkflowPlan('demo', def, { track: 'backend' })
     expect(backend.workflow.steps.map((step) => step.id)).toEqual(['change', 'done'])
     expect(backend.workflowFingerprint).toBe(mobile.workflowFingerprint)
     expect(Object.keys(mobile.definition?.tracks ?? {})).toEqual(['backend', 'mobile'])
@@ -112,19 +99,21 @@ describe('track 分支 · 解析 / 序列化 / 选择', () => {
       .replace('    label: 移动端\n', `    label: 移动端\n${contract('design-md', 'design', 'frontend-design')}\n`))
     expect(selectTrackBranch(def, 'mobile').documentContract?.slots[0]?.kind).toBe('design-md')
     expect(selectTrackBranch(def, undefined).documentContract?.slots[0]?.kind).toBe('proposal')
-    const registry = loadTrackRegistry(tmpdir(), { workflowExists: () => true, skillProfiles: new Set() })
-    const mobile = compileEffectiveWorkflowPlan('demo', def, resolveTrackForBranch(registry, 'mobile', def))
-    const backend = compileEffectiveWorkflowPlan('demo', def, builtinTrack('backend'))
+    // 带 document_contract 的定义已被 validate 拒绝（只剩旧契约计划的重建与夹具用）：这里不经校验，直接由编译产物建计划。
+    const legacyPlan = (workflow: WorkflowDef, track: string): ReturnType<typeof compileEffectiveWorkflowPlan> =>
+      effectiveWorkflowPlanFromIr('demo', compileWorkflow(workflow), { track })
+    const mobile = legacyPlan(def, 'mobile')
+    const backend = legacyPlan(def, 'backend')
     expect(mobile.documentPolicy?.outputsByStep).toEqual({ design: [{ kind: 'design-md', producerCandidates: ['frontend-design'] }], done: [] })
     expect(backend.documentPolicy?.outputsByStep).toEqual({ change: [{ kind: 'proposal', producerCandidates: ['simple-task'] }], done: [] })
     expect(mobile.workflow.documentContract?.slots[0]?.kind).toBe('design-md')
     expect(backend.workflowFingerprint).not.toBe(mobile.workflowFingerprint)
     const twin = { ...def, tracks: { backend: def.tracks!.backend!, mobile: def.tracks!.backend! } }
-    const twinMobile = compileEffectiveWorkflowPlan('demo', twin, resolveTrackForBranch(registry, 'mobile', twin))
-    const twinBackend = compileEffectiveWorkflowPlan('demo', twin, builtinTrack('backend'))
+    const twinMobile = legacyPlan(twin, 'mobile')
+    const twinBackend = legacyPlan(twin, 'backend')
     expect(twinMobile.documentPolicy).toEqual(twinBackend.documentPolicy)
     expect(twinMobile.workflowFingerprint).toBe(twinBackend.workflowFingerprint)
-    expect(compileEffectiveWorkflowPlan('demo', parseWorkflow(BRANCHED), builtinTrack('backend')).documentPolicy).toBeUndefined()
+    expect(compileEffectiveWorkflowPlan('demo', parseWorkflow(BRANCHED), { track: 'backend' }).documentPolicy).toBeUndefined()
   })
 
   it('每条分支各自校验；错误带 tracks.<id> 前缀', () => {
@@ -133,22 +122,44 @@ describe('track 分支 · 解析 / 序列化 / 选择', () => {
     expect(errors.some((error) => error.startsWith('tracks.backend: ') && error.includes('nowhere'))).toBe(true)
   })
 
-  it('registry 未登记的分支 track 合成缺省定义；既无登记也无分支 → undefined', () => {
+  it('计划只读工作流自己的分支（不查登记表）：分支没有写 automation → 不可进 AFK；轨道不存在 → UnknownTrackError', () => {
     const def = parseWorkflow(BRANCHED)
-    const registry = loadTrackRegistry(tmpdir(), { workflowExists: () => true, skillProfiles: new Set() })
-    const synthesized = resolveTrackForBranch(registry, 'mobile', def)
-    expect(synthesized).toMatchObject({ id: 'mobile', label: '移动端', builtin: false, workflow: { default: 'demo', allowed: ['demo'] } })
-    expect(synthesized?.policyProfile.skills).toEqual({ matrix: false, profile: '_all' })
-    expect(resolveTrackForBranch(registry, 'backend', def)).toBe(registry.byId.get('backend'))
-    expect(resolveTrackForBranch(registry, 'nope', def)).toBeUndefined()
+    const mobile = compileEffectiveWorkflowPlan('demo', def, { track: 'mobile' })
+    expect(mobile.capabilities.track).toEqual({ id: 'mobile', coverageProfile: 'none', routingEnabled: false })
+    expect(mobile.capabilities.automation).toEqual({ eligible: false, autoEnqueueOnSpecComplete: false })
+    // 与分支 id 同名的内建轨道（backend）也只认工作流自己的分支，不沿用内建登记的策略。
+    expect(compileEffectiveWorkflowPlan('demo', def, { track: 'backend' }).capabilities.automation)
+      .toEqual({ eligible: false, autoEnqueueOnSpecComplete: false })
+    expect(() => compileEffectiveWorkflowPlan('demo', def, { track: 'nope' })).toThrow(UnknownTrackError)
+  })
+
+  it('分支声明了 automation 时进入计划', () => {
+    const base = parseWorkflow(BRANCHED)
+    const mobile = base.tracks!.mobile!
+    const def: WorkflowDef = {
+      ...base,
+      tracks: { ...base.tracks, mobile: { ...mobile, automation: { eligible: true, enqueueAfterSpec: true } } },
+    }
+    expect(compileEffectiveWorkflowPlan('demo', def, { track: 'mobile' }).capabilities.automation)
+      .toEqual({ eligible: true, autoEnqueueOnSpecComplete: true })
   })
 })
 
 describe('门禁 · review / auto / null', () => {
-  it('gate: auto 编译成每条出边上的输出齐全守卫', () => {
-    const ir = compileWorkflow(parseWorkflow(BRANCHED))
+  it('gate: auto 编译成每条出边上的输出齐全守卫（只对仍带 outputs 的旧定义；新定义没有 outputs，自动门禁不推导守卫）', () => {
+    const legacy = parseWorkflow(BRANCHED)
+    const backend = legacy.tracks!.backend!
+    const withOutputs: WorkflowDef = {
+      ...legacy,
+      tracks: {
+        ...legacy.tracks,
+        backend: { ...backend, steps: backend.steps.map((step) => step.id === 'change' ? { ...step, outputs: [{ field: 'design_doc', type: 'file_path' as const }] } : step) },
+      },
+    }
+    const ir = compileWorkflow(withOutputs)
     expect(ir.tracks?.backend?.steps[0]!.transitions[0]!.guards).toEqual([{ type: 'field-nonempty', field: 'design_doc' }])
     expect(ir.tracks?.mobile?.steps[0]!.transitions[0]!.guards).toEqual([])
+    expect(compileWorkflow(legacy).tracks?.backend?.steps[0]!.transitions[0]!.guards).toEqual([])
   })
 
   it("gate: confirm 已移除 → 解析与编译都报错并给出替代", () => {
@@ -159,38 +170,37 @@ describe('门禁 · review / auto / null', () => {
 })
 
 describe('default 分支', () => {
-  it('内建 default 没有顶层 steps，含 chat / pm / frontend / backend / free 五条分支且每条都过 default 骨架校验；没有分支的 track 被拒', () => {
+  it('内建 default 没有顶层 steps，含 lite / pm / frontend / backend 四条分支且整份过存储校验；没有分支的 track（含已退役的 chat / free）被拒', () => {
     const def = parseWorkflow(DEFAULT_WORKFLOW_SOURCE)
     expect(def.steps).toEqual([])
-    expect(() => compileEffectiveWorkflowPlan('default', def, builtinTrack('simple'))).toThrow(/没有轨道 'simple' 的分支/u)
-    expect(Object.keys(def.tracks ?? {})).toEqual(['chat', 'pm', 'frontend', 'backend', 'free'])
-    // 无轨道语境取第一条分支 = chat（只有驱动技能的基础流）。
-    expect(compileEffectiveWorkflowPlan('default', def).capabilities.skills.steps.find((step) => step.stepId === 'build')?.requiredSkillIds).toEqual([])
+    for (const retired of ['simple', 'chat', 'free']) {
+      expect(() => compileEffectiveWorkflowPlan('default', def, { track: retired })).toThrow(new RegExp(`没有轨道 '${retired}'`, 'u'))
+    }
+    expect(Object.keys(def.tracks ?? {})).toEqual(['lite', 'pm', 'frontend', 'backend'])
+    // 有分支的工作流不指定轨道就算不出计划：不再取第一条分支（lite 排在最前，更不能被误选）。
+    expect(() => compileEffectiveWorkflowPlan('default', def)).toThrow(/有多条轨道.*lite, pm, frontend, backend/u)
     expect(validateWorkflowForStorage('default', def)).toEqual([])
   })
 
-  it('backend 分支的 explore 技能 = 驱动 + 该轨矩阵技能；pm 分支 spec 不要求 plan artifact', () => {
+  it('backend 分支的 explore 技能 = 驱动 + 该轨矩阵技能', () => {
     const def = parseWorkflow(DEFAULT_WORKFLOW_SOURCE)
-    const backend = compileEffectiveWorkflowPlan('default', def, builtinTrack('backend'))
+    const backend = compileEffectiveWorkflowPlan('default', def, { track: 'backend' })
     expect(backend.capabilities.skills.steps.find((step) => step.stepId === 'explore')?.requiredSkillIds).toEqual([
       'openspec-explore', 'brainstorming', 'grilling', 'domain-modeling', 'codebase-design',
     ])
-    const pm = compileEffectiveWorkflowPlan('default', def, builtinTrack('pm'))
+    const pm = compileEffectiveWorkflowPlan('default', def, { track: 'pm' })
     // pm 的 verify 只声明走查与验证四件；架构词汇（codebase-design）是 backend explore 的事。
     expect(pm.capabilities.skills.steps.find((step) => step.stepId === 'verify')?.requiredSkillIds)
       .toEqual(['browser-qa', 'web-design-guidelines', 'design-taste-frontend', 'verification-before-completion'])
     expect(backend.capabilities.skills.steps.find((step) => step.stepId === 'explore')?.requiredSkillIds)
       .not.toContain('improve-codebase-architecture')
-    // default 运行时 artifact 走生成表：pm 分支的 spec 没有 plan artifact，其余分支有。
-    expect(defaultArtifactsForStep('spec', 'pm')).toEqual([])
-    expect(defaultArtifactsForStep('spec', 'backend').map((artifact) => artifact.field)).toEqual(['plan'])
   })
 
   /**
    * build 的通过结论（pre_verify_review_result=pass）由 CLI 按本步声明的就绪证据核对；真机里
    * free / pm / chat 的 build 什么都不声明，模型直接 set pass 自批。每条分支的 build 都必须声明
-   * 至少一项可核对的必需证据：frontend / backend / chat / free 是策略要求运行的 unit 套件（测试目录里的），
-   * pm 是语言无关的 spec-consistency 评审者。
+   * 至少一项可核对的必需证据：frontend / backend 是 `test: changed` 档位要求运行的单测类套件（测试目录里的），
+   * pm 是语言无关的 spec-consistency 评审者，lite 是改动风险探针加 `test: changed` 档位。
    */
   it('每条分支的 build 都声明必需的就绪证据（测试或评审者）', () => {
     const def = parseWorkflow(DEFAULT_WORKFLOW_SOURCE)
@@ -200,15 +210,14 @@ describe('default 分支', () => {
         track,
         (build?.tests ?? []).filter((test) => test.required !== false).map((test) => test.id),
         (build?.agents?.reviewers ?? []).filter((reviewer) => reviewer.required).map((reviewer) => reviewer.agent),
-        build?.test_policy?.run ?? [],
+        build?.test === undefined || build.test === 'none' ? [] : [build.test],
       ]
     })
     expect(evidence).toEqual([
-      ['chat', [], ['spec-consistency'], ['unit']],
+      ['lite', ['diff-risk'], [], ['changed']],
       ['pm', [], ['spec-consistency'], []],
-      ['frontend', [], [], ['unit']],
-      ['backend', [], [], ['unit']],
-      ['free', [], ['spec-consistency'], ['unit']],
+      ['frontend', [], [], ['changed']],
+      ['backend', [], [], ['changed']],
     ])
     for (const [track, tests, reviewers, run] of evidence) {
       expect((tests as string[]).length + (reviewers as string[]).length + (run as string[]).length, `${String(track)} 的 build 没有任何就绪证据`).toBeGreaterThan(0)

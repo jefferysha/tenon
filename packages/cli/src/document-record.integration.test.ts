@@ -1,13 +1,16 @@
 import { appendFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, test } from 'vitest'
-import { compileEffectiveWorkflowPlan, evaluateDocumentEvidence, parseWorkflow, readSkillInvocationEvidence } from '@tenon/kernel'
+import {
+  compileWorkflow, effectiveWorkflowPlanFromIr, evaluateDocumentEvidence, parseWorkflow, readSkillInvocationEvidence,
+} from '@tenon/kernel'
+import { legacyContractDefaultPlan } from '@tenon/kernel/workflow/test-support'
 import { FIXED_CLOCK, freshHarness, type Harness } from './integration-harness.js'
 
-/** Changes in this file run the built-in default workflow. */
+/** Changes in this file are pre-upgrade default tasks: they freeze the old default's document contract (contract mode). */
 function defaultDocumentPolicy() {
-  const policy = compileEffectiveWorkflowPlan('default').documentPolicy
-  if (policy === undefined) throw new Error('built-in default workflow must be document-governed')
+  const policy = legacyContractDefaultPlan('backend').documentPolicy
+  if (policy === undefined) throw new Error('the pre-upgrade default workflow must be document-governed')
   return policy
 }
 
@@ -21,7 +24,7 @@ describe('document record canonical invocation binding', () => {
   test('同 clock 的两个 delta-spec 各自绑定其 canonical path 和 digest', async () => {
     h = await freshHarness()
     const name = 'same-clock-deltas'
-    expect(await h.run(['init', name, '--track', 'backend', '--preset', 'full'])).toBe(0)
+    expect(await h.initLegacyContractDefault(name, 'backend')).toBe(0)
     await h.seedArtifact(name, 'phase', 'spec')
     const changeDir = join(h.cwd, 'openspec', 'changes', name)
 
@@ -54,7 +57,7 @@ describe('document record canonical invocation binding', () => {
   test('Skill 回执只封存确认、不写台账：加载技能时还没有产出，init 脚手架不能冒充产出', async () => {
     h = await freshHarness()
     const name = 'receipt-only'
-    expect(await h.run(['init', name, '--track', 'backend', '--preset', 'full'])).toBe(0)
+    expect(await h.initLegacyContractDefault(name, 'backend')).toBe(0)
     const changeDir = join(h.cwd, 'openspec', 'changes', name)
     await appendFile(join(changeDir, '.pipeline-history.jsonl'), `${JSON.stringify({
       ts: FIXED_CLOCK, kind: 'tool', raw: 'Skill: openspec-propose',
@@ -71,7 +74,7 @@ describe('document record canonical invocation binding', () => {
   test('docs/ 下的设计稿：document record 过门禁；同内容再登记、改内容后再登记都仍过门禁', async () => {
     h = await freshHarness()
     const name = 'docs-design'
-    expect(await h.run(['init', name, '--track', 'backend', '--preset', 'full'])).toBe(0)
+    expect(await h.initLegacyContractDefault(name, 'backend')).toBe(0)
     await h.seedArtifact(name, 'phase', 'explore')
     const changeDir = join(h.cwd, 'openspec', 'changes', name)
     const path = `docs/superpowers/specs/${name}-design.md`
@@ -104,7 +107,7 @@ describe('document record canonical invocation binding', () => {
   test('scaffold 之后原样登记被拒并指出占位行；写成真内容后才登记得上', async () => {
     h = await freshHarness()
     const name = 'unfilled'
-    expect(await h.run(['init', name, '--track', 'backend', '--preset', 'full'])).toBe(0)
+    expect(await h.initLegacyContractDefault(name, 'backend')).toBe(0)
     const changeDir = join(h.cwd, 'openspec', 'changes', name)
     const path = `openspec/changes/${name}/proposal.md`
     expect(await h.run(['document', 'scaffold', name, 'proposal'])).toBe(0)
@@ -129,7 +132,7 @@ describe('document record canonical invocation binding', () => {
   test('Claude Code 报告的带命名空间技能 tenon:openspec-propose 能封存回执并登记文档', async () => {
     h = await freshHarness()
     const name = 'namespaced-skill'
-    expect(await h.run(['init', name, '--track', 'backend', '--preset', 'full'])).toBe(0)
+    expect(await h.initLegacyContractDefault(name, 'backend')).toBe(0)
     const changeDir = join(h.cwd, 'openspec', 'changes', name)
     const path = `openspec/changes/${name}/proposal.md`
     await writeFile(join(h.cwd, path), '# proposal\n', 'utf8')
@@ -160,10 +163,9 @@ describe('document record canonical invocation binding', () => {
       '  - id: done', '    label: 完结', '    gate: null', '    skills: []',
       '    inputs: []', '    outputs: []', '    guards: []', '    transitions: []', '',
     ].join('\n')
-    await mkdir(join(h.cwd, '.pipeline', 'workflows'), { recursive: true })
-    await writeFile(join(h.cwd, '.pipeline', 'workflows', 'design-flow.yaml'), workflow, 'utf8')
+    // 自定义 workflow 的 `document_contract` 已不能再写进新定义（校验拒绝）；升级前创建的任务冻结着它：不经校验冻结进快照立项。
     const name = 'design-doc'
-    expect(await h.run(['init', name, '--track', 'backend', '--preset', 'full', '--workflow', 'design-flow']), h.err.join('\n')).toBe(0)
+    expect(await h.initLegacyWorkflow(name, workflow), h.err.join('\n')).toBe(0)
     const changeDir = join(h.cwd, 'openspec', 'changes', name)
     await writeFile(join(h.cwd, 'DESIGN.md'), '# Design system\n', 'utf8')
     await mkdir(join(h.cwd, 'docs'), { recursive: true })
@@ -175,7 +177,7 @@ describe('document record canonical invocation binding', () => {
     expect(await h.run(['document', 'record', name, 'design-md', 'docs/DESIGN.md', '--producer', 'hue'])).toBe(1)
     expect(h.err.join('\n')).toContain("document 'design-md' 的路径必须是 DESIGN.md")
     expect(await h.run(['document', 'record', name, 'design-md', 'DESIGN.md', '--producer', 'hue']), h.err.join('\n')).toBe(0)
-    const policy = compileEffectiveWorkflowPlan('design-flow', parseWorkflow(workflow)).documentPolicy
+    const policy = effectiveWorkflowPlanFromIr('design-flow', compileWorkflow(parseWorkflow(workflow))).documentPolicy
     if (policy === undefined) throw new Error('expected document-v1 policy')
     expect((await evaluateDocumentEvidence(h.cwd, changeDir, 'design', {}, policy)).blockers).toEqual([])
   })
@@ -189,7 +191,7 @@ describe('document record canonical invocation binding', () => {
   test('frontend ship 的 design-md：scaffold 与 hue 登记都被拒，既有 DESIGN.md 一个字节不动', async () => {
     h = await freshHarness()
     const name = 'shipdesign'
-    expect(await h.run(['init', name, '--track', 'frontend', '--preset', 'full']), h.err.join('\n')).toBe(0)
+    expect(await h.initLegacyContractDefault(name, 'frontend'), h.err.join('\n')).toBe(0)
     await h.seedArtifact(name, 'phase', 'ship')
     const designMd = join(h.cwd, 'DESIGN.md')
     const before = await readFile(designMd, 'utf8')

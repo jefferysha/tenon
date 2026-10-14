@@ -85,7 +85,7 @@ describe('零豁免默认测试流程：只有 npm test 的新 JavaScript 项目
     return (JSON.parse(out()) as { suites: Array<{ id: string; kind: string; runner: string; files: string[] }> }).suites
   }
 
-  /** 走完一个任务的测试流程：init → 计划初稿 → 新增测试文件被认领并登记 → build / verify 运行 → 各步出口零阻塞、零豁免。 */
+  /** 走完一个任务的测试流程：init → 计划初稿 → 新增测试文件被认领（不登记）→ build / verify 运行 → 各步出口零阻塞、零豁免。 */
   async function walk(change: string, track: 'backend' | 'frontend'): Promise<void> {
     expect(await tenon('init', change, '--track', track, '--preset', 'full'), err()).toBe(0)
     // init 发现没有目录：自动识别并明说做了什么。
@@ -102,33 +102,34 @@ describe('零豁免默认测试流程：只有 npm test 的新 JavaScript 项目
     expect(await tenon('test', 'plan', change, '--seed'), err()).toBe(0)
     expect(out()).not.toContain('策略要求')
     const seeded = await plan(change)
-    expect(seeded.plan?.suites).toEqual([{ suite: 'unit', scope: 'full' }])
+    // 档位策略（default 的步骤只记档位名）不往计划里写套件：运行集在求值时由目录与本任务的改动算出，计划只记例外。
+    expect(seeded.state).toBe('ok')
+    expect(seeded.plan?.suites).toEqual([])
     expect(seeded.plan?.waivers).toEqual([])
     expect(blocking(await status(change, 'spec')), 'spec 出口').toEqual([])
 
-    // 任务过程中新增 test/ 下的测试文件：被 unit 认领、要求登记（不是孤儿）。
+    // 任务过程中新增 test/ 下的测试文件：被 unit 的 glob 认领，不用登记（也不是孤儿），只剩「还没跑」。
     await writeFiles(cwd(), NEW_FILES)
-    const unregistered = await status(change, 'build')
-    expect(blocking(unregistered)).toEqual(['test-file-unregistered', 'test-not-run'])
-    expect(unregistered.policy?.blockers[0]).toMatchObject({
-      subject: 'test/sub.test.js', fix: `tenon test register ${change} --file test/sub.test.js --suite unit`,
-    })
-    expect(await tenon('test', 'register', change, '--file', 'test/sub.test.js', '--suite', 'unit'), err()).toBe(0)
+    const claimed = await status(change, 'build')
+    expect(blocking(claimed)).toEqual(['test-not-run'])
+    expect(claimed.policy?.blockers[0]).toMatchObject({ subject: 'unit', fix: `tenon test run ${change} --suite unit` })
 
-    // build：unit 按 changed 运行；typecheck 没有套件就不要求。
+    // build：changed 档，改动碰到了 unit（新增的测试文件被它认领）所以只跑它，范围 changed；typecheck 没有套件就不要求。
     expect(await tenon('test', 'run', change, '--stage', 'build'), `${out()}\n${err()}`).toBe(0)
+    expect(out()).toMatch(/\[PASS\] unit .*scope=changed/u)
     expect(blocking(await status(change, 'build')), 'build 出口').toEqual([])
-    // verify：unit 全量运行（即回归）；playwright / integration / regression / benchmark 没登记就不要求；没有声明覆盖率的目录不受 80% 门槛影响。
+    // verify：full 档，unit 全量运行（即回归）；playwright / integration / regression / benchmark 目录里没有套件就不要求；没有声明覆盖率的目录不受 80% 门槛影响。
     expect(await tenon('test', 'run', change, '--stage', 'verify'), `${out()}\n${err()}`).toBe(0)
+    expect(out()).toMatch(/\[PASS\] unit .*scope=full/u)
     expect(await tenon('test', 'run', change, 'code-size'), `${out()}\n${err()}`).toBe(0)
     const verify = await status(change, 'verify')
     expect(blocking(verify), 'verify 出口').toEqual([])
     expect(verify.pass).toBe(true)
 
-    // 零豁免。
+    // 零豁免、零逐个登记：认领的测试文件不写进计划。
     const final = await plan(change)
     expect(final.plan?.waivers).toEqual([])
-    expect(final.plan?.files).toEqual([{ path: 'test/sub.test.js', suite: 'unit', kind: 'unit' }])
+    expect(final.plan?.files).toEqual([])
   }
 
   test('backend：init 自动识别 → 计划初稿 → test/ 下新增的测试被认领 → build / verify 到出口零豁免', async () => {
@@ -150,19 +151,21 @@ describe('零豁免默认测试流程：只有 npm test 的新 JavaScript 项目
     expect(await readFile(catalogPath(), 'utf8')).toBe(before)
   }, 240_000)
 
-  test('测试文件在 plan --seed 之前就已在 diff 里：unit 按 changed 登记并带上文件，build 只跑它，报告落得了盘', async () => {
+  test('测试文件在 plan --seed 之前就已在 diff 里：测试文件由 glob 认领（计划里没有套件也没有文件登记），build 的 changed 档只跑它，报告落得了盘', async () => {
     await project()
     expect(await tenon('init', 'be', '--track', 'backend', '--preset', 'full'), err()).toBe(0)
     await writeFiles(cwd(), NEW_FILES)
     expect(await tenon('test', 'plan', 'be', '--seed'), err()).toBe(0)
     const seeded = await plan('be')
-    expect(seeded.plan?.suites).toEqual([{ suite: 'unit', scope: 'changed' }])
-    expect(seeded.plan?.files).toEqual([{ path: 'test/sub.test.js', suite: 'unit', kind: 'unit' }])
+    // 旧的计划初稿按「diff 里已有测试文件」把 unit 登记成 changed；档位下运行集由 build 步的 changed 档在求值时算，计划不记。
+    expect(seeded.plan?.suites).toEqual([])
+    expect(seeded.plan?.files).toEqual([])
     // node:test 的 select.files 模板：reporter 参数在文件之前，否则被当成测试脚本的参数、报告落不了盘（report-missing）。
     expect((await catalogSuites())[0]).toMatchObject({ runner: 'node-test' })
     await tenon('test', 'catalog', 'show', 'unit', '--json')
     expect((JSON.parse(out()) as { select: { files: string } }).select.files).toMatch(/^node --test --test-reporter=.* \{files\}$/u)
     expect(await tenon('test', 'run', 'be', '--stage', 'build'), `${out()}\n${err()}`).toBe(0)
+    expect(out()).toMatch(/\[PASS\] unit .*scope=changed/u)
     expect(blocking(await status('be', 'build'))).toEqual([])
   }, 240_000)
 
@@ -210,7 +213,7 @@ describe('零豁免默认测试流程：只有 npm test 的新 JavaScript 项目
     expect(await readFile(catalogPath(), 'utf8')).toBe('schema: nope\n')
   })
 
-  test('已有的旧目录（单测 glob 只认 src/）：test-file-orphan 的修复命令是 register --auto；--auto 扩展 glob、认领并登记，重复运行幂等', async () => {
+  test('已有的旧目录（单测 glob 只认 src/）：test-file-orphan 的修复命令是 register --auto；--auto 只追加本任务孤儿的精确路径，重复运行幂等', async () => {
     await project()
     expect(await tenon('test', 'discover', '--write'), err()).toBe(0)
     expect(await tenon('test', 'catalog', 'set', 'unit', '--file-glob', 'src/**/*.test.js'), err()).toBe(0)
@@ -225,12 +228,13 @@ describe('零豁免默认测试流程：只有 npm test 的新 JavaScript 项目
     expect(orphans.map((item) => item.fix)).toEqual(['tenon test register be --auto'])
 
     expect(await tenon('test', 'register', 'be', '--auto'), `${out()}\n${err()}`).toBe(0)
-    expect(out()).toContain('套件 unit 的文件 glob 增加 test/**/*.test.js（认领 2 个原先没有套件认领的测试文件）')
-    expect((await catalogSuites())[0]?.files).toEqual(['src/**/*.test.js', 'test/**/*.test.js'])
+    expect(out()).toContain('套件 unit 的 files 增加 test/sub.test.js（本任务里原先没有套件认领的测试文件 1 个）')
+    // 只追加本任务孤儿的精确路径：不放宽成 test/**，任务之前就存在的 test/add.test.js 不被认领。
+    expect((await catalogSuites())[0]?.files).toEqual(['src/**/*.test.js', 'test/sub.test.js'])
     const registered = await plan('be')
-    // 认领来的文件里有任务之前就存在的（test/add.test.js），changed 范围跑不到它：认领了文件的套件按全量登记。
-    expect(registered.plan?.suites).toEqual([{ suite: 'unit', scope: 'full' }])
-    expect(registered.plan?.files.map((file) => [file.path, file.suite])).toEqual([['test/add.test.js', 'unit'], ['test/sub.test.js', 'unit']])
+    // --auto 只追加精确路径（上面的目录断言），不再把套件写进计划；认领在求值时现算，计划里不逐个登记文件。
+    expect(registered.plan?.suites).toEqual([])
+    expect(registered.plan?.files).toEqual([])
     expect(blocking(await status('be', 'build'))).toEqual(['test-not-run'])
     expect(await tenon('test', 'run', 'be', '--stage', 'build'), `${out()}\n${err()}`).toBe(0)
     expect(blocking(await status('be', 'build'))).toEqual([])
@@ -239,7 +243,7 @@ describe('零豁免默认测试流程：只有 npm test 的新 JavaScript 项目
     const catalogBefore = await readFile(catalogPath(), 'utf8')
     const planBefore = await plan('be')
     expect(await tenon('test', 'register', 'be', '--auto'), err()).toBe(0)
-    expect(out()).not.toContain('文件 glob 增加')
+    expect(out()).not.toContain('files 增加')
     expect(await readFile(catalogPath(), 'utf8')).toBe(catalogBefore)
     expect(await plan('be')).toEqual(planBefore)
   }, 240_000)
@@ -252,7 +256,9 @@ describe('零豁免默认测试流程：只有 npm test 的新 JavaScript 项目
     expect(err()).toContain('--auto 不能和')
     expect(await tenon('test', 'register', 'be', '--auto'), `${out()}\n${err()}`).toBe(0)
     expect(out()).toContain('目录不存在：已自动识别 1 个套件并写入')
-    expect((await plan('be')).plan?.suites).toEqual([{ suite: 'unit', scope: 'full' }])
+    // 写进目录的是识别出的 unit 套件；计划里不再登记套件（档位按目录与改动在求值时算运行集）。
+    expect((await catalogSuites()).map((suite) => suite.id)).toEqual(['unit'])
+    expect((await plan('be')).plan?.suites).toEqual([])
   })
 
   test('discover 的单测 glob：四个常见目录 + 根目录测试文件；一个目录都没有时取整个 cwd', async () => {

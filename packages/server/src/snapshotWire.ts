@@ -14,7 +14,7 @@
  * `snapshotWire.ts`), so nothing downstream of the decoder knows the table exists. `fields` is narrowed to the keys a
  * list row reads; the full field set is detail-tier data.
  */
-import type { ArchivedChangeListSnapshot, ChangeListSnapshot, ProjectListSnapshot } from './snapshotListTypes.js'
+import type { ChangeListSnapshot, ProjectListSnapshot } from './snapshotListTypes.js'
 
 /** The `.pipeline.yaml` fields a list row, the progress board and the inbox read. */
 export const LIST_FIELD_KEYS = ['workflow', 'automation'] as const
@@ -66,13 +66,10 @@ export function encodeListProject(project: ProjectListSnapshot, revs: ReadonlyMa
       ...(todo === undefined ? {} : { todo: tables.todo.intern(JSON.stringify(todo), todo) }),
     }
   }
-  const { changes, archived, ...envelope } = project
-  const wiredChanges = changes.map(wire)
-  const wiredArchived = archived?.map((entry: ArchivedChangeListSnapshot) => wire(entry))
+  const { changes, ...envelope } = project
   return JSON.stringify({
     ...envelope,
-    changes: wiredChanges,
-    ...(wiredArchived === undefined ? {} : { archived: wiredArchived }),
+    changes: changes.map(wire),
     shared: Object.fromEntries(Object.entries(tables).map(([name, table]) => [name, table.entries])),
   })
 }

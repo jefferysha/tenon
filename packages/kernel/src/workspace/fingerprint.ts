@@ -9,10 +9,11 @@
  *
  * Scope is intentionally source/configuration oriented.  We exclude Git internals, dependencies,
  * OpenSpec/pipeline control state and documentation/evidence.  Verification outputs are excluded
- * only where a test catalog (or a frozen workflow) declares them (`options.declaredOutputs`):
- * an undeclared `coverage/` or `test-results/` directory at any depth is part of the candidate, so
- * nothing can hide under a conventional-looking name.  Including declared outputs would make a
- * successful verifier invalidate the target it is trying to attest.  All remaining files,
+ * where a test catalog (or a frozen workflow) declares them (`options.declaredOutputs`), and, without
+ * any declaration, for the untracked evidence-format files below `test-results/`, `playwright-report/` and
+ * `coverage/` (see `test-evidence-files.ts`).  Everything else in those directories, at any depth, is part
+ * of the candidate, so nothing can hide under a conventional-looking name.  Including verification outputs
+ * would make a successful verifier invalidate the target it is trying to attest.  All remaining files,
  * directories, modes, and symlink targets are represented without following symlinks.
  *
  * Two values come out of one traversal (`fingerprintWorkspaceTwins`).  The full one records raw permission
@@ -32,9 +33,13 @@ import {
   skipUntrackedHostLocalDirs, type HostLocalSkip,
 } from './host-local.js'
 import { isProcessLocalFdPath } from './process-local-fd-path.js'
+import {
+  TEST_OUTPUT_DIR_SEGMENTS, enterEvidenceScope, evidenceScopeActive, isUntrackedEvidence, type EvidenceScope,
+} from './test-evidence-files.js'
 import { INTERACTION_MARKER_SESSION_PREFIX } from '../state/markers.js'
 
 export { HOST_LOCAL_DIRS, HOST_LOCAL_FILES, hasHostLocalFiles, isHostLocalPath, trackedHostLocalPaths } from './host-local.js'
+export { TEST_OUTPUT_DIR_SEGMENTS } from './test-evidence-files.js'
 
 export const WORKSPACE_BASELINE_PREFIX = 'workspace:sha256:'
 
@@ -67,13 +72,6 @@ const EXCLUDED_ANY_SEGMENT = new Set([
 ])
 
 /**
- * The directory names a declared test output must live under.  A declaration can only hide files
- * inside such a directory, never source: the catalog and workflow validators enforce this, so a
- * suite cannot exclude `src/` from the candidate by "declaring" it as an artifact.
- */
-export const TEST_OUTPUT_DIR_SEGMENTS = ['test-results', 'playwright-report', 'coverage'] as const
-
-/**
  * Directory names the pre-declaration fingerprint excluded at any depth.  Kept only as the scope of
  * code-size metrics (`isWorkspaceCandidatePath`), which count source lines and have no evidence role.
  */
@@ -95,6 +93,8 @@ interface Exclusions {
   readonly declared: readonly string[]
   /** Every proper ancestor directory of a declared output: candidates for the empty-shell rule. */
   readonly ancestors: ReadonlySet<string>
+  /** Set while the traversal is below a test-output directory (see `test-evidence-files.ts`); never by `exclusionsOf`. */
+  readonly evidence?: EvidenceScope
 }
 
 function normalizeDeclared(value: string): string | undefined {
@@ -207,16 +207,27 @@ function recordText(kind: 'D' | 'F' | 'L', relativePath: string, details: string
   return `${kind}\0${relativePath}\0${details}\0`
 }
 
-/** True when everything below `relativePath` is excluded, so the directory itself carries no candidate content. */
+/**
+ * True when everything below `relativePath` is excluded, so the directory itself carries no candidate content.
+ * Below a test-output directory that includes the untracked evidence files and the directories holding only those.
+ */
 async function holdsOnlyExcluded(root: string, relativePath: string, exclusions: Exclusions, skip: HostLocalSkip): Promise<boolean> {
   for (const name of await readdir(join(root, ...relativePath.split('/')))) {
     const child = `${relativePath}/${name}`
     if (isExcludedFor(child, exclusions, skip)) continue
-    if (!exclusions.ancestors.has(child)) return false
-    if (!(await lstat(join(root, ...child.split('/')))).isDirectory()) return false
+    const info = await lstat(join(root, ...child.split('/')))
+    if (info.isFile() && isUntrackedEvidence(child, exclusions.evidence)) continue
+    if (!info.isDirectory()) return false
+    if (!exclusions.ancestors.has(child) && !evidenceScopeActive(exclusions.evidence)) return false
     if (!(await holdsOnlyExcluded(root, child, exclusions, skip))) return false
   }
   return true
+}
+
+/** `exclusions` as they apply below `relativePath`: a test-output directory starts the untracked-evidence rule. */
+async function enterDirectory(root: string, relativePath: string, exclusions: Exclusions): Promise<Exclusions> {
+  const evidence = await enterEvidenceScope(root, relativePath, exclusions.evidence)
+  return evidence === exclusions.evidence ? exclusions : { ...exclusions, evidence }
 }
 
 /**
@@ -312,21 +323,27 @@ async function fingerprintEntry(
 
   if (before.isDirectory()) {
     const names = sortNames(await readdir(absolutePath))
+    const inside = await enterDirectory(root, relativePath, exclusions)
     const keep: Sink[] = []
     for (const sink of live) {
-      if (isExcludedHostConfigShell(relativePath, names, exclusions, sink.skip)) continue
-      // A directory that only wraps declared outputs (`test-results/` holding just the report) appears when
-      // the first run writes them; it must not move the candidate the run is bound to.
-      if (exclusions.ancestors.has(relativePath) && await holdsOnlyExcluded(root, relativePath, exclusions, sink.skip)) continue
+      if (isExcludedHostConfigShell(relativePath, names, inside, sink.skip)) continue
+      // A directory that only wraps declared outputs or untracked evidence (`test-results/` holding just the
+      // report and the server log) appears when the first run writes them; it must not move the candidate the
+      // run is bound to.
+      if ((inside.ancestors.has(relativePath) || evidenceScopeActive(inside.evidence))
+        && await holdsOnlyExcluded(root, relativePath, inside, sink.skip)) continue
       keep.push(sink)
     }
     if (keep.length === 0) return
     emit(streams, keep, (sink) => recordText('D', relativePath, recordedMode(sink, 'D', before)))
-    for (const name of names) await fingerprintEntry(root, `${relativePath}/${name}`, keep, exclusions, streams)
+    for (const name of names) await fingerprintEntry(root, `${relativePath}/${name}`, keep, inside, streams)
     return
   }
 
   if (before.isFile()) {
+    // Verification output under a test-output directory is not implementation (regular files only: a symbolic
+    // link or a directory named like a log still counts).
+    if (isUntrackedEvidence(relativePath, exclusions.evidence)) return
     const content = await readFile(absolutePath)
     emit(streams, live, (sink) => recordText('F', relativePath, `${recordedMode(sink, 'F', before)}:${before.size}`))
     // The content is the same bytes for every sink that holds the file.

@@ -2,6 +2,7 @@
  * 追溯矩阵（纯函数）：OpenSpec 场景 / tasks 条目 → 计划映射的用例 → 本轮最近的新鲜结果。
  * 场景要求（策略 scenarios）对「要求映射」的行出阻塞：所有场景，加上 tasks.md 里实现阶段小节的任务；
  * 其余任务（立项 / 调研 / 规格 / 验证 / 交付 / 完结小节、骨架提示词）可选，只进矩阵与报告。
+ * 策略 `scenarios: off`（档位缺省）时没有任何行要求映射：不出阻断，行照旧列出（已映射的带结果），报告把未映射的收成一行统计。
  */
 import { shellQuote, testBlocker, testNotice, type TestBlocker, type TestNotice } from './blockers.js'
 import { casesMatchingRef, parseCaseRef } from './covers.js'
@@ -73,12 +74,14 @@ export function evaluateTrace(context: TraceContext): TraceEvaluation {
     const waiver = waivers.get(source.covers)
     const approved = waiver?.approved_by !== null && waiver?.approved_by !== undefined
     const state = rowState(tests, approved)
+    // 档位不要求映射（scenarios: off）：任何行都不是必须映射的，不出阻断，报告也不逐条写「未覆盖」。
+    const required = source.required && requirement !== 'off'
     rows.push({
-      covers: source.covers, kind: source.kind, title: source.title, ...(source.stage === null ? {} : { stage: source.stage }), required: source.required, tests,
+      covers: source.covers, kind: source.kind, title: source.title, ...(source.stage === null ? {} : { stage: source.stage }), required, tests,
       ...(waiver === undefined ? {} : { waiver: { approved, reason: waiver.reason } }),
       state,
     })
-    if (!source.required || requirement === 'off' || approved) continue
+    if (!required || approved) continue
     const noun = source.kind === 'spec' ? '场景' : '任务'
     const register = `tenon test register ${context.change} --case ${shellQuote(source.covers)} --test ${shellQuote('<文件> › <用例名>')}`
     if (tests.length === 0) {

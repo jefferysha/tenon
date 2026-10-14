@@ -3,8 +3,8 @@
  * 涉及磁盘的检查（文件是否存在、目录是否有该套件）在命令层做。
  */
 import {
-  catalogNotApplicable, planKindsSatisfy, policyRequiredKinds, suiteCoverGlobs, suiteFileGlobs, matchesAnyGlob,
-  suitesOwningFile, testFileRegistration, waiverKey,
+  catalogNotApplicable, claimChangedTestFiles, normalizeRepoPath, orphansNotInPlan, planKindsSatisfy, policyRequiredKinds, stageRunSet,
+  suitesOwningFile, testClassOf, touches, waiverKey,
   type CatalogSuite, type OpenSpecScenario, type PlanCase, type PlanFile, type PlanScope, type PlanSuite, type PlanWaiver,
   type StepTestPolicyIR, type TaskItem, type TestCatalog, type TestKind, type TestPlan,
 } from '@tenon/kernel'
@@ -73,6 +73,42 @@ export function withoutTarget(plan: TestPlan, target: RemovalTarget): Removal {
   return { plan: next, removed: weight(plan) - weight(next) }
 }
 
+/** 登记项没被目录认领的缘由：指向的套件已不在目录里 / 套件的 files glob 不再匹配这条路径 / 没有任何套件的 files glob 认领它。 */
+export type UnclaimedRegistration =
+  | { readonly path: string; readonly suite: string; readonly reason: 'suite-missing' | 'glob-mismatch' }
+  | { readonly path: string; readonly reason: 'no-owner' }
+
+/**
+ * 计划 files[] 里当前目录不再认领的登记。认领判定与出口判定同源（suitesOwningFile：套件 files glob 按套件 cwd 换算成仓库相对）：
+ * 带显式套件的登记要求这个套件还在、它的 glob 还认领这条路径（出口判定对它一律检查「报告里有没有执行」，与 glob 无关）；
+ * 不带套件也不带 kind 的登记要求至少一个套件的 glob 认领它。
+ * 只有 kind、没有套件的登记是 `register --file --kind` 有意登记的不执行资源（视觉快照等）：它们从不进套件运行、
+ * 不会挡出口，也本来就没有套件认领，所以不在此列。
+ * 合法的测试文件总被它的套件 glob 认领，因此能落进这个列表的只有「目录已不认领」的登记；要让合法登记落进来，
+ * 必须先改目录里的 glob，而任务改动过的测试配置会在评审请求里列出、由用户批准。
+ */
+export function unclaimedRegistrations(plan: TestPlan, catalog: TestCatalog): readonly UnclaimedRegistration[] {
+  const known = new Set(catalog.suites.map((suite) => suite.id))
+  const out: UnclaimedRegistration[] = []
+  for (const file of plan.files) {
+    const owners = suitesOwningFile(catalog, normalizeRepoPath(file.path))
+    if (file.suite !== undefined) {
+      if (!known.has(file.suite)) out.push({ path: file.path, suite: file.suite, reason: 'suite-missing' })
+      else if (!owners.includes(file.suite)) out.push({ path: file.path, suite: file.suite, reason: 'glob-mismatch' })
+    } else if (file.kind === undefined && owners.length === 0) {
+      out.push({ path: file.path, reason: 'no-owner' })
+    }
+  }
+  return out
+}
+
+/** 只删 files[] 里这些路径的登记；套件、用例映射、豁免原样（映射里的引用不随文件登记一起走）。 */
+export function withoutRegistrations(plan: TestPlan, paths: readonly string[]): TestPlan {
+  if (paths.length === 0) return plan
+  const gone = new Set(paths)
+  return { ...plan, files: plan.files.filter((file) => !gone.has(file.path)) }
+}
+
 export interface SeedInput {
   readonly catalog: TestCatalog
   readonly plan: TestPlan
@@ -86,7 +122,6 @@ export interface SeedInput {
 export interface SeedResult {
   readonly plan: TestPlan
   readonly addedSuites: readonly string[]
-  readonly addedFiles: readonly string[]
   readonly orphans: readonly string[]
   readonly missingKinds: readonly TestKind[]
   /** 还没有映射用例的场景 / 任务；required = 要求映射（场景、实现阶段小节的任务），其余可选、不挡。 */
@@ -105,11 +140,6 @@ export function splitUnmapped(items: readonly UnmappedItem[]): { readonly requir
   return { required: items.filter((item) => item.required), optional: items.filter((item) => !item.required) }
 }
 
-function touches(suite: CatalogSuite, changed: readonly string[]): boolean {
-  const globs = [...suiteFileGlobs(suite), ...suiteCoverGlobs(suite)]
-  return changed.some((path) => matchesAnyGlob(path, globs))
-}
-
 /** 「有则跑」的种类里，基准是按变更主动选的（性能相关才跑），种子不自动登记；其余目录里有的都登记。 */
 const SEED_SKIPPED_OPTIONAL: ReadonlySet<TestKind> = new Set<TestKind>(['benchmark'])
 
@@ -117,10 +147,19 @@ function plannedKinds(plan: TestPlan, catalog: TestCatalog): TestKind[] {
   return plan.suites.flatMap((item) => catalog.suites.find((suite) => suite.id === item.suite)?.kind ?? [])
 }
 
+/** 档位策略缺的必需类（按类名）：目录里没有套件，也没有已批准的不适用声明；声明了但没批准的不算缺（求值会给 waiver-unapproved）。 */
+function missingLevelKinds(policy: StepTestPolicyIR, catalog: TestCatalog): readonly TestKind[] {
+  return stageRunSet({ policy, catalog, plan: undefined, changedFiles: undefined }).missingClasses
+    .filter((cls) => !(catalog.not_applicable ?? []).some((entry) => testClassOf(entry.kind) === cls))
+}
+
 /**
- * 计划初稿：只增不减。套件来自「diff 碰到的套件」、「策略要求的种类」（unit 等）和「策略里 run_if_registered 的种类，
- * 目录里有就登记」——后者让 typecheck / integration / e2e 这类项目有才跑的测试自动进计划，没有的项目不需要豁免。
- * 项目在目录里声明了某种类不适用（not_applicable）时，该种类既不补套件也不算缺。文件来自 diff 里未登记的测试文件。
+ * 计划初稿：只增不减，不再写测试文件——改动过的测试文件由套件 glob 在求值时认领，不进计划。
+ *   · 旧策略（行为同以前，只是不再登记测试文件）：套件来自「diff 碰到的套件」、「策略要求的种类」（unit 等）和「策略里 run_if_registered
+ *     的种类，目录里有就登记」——后者让 typecheck / integration / e2e 这类项目有才跑的测试自动进计划，没有的项目不需要豁免。
+ *     项目在目录里声明了某种类不适用（not_applicable）时，该种类既不补套件也不算缺。
+ *   · 档位策略：不加套件、不加文件，只报告缺的必需类（missingKinds）；场景映射为 off（缺省）时也不列待映射的场景 / 任务。
+ *   · 孤儿：diff 里像测试、却没有任何套件认领的文件（计划里按 kind 登记的资源文件除外）。
  */
 export function seedPlan(input: SeedInput): SeedResult {
   let plan = input.plan
@@ -133,16 +172,21 @@ export function seedPlan(input: SeedInput): SeedResult {
     plan = withSuite(plan, { suite: suite.id, scope })
   }
   const changed = input.changedFiles ?? []
-  for (const suite of input.catalog.suites) if (touches(suite, changed)) add(suite, 'changed')
+  const legacy = input.policies.filter((policy) => policy.level === undefined)
+  const levelOnly = input.policies.length > 0 && legacy.length === 0
+  if (!levelOnly) for (const suite of input.catalog.suites) if (touches(suite, changed)) add(suite, 'changed')
   const missingKinds: TestKind[] = []
-  for (const policy of input.policies) {
+  const miss = (kind: TestKind): void => {
+    if (!missingKinds.includes(kind)) missingKinds.push(kind)
+  }
+  for (const policy of legacy) {
     for (const kind of policyRequiredKinds(policy)) {
       if (planKindsSatisfy(policy, plannedKinds(plan, input.catalog), kind)) continue
       if (catalogNotApplicable(input.catalog, kind) !== undefined) continue
       // regression 没有专门的套件时由 unit 套件全量运行顶上。
       const own = input.catalog.suites.filter((suite) => suite.kind === kind)
       const candidates = own.length > 0 || kind !== 'regression' ? own : input.catalog.suites.filter((suite) => suite.kind === 'unit')
-      if (candidates.length === 0 && !missingKinds.includes(kind)) missingKinds.push(kind)
+      if (candidates.length === 0) miss(kind)
       for (const suite of candidates) add(suite, 'full')
     }
     for (const kind of policy.run_if_registered) {
@@ -150,24 +194,16 @@ export function seedPlan(input: SeedInput): SeedResult {
       for (const suite of input.catalog.suites) if (suite.kind === kind) add(suite, 'full')
     }
   }
-  const registration = testFileRegistration({ changedFiles: changed, catalog: input.catalog, plan })
-  const files: PlanFile[] = registration.unregistered.map((file) => {
-    const owner = file.suites.length === 1 ? input.catalog.suites.find((suite) => suite.id === file.suites[0]) : undefined
-    return { path: file.path, ...(owner === undefined ? {} : { suite: owner.id, kind: owner.kind }) }
-  })
-  for (const file of registration.unregistered) {
-    for (const id of file.suites) {
-      const suite = input.catalog.suites.find((item) => item.id === id)
-      if (suite !== undefined && file.suites.length === 1) add(suite, 'changed')
-    }
-  }
-  plan = withFiles(plan, files)
+  for (const policy of input.policies) if (policy.level !== undefined) missingLevelKinds(policy, input.catalog).forEach(miss)
+  const orphans = orphansNotInPlan(claimChangedTestFiles(changed, input.catalog).orphans, plan)
   const mapped = new Set(plan.cases.map((item) => item.covers))
-  const unmapped: UnmappedItem[] = [
+  // 每一步的档位都不要求场景映射时，不把规格场景 / 任务当作待映射列出（求值也不会为它们出阻断）。
+  const mapsNothing = input.policies.length > 0 && input.policies.every((policy) => policy.level !== undefined && policy.scenarios === 'off')
+  const unmapped: UnmappedItem[] = mapsNothing ? [] : [
     ...input.scenarios.filter((item) => !mapped.has(item.covers)).map((item) => ({ covers: item.covers, title: `${item.capability} · ${item.title}`, kind: 'spec' as const, required: true })),
     ...input.tasks.filter((item) => !mapped.has(item.covers) && !item.placeholder).map((item) => ({ covers: item.covers, title: item.text, kind: 'task' as const, required: item.required })),
   ]
-  return { plan, addedSuites, addedFiles: files.map((file) => file.path), orphans: registration.orphans, missingKinds, unmapped }
+  return { plan, addedSuites, orphans, missingKinds, unmapped }
 }
 
 export function ownersOf(catalog: TestCatalog, path: string): readonly string[] {

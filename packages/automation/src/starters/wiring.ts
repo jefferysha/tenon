@@ -1,9 +1,9 @@
 /** H11 starter 的纯读 binding/workflow/skill wiring 报告器；准入消费者与 CLI 展示共用。 */
 import {
   compileAutomationPolicyTemplate,
-  compileEffectiveWorkflowPlan,
   compileWorkflow,
   getAutomationPolicyTemplate,
+  isDefaultWorkflowName,
   loadWorkflow,
   LOOP_RUNNERS,
   PHASES,
@@ -16,12 +16,15 @@ import {
   type WorkflowIR,
 } from '@tenon/kernel'
 import {
+  defaultLoopSkillCapability,
   evaluateSkillBundleWiring as evaluateSkillBundleWiringDefault,
+  LOOP_DEFAULT_TRACK,
   type SkillBundleWiringDeps,
   type SkillBundleWiringResolutionInput,
   type SkillBundleWiringResult,
   type SkillBundleWiringStatus,
 } from '../skills/wiring.js'
+import { evaluateAcrossBranches, resolveCustomPhases, type PhaseInputs } from './custom-phases.js'
 
 export type LoopStarterBinding =
   | {
@@ -187,7 +190,7 @@ export async function buildLoopStarterWiringReport(
         { status: 'unwired', reason: 'workflow binding 缺失，未建立 runtime 坐标' },
       )
     }
-    let skillResolutionInputs: readonly SkillBundleWiringResolutionInput[]
+    let skillBranches: readonly PhaseInputs[]
     if (workflowId === 'default') {
       const invalidPhase = target.phases.find((phase) => !(PHASES as readonly string[]).includes(phase))
       if (invalidPhase !== undefined) {
@@ -199,8 +202,11 @@ export async function buildLoopStarterWiringReport(
           { status: 'unwired', reason: 'default workflow phase 无法映射到 runtime 坐标' },
         )
       }
-      const capability = compileEffectiveWorkflowPlan('default').capabilities.skills
-      skillResolutionInputs = target.phases.map((stepId) => ({ kind: 'default' as const, stepId, capability }))
+      const capability = defaultLoopSkillCapability()
+      skillBranches = [{
+        track: null,
+        inputs: target.phases.map((stepId) => ({ kind: 'default' as const, stepId, capability })),
+      }]
     } else {
       let definition: WorkflowDef | null
       try {
@@ -235,22 +241,16 @@ export async function buildLoopStarterWiringReport(
           { status: 'unwired', reason: 'workflow 编译失败，未建立 custom runtime 坐标' },
         )
       }
-      const findStep = deps.resolveStep ?? resolveStep
-      const customInputs: SkillBundleWiringResolutionInput[] = []
-      for (const phase of target.phases) {
-        const step = findStep(compiled, phase)
-        if (step === null) {
-          const reason = `loop phase/step "${phase}" 未在 custom workflow "${workflowId}" 中声明`
-          return wiringFailureReport(
-            starterId,
-            binding,
-            { status: 'invalid', workflowId, reason },
-            { status: 'unwired', reason: 'loop phase 无法解析，未建立 custom runtime 坐标' },
-          )
-        }
-        customInputs.push({ kind: 'custom', step })
+      const resolved = resolveCustomPhases(compiled, workflowId, target.phases, deps.resolveStep ?? resolveStep)
+      if (!resolved.ok) {
+        return wiringFailureReport(
+          starterId,
+          binding,
+          { status: 'invalid', workflowId, reason: resolved.reason },
+          { status: 'unwired', reason: 'loop phase 无法解析，未建立 custom runtime 坐标' },
+        )
       }
-      skillResolutionInputs = customInputs
+      skillBranches = resolved.branches
     }
     const workflow: WorkflowWiring = { status: 'ready', workflowId, reason: null }
     const customWorkflowRuntime: CustomWorkflowRuntimeWiring =
@@ -260,10 +260,11 @@ export async function buildLoopStarterWiringReport(
     const evaluateSkills = deps.evaluateSkillBundleWiring ?? evaluateSkillBundleWiringDefault
     let skillBundle: SkillBundleWiringResult
     try {
-      skillBundle = await evaluateSkills(
+      skillBundle = await evaluateAcrossBranches(
         target,
         deps.skillBundleWiringForLoop?.(target) ?? deps.skillBundleWiring,
-        skillResolutionInputs,
+        skillBranches,
+        evaluateSkills,
       )
     } catch (error) {
       const reason = `skill bundle wiring evaluator 失败：${errorMessage(error)}`
@@ -341,53 +342,67 @@ export async function evaluateLoopExecutionWiring(
     return { status: 'ready', loopId: loop.id, starter }
   }
   const workflowId = loop.workflow_id ?? 'default'
-  let skillResolutionInputs: readonly SkillBundleWiringResolutionInput[]
-  let compiledCustom: WorkflowIR | undefined
-  let plan: ReturnType<typeof resolveEffectiveWorkflowPlan>
-  try {
-    plan = resolveEffectiveWorkflowPlan(workflowId, (name) => {
-      const definition = (deps.loadWorkflow ?? loadWorkflow)(deps.repoRoot, name)
-      if (definition === null) return null
-      compiledCustom = (deps.compileWorkflow ?? compileWorkflow)(definition)
-      return compiledCustom
-    }, undefined, () => (deps.loadWorkflow ?? loadWorkflow)(deps.repoRoot, 'default'))
-  } catch (error) {
-    return {
-      status: 'invalid', loopId: loop.id, dimension: 'workflow',
-      reason: `custom workflow "${workflowId}" 加载/校验/编译失败：${errorMessage(error)}`,
-      starter: null,
+  let skillBranches: readonly PhaseInputs[]
+  // default 按冻结的步骤技能能力解析（loop 固定走 LOOP_DEFAULT_TRACK 分支）；其余工作流按 host 已编译的
+  // StepIR（与 skills/wiring.ts 的 expectedKind 同口径），带 tracks 的按能进 AFK 的分支逐条解析。
+  if (isDefaultWorkflowName(workflowId)) {
+    let plan: ReturnType<typeof resolveEffectiveWorkflowPlan>
+    try {
+      plan = resolveEffectiveWorkflowPlan(
+        workflowId,
+        () => null,
+        { track: LOOP_DEFAULT_TRACK },
+        () => (deps.loadWorkflow ?? loadWorkflow)(deps.repoRoot, 'default'),
+      )
+    } catch (error) {
+      return {
+        status: 'invalid', loopId: loop.id, dimension: 'workflow',
+        reason: `内建 workflow "${workflowId}" 加载/校验/编译失败：${errorMessage(error)}`,
+        starter: null,
+      }
     }
-  }
-  if (plan === null) {
-    return {
-      status: 'invalid', loopId: loop.id, dimension: 'workflow',
-      reason: `custom workflow "${workflowId}" 文件不存在或缺失，无法建立执行 wiring`,
-      starter: null,
+    if (plan === null) {
+      return {
+        status: 'invalid', loopId: loop.id, dimension: 'workflow',
+        reason: `内建 workflow "${workflowId}" 缺失，无法建立执行 wiring`,
+        starter: null,
+      }
     }
-  }
-  if (plan.executionModel === 'phase-manifest') {
     const capability = plan.capabilities.skills
-    skillResolutionInputs = loop.phases.map((stepId) => ({ kind: 'default' as const, stepId, capability }))
+    skillBranches = [{
+      track: null,
+      inputs: loop.phases.map((stepId) => ({ kind: 'default' as const, stepId, capability })),
+    }]
   } else {
-    const compiled = compiledCustom ?? plan.workflow
-    const customInputs: SkillBundleWiringResolutionInput[] = []
-    for (const phase of loop.phases) {
-      const step = (deps.resolveStep ?? resolveStep)(compiled, phase)
-      if (step === null) {
+    let compiled: WorkflowIR
+    try {
+      const definition = (deps.loadWorkflow ?? loadWorkflow)(deps.repoRoot, workflowId)
+      if (definition === null) {
         return {
           status: 'invalid', loopId: loop.id, dimension: 'workflow',
-          reason: `loop phase/step "${phase}" 未在 custom workflow "${workflowId}" 中声明`,
+          reason: `custom workflow "${workflowId}" 文件不存在或缺失，无法建立执行 wiring`,
           starter: null,
         }
       }
-      customInputs.push({ kind: 'custom', step })
+      compiled = (deps.compileWorkflow ?? compileWorkflow)(definition)
+    } catch (error) {
+      return {
+        status: 'invalid', loopId: loop.id, dimension: 'workflow',
+        reason: `custom workflow "${workflowId}" 加载/校验/编译失败：${errorMessage(error)}`,
+        starter: null,
+      }
     }
-    skillResolutionInputs = customInputs
+    const resolved = resolveCustomPhases(compiled, workflowId, loop.phases, deps.resolveStep ?? resolveStep)
+    if (!resolved.ok) {
+      return { status: 'invalid', loopId: loop.id, dimension: 'workflow', reason: resolved.reason, starter: null }
+    }
+    skillBranches = resolved.branches
   }
-  const skill = await (deps.evaluateSkillBundleWiring ?? evaluateSkillBundleWiringDefault)(
+  const skill = await evaluateAcrossBranches(
     loop,
     deps.skillBundleWiringForLoop?.(loop) ?? deps.skillBundleWiring,
-    skillResolutionInputs,
+    skillBranches,
+    deps.evaluateSkillBundleWiring ?? evaluateSkillBundleWiringDefault,
   )
   if (skill.status !== 'ready') {
     return {

@@ -35,7 +35,8 @@ import type {
 import type { WorkflowActionAuthoritySnapshotV1 } from '../workflow/action-authority-types.js'
 import { diffWireFieldsToEffects } from './run-metadata.js'
 import type { TransitionRecordStore } from './transition-record-store.js'
-import { defaultOpenSpecScaffoldFiles } from './default-openspec-scaffold.js'
+import { startStepVisit, stepOutputsContextFor } from '../documents/step-outputs.js'
+import { defaultOpenSpecScaffoldFiles, defaultTasksScaffoldFile } from './default-openspec-scaffold.js'
 import { DOCUMENT_LEDGER_FILE, initialDocumentLedgerContent } from './document-ledger.js'
 import { required } from '../required.js'
 import { ensureWorkflowGovernanceBinding } from './workflow-governance-binding.js'
@@ -44,14 +45,16 @@ import {
   readWorkflowActionAuthorityRecord,
 } from './workflow-action-authority-record.js'
 import {
-  compileEffectiveWorkflowPlan,
+  documentGovernanceFingerprint as fingerprintOfDocumentPolicy,
   effectiveWorkflowPlanFromSnapshot,
-  effectiveWorkflowPlanBinding,
   resolveEffectiveWorkflowPlan,
   workflowPlanSnapshot,
 } from '../workflow/effective-plan.js'
-const DEFAULT_PLAN = compileEffectiveWorkflowPlan('default')
-const DEFAULT_PLAN_BINDING = effectiveWorkflowPlanBinding(DEFAULT_PLAN)
+import type { DocumentGovernancePolicy } from '../workflow/document-contract.js'
+import { fieldStr } from '../workflow/transition-field-scalar.js'
+
+const documentPolicyFingerprint = (policy: DocumentGovernancePolicy | undefined): string | undefined =>
+  policy === undefined ? undefined : fingerprintOfDocumentPolicy(policy)
 
 export interface WorkflowRunRepositoryDeps {
   store: StateStore
@@ -105,35 +108,42 @@ class FsWorkflowRunRepository implements WorkflowRunRepository {
     // Trusted adapters such as triage derive an idempotent run id from a canonical request. They
     // still use this single creation boundary; ordinary CLI/server callers omit it and get UUID.
     const runId = opts.runId ?? newId()
-    const workflowId = opts.initialWorkflow?.workflow ?? DEFAULT_PLAN.id
-    const packagedPlan = resolveEffectiveWorkflowPlan(workflowId, () => null)
-    const snapshot = opts.initialWorkflow?.workflowPlanSnapshot
-      ?? (packagedPlan === null ? undefined : workflowPlanSnapshot(packagedPlan))
-    if (snapshot !== undefined) {
-      const validated = effectiveWorkflowPlanFromSnapshot(snapshot)
+    const workflowId = opts.initialWorkflow?.workflow ?? 'default'
+    // 计划按任务自己的轨道算：调用方冻结的快照优先（它已按同一轨道编译），没有快照才取包内定义。
+    const frozen = opts.initialWorkflow?.workflowPlanSnapshot
+    const packaged = frozen === undefined ? resolveEffectiveWorkflowPlan(workflowId, () => null, { track: opts.track }) : null
+    const snapshot = frozen ?? (packaged === null ? undefined : workflowPlanSnapshot(packaged))
+    const plan = snapshot === undefined ? null : effectiveWorkflowPlanFromSnapshot(snapshot, opts.track)
+    if (plan !== null) {
       const boundFingerprint = opts.initialWorkflow?.workflowPlanFingerprint
-      if (validated.id !== workflowId
-        || (boundFingerprint !== undefined && validated.workflowFingerprint !== boundFingerprint)) {
+      if (plan.id !== workflowId
+        || (boundFingerprint !== undefined && plan.workflowFingerprint !== boundFingerprint)) {
         throw new Error('init workflow plan snapshot 与 workflow identity/fingerprint 不一致')
       }
     }
-    const usesPackagedOpenSpec = packagedPlan?.capabilities.documents.profile === 'legacy-full'
+    const usesOpenSpecScaffold = plan?.capabilities.documents.profile === 'legacy-full'
+    // 带旧文档契约（升级前的快照）：三份骨架 + 文档账本，照旧。
     const governed = (
-      usesPackagedOpenSpec
+      usesOpenSpecScaffold
       || opts.initialWorkflow?.documentProfile !== undefined
       || opts.initialWorkflow?.openspecContract === true
       || opts.initialWorkflow?.documentContract === true
     )
+    // 没有契约（新任务）：转换时观察实际产出，不建文档账本；走 OpenSpec 的分支只铺 tasks.md（Todo 来源）。
+    const observed = !governed && plan?.capabilities.documents.mode !== 'contract'
+    const scaffoldArgs = [
+      opts.name,
+      opts.documentLocale ?? 'zh-CN',
+      plan?.workflow.steps.map((step) => ({ id: step.id, label: step.label })),
+      plan?.projection.stepLabelSource,
+    ] as const
     const initialFiles = [
       ...(opts.initialFiles ?? []),
-      ...(usesPackagedOpenSpec
-        ? defaultOpenSpecScaffoldFiles(
-          opts.name,
-          opts.documentLocale ?? 'zh-CN',
-          packagedPlan.workflow.steps.map((step) => ({ id: step.id, label: step.label })),
-          packagedPlan.projection.stepLabelSource,
-        )
-        : []),
+      ...(usesOpenSpecScaffold
+        ? defaultOpenSpecScaffoldFiles(...scaffoldArgs)
+        : observed && plan?.capabilities.documents.governed === true
+          ? [defaultTasksScaffoldFile(...scaffoldArgs)]
+          : []),
       ...(governed
         ? [{
           relativePath: DOCUMENT_LEDGER_FILE,
@@ -153,7 +163,7 @@ class FsWorkflowRunRepository implements WorkflowRunRepository {
           initialWorkflow: {
             ...(opts.initialWorkflow ?? {
               workflow: workflowId,
-              phase: packagedPlan?.workflow.steps[0]?.id ?? 'open',
+              phase: plan?.workflow.steps[0]?.id ?? 'open',
             }),
             workflowPlanFingerprint: opts.initialWorkflow?.workflowPlanFingerprint
               ?? snapshot.workflowFingerprint,
@@ -163,7 +173,17 @@ class FsWorkflowRunRepository implements WorkflowRunRepository {
     })
     const state = await this.deps.store.read(changeDir)
     // state.runMetadata 在这里必然存在（刚用 runId 创建的），非空断言有 store.init 的实现保证。
-    return { changeDir, run: deriveRun(state.fields, required(state.runMetadata)) }
+    const run = deriveRun(state.fields, required(state.runMetadata))
+    // 观察模式：发布之后在任务锁内写第一次步骤访问的检查点（此时 tasks.md 已在工作区里，不算第一步的产出）。
+    // 采不到检查点（非 git 等）只记没有检查点；账本写失败照实抛出，不装作任务已就绪。
+    if (observed) {
+      await this.deps.store.withLock(changeDir, () => startStepVisit(
+        stepOutputsContextFor(changeDir),
+        { runId: run.id, sequence: run.transitionSequence, step: run.currentStep },
+        this.deps.clock(),
+      ))
+    }
+    return { changeDir, run }
   }
 
   async establishRun(
@@ -181,18 +201,27 @@ class FsWorkflowRunRepository implements WorkflowRunRepository {
     return store.withLock(changeDir, async () => {
       const state = await store.read(changeDir)
       const workflowId = resolveWorkflowName(state)
+      // 没有显式绑定时按任务自己的轨道取包内定义的计划（有分支的工作流里没有该轨道 → 抛错，不取第一条）。
+      let packaged: ReturnType<typeof resolveEffectiveWorkflowPlan> | undefined
+      const packagedPlan = (): ReturnType<typeof resolveEffectiveWorkflowPlan> => {
+        packaged ??= resolveEffectiveWorkflowPlan(workflowId, () => null, { track: fieldStr(state.fields.track) })
+        return packaged
+      }
       const documentProfile = governance.documentProfile
         ?? (governance.openspecContract === true
           ? 'legacy-full'
           : governance.documentContract === true
             ? 'document-v1'
             : undefined)
+      // 已有 run 记着自己冻结的指纹（可能是升级前的旧引擎计划）：调用方没点名时沿用，不拿今天的包内计划去比。
+      // 包内计划只给还没有指纹的 run 补缺。
+      const existingRun = state.runMetadata
       const documentGovernanceFingerprint = governance.documentGovernanceFingerprint
-        ?? (documentProfile === 'legacy-full'
-          ? DEFAULT_PLAN_BINDING.documentGovernanceFingerprint
-          : undefined)
+        ?? existingRun?.documentGovernanceFingerprint
+        ?? (documentProfile === 'legacy-full' ? documentPolicyFingerprint(packagedPlan()?.documentPolicy) : undefined)
       const workflowPlanFingerprint = governance.workflowPlanFingerprint
-        ?? resolveEffectiveWorkflowPlan(workflowId, () => null)?.workflowFingerprint
+        ?? existingRun?.workflowPlanFingerprint
+        ?? packagedPlan()?.workflowFingerprint
       if (state.runMetadata) {
         const existing = state.runMetadata
         const asserted = [

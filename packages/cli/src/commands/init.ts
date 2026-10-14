@@ -1,44 +1,35 @@
 /**
- * init <name> --track --preset [--workflow] —— 初始化 change（creator/负责人 = 当前声明身份，缺失 exit 1）（CONTRACT §3，
+ * init <name> --track --preset [--workflow] [--domain] —— 初始化 change（creator/负责人 = 当前声明身份，缺失 exit 1）（CONTRACT §3，
  * 2026-07-06 oracle 实测回写：老内核 init stdout 为空，创建路径改走 stderr 信息行）。
  * stdout：无（`--json` 时一行 JSON）；exit 0/1。
  *
  * 落点：在 git 仓库的主检出里默认先建 worktree `.worktrees/<name>`（分支 `tenon/<name>`），任务状态、文档与实现都在其中；
- * 工作流与 track 注册表仍按主检出解析（项目自定义工作流所在的 `.pipeline/` 被 git 忽略，不在新 worktree 里）。
+ * 工作流（含它的轨道分支）仍按主检出解析（项目自定义工作流所在的 `.pipeline/` 被 git 忽略，不在新 worktree 里）。
  * 非 git 仓库、无提交、HEAD 分离、已在 linked worktree、`--in-place` 或 `TENON_INIT_IN_PLACE=1` 时原地建立。判定/创建/回滚见 init-worktree.ts。
- * 建好 worktree 后继承本用户在主检出里的信任，测试目录受信任时执行它声明的 `setup`（输出走 stderr，失败只 WARN）：见 init-setup.ts。
+ * 建好 worktree 后，测试目录里的 `setup` 在已得到用户信任时才执行（信任按仓库共享，输出走 stderr，失败只 WARN）：见 init-setup.ts。
  *
- * --workflow（GOAL E，whole-branch review 补：此前没有任何支持的命令能把一个 change 摆到
- * 自定义 workflow 的首个 step 上，除非该 step 恰好叫 open——`tenon set phase <custom-id>`
- * 被 manifest 派生的 7 相位枚举挡下，`migrate-workflow` 只处理已存在的 change。此处新增的
- * `--workflow` 选项省略/传 'default' 时行为与此前完全一致（未提供本选项的既有调用零回归）；
- * 显式传非 default 名字时，真加载 + 校验该 workflow（复用 loadWorkflow，Fix E5 已经接的
- * validateWorkflow 在这里同样生效——非法 workflow 文件在 init 这一步就 fail-loud，不会让
- * 一个引用了坏 workflow 的 change 先被创建出来），再把 workflow 字段设成该名字、phase 字段
- * 种到它 steps[0] 的 id（而不是硬编码的 'open'）。这里故意绕开 CLI `set` 子命令那层的
- * enumOk（对齐 manifest.phases 的老内核枚举校验，仅对 `tenon set phase ...` 这一入口生效）
- * ——workflow/phase 首态随 `runRepo.initChange()` 的 `initialWorkflow` 参数，进 kernel
- * `StateStore.init()` 独占创建那唯一一次原子写入（第 7 轮 codex review P1：此前是 initChange
- * 之后再补一次 StateStore.setMany，两次写之间有竞态窗口，见 store.ts init() 头部注释），
- * 校验仍只有 quoteGate（YAML 安全字符集），不做语义枚举校验，custom workflow 的任意合法 step
- * id 在这里天然放行，且完全不触碰 enumOk/cmdSet 共享代码路径（zero 改动、zero 回归风险 to
- * oracle 覆盖的 default workflow 主线）。
+ * --workflow：省略或传 'default' 是默认工作流；显式传其他名字时真加载并校验该 workflow（非法文件在这一步就 fail-loud，
+ * 不会先建出引用坏 workflow 的 change），workflow 字段设成该名字，phase 种到它 steps[0] 的 id（而不是硬编码的 'open'）。
+ * workflow/phase 首态随 `runRepo.initChange()` 的 `initialWorkflow` 进 kernel `StateStore.init()` 独占创建的那一次原子写入
+ * （见 store.ts init() 头部注释），不经 CLI `set` 的相位枚举校验，也就没有「先建后补」的竞态窗口。
  */
 import { createInterface } from 'node:readline/promises'
 import {
-  assertWorkflowAllowed,
   effectiveWorkflowPlanBinding,
   ensureAgentFreeze,
   isDefaultWorkflowName,
   loadEffectiveWorkflowPlan,
+  loadTrack,
   prepareAgentFreeze,
   readHeadCommit,
-  requireTrackForRoot,
+  requiredTrackChoices,
   retiredSkillReferences,
   retiredSkillsWorkflowMessage,
+  stepHasTestPolicy,
+  UnknownTrackError,
   workflowPlanSnapshot,
 } from '@tenon/kernel'
-import type { TrackDefinition, TrackRegistry } from '@tenon/kernel'
+import type { LoadedTrack } from '@tenon/kernel'
 import type { DocumentLocale } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
 import { recordHistory } from './fields.js'
@@ -48,6 +39,8 @@ import { requireActor } from '../userIdentity.js'
 import { cleanupLegacyHostAgentFiles } from './agent-host.js'
 import { prepareInitWorktree } from './init-setup.js'
 import { placeInitTask, reportInitPlacement, rollbackInitPlacement, type InitPlacement } from './init-worktree.js'
+import { domainRefusal } from './taskDomain.js'
+import { warnIgnoredTracksFile } from './tracks-file-hint.js'
 import { msg } from '../i18n/messages.js'
 
 /**
@@ -77,6 +70,7 @@ export interface InitCmdOpts {
   // track/preset 为 optional：program.ts 用 .option（非 .requiredOption）注册，缺省时由交互
   // 向导（TTY）补齐或非交互 fail-loud——commander 不再抢在 action 前拦截，向导才有机会跑。
   track?: string
+  domain?: string
   preset?: string
   workflow?: string
   documentLocale?: string
@@ -139,35 +133,59 @@ async function askPlain(p: InitPrompter, label: string, dflt: string): Promise<s
   return ans === '' ? dflt : ans
 }
 
+/** 退役的内建工作流：改用 default 的轻量轨道。 */
+const RETIRED_WORKFLOWS: readonly string[] = ['standard', 'simple']
+
 /**
- * 交互向导：逐项问答收齐 track/preset（+ 可选 workflow）。已给 flag 作该项默认（回车即收），
- * track 选项与校验从 registry.ordered 生成（不再手抄枚举；缺 tracks.yaml 时即内建 Track），preset 非空，
- * 校验不过就地重问。返回补齐后的 opts（原字段其余保留）。
+ * 交互向导：逐项问答收齐 workflow / track / preset。已给 flag 作该项默认（回车即收）。
+ * workflow 最先问——track 的选项与是否必填取决于它：平铺工作流没有 track 这一问，有分支的工作流
+ * 从它自己的分支生成选项并校验（不再手抄枚举）；preset 非空，校验不过就地重问。
+ * 返回补齐后的 opts（原字段其余保留）；工作流不存在 / 写坏 / 已退役 → 抛错，由调用方转 exit 1。
  */
-async function runInitWizard(deps: CliDeps, registry: TrackRegistry, flags: InitCmdOpts, env: InitWizardEnv): Promise<InitCmdOpts> {
+async function runInitWizard(deps: CliDeps, flags: InitCmdOpts, env: InitWizardEnv): Promise<InitCmdOpts> {
   const p = env.makePrompter()
   try {
     deps.io.out('[init] 交互向导 —— 每问展示默认值（中括号内），直接回车即收默认。')
-    const trackIds = registry.ordered.map((t) => t.id)
-    const track = await askValidated(
-      p, deps, `track（${trackIds.join('|')}）`, flags.track,
-      (s) => (registry.byId.has(s) ? null : `ERROR: 非法 track '${s}'，允许: ${trackIds.join(' | ')}`),
-    )
+    const workflowRaw = await askPlain(p, 'workflow（缺省 default）', flags.workflow ?? '')
+    const workflowId = workflowRaw === '' ? 'default' : workflowRaw
+    assertNotRetired(deps, workflowId)
+    const trackIds = requiredTrackChoices(deps.cwd, workflowId)
+    const track = trackIds === null
+      ? flags.track
+      : await askValidated(
+        p, deps, `track（${trackIds.join('|')}）`, flags.track,
+        (s) => (trackIds.includes(s) ? null : `ERROR: 非法 track '${s}'，允许: ${trackIds.join(' | ')}`),
+      )
     const preset = await askValidated(
       p, deps, 'preset（full|hotfix|tweak）', flags.preset,
       // 与 flag 同一闭集：提示列了枚举就必须校验，否则 'ful' 静默建出无效 change。
       (s) => (PRESETS.includes(s) ? null : `ERROR: 非法 preset '${s}'，允许: ${PRESETS.join(' | ')}`),
     )
-    const workflowRaw = await askPlain(p, 'workflow（自定义 workflow 名，缺省 default）', flags.workflow ?? '')
     return {
       ...flags,
-      track,
+      ...(track === undefined ? {} : { track }),
       preset,
       workflow: workflowRaw === '' ? undefined : workflowRaw,
     }
   } finally {
     p.close()
   }
+}
+
+/**
+ * 已退役的轨道 id 的替代提示，与 `init.workflowRetired` 同一口径（「X 已退役；改用：…」）：
+ * standard / simple 并入 default 的轻量轨道；chat / free 没有等价轨道（纯讨论不建任务，开发请求从可选轨道里选）。
+ * 不是退役过的 id 返回 undefined，只留 loadTrack 报的「可选轨道」列表。
+ */
+function retiredTrackHint(deps: CliDeps, track: string): string | undefined {
+  if (track === 'standard' || track === 'simple') return msg(deps, 'init.trackRetiredToLite', { track })
+  if (track === 'chat' || track === 'free') return msg(deps, 'init.trackRetired', { track })
+  return undefined
+}
+
+/** 已退役的工作流名直接拒绝并给出替代命令（旧任务不经 init，不受影响）。 */
+function assertNotRetired(deps: CliDeps, workflowId: string): void {
+  if (RETIRED_WORKFLOWS.includes(workflowId)) throw new Error(msg(deps, 'init.workflowRetired', { workflow: workflowId }))
 }
 
 export async function cmdInit(
@@ -180,43 +198,64 @@ export async function cmdInit(
   const creator = requireActor(deps)
   if (creator === null) return 1
 
+  // 旧的 tracks.yaml 不再读取：只提示一行迁移方法。
+  warnIgnoredTracksFile(deps)
+
   // 缺 track/preset：TTY 下走向导补齐（BT6 小白友好），非交互（agent/CI）fail-loud exit 1。
-  // 向导用一份 registry 生成选项/校验（仅影响交互提示；权威校验在下方 registry 锁内 fresh-load）。
-  // track 且 preset 都已给 → 本块整体不进；golden-oracle 双跑守的非交互主线（内建轨）观测行为不变。
+  // 轨道只认工作流自己的分支：有分支的工作流必须指定，平铺工作流（design-system、自定义的一串步骤）
+  // 只有一条隐式轨道、不用写 --track。track 与 preset 都已给 → 本块整体不进；非交互主线行为不变。
   if (opts.preset !== undefined && opts.preset !== '' && !PRESETS.includes(opts.preset)) {
     deps.io.err(`ERROR: ${msg(deps, 'init.presetInvalid', { preset: opts.preset, allowed: PRESETS.join(' | ') })}`)
     return 1
   }
-  const presetRequired = !isCustomWorkflowFlag(opts.workflow)
-  if (!opts.track || (!opts.preset && presetRequired)) {
-    if (!env.isInteractive()) {
-      const missing = [!opts.track ? '--track' : null, !opts.preset && presetRequired ? '--preset' : null].filter(Boolean).join(' ')
-      deps.io.err(`ERROR: ${msg(deps, 'init.nonInteractiveMissing', { missing })}`)
-      return 1
+  const requestedWorkflow = opts.workflow !== undefined && opts.workflow !== '' ? opts.workflow : 'default'
+  try {
+    assertNotRetired(deps, requestedWorkflow)
+    const presetRequired = !isCustomWorkflowFlag(opts.workflow)
+    const trackIds = opts.track ? null : requiredTrackChoices(deps.cwd, requestedWorkflow)
+    const missing = [
+      trackIds !== null ? `--track（${trackIds.join('|')}）` : null,
+      !opts.preset && presetRequired ? '--preset' : null,
+    ].filter((item): item is string => item !== null)
+    if (missing.length > 0) {
+      if (!env.isInteractive()) {
+        deps.io.err(`ERROR: ${msg(deps, 'init.nonInteractiveMissing', { missing: missing.join(' ') })}`)
+        return 1
+      }
+      opts = await runInitWizard(deps, opts, env)
     }
-    let wizRegistry: TrackRegistry
-    try {
-      wizRegistry = deps.loadRegistry()
-    } catch (e) {
-      deps.io.err(`ERROR: ${errMsg(e)}`)
-      return 1
-    }
-    opts = await runInitWizard(deps, wizRegistry, opts, env)
+  } catch (e) {
+    deps.io.err(`ERROR: ${errMsg(e)}`)
+    return 1
   }
 
-  // R3 D4：init 纳入仓级 registry 生命周期锁（锁序 registry → change）——锁内 fresh-load registry
-  // 做权威校验、再创建 change，堵住「锁外读 registry、之后才写 change」与 tracks delete 竞争的跨锁
-  // TOCTOU（delete 扫描期 init 同轨必等待）。坏 tracks.yaml 在锁内 load 处 fail-loud（外层 catch →
-  // exit 1）。requireTrack/assertWorkflowAllowed 全部先于落盘（不留引用坏 workflow 的半成品 change）。
+  // 所有校验（轨道、文档语言、预设、工作流可加载）都先于任何落盘，不留引用坏工作流的半成品 change。
+  // 整段在项目协调锁内（锁序 项目锁 → 任务锁）：server 删除 / 保存工作流时在同一把锁内扫描引用它的任务，
+  // 所以不会出现「工作流已校验、任务尚未发布」的窗口里被删掉。
   const wants: { catalog: boolean; landed?: { placement: InitPlacement; root: string; dir: string } } = { catalog: false }
   try {
-    const code = await deps.withRegistryLock(async ({ registry }) => {
-      // track 合法性改走锁内 fresh registry（requireTrack）：未注册即拒（缺 tracks.yaml 时等价旧四轨枚举）。
-      let track: TrackDefinition
+    const code = await deps.withProjectLock(async () => {
+      const workflowId = opts.workflow !== undefined && opts.workflow !== '' ? opts.workflow : 'default'
+      let loaded: LoadedTrack
       try {
-        track = requireTrackForRoot(registry, opts.track ?? '', deps.cwd, opts.workflow)
+        assertNotRetired(deps, workflowId)
+        loaded = loadTrack(deps.cwd, workflowId, opts.track)
       } catch (e) {
         deps.io.err(`ERROR: ${errMsg(e)}`)
+        if (e instanceof UnknownTrackError) {
+          // 平铺工作流只有一条与工作流同名的隐式轨道：曾经的 `--track free` 中立入口不再需要。
+          if (e.available.length === 1 && e.available[0] === e.workflow) {
+            deps.io.err(`  ${msg(deps, 'init.flatWorkflowTrack', { workflow: e.workflow })}`)
+          }
+          const retired = retiredTrackHint(deps, e.track)
+          if (retired !== undefined) deps.io.err(`  ${retired}`)
+        }
+        return 1
+      }
+      const trackId = loaded.branch.id
+      const domainRefused = opts.domain === undefined ? null : domainRefusal(deps, loaded.workflow, trackId, opts.domain)
+      if (domainRefused !== null) {
+        deps.io.err(`ERROR: ${domainRefused}`)
         return 1
       }
       if (opts.documentLocale !== undefined
@@ -225,19 +264,8 @@ export async function cmdInit(
         deps.io.err(`ERROR: ${msg(deps, 'init.documentLocaleInvalid', { locale: opts.documentLocale })}`)
         return 1
       }
-
-      // workflow 绑定（codex 设计 §5）：workflowId = 显式 --workflow ?? track.workflow.default；
-      // 校验它在该 track 的 allowed 白名单内、且真实存在可加载。default 走 store.init 老首态（open），
-      // 非 default 则种到该 workflow 首个 step。只接 init 构造点、不改 resolveWorkflowName 读取语义。
-      const workflowId = opts.workflow && opts.workflow !== '' ? opts.workflow : track.workflow.default
       if (!opts.preset && isDefaultWorkflowName(workflowId)) {
         deps.io.err(`ERROR: ${msg(deps, 'init.presetEmpty', { allowed: PRESETS.join('|') })}`)
-        return 1
-      }
-      try {
-        assertWorkflowAllowed(track, workflowId)
-      } catch (e) {
-        deps.io.err(`ERROR: ${errMsg(e)}`)
         return 1
       }
       let initialWorkflow: {
@@ -252,7 +280,7 @@ export async function cmdInit(
       }
       let plan
       try {
-        plan = loadEffectiveWorkflowPlan(deps.cwd, workflowId, track)
+        plan = loadEffectiveWorkflowPlan(deps.cwd, workflowId, { track: trackId })
       } catch (e) {
         deps.io.err(`ERROR: ${errMsg(e)}`)
         return 1
@@ -266,17 +294,6 @@ export async function cmdInit(
       const retired = retiredSkillReferences(plan)
       if (retired.length > 0) {
         deps.io.err(`ERROR: ${retiredSkillsWorkflowMessage(workflowId, retired)}`)
-        return 1
-      }
-      // 项目级文档的立项前置条件（如前端轨道要求 DESIGN.md 就绪）：先于任何落盘。
-      const refused = await deps.creationPrecondition?.({
-        workflow: workflowId,
-        track: track.id,
-        firstStep: first.id,
-        ...(plan.capabilities.documents.policy === undefined ? {} : { policy: plan.capabilities.documents.policy }),
-      })
-      if (refused !== undefined && refused !== null) {
-        deps.io.err(`ERROR: ${refused}`)
         return 1
       }
       // agent 内容随 Change 创建冻结：库读不到任何被引用的 agent 就在这里拒绝，Change 还没落盘。
@@ -313,8 +330,10 @@ export async function cmdInit(
         const { changeDir: created, run } = await deps.runRepo.initChange({
           repoRoot: root,
           name,
-          track: track.id,
-          reviewSeed: track.policyProfile.reviewSeed,
+          track: trackId,
+          ...(opts.domain === undefined ? {} : { domain: opts.domain }),
+          // 两个评审字段已退役（只保留 canonical 槽位），新任务一律 pending。
+          reviewSeed: 'pending',
           preset: opts.preset || 'null',
           creator,
           clock: deps.clock,
@@ -347,7 +366,7 @@ export async function cmdInit(
           }
         }
         deps.io.err(`[INIT] ${created}`)
-        wants.catalog = plan.workflow.steps.some((step) => step.test_policy !== undefined)
+        wants.catalog = plan.workflow.steps.some((step) => stepHasTestPolicy(step))
         wants.landed = { placement, root, dir: created }
         return 0
       } catch (e) {
@@ -357,7 +376,7 @@ export async function cmdInit(
         return 1
       }
     })
-    // 识别要扫目录树，放在仓级 registry 锁之外；测试目录写进任务所在的检出，主检出的工作区不变。
+    // 识别要扫目录树，放在项目协调锁之外；测试目录写进任务所在的检出，主检出的工作区不变。
     if (code === 0 && wants.landed !== undefined) {
       // 会话内不再生成宿主 agent 文件；升级前的版本留在项目里的旧文件会遮住用户级的专属子代理，立项时顺手清掉。
       // 放在建任务（含失败回滚的那一段）全部成功之后：回滚 worktree 时清理不该已经发生；清理失败只 WARN。

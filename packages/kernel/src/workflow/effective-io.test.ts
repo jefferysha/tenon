@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_WORKFLOW_SOURCE } from './default-workflow.generated.js'
 import { materializeWorkflowIo } from './effective-io.js'
-import { parseWorkflow } from './parse.js'
+import { legacyContractDefaultDefinition } from './test-support.js'
 import type { WorkflowDef } from './types.js'
 import { selectTrackBranch } from './validate.js'
 
-// default 只有分支：IO 物化针对一条 pipeline，用 frontend 分支（含其文档契约）。
-const defaultDef = selectTrackBranch(parseWorkflow(DEFAULT_WORKFLOW_SOURCE), 'frontend')
+// 当前 default 没有步骤字段 IO 与文档契约；effective-io 只服务升级前冻结的旧计划（编排图的文档流），
+// 所以用升级前带契约的 default（tools/fixtures/legacy-default-workflow.yaml）。IO 物化针对一条 pipeline，用 frontend 分支。
+const defaultDef = selectTrackBranch(legacyContractDefaultDefinition(), 'frontend')
 
 describe('materializeWorkflowIo', () => {
   it('gives every default step at least one output; produce and update slots precede field slots', () => {

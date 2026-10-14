@@ -25,7 +25,9 @@ import type { RecordChainCache } from '../test-system/record-chain.js'
 import type { IntegrityDiffSource } from '../test-system/integrity-diff.js'
 import type { ProtectedChange } from '../test-system/protected-files.js'
 import { inlineSuiteFromTest, inlineSuiteId } from '../test-system/policy.js'
+import { stepHasTestPolicy } from '../test-system/resolve-policy.js'
 import { declaresRecordV2, decodeTestRunRecordV2 } from '../test-system/record-v2-codec.js'
+import { latestFailureMetrics, type WaiverMetric } from '../test-system/waiver-metrics.js'
 
 export type TestItemStatus = 'passed' | 'failed' | 'stale' | 'missing' | 'running'
 
@@ -44,8 +46,8 @@ export interface TestEvidenceContext {
   readonly currentCandidate?: () => Promise<string>
   readonly now?: () => number
   /**
-   * diff（相对 change 起点）里新增 / 修改的仓库相对文件。只有声明了 `test_policy.files: registered`
-   * 的步骤会用到；宿主不提供时跳过未登记文件检查，并在策略报告里留一条提示。
+   * diff（相对 change 起点）里新增 / 修改的仓库相对文件。档位 changed / full 与旧 `test_policy.files: registered`
+   * 的步骤会用到（认领测试文件、算运行集）；宿主不提供时跳过认领检查，并在策略报告里留一条提示。
    */
   readonly changedFiles?: () => Promise<ChangedFilesSource>
   /** diff（相对 change 起点）里的受保护测试配置改动（含删除）；评审门步骤的人工确认判定用，宿主不提供就不检查。 */
@@ -70,6 +72,8 @@ export interface TestEvidenceItem {
   readonly waiver?: 'waived' | 'waiver-pending'
   /** 仅带 `waiver` 时：这条新鲜失败记录绑定的代码候选；豁免的批准绑定它（见 SuiteVerdict.failedCandidate）。 */
   readonly failedCandidate?: string
+  /** 仅带 `waiver` 时：这条新鲜失败记录里的指标（实测值与门槛，每次判定现读）；空数组 = 记录里没有可读的指标。 */
+  readonly failedMetrics?: readonly WaiverMetric[]
 }
 
 /** 这一项不再要求重跑：已经通过，或失败但有豁免（待批准的由评审请求列给用户，已批准的放行）。 */
@@ -85,6 +89,16 @@ export function stepTestFailuresOf(items: readonly Pick<TestEvidenceItem, 'test'
   return new Map(items.flatMap((item): [string, StepTestFailure][] => item.waiver === undefined
     ? []
     : [[item.test.id, { state: item.waiver, ...(item.failedCandidate === undefined ? {} : { candidate: item.failedCandidate }) }]]))
+}
+
+/**
+ * 当前步骤各测试新鲜失败记录里的指标（键为步骤测试 id，只含带豁免的失败）：展示 `test:<id>` 豁免的地方据此在理由下方
+ * 写「最新运行：…」。没有新鲜失败的测试（没运行、已通过、记录过期）不在其中，展示为「当前候选上没有失败记录」。
+ */
+export function stepTestMetricsOf(items: readonly Pick<TestEvidenceItem, 'test' | 'waiver' | 'failedMetrics'>[]): ReadonlyMap<string, readonly WaiverMetric[]> {
+  return new Map(items.flatMap((item): [string, readonly WaiverMetric[]][] => item.waiver === undefined
+    ? []
+    : [[item.test.id, item.failedMetrics ?? []]]))
 }
 
 /**
@@ -261,8 +275,10 @@ export async function evaluateTestEvidence(input: {
   readonly context: TestEvidenceContext | undefined
 }): Promise<TestEvidenceReport> {
   const tests = stepTests(input.plan, input.stepId)
-  const policy = input.plan.workflow.steps.find((step) => step.id === input.stepId)?.test_policy
-  if (tests.length === 0 && policy === undefined) return { stepId: input.stepId, pass: true, blockers: [], items: [] }
+  const stepDef = input.plan.workflow.steps.find((item) => item.id === input.stepId)
+  // 声明了策略 = 旧 `test_policy` 或档位 `test`（非 none）；档位的具体策略在 evaluateStepTestPolicy 读完目录后求值。
+  const policyStep = stepDef !== undefined && stepHasTestPolicy(stepDef) ? stepDef : undefined
+  if (tests.length === 0 && policyStep === undefined) return { stepId: input.stepId, pass: true, blockers: [], items: [] }
   if (input.context === undefined) {
     return {
       stepId: input.stepId,
@@ -329,7 +345,7 @@ export async function evaluateTestEvidence(input: {
     }
     items.push({ test, status: record.result === 'pass' ? 'passed' : 'failed', run: record })
   }
-  if (policy !== undefined) {
+  if (policyStep !== undefined) {
     const event = exitEvent(input.plan, input.stepId)
     const report = await evaluateStepTestPolicy({
       repoRoot: input.repoRoot,
@@ -337,9 +353,9 @@ export async function evaluateTestEvidence(input: {
       changeName: input.changeName,
       slug,
       stepId: input.stepId,
-      policy,
+      step: policyStep,
       stages: input.plan.workflow.steps.map((step) => ({ id: step.id, label: step.label })),
-      inline: items.map((item) => ({ suite: inlineSuiteFromTest(item.test), status: item.status, ...inlineDetail(item) })),
+      inline: items.map((item) => ({ suite: inlineSuiteFromTest(item.test), status: item.status, ...inlineDetail(item, input.changeName) })),
       workflowFingerprint: input.plan.workflowFingerprint,
       workflowRunId: runId,
       candidate: currentCandidate,
@@ -349,7 +365,7 @@ export async function evaluateTestEvidence(input: {
       ...(input.context.protectedChanges === undefined ? {} : { protectedChanges: input.context.protectedChanges }),
       ...(input.context.seal === undefined ? {} : { seal: input.context.seal }),
       ...(input.context.integrityDiff === undefined ? {} : { integrityDiff: input.context.integrityDiff }),
-      reviewGated: input.plan.workflow.steps.find((step) => step.id === input.stepId)?.gate === 'review',
+      reviewGated: policyStep.gate === 'review',
       now,
       ...(event === undefined ? {} : { exitEvent: event }),
     })
@@ -375,7 +391,12 @@ export async function evaluateTestEvidence(input: {
 function withWaiver(item: TestEvidenceItem, report: TestPolicyReport): TestEvidenceItem {
   const verdict = report.suites.find((suite) => suite.origin === 'step' && suite.suite === inlineSuiteId(item.test.id))
   if (verdict?.state !== 'waived' && verdict?.state !== 'waiver-pending') return item
-  return { ...item, waiver: verdict.state, ...(verdict.failedCandidate === undefined ? {} : { failedCandidate: verdict.failedCandidate }) }
+  return {
+    ...item,
+    waiver: verdict.state,
+    ...(verdict.failedCandidate === undefined ? {} : { failedCandidate: verdict.failedCandidate }),
+    ...(verdict.failedMetrics === undefined ? {} : { failedMetrics: verdict.failedMetrics }),
+  }
 }
 
 /** 与 `renderPolicyBlockers` 同一过滤与顺序：测试完整性与读不到改动带结构化状态，其余策略阻断没有。 */
@@ -385,13 +406,21 @@ function policyBlockerDetail(blocker: TestBlocker): TestBlockerDetail | undefine
   return undefined
 }
 
-/** 并入策略判定的内联状态附带的细节；失败时另带那条记录绑定的候选（豁免批准核对它）。 */
-function inlineDetail(item: TestEvidenceItem): { readonly detail?: string; readonly candidate?: string | null } {
+/**
+ * 并入策略判定的内联状态附带的细节；失败时另带那条记录绑定的候选（豁免批准核对它）和记录里的指标
+ * （豁免旁的「最新运行」读它）。失败项就是当前候选上的新鲜失败，所以它的记录就是「当前候选上最新的失败记录」。
+ */
+function inlineDetail(
+  item: TestEvidenceItem,
+  changeName: string,
+): { readonly detail?: string; readonly candidate?: string | null; readonly failedMetrics?: readonly WaiverMetric[] } {
   if (item.status === 'stale') return { detail: staleWord(item.staleBecause) }
   if (item.status === 'failed') {
+    const metrics = item.run === undefined ? undefined : latestFailureMetrics(changeName, item.test.id, [item.run], item.run.candidate)
     return {
       detail: (item.run?.reasons ?? []).map((reason) => reason.code).join(', '),
       ...(item.run === undefined ? {} : { candidate: item.run.candidate }),
+      ...(metrics === undefined ? {} : { failedMetrics: metrics }),
     }
   }
   return {}

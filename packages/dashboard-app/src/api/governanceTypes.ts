@@ -1,3 +1,5 @@
+import type { TestLevel } from '@tenon/kernel/workflow/test-level'
+
 export type WbHookEvent = 'SessionStart' | 'UserPromptSubmit' | 'PreToolUse' | 'PostToolUse'
 
 export interface WbHookMeta {
@@ -100,6 +102,10 @@ export type WbGuardConfig = (
   | { type: 'full-direct-override' }
   | { type: 'build-head-unchanged'; field: 'build_sha' }
   | { type: 'spec-migration-applied' }
+  | { type: 'tasks-through-step' }
+  | { type: 'not-afk-queued' }
+  | { type: 'dependencies-ended' }
+  | { type: 'required-output'; path: string }
 ) & { when?: WbTrackPredicate }
 
 export type WbActionConfig =
@@ -185,6 +191,9 @@ export interface WbStepTestPolicy {
   browsers?: string[]
 }
 
+/** 步骤的测试档位（kernel TEST_LEVELS）：不要求 / 写计划 / 跑改动 / 全量；档位含义在项目测试目录的 levels。 */
+export type WbTestLevel = TestLevel
+
 export interface WbStepDef {
   id: string
   label: string
@@ -197,17 +206,13 @@ export interface WbStepDef {
   outputs: WbFieldRef[]
   artifacts?: WbArtifactConfig[]
   tests?: WbStepTest[]
+  /** 测试档位；与旧 `test_policy` 互斥（同一步只会有其一）。 */
+  test?: WbTestLevel
+  /** 旧逐字段策略：只读保留，选了档位就被替换。 */
   test_policy?: WbStepTestPolicy
   agents?: WbStepAgents
   guards: WbGuardConfig[]
   transitions: WbTransition[]
-}
-
-export interface WbDocumentContract {
-  version: 'v1'
-  /** role 缺省 = produce；require 没有 producers（空数组）。 */
-  slots: Array<{ kind: string; ownerStep: string; role?: 'update' | 'require'; producers: string[] }>
-  reads: Array<{ step: string; kinds: string[] }>
 }
 
 export type WbDecompositionMode = 'off' | 'suggest' | 'auto-safe' | 'require-review'
@@ -257,22 +262,29 @@ export const DEFAULT_WB_INTERACTION_POLICY: WbInteractionPolicy = {
   mode: 'interactive',
 }
 
-/** 服务端物化的一个输入 / 输出槽位：文档（登记台账）或值（change 字段）。 */
-export type WbIoSlot =
-  | {
-    kind: 'document'; id: string; role: 'produce' | 'update' | 'read' | 'require'; scope: 'change' | 'project'
-    producers: string[]; consumers: string[]
-    /** 客户端合并：同一概念的值字段（`verification_report` ↔ `verification-report`），只放 Tooltip。服务端不下发。 */
-    field?: string
-  }
-  | { kind: 'field'; id: string; type: 'string' | 'file_path' | 'boolean'; producer: string | null; consumers: string[] }
-
-export interface WbStepIo {
-  inputs: WbIoSlot[]
-  outputs: WbIoSlot[]
+/**
+ * 任务编排里一步的一个真实输入 / 输出文件（`stepIo`）。观察模式（新任务）取离开步骤时记下的产出，
+ * 契约模式（升级前创建的任务）把旧账本映射成同一形状——后者没有 `change`。
+ */
+export interface WbStepIoFile {
+  /** 相对项目根。 */
+  path: string
+  /** 输出：本步对它做了什么；契约模式没有。 */
+  change?: 'added' | 'modified' | 'deleted'
+  /** 来源技能；推断不出来是 null。 */
+  skill: string | null
+  /** 输入：它由哪一步产出。 */
+  fromStep?: string
+  /** 输入：本步是否读过。 */
+  read?: boolean
 }
 
-export type WbEffectiveIo = Record<string, WbStepIo>
+export interface WbStepIoEntry {
+  inputs: WbStepIoFile[]
+  outputs: WbStepIoFile[]
+  /** 本步的必须产出（`required-output` 守卫）；契约模式恒为空。 */
+  required: Array<{ path: string; produced: boolean }>
+}
 
 /** builtin = 内建模板；global = 用户级全局存储；project = 项目目录里的遗留覆盖文件。 */
 export type WbWorkflowSource = 'builtin' | 'project' | 'global'
@@ -281,12 +293,8 @@ export interface WbWorkflowDef {
   name: string
   /** 读接口附带：内建模板 / 项目文件（default 有覆盖文件时为 project）。写回前剔除。 */
   source?: WbWorkflowSource
-  /** 读接口附带：每步物化后的输入 / 输出（文档槽位 + 值槽位）。写回前剔除。 */
-  effectiveIo?: WbEffectiveIo
   /** OpenSpec 开关；default 恒为 true。 */
   openspec?: boolean
-  /** 只与顶层 steps 同在；有 tracks 时写在 tracks.<id>.documentContract。 */
-  documentContract?: WbDocumentContract
   /** Omitted only by pre-policy in-memory fixtures; HTTP decoding always projects safe v1 defaults. */
   decomposition?: WbDecompositionPolicy
   /** Omitted only by pre-policy in-memory fixtures; HTTP decoding always projects safe v1 defaults. */
@@ -295,80 +303,36 @@ export interface WbWorkflowDef {
   steps: WbStepDef[]
   /** track 分支：每条 track 自己的完整 pipeline。 */
   tracks?: Record<string, WbTrackBranch>
-  /** 读接口附带：每条分支（`_base` = 通用）物化后的 IO。写回前剔除。 */
+  /** 读接口附带：每条分支（`_base` = 通用）的名称。写回前剔除。 */
   branches?: Record<string, WbBranchProjection>
+}
+
+/** 分支是否走 OpenSpec；不写时继承工作流顶层 `openspec`。 */
+export type WbTrackSpec = 'openspec' | 'none'
+
+/** 分支参与自动路由的打分数据；不写 `route` 的分支只能点名使用。 */
+export interface WbTrackRoute {
+  keywords: string[]
+  exclude: string[]
+  priority: number
+  fallback: boolean
+}
+
+export interface WbTrackAutomation {
+  eligible: boolean
+  enqueueAfterSpec: boolean
 }
 
 export interface WbTrackBranch {
   label?: string
-  documentContract?: WbDocumentContract
+  /** 只在分支声明了 `spec` 时出现；解码不凭空补键，写回保持原样。 */
+  spec?: WbTrackSpec
+  route?: WbTrackRoute
+  automation?: WbTrackAutomation
   steps: WbStepDef[]
 }
 
 export interface WbBranchProjection {
   label?: string
-  effectiveIo: WbEffectiveIo
 }
 
-export interface WbTrackDefinition {
-  id: string
-  label: string
-  builtin: boolean
-  workflow: { default: string; allowed: '*' | string[] }
-  policyProfile: {
-    reviewSeed: 'pending' | 'skipped'
-    autoEnqueueOnSpecComplete?: boolean
-    automationEligible: boolean
-    coverageProfile: 'none' | 'pm' | 'frontend' | 'backend'
-    routing:
-      | { enabled: false }
-      | { enabled: true; pattern: string; excludePattern?: string; priority: number }
-    skills: { matrix: boolean; profile: string }
-  }
-}
-
-export interface WbRouterPreviewCandidate {
-  track: WbTrackDefinition
-  order: number
-  priority: number
-  score: number
-  routable: boolean
-  excluded: boolean
-}
-
-export interface WbRouterPreview {
-  ok: true
-  revision: string
-  source: 'builtin-only' | 'project-file'
-  winner: WbRouterPreviewCandidate | null
-  candidates: WbRouterPreviewCandidate[]
-  suppressed_reason: 'system-notification' | 'slash-command' | 'discussion' | null
-}
-
-export type ChangeSessionStatus = 'not_requested' | 'unavailable' | 'failed' | 'degraded' | 'active'
-
-export interface ChangeSessionLaunch {
-  requested: boolean
-  active: boolean
-  status: ChangeSessionStatus
-  exit_code: number | null
-}
-
-export interface CreatedChange {
-  ok: true
-  name: string
-  /** Current servers return the initialized directory; older compatible responses may omit it. */
-  path?: string
-  task_prompt_saved?: boolean
-  session?: ChangeSessionLaunch
-}
-
-export interface WbConfigSnapshot {
-  ok: true
-  generated_at: string
-  revision: string
-  source: 'builtin-only' | 'project-file'
-  mandatory_skills: Record<string, string[]>
-  tracks: WbTrackDefinition[]
-  mandatory_skills_writable_profiles: string[]
-}

@@ -17,7 +17,8 @@ test.describe('工作台任务 · 测试页签', () => {
   test('汇总：套件 · 用例 · 失败 · 不稳定是并排的大数字，0 退成灰，失败非零是红；一行不折行', async ({ page }) => {
     const summary = page.getByTestId('tests-summary')
     await expect(summary).toHaveAttribute('data-pass', 'false')
-    for (const [id, text] of [['suite', '3套件'], ['case', '2用例'], ['fail', '1失败'], ['flaky', '0不稳定']] as const) {
+    // 套件 4 个：目录的单测与静态检查（计划里显式加跑的）+ 验证步骤的两条内联测试（集成、代码规模）。
+    for (const [id, text] of [['suite', '4套件'], ['case', '2用例'], ['fail', '1失败'], ['flaky', '0不稳定']] as const) {
       await expect(page.getByTestId(`tests-stat-${id}`)).toHaveText(text)
     }
     const style = await summary.evaluate((el) => getComputedStyle(el).whiteSpace)
@@ -100,18 +101,18 @@ test.describe('工作台任务 · 测试页签', () => {
     await expect(page.getByTestId('task-tests')).not.toContainText('完整性提示')
   })
 
-  test('追溯表：任务 = 编号 · 阶段名 · 文字，场景 = 能力 · 场景；可选任务合并成「N 可选」一行；一行不折行', async ({ page }) => {
+  test('追溯表：档位不要求映射，只列已映射的场景，没映射的合并成「N 未映射」一行；一行不折行', async ({ page }) => {
     const titles = page.getByTestId('tests-trace-title')
-    // 骨架任务（可选）默认收起在「N 可选」一行里，点开才逐条列出。
-    await expect(page.getByTestId('tests-trace-optional-toggle')).toContainText('可选')
+    // 场景映射缺省不要求：骨架任务与没映射的条目不逐条写「未覆盖」，只有表尾一行统计，也没有展开。
+    await expect(page.getByTestId('tests-trace-unmapped')).toContainText('未映射')
+    await expect(page.getByTestId('tests-trace-optional-toggle')).toHaveCount(0)
+    await expect(titles.filter({ hasText: /^4\.1 · 实现 · / })).toHaveCount(0)
     await expect(titles.filter({ hasText: /^1\.1 · 立项 · / })).toHaveCount(0)
-    await page.getByTestId('tests-trace-optional-toggle').click()
-    await expect(titles.filter({ hasText: /^4\.1 · 实现 · / })).toHaveCount(1)
-    await expect(titles.filter({ hasText: /^1\.1 · 立项 · / })).toHaveCount(1)
+    await expect(page.getByTestId('task-tests')).not.toContainText('未覆盖')
+    // 已映射的场景照常逐条列出：通过与失败。
     await expect(page.getByTestId('tests-trace-spec:auth/Valid password signs in').getByTestId('tests-trace-title')).toHaveText('auth · Valid password signs in')
     await expect(page.getByTestId('tests-trace-state-spec:auth/Valid password signs in')).toHaveText('通过')
     await expect(page.getByTestId('tests-trace-state-spec:auth/Wrong password is rejected')).toHaveText('失败')
-    await expect(page.getByTestId('tests-trace-state-task:4.1'), '骨架任务可选，不当缺项').toHaveText('可选')
 
     for (const title of await titles.all()) {
       const line = await title.evaluate((el) => {

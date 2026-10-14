@@ -27,6 +27,8 @@ export type TransitionReadinessBlockerSnapshot =
       field?: string
       actual?: string
       expected?: string[]
+      /** required-output：要写出的文件路径（`{change}` 已换成任务名），其余守卫没有。 */
+      path?: string
     }
   | {
       kind: 'capability-unavailable'

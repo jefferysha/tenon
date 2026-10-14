@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -41,9 +41,11 @@ describe('主规格迁移机器证据', () => {
     const deltaBody = '## ADDED Requirements\n'
     const mainBody = '# demo-two\n'
 
-    async function seedDelta(): Promise<void> {
+    /** `withLedger=false`：观察模式的任务没有文档账本，delta spec 只是任务目录 specs/ 下的文件。 */
+    async function seedDelta(withLedger = true): Promise<void> {
       await mkdir(join(changeDir, 'specs', capability), { recursive: true })
       await writeFile(join(root, deltaPath), deltaBody)
+      if (!withLedger) return
       await writeFile(join(changeDir, '.pipeline-documents.json'), `${JSON.stringify({
         version: 1,
         contract: 'openspec-v1',
@@ -96,6 +98,45 @@ describe('主规格迁移机器证据', () => {
       await writeFile(join(root, mainPath), mainBody)
       await expect(evaluateSpecMigrationEvidence(root, changeDir, change)).resolves.toEqual({
         kind: 'applied',
+      })
+    })
+
+    // 观察模式（没有文档账本）：同一份来源规则——任务目录 specs/ 下写了 delta spec，就必须真的应用过。
+    describe('没有文档账本（观察模式）', () => {
+      it('写了 delta spec 却没跑过 spec apply：拒绝，不再当作不需要', async () => {
+        await seedDelta(false)
+        await expect(evaluateSpecMigrationEvidence(root, changeDir, change)).resolves.toEqual({
+          kind: 'invalid',
+          reason: 'spec-apply-receipt-missing',
+        })
+      })
+
+      it('只彩排过（mode=dry-run）：拒绝', async () => {
+        await seedDelta(false)
+        await seedReceipt('dry-run')
+        await expect(evaluateSpecMigrationEvidence(root, changeDir, change)).resolves.toEqual({
+          kind: 'invalid',
+          reason: 'spec-apply-rehearsal-only',
+        })
+      })
+
+      it('真跑过且主规格在盘上：通过', async () => {
+        await seedDelta(false)
+        await seedReceipt('apply')
+        await mkdir(join(root, 'openspec', 'specs', capability), { recursive: true })
+        await writeFile(join(root, mainPath), mainBody)
+        await expect(evaluateSpecMigrationEvidence(root, changeDir, change)).resolves.toEqual({
+          kind: 'applied',
+        })
+      })
+
+      it('specs/ 里有符号链接：拒绝，不当作不需要', async () => {
+        await mkdir(join(changeDir, 'specs'), { recursive: true })
+        await symlink(root, join(changeDir, 'specs', 'linked'))
+        await expect(evaluateSpecMigrationEvidence(root, changeDir, change)).resolves.toEqual({
+          kind: 'invalid',
+          reason: 'delta-spec-source-unreadable',
+        })
       })
     })
   })

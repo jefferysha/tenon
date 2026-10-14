@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { draftEffectiveIo, lintWorkflow } from '../workflow/lint'
+import { lintWorkflow } from '../workflow/lint'
 import {
   BASE_BRANCH,
   addSkillToDef,
@@ -10,7 +10,6 @@ import {
   blankWorkflow,
   branchesOf,
   cloneWorkflowDef,
-  copyWorkflowDef,
   definitionForWrite,
   gateKind,
   removeSkillFromDef,
@@ -18,22 +17,16 @@ import {
   removeTrackBranch,
   reorderStagesInDef,
   selectBranchDef,
+  setOpenspecInDef,
   setStepAgentsInDef,
-  setStepTestPolicyInDef,
+  setStepSkillsInDef,
+  setStepTestLevelInDef,
   workflowNameFromYaml,
   writeBranchDef,
   type WbStepDef,
   type WbTransition,
   type WbWorkflowDef,
 } from './workbenchDefinition'
-import {
-  addDocumentOutputInDef,
-  documentInputCandidates,
-  documentKindsForOutput,
-  removeDocumentSlotInDef,
-  setDocumentInputsInDef,
-  setOpenspecInDef,
-} from './documentContractEdits'
 
 function stage(id: string, transitions: WbTransition[] = []): WbStepDef {
   return { id, label: id, gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions }
@@ -53,7 +46,7 @@ function expectRelinked(def: WbWorkflowDef): void {
     const targets = step.transitions.map((transition) => transition.to)
     expect(new Set(targets).size, step.id).toBe(targets.length)
   }
-  expect(lintWorkflow(def, draftEffectiveIo(def)).filter((issue) => issue.kind === 'transition-not-next-or-back')).toEqual([])
+  expect(lintWorkflow(def).filter((issue) => issue.kind === 'transition-not-next-or-back')).toEqual([])
 }
 
 const VERIFY_FAIL: WbTransition = {
@@ -73,7 +66,7 @@ function twoStep(): WbWorkflowDef {
   return {
     name: 'two',
     source: 'project',
-    effectiveIo: {},
+    branches: { _base: {} },
     steps: [
       { id: 'a', label: 'A', gate: null, skills: [{ id: 's1' }, { id: 's2', depends_on: ['s1'] }], inputs: [], outputs: [{ field: 'plan', type: 'file_path' }], artifacts: [{ field: 'plan', type: 'file_path', producerPolicy: 'effective-step-skills' }], guards: [], transitions: [{ event: 'go', to: 'b' }] },
       { id: 'b', label: 'B', gate: 'review', skills: [], inputs: [{ field: 'plan', type: 'file_path' }], outputs: [], guards: [], transitions: [] },
@@ -97,7 +90,7 @@ describe('workbenchDefinition · 写回投影', () => {
     expect(written).not.toHaveProperty('source')
   })
 
-  it('definitionForWrite 剔除 source / effectiveIo；clone 深拷贝且不带投影字段', () => {
+  it('definitionForWrite 剔除 source / branches；clone 深拷贝且不带投影字段', () => {
     const def = twoStep()
     expect(Object.keys(definitionForWrite(def))).toEqual(['name', 'steps'])
     const cloned = cloneWorkflowDef(def, 'copy')
@@ -120,15 +113,16 @@ describe('workbenchDefinition · 技能顺序（kernel skill-order）', () => {
 })
 
 describe('workbenchDefinition · 删除阶段', () => {
-  it('removeStage 连带清掉该阶段拥有的文档槽位与 reads，并重接转换边', () => {
+  it('removeStage 删掉阶段并重接转换边；阶段上的必须产出随阶段一起走，别的阶段不受影响', () => {
     const three: WbWorkflowDef = {
       ...twoStep(),
-      documentContract: { version: 'v1', slots: [{ kind: 'proposal', ownerStep: 'a', producers: ['s1'] }], reads: [{ step: 'b', kinds: ['proposal'] }] },
+      steps: twoStep().steps.map((step) => step.id === 'b' ? { ...step, guards: [{ type: 'required-output' as const, path: 'docs/b.md' }] } : step),
     }
     const removed = removeStageFromDef(three, 'b')
     expect(removed.steps.map((step) => step.id)).toEqual(['a'])
     expect(removed.steps[0]?.transitions).toEqual([])
-    expect(removed.documentContract?.reads).toEqual([])
+    expect(removed.steps[0]?.guards).toEqual([])
+    expect(removed).not.toHaveProperty('documentContract')
   })
 
   it('删中间阶段：前一阶段的正向边接到新的下一阶段；指向它的退回边改指它的下一阶段，变成自指就删，与已有同目标边冲突就丢改出来的那条', () => {
@@ -283,13 +277,22 @@ describe('workbenchDefinition · 排序与删阶段丢掉的退回边', () => {
 })
 
 describe('workbenchDefinition · 新建', () => {
-  it('copyWorkflowDef 从 default 复制：不写 openspec 契约（default 的 chat 轨本就不满足它），artifact policy 改为 custom 允许的 effective-step-skills', () => {
-    const fromDefault: WbWorkflowDef = { ...twoStep(), name: 'default', steps: twoStep().steps.map((step) => ({ ...step, artifacts: step.artifacts?.map((artifact) => ({ ...artifact, producerPolicy: 'effective-phase-skills' as const })) })) }
-    const copied = copyWorkflowDef(fromDefault, 'mine')
-    // 曾经在这里补盖 'required'，服务端校验第一次真跑就 400（tracks.chat 缺契约技能）。
-    expect(copied).not.toHaveProperty('openspecContract')
-    expect(copied.steps[0]?.artifacts?.[0]?.producerPolicy).toBe('effective-step-skills')
-    expect(copyWorkflowDef(twoStep(), 'other')).not.toHaveProperty('openspecContract')
+  it('从 default 复制：原样深拷贝（必须产出守卫、分支设置都带着），不带读接口附带的投影；不写任何文档契约', () => {
+    const fromDefault: WbWorkflowDef = {
+      name: 'default',
+      openspec: true,
+      source: 'builtin',
+      branches: { _base: {}, backend: { label: '后端' } },
+      steps: [],
+      tracks: { backend: { label: '后端', spec: 'openspec', steps: [{ ...stage('explore'), guards: [{ type: 'required-output', path: 'docs/superpowers/specs/*.md' }] }] } },
+    }
+    const copied = cloneWorkflowDef(fromDefault, 'mine')
+    expect(copied.name).toBe('mine')
+    expect(copied).not.toHaveProperty('source')
+    expect(copied).not.toHaveProperty('branches')
+    expect(copied).not.toHaveProperty('documentContract')
+    expect(copied.tracks?.backend?.steps[0]?.guards).toEqual([{ type: 'required-output', path: 'docs/superpowers/specs/*.md' }])
+    expect(copied.tracks?.backend?.steps[0]).not.toBe(fromDefault.tracks?.backend?.steps[0])
   })
 
   it('blankWorkflow 一个阶段、无输出；workflowNameFromYaml 取 name 行', () => {
@@ -299,71 +302,50 @@ describe('workbenchDefinition · 新建', () => {
   })
 })
 
-describe('workbenchDefinition · OpenSpec 文档契约编辑', () => {
-  const skilled = (id: string, skills: string[], transitions: WbTransition[] = []): WbStepDef => ({
-    ...stage(id, transitions),
-    skills: skills.map((skill) => ({ id: skill })),
-  })
+describe('workbenchDefinition · OpenSpec 开关与离开条件', () => {
   const flow = (): WbWorkflowDef => ({
     name: 'custom',
     openspec: true,
     steps: [
-      skilled('shape', ['tenon-open'], [{ event: 'shape-complete', to: 'spec' }]),
-      skilled('spec', ['openspec-propose'], [{ event: 'spec-complete', to: 'build' }]),
-      skilled('build', ['tenon-build']),
+      { ...stage('shape', [{ event: 'shape-complete', to: 'spec' }]), guards: [{ type: 'required-output', path: 'docs/specs/*.md' }] },
+      stage('spec', [{ event: 'spec-complete', to: 'build' }]),
+      stage('build'),
     ],
   })
 
-  it('+ 输出：只列本分支技能能产出的；首次是 produce，本阶段缺技能时把分支里的候选技能加进来；同类再加是 update', () => {
-    const def = flow()
-    expect(documentKindsForOutput(def, 'shape')).toEqual(['proposal', 'openspec-design', 'tasks', 'delta-spec'])
-    const produced = addDocumentOutputInDef(def, 'shape', 'proposal')
-    expect(produced.documentContract?.slots).toEqual([{ kind: 'proposal', ownerStep: 'shape', producers: ['openspec-propose'] }])
-    expect(produced.steps[0]?.skills.map((skill) => skill.id)).toEqual(['tenon-open', 'openspec-propose'])
-    const updated = addDocumentOutputInDef(produced, 'spec', 'proposal')
-    expect(updated.documentContract?.slots.at(-1)).toEqual({ kind: 'proposal', ownerStep: 'spec', role: 'update', producers: ['openspec-propose'] })
-    expect(documentKindsForOutput(updated, 'shape')).not.toContain('proposal')
+  it('setOpenspecInDef：开启写 openspec: true，关闭删掉这个键；分支与阶段（含必须产出）原样不动', () => {
+    const full: WbWorkflowDef = { name: 'custom', steps: [], tracks: { web: { steps: flow().steps }, api: { spec: 'none', steps: flow().steps } } }
+    const on = setOpenspecInDef(full, true)
+    expect(on.openspec).toBe(true)
+    expect(on.tracks).toEqual(full.tracks)
+    const off = setOpenspecInDef(on, false)
+    expect(off).not.toHaveProperty('openspec')
+    expect(off.tracks).toEqual(full.tracks)
+    expect(off.tracks?.web?.steps[0]?.guards).toEqual([{ type: 'required-output', path: 'docs/specs/*.md' }])
   })
 
-  it('+ 输入：有更早来源写 reads、项目文档写 require；移除 produce 连带删掉悬空的 update 与 reads', () => {
-    let def = addDocumentOutputInDef(flow(), 'shape', 'proposal')
-    def = addDocumentOutputInDef(def, 'spec', 'proposal')
-    expect(documentInputCandidates(def, 'build')).toEqual([{ kind: 'proposal', fromStep: 'spec' }, { kind: 'design-md', fromStep: null }])
-    def = setDocumentInputsInDef(def, 'build', ['proposal', 'design-md'])
-    expect(def.documentContract?.reads).toEqual([{ step: 'build', kinds: ['proposal'] }])
-    expect(def.documentContract?.slots.at(-1)).toEqual({ kind: 'design-md', ownerStep: 'build', role: 'require', producers: [] })
-    const removed = removeDocumentSlotInDef(def, 'shape', 'proposal', 'outputs')
-    expect(removed.documentContract?.slots).toEqual([{ kind: 'design-md', ownerStep: 'build', role: 'require', producers: [] }])
-    expect(removed.documentContract?.reads).toEqual([])
-    expect(removeDocumentSlotInDef(removed, 'build', 'design-md', 'inputs')).not.toHaveProperty('documentContract')
-  })
-
-  it('关闭 OpenSpec 删掉开关与每条分支的契约；分支契约只写回所选分支，新建轨道深拷贝来源契约', () => {
-    const contract = addDocumentOutputInDef(flow(), 'shape', 'proposal').documentContract
+  it('分支视图只带所选分支的步骤；写回只改所选分支，新建轨道深拷贝来源分支的步骤（必须产出一并带着）', () => {
     const full: WbWorkflowDef = {
       name: 'custom',
       openspec: true,
       steps: [],
-      tracks: { web: { documentContract: contract, steps: flow().steps }, api: { steps: flow().steps } },
+      tracks: { web: { steps: flow().steps }, api: { steps: [stage('only')] } },
     }
-    expect(selectBranchDef(full, 'web').documentContract).toEqual(contract)
-    expect(selectBranchDef(full, 'api')).not.toHaveProperty('documentContract')
-    const edited = addDocumentOutputInDef(selectBranchDef(full, 'api'), 'spec', 'delta-spec')
+    expect(selectBranchDef(full, 'web').steps[0]?.guards).toEqual([{ type: 'required-output', path: 'docs/specs/*.md' }])
+    expect(selectBranchDef(full, 'api').steps.map((step) => step.id)).toEqual(['only'])
+    const edited = setStepSkillsInDef(selectBranchDef(full, 'api'), 'only', [{ id: 'brainstorming' }])
     const written = writeBranchDef(full, 'api', edited)
-    expect(written.tracks?.api?.documentContract?.slots).toEqual([{ kind: 'delta-spec', ownerStep: 'spec', producers: ['openspec-propose'] }])
-    expect(written.tracks?.web?.documentContract).toEqual(contract)
+    expect(written.tracks?.api?.steps[0]?.skills).toEqual([{ id: 'brainstorming' }])
+    expect(written.tracks?.web).toBe(full.tracks?.web)
     expect(written).not.toHaveProperty('documentContract')
     const branched = addTrackBranch(full, 'mobile', '移动', 'web')
-    expect(branched.tracks?.mobile?.documentContract).toEqual(contract)
-    expect(branched.tracks?.mobile?.documentContract).not.toBe(contract)
-    const off = setOpenspecInDef(full, false)
-    expect(off).not.toHaveProperty('openspec')
-    expect(off.tracks?.web).not.toHaveProperty('documentContract')
+    expect(branched.tracks?.mobile?.steps[0]?.guards).toEqual([{ type: 'required-output', path: 'docs/specs/*.md' }])
+    expect(branched.tracks?.mobile?.steps[0]).not.toBe(full.tracks?.web?.steps[0])
   })
 })
 
 describe('workbenchDefinition · track 分支', () => {
-  it('branchesOf：有 tracks 只列 track；selectBranchDef 提升分支 steps 与分支 IO，不存在的分支退到第一条；writeBranchDef 只写回对应分支', () => {
+  it('branchesOf：有 tracks 只列 track；selectBranchDef 提升分支 steps，不存在的分支退到第一条；writeBranchDef 只写回对应分支', () => {
     const def: WbWorkflowDef = {
       ...twoStep(),
       steps: [],
@@ -371,13 +353,12 @@ describe('workbenchDefinition · track 分支', () => {
         web: { label: '网页', steps: twoStep().steps },
         mobile: { label: '移动端', steps: [{ id: 'm1', label: 'M1', gate: null, skills: [{ id: 'sm' }], inputs: [], outputs: [], guards: [], transitions: [] }] },
       },
-      branches: { web: { label: '网页', effectiveIo: { a: { inputs: [], outputs: [] } } }, mobile: { label: '移动端', effectiveIo: { m1: { inputs: [], outputs: [] } } } },
+      branches: { web: { label: '网页' }, mobile: { label: '移动端' } },
     }
     expect(branchesOf(def)).toEqual([{ id: 'web', label: '网页' }, { id: 'mobile', label: '移动端' }])
     expect(branchesOf(twoStep())).toEqual([{ id: BASE_BRANCH, label: null }])
     const mobile = selectBranchDef(def, 'mobile')
     expect(mobile.steps.map((step) => step.id)).toEqual(['m1'])
-    expect(Object.keys(mobile.effectiveIo ?? {})).toEqual(['m1'])
     expect(mobile).not.toHaveProperty('tracks')
     expect(selectBranchDef(def, 'nope').steps.map((step) => step.id)).toEqual(['a', 'b'])
 
@@ -387,6 +368,36 @@ describe('workbenchDefinition · track 分支', () => {
     expect(edited.steps).toEqual([])
     const single = twoStep()
     expect(writeBranchDef(single, BASE_BRANCH, { ...single, steps: single.steps.slice(0, 1) }).steps.map((step) => step.id)).toEqual(['a'])
+  })
+
+  it('分支视图的 openspec 取分支自己的 spec（没写继承顶层）；写回时不把分支的取值冒充成工作流顶层的开关', () => {
+    const def: WbWorkflowDef = {
+      ...twoStep(),
+      openspec: true,
+      steps: [],
+      tracks: {
+        lite: { spec: 'none', steps: twoStep().steps },
+        heavy: { steps: twoStep().steps },
+        forced: { spec: 'openspec', steps: twoStep().steps },
+      },
+    }
+    expect(selectBranchDef(def, 'lite').openspec).toBe(false)
+    expect(selectBranchDef(def, 'heavy').openspec).toBe(true)
+    expect(selectBranchDef(def, 'forced').openspec).toBe(true)
+    // 顶层没开 OpenSpec、分支显式开：视图里是开的。
+    expect(selectBranchDef({ ...def, openspec: false }, 'forced').openspec).toBe(true)
+    // 在 lite 视图里改一个阶段名再写回：顶层 openspec 仍是 true，分支仍是 spec: none。
+    const lite = selectBranchDef(def, 'lite')
+    const written = writeBranchDef(def, 'lite', { ...lite, steps: [{ ...lite.steps[0]!, label: '改' }, ...lite.steps.slice(1)] })
+    expect(written.openspec).toBe(true)
+    expect(written.tracks?.lite?.spec).toBe('none')
+    expect(written.tracks?.lite?.steps[0]?.label).toBe('改')
+    // 用户在视图里主动切开关：这才改工作流顶层。
+    expect(writeBranchDef(def, 'heavy', { ...selectBranchDef(def, 'heavy'), openspec: false }).openspec).toBe(false)
+    // 没有 tracks 的单条 pipeline 行为不变。
+    const single = { ...twoStep(), openspec: true }
+    expect(selectBranchDef(single, BASE_BRANCH).openspec).toBe(true)
+    expect(writeBranchDef(single, BASE_BRANCH, { ...single, openspec: false }).openspec).toBe(false)
   })
 
   it('addTrackBranch：单条 pipeline 的工作流搬进 main 再加新分支；已有 tracks 复制指定分支；removeTrackBranch 删到最后一条时 steps 回到顶层', () => {
@@ -424,32 +435,48 @@ describe('setStepAgentsInDef', () => {
   })
 })
 
-describe('setStepTestPolicyInDef', () => {
+describe('setStepTestLevelInDef', () => {
   const base = pipeline(stage('a'), stage('b'))
+  const legacy = { plan: 'required' as const, run: ['unit'], flaky: { max: 1, fail_on_new: true } }
 
-  it('给一个阶段写入策略；别的阶段与入参都不动', () => {
-    const next = setStepTestPolicyInDef(base, 'a', { plan: 'required', run: ['unit'] })
-    expect(next.steps[0]?.test_policy).toEqual({ plan: 'required', run: ['unit'] })
+  it('给一个阶段写入档位；别的阶段与入参都不动', () => {
+    const next = setStepTestLevelInDef(base, 'a', 'changed')
+    expect(next.steps[0]?.test).toBe('changed')
+    expect(next.steps[0]).not.toHaveProperty('test_policy')
     expect(next.steps[1]).toBe(base.steps[1])
-    expect(base.steps[0]).not.toHaveProperty('test_policy')
+    expect(base.steps[0]).not.toHaveProperty('test')
   })
 
-  it('内容没变时返回原对象（不制造无意义的草稿改动）', () => {
-    const withPolicy = setStepTestPolicyInDef(base, 'a', { plan: 'required', kinds: ['unit'] })
-    expect(setStepTestPolicyInDef(withPolicy, 'a', { plan: 'required', kinds: ['unit'] })).toBe(withPolicy)
-    expect(setStepTestPolicyInDef(base, 'a', undefined)).toBe(base)
-    expect(setStepTestPolicyInDef(base, 'ghost', { plan: 'required' })).toBe(base)
+  it('换档位：新档位替换旧档位', () => {
+    const changed = setStepTestLevelInDef(base, 'a', 'changed')
+    expect(setStepTestLevelInDef(changed, 'a', 'full').steps[0]?.test).toBe('full')
+    expect(setStepTestLevelInDef(changed, 'a', 'none').steps[0]?.test).toBe('none')
   })
 
-  it('undefined 删键；写回前整形（definitionForWrite）仍带着策略', () => {
-    const withPolicy = setStepTestPolicyInDef(base, 'a', { plan: 'required', flaky: { max: 1, fail_on_new: true } })
-    expect(definitionForWrite(withPolicy).steps[0]?.test_policy).toEqual({ plan: 'required', flaky: { max: 1, fail_on_new: true } })
-    const cleared = setStepTestPolicyInDef(withPolicy, 'a', undefined)
-    expect(cleared.steps[0]).not.toHaveProperty('test_policy')
+  it('选档即替换旧 test_policy：写 test、删 test_policy，旧策略的任何键都不留', () => {
+    const withLegacy = mapLegacy(base, 'a', legacy)
+    const next = setStepTestLevelInDef(withLegacy, 'a', 'full')
+    expect(next.steps[0]).toMatchObject({ test: 'full' })
+    expect(next.steps[0]).not.toHaveProperty('test_policy')
+    const none = setStepTestLevelInDef(withLegacy, 'a', 'none')
+    expect(none.steps[0]).toMatchObject({ test: 'none' })
+    expect(none.steps[0]).not.toHaveProperty('test_policy')
   })
 
-  it('复制工作流保留每个阶段的策略（深拷贝不丢键）', () => {
-    const withPolicy = setStepTestPolicyInDef(base, 'b', { plan: 'optional', files: 'registered' })
-    expect(cloneWorkflowDef(withPolicy, 'copy').steps[1]?.test_policy).toEqual({ plan: 'optional', files: 'registered' })
+  it('内容没变时返回原对象（不制造无意义的草稿改动）：同档位、没有声明时选「不要求」、不存在的阶段', () => {
+    const changed = setStepTestLevelInDef(base, 'a', 'changed')
+    expect(setStepTestLevelInDef(changed, 'a', 'changed')).toBe(changed)
+    expect(setStepTestLevelInDef(base, 'a', 'none')).toBe(base)
+    expect(setStepTestLevelInDef(base, 'ghost', 'full')).toBe(base)
+  })
+
+  it('写回前整形（definitionForWrite）仍带着档位；复制工作流保留每个阶段的档位', () => {
+    const withLevel = setStepTestLevelInDef(base, 'b', 'plan')
+    expect(definitionForWrite(withLevel).steps[1]?.test).toBe('plan')
+    expect(cloneWorkflowDef(withLevel, 'copy').steps[1]?.test).toBe('plan')
   })
 })
+
+function mapLegacy(def: WbWorkflowDef, stepId: string, policy: NonNullable<WbStepDef['test_policy']>): WbWorkflowDef {
+  return { ...def, steps: def.steps.map((item) => (item.id === stepId ? { ...item, test_policy: policy } : item)) }
+}

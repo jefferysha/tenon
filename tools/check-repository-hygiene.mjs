@@ -115,6 +115,8 @@ const AUDIT_REFERENCE_DOCS = new Set([
   'openspec/changes/archive/2026-10-10-fix-hook-cross-session-isolation/.pipeline-agent-reports/ae77daa7-134f-4c72-8f58-a8ecb8e11f44.md',
   'openspec/changes/archive/2026-10-10-fix-hook-cross-session-isolation/.pipeline-agent-runs.jsonl',
   'openspec/changes/archive/2026-10-10-fix-hook-cross-session-isolation/proposal.md',
+  // Tenon 写入的测试运行记录：只以仓库内路径引用第一方工具目录（误登记的历史证据文件），记录链的一环，不能改写。
+  '.tenon/users/710227704-at-qq.com/tests/consolidate-workflow-tracks/20261011T032341Z-1a7be8.json',
 ])
 const FIRST_PARTY_GOVERNANCE_FILES = new Set(['.gitattributes'])
 

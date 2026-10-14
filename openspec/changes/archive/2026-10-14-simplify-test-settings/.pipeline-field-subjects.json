@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "contract": "field-subjects-v1",
+  "createdAt": "2026-10-12T00:59:18Z",
+  "records": [
+    {
+      "field": "design_doc",
+      "valueDigest": "sha256:1b3d2c6651ca6c4db01c8d955660b73f811a976bdf2d9ddeaed31f6b06e598dc",
+      "subjectRef": {
+        "subject_id": "subject:change-simplify-test-settings-4890ea6ea9f6:cf698fdfb2b7797a5a11fddccdb07300",
+        "namespace": "change-simplify-test-settings-4890ea6ea9f6",
+        "version": "sha256:1b3d2c6651ca6c4db01c8d955660b73f811a976bdf2d9ddeaed31f6b06e598dc",
+        "projection": "field",
+        "content_digest": "sha256:1b3d2c6651ca6c4db01c8d955660b73f811a976bdf2d9ddeaed31f6b06e598dc",
+        "source": {
+          "field": "design_doc",
+          "path": "docs/superpowers/specs/simplify-test-settings-design.md"
+        }
+      },
+      "recordedAt": "2026-10-12T00:59:18Z",
+      "producer": "brainstorming",
+      "sourcePath": "docs/superpowers/specs/simplify-test-settings-design.md",
+      "pathStatus": "resolved"
+    },
+    {
+      "field": "plan",
+      "valueDigest": "sha256:e4b602751b958a2eede0dcad9511581b3cfa5a67d851d386d209b3eca49f4db5",
+      "subjectRef": {
+        "subject_id": "subject:change-simplify-test-settings-4890ea6ea9f6:36f6b46d99582b491eb70541be111009",
+        "namespace": "change-simplify-test-settings-4890ea6ea9f6",
+        "version": "sha256:e4b602751b958a2eede0dcad9511581b3cfa5a67d851d386d209b3eca49f4db5",
+        "projection": "field",
+        "content_digest": "sha256:e4b602751b958a2eede0dcad9511581b3cfa5a67d851d386d209b3eca49f4db5",
+        "source": {
+          "field": "plan",
+          "path": "docs/superpowers/plans/simplify-test-settings.md"
+        }
+      },
+      "recordedAt": "2026-10-12T02:05:29Z",
+      "producer": "writing-plans",
+      "sourcePath": "docs/superpowers/plans/simplify-test-settings.md",
+      "pathStatus": "resolved"
+    },
+    {
+      "field": "verification_report",
+      "valueDigest": "sha256:cab6c34c3a80897394dd3f03890d049967574320b443ae9d8c93030dcbfcdfc0",
+      "subjectRef": {
+        "subject_id": "subject:change-simplify-test-settings-4890ea6ea9f6:006f1431eae11d4f76f7bad40dd2176a",
+        "namespace": "change-simplify-test-settings-4890ea6ea9f6",
+        "version": "sha256:cab6c34c3a80897394dd3f03890d049967574320b443ae9d8c93030dcbfcdfc0",
+        "projection": "field",
+        "content_digest": "sha256:cab6c34c3a80897394dd3f03890d049967574320b443ae9d8c93030dcbfcdfc0",
+        "source": {
+          "field": "verification_report",
+          "path": "docs/superpowers/reports/simplify-test-settings-verify.md"
+        }
+      },
+      "recordedAt": "2026-10-13T00:38:09Z",
+      "producer": "verification-before-completion",
+      "sourcePath": "docs/superpowers/reports/simplify-test-settings-verify.md",
+      "pathStatus": "resolved"
+    }
+  ]
+}

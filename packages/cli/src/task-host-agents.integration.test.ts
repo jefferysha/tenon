@@ -37,7 +37,7 @@ ${agents}
     transitions: []
 `
 
-describe('任务 delete / archive 清理旧版本留下的宿主 agent 文件', () => {
+describe('任务 delete / terminate 清理旧版本留下的宿主 agent 文件', () => {
   let h: Harness
   afterEach(async () => { if (h) await rm(h.cwd, { recursive: true, force: true }) })
 
@@ -46,7 +46,7 @@ describe('任务 delete / archive 清理旧版本留下的宿主 agent 文件', 
   async function task(name: string, flow: string, agent: string): Promise<void> {
     await mkdir(join(h.cwd, '.pipeline', 'workflows'), { recursive: true })
     await writeFile(join(h.cwd, '.pipeline', 'workflows', `${flow}.yaml`), workflow(`        - agent: ${agent}`).replace('name: hosted', `name: ${flow}`), 'utf8')
-    expect(await h.run(['init', name, '--track', 'backend', '--workflow', flow, '--preset', 'full'], { env: CLAUDE }), h.err.join('\n')).toBe(0)
+    expect(await h.run(['init', name, '--workflow', flow, '--preset', 'full'], { env: CLAUDE }), h.err.join('\n')).toBe(0)
   }
 
   /** 旧版本写的项目级文件：内容是当前库的渲染结果，并记进所有权清单。 */
@@ -70,11 +70,11 @@ describe('任务 delete / archive 清理旧版本留下的宿主 agent 文件', 
     expect(exists('.pipeline-owned.json')).toBe(false)
   })
 
-  test('archive：旧文件、清单与空的 .claude 目录一并消失', async () => {
+  test('terminate：旧文件、清单与空的 .claude 目录一并消失', async () => {
     h = await freshHarness()
     await task('demo', 'hosted', 'builder')
     const file = await legacy('builder')
-    expect(await h.run(['task', 'archive', 'demo', '--yes'], { env: CLAUDE }), h.err.join('\n')).toBe(0)
+    expect(await h.run(['task', 'terminate', 'demo', '--yes'], { env: CLAUDE }), h.err.join('\n')).toBe(0)
     expect(exists(file)).toBe(false)
     expect(exists('.pipeline-owned.json')).toBe(false)
     expect(exists('.claude')).toBe(false)

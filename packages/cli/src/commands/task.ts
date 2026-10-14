@@ -6,7 +6,8 @@
  *   children <name> [--json]   反查直接子（活跃 + 归档），stdout 列表 / JSON
  *   cascade <name>             BFS 传递闭包，stdout 逐行 active/archived
  *   canonical <name> [--json]  Tenon contract 24 字段 canonical task.json，stdout（pretty / 紧凑）
- *   delete / archive / unarchive <name> [--yes] [--json]  见 task-lifecycle.ts（退出码 0/1/2/3）
+ *   delete / terminate / finish <name> [--yes] [--json]  见 task-lifecycle.ts（退出码 0/1/2/3）
+ *   archive / unarchive <name>  已退役（「隐藏」已删除）：退出码 1，提示改用 terminate / finish
  * stdout/exit 对齐老仓：数据走 stdout（老仓 echo/printf/python print），状态与错误走 stderr
  * （老仓 red/green 均 >&2）。exit：错误/非法 = 1；成功 = 0。
  */
@@ -27,7 +28,9 @@ import {
 } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
 import { changeDir, isValidChangeName } from '../paths.js'
-import { cmdTaskArchive, cmdTaskDelete, cmdTaskUnarchive, type TaskLifecycleOpts } from './task-lifecycle.js'
+import {
+  cmdTaskDelete, cmdTaskFinish, cmdTaskRetired, cmdTaskTerminate, type TaskLifecycleOpts,
+} from './task-lifecycle.js'
 import { msg } from '../i18n/messages.js'
 
 export type { ChangeNode } from '@tenon/kernel'
@@ -222,14 +225,17 @@ export async function cmdTask(
       return cmdCanonical(deps, args, fs)
     case 'delete':
       return cmdTaskDelete(deps, args[0] ?? '', lifecycleOpts(args))
+    case 'terminate':
+      return cmdTaskTerminate(deps, args[0] ?? '', lifecycleOpts(args))
+    case 'finish':
+      return cmdTaskFinish(deps, args[0] ?? '', lifecycleOpts(args))
     case 'archive':
-      return cmdTaskArchive(deps, args[0] ?? '', lifecycleOpts(args))
     case 'unarchive':
-      return cmdTaskUnarchive(deps, args[0] ?? '', lifecycleOpts(args))
+      return cmdTaskRetired(deps, sub, args[0] ?? '')
     default:
       deps.io.err(
         `ERROR: 未知 task 子命令: ${sub}`
-        + '（支持: add-dep remove-dep children cascade canonical delete archive unarchive）',
+        + '（支持: add-dep remove-dep children cascade canonical delete terminate finish）',
       )
       return 1
   }

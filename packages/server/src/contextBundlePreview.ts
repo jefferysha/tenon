@@ -9,7 +9,7 @@ import {
   requiresForPolicyStep,
   resolveWorkflowName,
   validateChangeName,
-  type DocumentGovernancePolicy,
+  type EffectiveWorkflowPlan,
   type PipelineState,
 } from '@tenon/kernel'
 import {
@@ -22,17 +22,17 @@ import {
   safeContextBundleRepairAction,
   type ChangePathAnchor,
 } from './contextBundlePreviewSupport.js'
+import { compileObservedPreview } from './contextBundleObservedPreview.js'
 import {
   trustedContextBundleCurrentSnapshot,
   trustedContextBundleInputs,
 } from './contextBundleTrustedReader.js'
 import { assertWorkflowRootAnchor, readWorkflowForApi, WorkflowNotFoundError, type WorkflowRootAnchor } from './workflows.js'
-import { resolveSnapshotTrack } from './skillRuns.js'
 import { resolveSnapshotEffectivePlan } from './workflowSnapshot.js'
 import type { GetRouteDeps } from './serverGetRoutes.js'
 
-/** The change's bound document policy, resolved exactly like the snapshot; undefined = not governed. */
-function changeDocumentPolicy(anchor: WorkflowRootAnchor, state: PipelineState): DocumentGovernancePolicy | undefined {
+/** The change's frozen plan, resolved exactly like the snapshot; its document mode picks the compiler. */
+function changeEffectivePlan(anchor: WorkflowRootAnchor, state: PipelineState): EffectiveWorkflowPlan {
   const workflowName = resolveWorkflowName(state)
   const trackValue = state.fields.track
   const trackId = Array.isArray(trackValue) ? trackValue.join(',') : (trackValue ?? '')
@@ -48,7 +48,7 @@ function changeDocumentPolicy(anchor: WorkflowRootAnchor, state: PipelineState):
       if (error instanceof WorkflowNotFoundError) return null
       throw error
     }
-  }, resolveSnapshotTrack(anchor.path, trackId, workflowName)).capabilities.documents.policy
+  }, trackId)
 }
 
 type ContextBundlePreviewDeps = Pick<
@@ -149,42 +149,56 @@ export async function handleContextBundlePreview(
     }
     stateBefore = trustedContextBundleCurrentSnapshot(anchor, change, changeIdentity)
     const from = stateBefore.phase
-    const policy = changeDocumentPolicy(anchor, stateBefore.state)
-    if (policy === undefined) return invalidRequest(res, deps.sendJson, 'workflow 未开启 openspec')
-    if (!isDocumentPolicyStep(policy, target)) {
-      return invalidRequest(res, deps.sendJson, `target 必须是 workflow step: ${target}`)
-    }
-    assertChangePathAnchor(changeAnchor)
-    assertWorkflowRootAnchor(anchor)
-    const trustedInputs = [...readsRequiredForPolicyStep(policy, target), ...requiresForPolicyStep(policy, target)].length === 0
-      ? {
-          ledger: undefined,
-          sourceReader: {
-            read: async () => {
-              throw new Error('policy-empty preview must not read a source document')
+    const plan = changeEffectivePlan(anchor, stateBefore.state)
+    const documents = plan.capabilities.documents
+    let preview: Record<string, unknown>
+    if (documents.mode === 'observed') {
+      // 新任务：包是当前步骤的交接输入（读自步骤产出账本），不依赖文档契约。
+      if (!plan.workflow.steps.some((step) => step.id === target)) {
+        return invalidRequest(res, deps.sendJson, `target 必须是 workflow step: ${target}`)
+      }
+      assertChangePathAnchor(changeAnchor)
+      assertWorkflowRootAnchor(anchor)
+      preview = await compileObservedPreview({ anchor, change, from, target, budgetBytes, changeIdentity })
+    } else {
+      const policy = documents.policy
+      if (policy === undefined) return invalidRequest(res, deps.sendJson, 'workflow 未开启 openspec')
+      if (!isDocumentPolicyStep(policy, target)) {
+        return invalidRequest(res, deps.sendJson, `target 必须是 workflow step: ${target}`)
+      }
+      assertChangePathAnchor(changeAnchor)
+      assertWorkflowRootAnchor(anchor)
+      const trustedInputs = [...readsRequiredForPolicyStep(policy, target), ...requiresForPolicyStep(policy, target)].length === 0
+        ? {
+            ledger: undefined,
+            sourceReader: {
+              read: async () => {
+                throw new Error('policy-empty preview must not read a source document')
+              },
             },
-          },
-        }
-      : trustedContextBundleInputs(
-          anchor,
-          change,
-          changeIdentity,
-          DEFAULT_LEDGER_CONTEXT_BUNDLE_RESOURCE_LIMITS,
-        )
-    const result = await compileLedgerContextBundleWithPorts({
-      root: anchor.path,
-      change,
-      from,
-      target,
-      policy,
-      budgetBytes,
-      ledgerRepository: {
-        read: async () => trustedInputs.ledger,
-      },
-      sourceReader: trustedInputs.sourceReader,
-      primitives: nodeLedgerContextBundlePrimitives,
-      resourceLimits: DEFAULT_LEDGER_CONTEXT_BUNDLE_RESOURCE_LIMITS,
-    })
+          }
+        : trustedContextBundleInputs(
+            anchor,
+            change,
+            changeIdentity,
+            DEFAULT_LEDGER_CONTEXT_BUNDLE_RESOURCE_LIMITS,
+          )
+      const result = await compileLedgerContextBundleWithPorts({
+        root: anchor.path,
+        change,
+        from,
+        target,
+        policy,
+        budgetBytes,
+        ledgerRepository: {
+          read: async () => trustedInputs.ledger,
+        },
+        sourceReader: trustedInputs.sourceReader,
+        primitives: nodeLedgerContextBundlePrimitives,
+        resourceLimits: DEFAULT_LEDGER_CONTEXT_BUNDLE_RESOURCE_LIMITS,
+      })
+      preview = safeContextBundlePreview(result.preview, true, result.bundle.aggregateDigest)
+    }
     assertChangePathAnchor(changeAnchor)
     assertWorkflowRootAnchor(anchor)
     const stateAfter = trustedContextBundleCurrentSnapshot(anchor, change, changeIdentity)
@@ -197,10 +211,7 @@ export async function handleContextBundlePreview(
         repairAction: 'Retry after the canonical Change state is stable.',
       })
     }
-    return deps.sendJson(res, 200, {
-      ok: true,
-      preview: safeContextBundlePreview(result.preview, true, result.bundle.aggregateDigest),
-    })
+    return deps.sendJson(res, 200, { ok: true, preview })
   } catch (error) {
     // Any root replacement discovered during/after the read dominates domain classification:
     // never return compiler metadata after the registered identity has drifted.

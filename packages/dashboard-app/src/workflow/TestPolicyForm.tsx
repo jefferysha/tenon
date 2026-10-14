@@ -1,138 +1,62 @@
-import { Plus, X } from 'lucide-react'
+import { Info } from 'lucide-react'
+import { TEST_LEVELS } from '@tenon/kernel/workflow/test-level'
 import { useT } from '../i18n'
-import type { WbStepTest, WbStepTestPolicy } from '../api/governanceTypes'
-import { Switch } from '@/components/ui/switch'
-import { BUTTON_ICON } from '../shared/uiRecipes'
+import type { WbStepTest, WbStepTestPolicy, WbTestLevel } from '../api/governanceTypes'
+import { LEVELS_FILE, kindLabel, scopeLabel } from '../tests/testLabels'
 import { Hint } from './Hint'
-import { Choice, FieldRow, KindPicker, NumberField } from './TestPolicyControls'
+import { legacyPolicyKinds } from './legacyPolicy'
+import { Choice } from './TestPolicyControls'
 import { TestPolicyLegacy } from './TestPolicyLegacy'
-import {
-  FORM_COVERAGE_METRICS, newPolicy, parseLimit, parsePercent, withCoverage, withFlakyMax, withIntegrity, withKinds,
-  withRequireBaseline, withScenarios, withScope,
-} from './testPolicyEdits'
-
-const HEAD_ACTION = 'inline-flex items-center gap-1.5 whitespace-nowrap text-body text-text-2 outline-none hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent)'
-const SCOPES = ['full', 'changed'] as const
-const SCENARIOS = ['off', 'required', 'passing'] as const
-const INTEGRITY = ['notice', 'block'] as const
 
 /**
- * 工作流页门禁段里的测试策略：本阶段的测试策略（结构化表单）+ 旧步骤测试（只读行）。
- * 子块头一行（标题 · 计数 · 动作）；每个字段的说明都在 Tooltip。表单只改它管的键，
- * 其余键（plan / files / run_if_registered / browsers …）原样带回，保存不丢。
+ * 工作流页门禁段里的测试设置：一个档位单选（不要求 / 写计划 / 跑改动 / 全量）+ 旧步骤测试（只读行）。
+ * 选档位写 `test` 并删掉旧 `test_policy`（二者互斥）；旧策略在被替换之前只读显示摘要，此时没有档位被选中。
+ * 子块头一行（标题 · 说明图标）；档位的具体含义在项目测试目录的 levels，图标的 Tooltip 给出文件路径。
  */
-export function TestPolicyForm({ stepId, policy, legacyTests, editable, onChange }: {
+export function TestPolicyForm({ stepId, level, legacyPolicy, legacyTests, editable, onChange }: {
   stepId: string
-  policy: WbStepTestPolicy | undefined
+  level: WbTestLevel | undefined
+  legacyPolicy: WbStepTestPolicy | undefined
   legacyTests: readonly WbStepTest[]
   editable: boolean
-  onChange: (next: WbStepTestPolicy | undefined) => void
+  onChange: (next: WbTestLevel) => void
 }): JSX.Element {
   const { t } = useT()
-  const count = policy === undefined ? undefined : new Set([...(policy.kinds ?? []), ...(policy.run ?? [])]).size
-  const fieldId = (name: string): string => `wb-policy-${stepId}-${name}`
-  const edit = (change: (current: WbStepTestPolicy) => WbStepTestPolicy): void => {
-    if (policy !== undefined) onChange(change(policy))
-  }
-  const disabled = !editable
+  const selected: WbTestLevel | null = legacyPolicy === undefined ? level ?? 'none' : null
+  const kinds = legacyPolicy === undefined ? [] : legacyPolicyKinds(legacyPolicy)
+  const summary = legacyPolicy === undefined
+    ? ''
+    : [...kinds.map((kind) => kindLabel(kind, t)), ...(legacyPolicy.scope === undefined ? [] : [scopeLabel(legacyPolicy.scope, t)])].join(' · ')
   return (
-    <div className="mt-2 grid gap-2.5 border-t border-border pt-4" data-testid="stage-tests">
-      <div className="flex items-center justify-between gap-3 whitespace-nowrap">
-        <h3 className="text-body font-medium text-text">
-          {t('tests.word.test')}
-          {count !== undefined && <span className="ml-2 text-caption font-normal tabular-nums text-text-3" data-testid="wb-policy-count">{count}</span>}
-        </h3>
-        {editable && policy === undefined && (
-          <button type="button" className={HEAD_ACTION} aria-label={t('tests.policy.add_label')} data-testid="wb-policy-add" onClick={() => onChange(newPolicy())}>
-            <Plus className="size-3.5" aria-hidden="true" />
-            {t('tests.policy.add')}
+    <div className="mt-2 grid gap-2.5 border-t border-border pt-4" data-testid="stage-tests" data-step={stepId}>
+      <div className="flex items-center gap-1.5 whitespace-nowrap">
+        <h3 className="text-body font-medium text-text">{t('tests.word.test')}</h3>
+        <Hint label={LEVELS_FILE}>
+          <button
+            type="button"
+            className="grid size-6 flex-none place-items-center rounded-sm text-text-3 outline-none hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent)"
+            aria-label={`${t('tests.policy.definition')}: ${LEVELS_FILE}`}
+            data-testid="wb-test-level-hint"
+          >
+            <Info className="size-3.5" aria-hidden="true" />
           </button>
-        )}
-        {editable && policy !== undefined && (
-          <Hint label={t('tests.policy.remove_label')}>
-            <button type="button" className={`${BUTTON_ICON} size-8 enabled:hover:text-red-d`} aria-label={t('tests.policy.remove_label')} data-testid="wb-policy-remove" onClick={() => onChange(undefined)}>
-              <X className="size-4" aria-hidden="true" />
-            </button>
-          </Hint>
-        )}
+        </Hint>
       </div>
-      {policy !== undefined && (
-        <div role="group" aria-label={t('tests.word.test')} data-testid="wb-policy">
-          <FieldRow label={t('tests.policy.field.kinds')} hint={t('tests.policy.hint.kinds')} testId="wb-policy-kinds-row">
-            <KindPicker label={t('tests.policy.field.kinds')} value={policy.kinds ?? []} disabled={disabled} onChange={(next) => edit((current) => withKinds(current, 'kinds', next))} testId="wb-policy-kinds" />
-          </FieldRow>
-          <FieldRow label={t('tests.policy.field.run')} hint={t('tests.policy.hint.run')} testId="wb-policy-run-row">
-            <KindPicker label={t('tests.policy.field.run')} value={policy.run ?? []} disabled={disabled} onChange={(next) => edit((current) => withKinds(current, 'run', next))} testId="wb-policy-run" />
-          </FieldRow>
-          <FieldRow label={t('tests.policy.field.scope')} hint={t('tests.policy.hint.scope')} testId="wb-policy-scope-row">
-            <Choice
-              label={t('tests.policy.field.scope')}
-              options={SCOPES.map((id) => ({ id, label: t(`tests.policy.scope.${id}`) }))}
-              value={policy.scope ?? 'full'}
-              disabled={disabled}
-              onChange={(next) => edit((current) => withScope(current, next))}
-              testId="wb-policy-scope"
-            />
-          </FieldRow>
-          <FieldRow label={t('tests.policy.field.coverage')} hint={t('tests.policy.hint.coverage')} testId="wb-policy-coverage-row">
-            {FORM_COVERAGE_METRICS.map((metric) => (
-              <NumberField
-                key={metric}
-                id={fieldId(`coverage-${metric}`)}
-                label={t(`tests.policy.coverage.${metric}`)}
-                suffix="%"
-                value={policy.coverage?.[metric]}
-                parse={parsePercent}
-                disabled={disabled}
-                onCommit={(value) => edit((current) => withCoverage(current, metric, value))}
-                testId={`wb-policy-coverage-${metric}`}
-              />
-            ))}
-          </FieldRow>
-          <FieldRow label={t('tests.policy.field.flaky')} hint={t('tests.policy.hint.flaky')} testId="wb-policy-flaky-row" controlId={fieldId('flaky')}>
-            <NumberField
-              id={fieldId('flaky')}
-              label=""
-              value={policy.flaky?.max}
-              parse={parseLimit}
-              disabled={disabled}
-              onCommit={(value) => edit((current) => withFlakyMax(current, value))}
-              testId="wb-policy-flaky"
-            />
-          </FieldRow>
-          <FieldRow label={t('tests.policy.field.baseline')} hint={t('tests.policy.hint.baseline')} testId="wb-policy-baseline-row">
-            <Switch
-              checked={policy.benchmark?.require_baseline === true}
-              disabled={disabled}
-              aria-label={t('tests.policy.field.baseline')}
-              data-testid="wb-policy-baseline"
-              onCheckedChange={(on) => edit((current) => withRequireBaseline(current, on))}
-            />
-          </FieldRow>
-          <FieldRow label={t('tests.policy.field.scenarios')} hint={t('tests.policy.hint.scenarios')} testId="wb-policy-scenarios-row">
-            <Choice
-              label={t('tests.policy.field.scenarios')}
-              options={SCENARIOS.map((id) => ({ id, label: t(`tests.policy.scenarios.${id}`) }))}
-              value={policy.scenarios ?? 'off'}
-              disabled={disabled}
-              onChange={(next) => edit((current) => withScenarios(current, next))}
-              testId="wb-policy-scenarios"
-            />
-          </FieldRow>
-          <FieldRow label={t('tests.policy.field.integrity')} hint={t('tests.policy.hint.integrity')} testId="wb-policy-integrity-row">
-            <Choice
-              label={t('tests.policy.field.integrity')}
-              options={INTEGRITY.map((id) => ({ id, label: t(`tests.policy.integrity.${id}`) }))}
-              value={policy.integrity ?? 'notice'}
-              disabled={disabled}
-              onChange={(next) => edit((current) => withIntegrity(current, next))}
-              testId="wb-policy-integrity"
-            />
-          </FieldRow>
+      <Choice
+        label={t('tests.word.level')}
+        options={TEST_LEVELS.map((id) => ({ id, label: t(`tests.level.${id}`) }))}
+        value={selected}
+        disabled={!editable}
+        onChange={onChange}
+        testId="wb-test-level"
+      />
+      {legacyPolicy !== undefined && (
+        <div className="flex min-w-0 items-center gap-2 whitespace-nowrap text-body text-text-2" data-testid="wb-policy-legacy">
+          <span className="flex-none text-caption text-text-3">{t('tests.policy.legacy.policy')}</span>
+          <span className="min-w-0 truncate" title={summary === '' ? undefined : summary}>{summary === '' ? '—' : summary}</span>
         </div>
       )}
       <TestPolicyLegacy tests={legacyTests} />
-      {policy === undefined && legacyTests.length === 0 && !editable && <span className="text-text-3" data-testid="wb-policy-none">—</span>}
     </div>
   )
 }

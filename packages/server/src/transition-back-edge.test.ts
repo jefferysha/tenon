@@ -9,7 +9,7 @@ import { writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { beforeEach, describe, expect, test } from 'vitest'
 import {
-  builtinTrack, compileEffectiveWorkflowPlan, createBuildRevisionToken, createTransitionRecordStore,
+  compileEffectiveWorkflowPlan, createBuildRevisionToken, createTransitionRecordStore,
   createWorkflowRunRepository, ensureAgentFreeze, readCurrentRunRevision, type StateStore,
 } from '@tenon/kernel'
 import { performTransition, type TransitionDeps } from './transition.js'
@@ -31,7 +31,7 @@ const builtinAgent = (name: string): string =>
   readFileSync(join(dirname(repoManifestPath()), 'agents', `${name}.md`), 'utf8')
 
 async function freezeAgents(): Promise<void> {
-  const plan = compileEffectiveWorkflowPlan('default', undefined, builtinTrack('backend'))
+  const plan = compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' })
   const runId = (await readCurrentRunRevision(changeDir()))?.state.runMetadata?.runId
   if (runId === undefined) throw new Error('fixture run identity missing')
   await ensureAgentFreeze({

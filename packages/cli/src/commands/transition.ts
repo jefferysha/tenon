@@ -52,16 +52,19 @@
  */
 import {
   compileWorkflow, createTransitionApplication,
-  loadRegistry, loadWorkflow, nodeLoopIoStrict, requireTrackForRoot,
+  loadRegistry, loadWorkflow, nodeLoopIoStrict,
   readReviewGateBinding, readStepRounds, renderAgentBlocker, retiredSkillsChangeMessage,
   reviewGateBindingMatches, formatUserRef,
   TASK_PLAN_CURRENT_FILE, TASK_PLAN_LIMITS, TASK_PLAN_STATE_DIR,
   taskPlanTasksThroughPhaseForChange,
 } from '@tenon/kernel'
-import { evaluateSpecMigrationEvidence, type TransitionContext } from '@tenon/kernel'
+import {
+  evaluateSpecMigrationEvidence, universalGuardCapabilities,
+  type TransitionContext, type UniversalGuardCapabilities,
+} from '@tenon/kernel'
 import { enqueueAfterSpecComplete } from '@tenon/automation'
 import { errMsg, type CliDeps } from '../deps.js'
-import { refuseArchived } from '../archivedGuard.js'
+import { refuseArchived } from '../endedTaskGuard.js'
 import { changeDir, isValidChangeName, resolveChangeDir } from '../paths.js'
 import { requireActor } from '../userIdentity.js'
 import { stepAgentBlockersFor } from '../agentGate.js'
@@ -70,8 +73,16 @@ import { testEvidenceContextFor } from '../testEvidenceContext.js'
 import { resolveBuildRevisionAssessor } from './buildRevisionAssessor.js'
 import { phaseExitGuardContext } from './phaseExitGuard.js'
 import { cleanupLegacyHostAgentFiles } from './agent-host.js'
-import { msg } from '../i18n/messages.js'
+import { trackPolicyResolverFor } from './effective-workflow.js'
+import { msg, type MessageCode } from '../i18n/messages.js'
 import { reportLegalEvents } from './transition-legal-events.js'
+
+/** 文档证据类拒绝的标题：观察模式按实际原因（输入没读完 / 账本不可用）说，旧契约任务保留 OpenSpec 文档证据。 */
+function documentRejectionTitle(source: 'unread-inputs' | 'step-output-ledger' | undefined): MessageCode {
+  if (source === 'unread-inputs') return 'transition.stepInputsUnread'
+  if (source === 'step-output-ledger') return 'transition.stepOutputLedgerBroken'
+  return 'transition.documentEvidenceFailed'
+}
 
 async function runArchived(deps: CliDeps, dir: string): Promise<boolean> {
   try {
@@ -104,8 +115,10 @@ export async function cmdTransition(deps: CliDeps, name: string, event: string):
     : TASK_PLAN_LIMITS.maxLegacyProjectionBytes
   // kernel 单源注入面：文件存在性经 guardCtx（缺省降级跳过文件面）；Git HEAD 与 in-place
   // 内容基线均由 production deps 绑定当前 Change。
-  const context: TransitionContext = {
+  const context: TransitionContext & UniversalGuardCapabilities = {
     fileExists: guardContext?.fileExists,
+    // step-graph 的通用离开条件（任务勾选 / AFK 排队 / 依赖结束）：与 guardCtx 同一份文件面与调度器旁路。
+    ...universalGuardCapabilities(dir, guardContext),
     gitHeadSha: deps.gitHeadSha,
     workspaceFingerprint: deps.workspaceFingerprint
       ? (() => {
@@ -163,7 +176,6 @@ export async function cmdTransition(deps: CliDeps, name: string, event: string):
     ...(deps.testEvidence === undefined ? {} : { testEvidenceReader: deps.testEvidence }),
     // 验证轮次上限的强制层：用完后受约束步骤的回退边不再放行（与 `review request` 的拒绝同一份读取）。
     roundsOf: ({ changeDir: targetDir, plan, state, stepId }) => readStepRounds(deps, targetDir, state, plan, stepId),
-    resolveTrack: (trackId) => requireTrackForRoot(deps.loadRegistry(), trackId, deps.cwd),
     stepAgentBlockers: async ({ changeDir: targetDir, stepId, plan, state }) =>
       stepAgentBlockersFor({ deps, name, dir: targetDir, stepId, plan, state }),
     // 与 check / status 的出边投影同一个判定；这里持锁，所以顺带把宿主回执落成 history 证据。
@@ -237,7 +249,7 @@ export async function cmdTransition(deps: CliDeps, name: string, event: string):
             repoRoot: deps.cwd,
             store: deps.store,
             clock: deps.clock,
-            resolveTrackPolicy: (trackId) => requireTrackForRoot(deps.loadRegistry(), trackId, deps.cwd).policyProfile,
+            resolveTrackPolicy: trackPolicyResolverFor(deps, name),
           }, {
             changeName: name,
             event,
@@ -311,7 +323,7 @@ export async function cmdTransition(deps: CliDeps, name: string, event: string):
         for (const blocker of result.blockers) deps.io.err(`  - ${renderAgentBlocker(blocker, name)}`)
         return 2
       case 'document-evidence-failed':
-        deps.io.err(`ERROR: ${msg(deps, 'transition.documentEvidenceFailed', { phase: result.phase })}`)
+        deps.io.err(`ERROR: ${msg(deps, documentRejectionTitle(result.source), { phase: result.phase })}`)
         for (const blocker of result.blockers) deps.io.err(`  - ${blocker}`)
         return 1
       case 'test-evidence-failed':

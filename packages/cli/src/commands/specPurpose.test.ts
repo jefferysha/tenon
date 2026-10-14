@@ -1,5 +1,29 @@
 import { describe, expect, test } from 'vitest'
-import { fillPurpose } from './specPurpose.js'
+import { fillPurpose, proposalPurpose } from './specPurpose.js'
+
+describe('proposalPurpose', () => {
+  const why = '现行文档机制在工作流里预先写死每一步的输入、输出文档，并规定「哪个技能必须交哪份文档」，与技能的实际行为脱节：'
+  const proposal = (capabilityLine: string): string =>
+    `# 提案\n\n## Why\n\n${why}\n\n- 第一条\n\n## Capabilities\n\n### New Capabilities\n\n- \`cap\`：${capabilityLine}\n`
+
+  test('点名 capability 的说明够长：只用它', () => {
+    const line = '运行时观察步骤产出与来源技能、直接上游交接、读取回执、按路径的必须产出守卫，并把直接上游的文档交给下一步且必须读完。'
+    expect(line.length).toBeGreaterThanOrEqual(50)
+    expect(proposalPurpose(proposal(line), 'cap')).toBe(line)
+  })
+
+  test('说明短于严格校验的 50 字符下限：补上 Why 第一段，结尾冒号收成句号', () => {
+    const line = '运行时观察步骤产出与来源技能、直接上游交接、读取回执、按路径的必须产出守卫。'
+    const purpose = proposalPurpose(proposal(line), 'cap')
+    expect(purpose).toBe(`${line}\n\n${why.slice(0, -1)}。`)
+    expect((purpose ?? '').length).toBeGreaterThanOrEqual(50)
+  })
+
+  test('没有点名该 capability：用 Why 第一段；没有 proposal：undefined', () => {
+    expect(proposalPurpose(proposal('短说明'), 'other')).toBe(why)
+    expect(proposalPurpose(null, 'cap')).toBeUndefined()
+  })
+})
 
 const TBD = 'TBD - created by archiving change demo. Update Purpose after archive.'
 

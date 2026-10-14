@@ -6,7 +6,9 @@
  * 命令拒绝的写法，投影一条都不许发。
  */
 import type { StepAction } from './statusStepAction.js'
-import { documentWriteActions, inputDocumentPolicy, skillDocumentActions } from './statusStepDocumentActions.js'
+import {
+  documentWriteActions, inputDocumentPolicy, observedReadActions, skillDocumentActions,
+} from './statusStepDocumentActions.js'
 import { finishActions, type StepCommit, type StepFinishFacts } from './statusStepFinish.js'
 import type { StepAgentView, StepReviewBar } from './statusStepAgents.js'
 import { escalationActions, type StepEscalation } from './statusStepEscalation.js'
@@ -91,7 +93,7 @@ export interface StepNextInput {
   /** 用完后「回到规格」的真实路径（statusStepRoundsRoute.ts，来自计划）；缺席 = 回退边取自 exits、回规格的事件不点名。 */
   readonly roundsRoute?: RoundsRoute | null
   /**
-   * 本步声明了 test_policy 时，策略判定（kernel TestPolicyReport）归档出的测试体系动作；
+   * 本步声明了测试档位（test:）或 test_policy 时，策略判定（kernel TestPolicyReport）归档出的测试体系动作；
    * 缺席 = 本步没有策略，行为与没有测试体系时逐字相同。
    */
   readonly testFlow?: StepTestFlow
@@ -136,14 +138,18 @@ function writeFieldActions(
 
 /** 同一波的动作一起下发；`next` 的第一条规则命中即返回，顺序就是执行顺序。 */
 export function stepNextActions(input: StepNextInput): readonly StepAction[] {
-  // 状态机已归档（fields.archived=true，不是 per-user 收起表）：只剩收尾这一步，排在 load-tenon
-  // 之前——终态自边的步骤访问不会再前进，补技能证据只会原地打转，而动作自带整条命令。
+  // 状态机已走完（fields.archived=true）：只剩收尾这一步（`tenon task finish` 与可选的提交），排在
+  // load-tenon 之前——终态自边的步骤访问不会再前进，补技能证据只会原地打转，而动作自带整条命令。
   if (input.runArchived) return finishActions(input.change, input.governedOpenspec, input.finish)
   if (!input.loaded) return [{ action: 'load-tenon' }]
-  // 风险探针不过 = 任务超出了这条通道：不必做完本步，直接放弃（scope-expanded）。
+  // 风险探针不过 = 任务超出了轻量轨道：不必做完本步，直接放弃（scope-expanded）。
   if (input.escalation !== undefined && input.escalation !== null) {
     return escalationActions(input.escalation, input.gate, input.review)
   }
+
+  // 观察模式（新任务）：输入是直接上游步骤的产出，读完才继续；位置与契约模式的读取相同，排在一切产出之前。
+  const handoff = observedReadActions(input.documents)
+  if (handoff.length > 0) return handoff
 
   // 只有 `unread` 是 `tenon document read` 能推进的状态。`stale` 的文档读不动——命令当场拒
   // 「document 'x' 已变更：…；先重新 record 后再 read」——而这条过滤从前把它也算进读清单，
@@ -162,12 +168,12 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
   }
 
   const missing = input.fields.filter((field) => field.kind !== 'outcome' && field.status === 'missing')
-  // 决定类字段（带枚举、走 `tenon set`：build_mode / isolation / direct_override…）是「怎么做」的
+  // 决定类字段（带枚举、走 `tenon set`：旧快照任务的 build_mode / isolation / direct_override…）是「怎么做」的
   // 选择，必须在动手之前拍板：排在执行者与本步技能之前，也排在测试配置之前——先定实现方式，再动手
   // 改工作区（真机第三轮：build 先发 test-unconfigured 的 fix，还没定 build_mode 就先改 package.json）。
   // 真机 build 步里它曾排在技能之后，代码写完才被要求登记 build_mode，模型只能事后补填一个与事实
   // 不符的值（直接实现却登记成 subagent-driven-development）。artifact 登记不在这一档——它登记的是
-  // 技能的产出，要等技能跑完。
+  // 技能的产出，要等技能跑完。新任务不再有这些决定，这一档对它们通常为空。
   const decisions = writeFieldActions(
     missing.filter((field) => field.allowed !== null && field.writer === 'set'),
     input.artifactProducers,

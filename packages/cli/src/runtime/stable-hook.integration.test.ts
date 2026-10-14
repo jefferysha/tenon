@@ -4,6 +4,8 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
+import { realDeps } from '../integration-harness.js'
+import { initLegacyContractDefaultChange } from '../integration-harness-legacy.js'
 import { writeStableLaunchers } from './launchers.js'
 import { resolveRuntimePaths } from './paths.js'
 import { RuntimeReleaseStore } from './release-store.js'
@@ -189,7 +191,9 @@ describe('stable host-hook ABI', () => {
     const design = `openspec/changes/${change}/design.md`
     const tasks = `openspec/changes/${change}/tasks.md`
 
-    expect((await run('bash', [launchers.tenon, 'init', change, '--track', 'backend', '--preset', 'full'], '', env, project)).code).toBe(0)
+    // document record 的宿主证据只存在于契约模式：任务取自升级前的 default（冻结着文档契约），在进程内按同一条
+    // 立项装配创建；之后的命令仍经稳定启动器跑。
+    expect(await initLegacyContractDefaultChange(realDeps(project, [], [], env), project, change, 'backend', 'full')).toBe(0)
     expect((await run('bash', [launchers.tenon, 'session', 'activate', change], '', env, project)).code).toBe(0)
     // document record 拒绝仍含模板占位符的骨架；本用例验证的是宿主证据，先像作者一样填上内容。
     for (const path of [proposal, design, tasks]) {

@@ -7,9 +7,10 @@
 import { describe, expect, it } from 'vitest'
 import type { StepDef, WorkflowDef } from './types.js'
 import type { StepIR } from './ir.js'
-import { compileDefaultWorkflow, compileWorkflow } from './compile.js'
+import { compileDefaultWorkflow, compileStepGuards, compileWorkflow } from './compile.js'
 import { parseWorkflow } from './parse.js'
 import { NON_PM } from './predicates.js'
+import { defaultWithLiteBranch } from './test-support.js'
 
 function v1Step(over: Partial<StepDef> = {}): StepDef {
   return { id: 'draft', label: '', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [], ...over }
@@ -641,6 +642,68 @@ describe('阻断 3：结构化输入的 guard 附加键闭集（绕过 parse 也
   })
 })
 
+describe('required-output 守卫（必须产出）', () => {
+  const required = (path: unknown, extra: Record<string, unknown> = {}): unknown => ({ type: 'required-output', path, ...extra })
+
+  it('原样进 IR（带 when 一并保留），步骤级与边级都编译', () => {
+    const ir = compileWorkflow(v1Def([
+      v1Step({
+        id: 'explore',
+        guards: [required('docs/superpowers/specs/*.md'), required('openspec/changes/{change}/proposal.md', { when: { kind: 'track-in', values: ['backend'] } })] as never,
+        transitions: [{ event: 'go', to: 'explore', guards: [required('docs/**/*.md')] }] as never,
+      }),
+    ]))
+    expect(ir.steps[0]?.guards).toEqual([
+      { type: 'required-output', path: 'docs/superpowers/specs/*.md' },
+      { type: 'required-output', path: 'openspec/changes/{change}/proposal.md', when: { kind: 'track-in', values: ['backend'] } },
+    ])
+    expect(ir.steps[0]?.transitions[0]?.guards).toEqual([{ type: 'required-output', path: 'docs/**/*.md' }])
+    expect(Object.isFrozen(ir.steps[0]?.guards[0])).toBe(true)
+  })
+
+  it.each([
+    ['空串', ''],
+    ['只有空白', '   '],
+    ['绝对路径', '/etc/passwd'],
+    ['Windows 盘符', 'C:/x.md'],
+    ['含 ..', 'docs/../x.md'],
+    ['以 .. 开头', '../x.md'],
+    ['含反斜杠', 'docs\\x.md'],
+    ['含 . 段', 'docs/./x.md'],
+    ['含空段', 'docs//x.md'],
+    ['未知占位符', 'docs/{other}/x.md'],
+    ['** 不独占一段', 'docs/a**b.md'],
+    ['含控制字符', 'docs/a\nb.md'],
+    ['首尾空白（往返会丢）', ' docs/x.md'],
+  ])('非法模式被拒（%s），报错点名步骤与守卫位置', (_label, path) => {
+    const attempt = (): unknown => compileWorkflow(v1Def([v1Step({ id: 'explore', guards: [required(path)] as never })]))
+    expect(attempt).toThrow(/steps\[0\]\.guards\[0\]\.path/)
+    expect(attempt).toThrow(/step 'explore'/)
+    const onEdge = (): unknown => compileWorkflow(v1Def([
+      v1Step({ id: 'explore', transitions: [{ event: 'go', to: 'explore', guards: [required(path)] }] as never }),
+    ]))
+    expect(onEdge).toThrow(/steps\[0\]\.transitions\[0\]\.guards\[0\]\.path/)
+    expect(onEdge).toThrow(/step 'explore'/)
+  })
+
+  it('path 缺失或不是字符串 → 拒', () => {
+    for (const path of [undefined, 3, null, { kind: 'field', field: 'plan' }, ['a.md']]) {
+      expect(() => compileWorkflow(v1Def([v1Step({ guards: [required(path)] as never })])))
+        .toThrow(/steps\[0\]\.guards\[0\]\.path.*必须是字符串/)
+    }
+  })
+
+  it('附加键被闭集拒绝（只允许 path 与 when）', () => {
+    expect(() => compileWorkflow(v1Def([v1Step({ guards: [required('a.md', { field: 'plan' })] as never })])))
+      .toThrow(/steps\[0\]\.guards\[0\].*附加键 'field'/)
+  })
+
+  it('compileStepGuards（check / status 预览走的入口）同样校验模式', () => {
+    expect(() => compileStepGuards(v1Step({ id: 'explore', guards: [required('../x.md')] as never })))
+      .toThrow(/step 'explore'/)
+  })
+})
+
 describe('结构化 Workflow DTO 全树键闭集（未知键不得被 serialize 静默吞掉）', () => {
   const base = (): Record<string, unknown> => ({
     name: 'closed-dto',
@@ -1035,5 +1098,84 @@ describe('artifact producer policy · A 契约（G2 P5：custom 拒 effective-ph
     expect(ir.steps[0]!.artifacts).toEqual([
       { kind: 'file', field: 'plan', producerPolicy: 'effective-phase-skills', requiredWhen: { kind: 'track-not-in', values: ['pm'] } },
     ])
+  })
+})
+
+describe('tracks.<id> 分支新键 spec / route / automation', () => {
+  const LITE = `name: demo
+openspec: true
+tracks:
+  lite:
+    label: 轻量
+    spec: none
+    route:
+      keywords: [修复, typo]
+      exclude: [迁移]
+      priority: 500
+    automation:
+      eligible: false
+      enqueue_after_spec: false
+    steps:
+      - id: open
+        gate: null
+        transitions: []
+`
+
+  /** 越过 parse 的结构化输入：分支带 over 指定的新键。 */
+  const withBranch = (over: Record<string, unknown>): WorkflowDef =>
+    rawDef({ name: 'demo', tracks: { lite: { steps: [v1Step({ id: 'open' })], ...over } }, steps: [] })
+
+  it('分支新键进入 IR：route 补默认 exclude / fallback，且深冻结', () => {
+    const ir = compileWorkflow(parseWorkflow(LITE))
+    expect(ir.tracks?.lite?.spec).toBe('none')
+    expect(ir.tracks?.lite?.route).toEqual({ keywords: ['修复', 'typo'], exclude: ['迁移'], priority: 500, fallback: false })
+    expect(ir.tracks?.lite?.automation).toEqual({ eligible: false, enqueueAfterSpec: false })
+    expect(Object.isFrozen(ir.tracks?.lite?.route)).toBe(true)
+    expect(Object.isFrozen(ir.tracks?.lite?.route?.keywords)).toBe(true)
+    expect(Object.isFrozen(ir.tracks?.lite?.automation)).toBe(true)
+  })
+
+  it('default 带五步 lite 分支仍能经 default 契约编译，重型分支继承顶层 openspec、不写 spec', () => {
+    const ir = compileDefaultWorkflow(defaultWithLiteBranch())
+    expect(Object.keys(ir.tracks ?? {})).toEqual(['lite', 'pm', 'frontend', 'backend'])
+    expect(ir.tracks?.lite?.spec).toBe('none')
+    expect(ir.tracks?.lite?.steps.map((step) => step.id)).toEqual(['open', 'build', 'verify', 'done', 'escalated'])
+    for (const id of ['pm', 'frontend', 'backend']) expect(ir.tracks?.[id]).not.toHaveProperty('spec')
+  })
+
+  it('未声明新键的分支 IR 不出现这三个键（旧工作流指纹不变）', () => {
+    const ir = compileWorkflow(withBranch({ label: '后端' }))
+    const lite = ir.tracks?.lite
+    expect(lite).toBeDefined()
+    for (const key of ['spec', 'route', 'automation']) expect(lite).not.toHaveProperty(key)
+  })
+
+  it('结构化输入里 route 只给 keywords 与 priority 时补默认', () => {
+    const ir = compileWorkflow(withBranch({ route: { keywords: ['a'], priority: 0 } }))
+    expect(ir.tracks?.lite?.route).toEqual({ keywords: ['a'], exclude: [], priority: 0, fallback: false })
+  })
+
+  it('spec 越界、route / automation 越界一律带结构路径 fail-loud', () => {
+    expect(() => compileWorkflow(withBranch({ spec: 'markdown' }))).toThrow(/tracks\.lite\.spec/)
+    expect(() => compileWorkflow(withBranch({ route: 'fast' }))).toThrow(/tracks\.lite\.route/)
+    expect(() => compileWorkflow(withBranch({ route: { keywords: ['a'], priority: 1, colour: 'red' } }))).toThrow(/colour/)
+    expect(() => compileWorkflow(withBranch({ route: { priority: 1 } }))).toThrow(/tracks\.lite\.route\.keywords/)
+    expect(() => compileWorkflow(withBranch({ route: { keywords: ['a'] } }))).toThrow(/tracks\.lite\.route\.priority/)
+    expect(() => compileWorkflow(withBranch({ route: { keywords: ['a'], priority: 1, fallback: 'yes' } }))).toThrow(/tracks\.lite\.route\.fallback/)
+    expect(() => compileWorkflow(withBranch({ automation: { eligible: 'no' } }))).toThrow(/tracks\.lite\.automation\.eligible/)
+    expect(() => compileWorkflow(withBranch({ automation: { eligible: true, enqueueAfterSpec: 1 } }))).toThrow(/tracks\.lite\.automation\.enqueueAfterSpec/)
+    expect(() => compileWorkflow(withBranch({ automation: { eligible: true, colour: 'red' } }))).toThrow(/colour/)
+  })
+
+  it('priority 须为非负安全整数（不含 -0），关键词须是有界、可往返的纯文本', () => {
+    for (const priority of [-1, 1.5, Number.NaN, Number.MAX_SAFE_INTEGER + 1, -0, '5']) {
+      expect(() => compileWorkflow(withBranch({ route: { keywords: ['a'], priority } })), String(priority)).toThrow(/tracks\.lite\.route\.priority/)
+    }
+    for (const keyword of ['', 'a,b', '[a]', '{a}', 'a\nb', 'a\u0000b', ' a', 'a '.repeat(1) + 'b '.repeat(40)]) {
+      expect(() => compileWorkflow(withBranch({ route: { keywords: [keyword], priority: 1 } })), JSON.stringify(keyword)).toThrow(/tracks\.lite\.route\.keywords\[0\]/)
+    }
+    expect(() => compileWorkflow(withBranch({ route: { keywords: Array.from({ length: 65 }, (_, i) => `k${i}`), priority: 1 } })))
+      .toThrow(/tracks\.lite\.route\.keywords/)
+    expect(() => compileWorkflow(withBranch({ route: { keywords: ['a'], exclude: [1], priority: 1 } }))).toThrow(/tracks\.lite\.route\.exclude\[0\]/)
   })
 })

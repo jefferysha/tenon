@@ -650,9 +650,9 @@ describe('default skill bundle 资产真实性', () => {
       mandatorySkills: manifest.mandatorySkills,
       recommendedSkills: manifest.recommendedSkills,
     })
-    const capability = compileEffectiveWorkflowPlan('default').capabilities.skills
-
     for (const profileId of ['frontend', 'backend']) {
+      // 技能只看工作流 YAML：profile 就是轨道，能力取该轨道分支冻结的步骤技能。
+      const capability = compileEffectiveWorkflowPlan('default', undefined, { track: profileId }).capabilities.skills
       const resolution = resolveSkillBundle(resolver, {
         kind: 'default', stepId: 'ship', profileId, capability,
       })
@@ -687,14 +687,14 @@ describe('createExecutionCoordinatePort', () => {
     expect(coord.resolution).toMatchObject({ kind: 'default', stepId: 'build' })
     if (coord.resolution.kind === 'default') {
       expect(coord.resolution.capability?.steps.find((step) => step.stepId === 'build')?.requiredSkillIds)
-        .toEqual([])  // chat 分支不声明技能：没有 track 的 default 解析不依赖上游字节
+        .toEqual(['test-driven-development'])  // 任务的 backend 分支在 build 步声明的技能（冻结计划）
     }
     expect(typeof coord.inputsDigest).toBe('string')
     expect(coord.inputsDigest.length).toBeGreaterThan(0)
   })
 
   it('default workflow：存在 frozen WorkflowRun snapshot 时 phase capability 来自 snapshot', async () => {
-    const frozen = compileEffectiveWorkflowPlan('default')
+    const frozen = compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' })
     const state = {
       ...mockState({ phase: 'build' }),
       runMetadata: {
@@ -707,8 +707,9 @@ describe('createExecutionCoordinatePort', () => {
     const port = createExecutionCoordinatePort({ store: mockStore({ x: state }), repoRoot: cwd })
     const coord = await port.capture(ctxFor('x') as never)
     if (coord.resolution.kind !== 'default') throw new Error('expected default coordinate')
+    // 新计划一步该加载什么只看工作流 YAML：backend 分支的 build 声明了 TDD。
     expect(coord.resolution.capability?.steps.find((step) => step.stepId === 'build')?.requiredSkillIds)
-      .toEqual([])
+      .toEqual(['test-driven-development'])
     expect(coord.workflowRunId).toBe('workflow-run-frozen-capability')
   })
 
@@ -721,7 +722,7 @@ describe('createExecutionCoordinatePort', () => {
       steps: emptyBuild(current.steps),
       ...(current.tracks === undefined ? {} : { tracks: Object.fromEntries(Object.entries(current.tracks).map(([id, branch]) => [id, { ...branch, steps: emptyBuild(branch.steps) }])) }),
     }
-    const frozen = compileEffectiveWorkflowPlan('default', historical)
+    const frozen = compileEffectiveWorkflowPlan('default', historical, { track: 'backend' })
     const state = {
       ...mockState({ phase: 'build' }),
       runMetadata: {

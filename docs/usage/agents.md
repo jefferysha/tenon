@@ -37,7 +37,7 @@ model: sonnet
 - `attach_on` (optional, reviewers) scopes a reviewer by risk: `attach_on: [auth,
   dependency, contract]` attaches it to a step only when the task's changes touch a
   path in one of those classes (`auth`, `dependency`, `contract`, `migration`; the
-  same classification as the `standard` lane's risk probe). A reviewer that is not
+  same classification as the `lite` Track's risk probe). A reviewer that is not
   attached is not listed, not waited for and not required; `agent prompt` refuses it
   (exit `2`). If the changes cannot be read the reviewer is attached (fail closed).
   The official `security` reviewer declares `[auth, dependency, contract]`. Without
@@ -67,7 +67,7 @@ listed as a conflict and never used.
 The official agents are `builder` and `researcher` (executors) and
 `architecture`, `backend-quality`, `code-review`, `code-size`, `e2e`,
 `frontend-quality`, `security` and `spec-consistency` (reviewers). `code-review` is
-the `standard` lane's reviewer: it reads the diff against the goal and acceptance check
+the `lite` Track's reviewer: it reads the diff against the goal and acceptance check
 the host appends to its prompt, and needs no specification documents.
 
 ## Author in the terminal
@@ -251,8 +251,8 @@ Because a project-level file outranks the user-level one, a leftover file would
 shadow the one you install. Tenon therefore cleans them up, and writes no new
 ones:
 
-- when: at `tenon init`, and when a task is archived or deleted (in the CLI and
-  in the Dashboard);
+- when: at `tenon init`, and when a task is finished (`archived`), terminated or
+  deleted (in the CLI and in the Dashboard);
 - which files: a leftover is deleted when the project's `.pipeline-owned.json`
   lists it and its content still matches the recorded hash, or when its content
   equals what the current library renders for that agent (the CLI and the
@@ -265,7 +265,7 @@ ones:
 - from inside a task worktree the cleanup targets the main checkout, where those
   files and `.pipeline-owned.json` live;
 - the cleanup is best effort: a failure only warns and never changes the exit
-  code of `init`, archive or delete.
+  code of `init`, finish, terminate or delete.
 
 ## Use agents in a workflow
 
@@ -287,10 +287,15 @@ agents:
 
 Executors run first and must finish `done` before the step can be left;
 required reviewers must pass on the current candidate; advisory reviewers only
-report. The default workflow attaches `researcher` to every Explore, `builder`
-to every Build (one subagent per independent task, merged into one report), and
-the `code-size` reviewer with its `code-size` test to every Verify; chat and
-free also run `security` as an advisory Verify reviewer. See
+report. The heavy Tracks of the default workflow (`pm`, `frontend`, `backend`) attach
+`researcher` to every Explore, `builder` to every Build (one subagent per independent
+task, merged into one report), and the `code-size` reviewer with its `code-size` test
+to every Verify; the `lite` Track runs the reviewers `code-review` and `security` at its
+Verify. The `code-size` reviewer reads the measured `files_changed`, `lines_added`, `lines_deleted`
+and `largest_added_lines` and judges, from the numbers and the nature of the change, whether the size is
+reasonable (generated output and bulk migrations are large by nature); the default test sets no line
+ceiling, and when the project's workflow gives the test a `pass.metrics` ceiling, that ceiling
+applies. See
 [Default workflow](default-workflow.md) and
 [Custom workflows](custom-workflows-and-tracks.md).
 

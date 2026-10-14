@@ -32,7 +32,7 @@ function input(overrides: Partial<StepNextInput> = {}): StepNextInput {
     executors: [],
     reviewers: [],
     tests: [],
-    documents: { reads: [], records: [], updates: [] },
+    documents: { mode: 'contract', reads: [], records: [], updates: [] },
     fields: [],
     review: { status: 'none', event: null },
     gate: null,
@@ -72,7 +72,6 @@ describe('策略阻塞归档', () => {
       blocker('test-plan-tampered'),
       blocker('test-kind-missing', 'integration'),
       blocker('scenario-uncovered', 'spec:auth/登录'),
-      blocker('test-file-unregistered', 'src/a.test.ts'),
       blocker('test-file-orphan', 'e2e/x.spec.ts'),
       blocker('test-not-run', 'unit'),
       blocker('test-stale', 'e2e'),
@@ -86,7 +85,8 @@ describe('策略阻塞归档', () => {
     expect(classified.discover.map((item) => item.code)).toEqual(['test-catalog-missing'])
     expect(classified.seed.map((item) => item.code)).toEqual(['test-plan-missing', 'test-plan-tampered'])
     expect(classified.map.map((item) => item.subject)).toEqual(['gone', 'integration', 'spec:auth/登录'])
-    expect(classified.files.map((item) => item.subject)).toEqual(['src/a.test.ts', 'e2e/x.spec.ts'])
+    // 认领取代逐个登记：files 类只会有孤儿。
+    expect(classified.files.map((item) => item.subject)).toEqual(['e2e/x.spec.ts'])
     expect(classified.run.map((item) => item.code)).toEqual(['test-not-run', 'test-stale', 'record-chain-broken'])
     expect(classified.failed.map((item) => item.code)).toEqual(['test-failed', 'coverage-below'])
     expect(classified.waivers).toEqual([{
@@ -137,20 +137,37 @@ describe('step.next 里的测试体系动作', () => {
       blocker('test-catalog-missing', undefined, 'tenon test discover --write'),
       blocker('test-plan-missing'),
       blocker('scenario-uncovered', 'spec:auth/登录', "tenon test register demo --case 'spec:auth/登录' --test '<文件> › <用例名>'"),
-      blocker('test-file-unregistered', 'src/a.test.ts', 'tenon test register demo --file src/a.test.ts --suite unit'),
+      blocker('test-file-orphan', 'tools/x.test.mjs', 'tenon test register demo --auto'),
       blocker('test-not-run', 'unit', 'tenon test run demo --suite unit'),
     ]
     const step = (kinds: readonly TestBlockerCode[]) => next({ testFlow: flow(all.filter((item) => kinds.includes(item.code))) })
-    expect(step(['test-catalog-missing', 'test-plan-missing', 'scenario-uncovered', 'test-file-unregistered', 'test-not-run']))
+    expect(step(['test-catalog-missing', 'test-plan-missing', 'scenario-uncovered', 'test-file-orphan', 'test-not-run']))
       .toEqual([{ action: 'test-discover', command: 'tenon test discover --write', blockers: expect.any(Array) }])
-    expect(step(['test-plan-missing', 'scenario-uncovered', 'test-file-unregistered', 'test-not-run'])[0])
+    expect(step(['test-plan-missing', 'scenario-uncovered', 'test-file-orphan', 'test-not-run'])[0])
       .toMatchObject({ action: 'test-plan-seed', command: 'tenon test plan demo --seed' })
-    expect(step(['scenario-uncovered', 'test-file-unregistered', 'test-not-run'])[0])
+    expect(step(['scenario-uncovered', 'test-file-orphan', 'test-not-run'])[0])
       .toMatchObject({ action: 'test-plan-map', show: 'tenon test plan demo --json' })
-    expect(step(['test-file-unregistered', 'test-not-run'])[0]).toMatchObject({ action: 'test-register-files' })
+    expect(step(['test-file-orphan', 'test-not-run'])[0]).toMatchObject({ action: 'test-register-files' })
     expect(step(['test-not-run'])).toEqual([{
       action: 'run-tests', command: 'tenon test run demo --stage', suites: [expect.objectContaining({ subject: 'unit' })],
     }])
+  })
+
+  test('test-register-files 只为孤儿下发，一条 --auto 认领全部；新增被认领的测试文件不下发，直接 run-tests', () => {
+    const orphans = flow([
+      blocker('test-file-orphan', 'tools/x.test.mjs', 'tenon test register demo --auto'),
+      blocker('test-file-orphan', 'tools/y.test.mjs'),
+      blocker('test-not-run', 'unit', 'tenon test run demo --suite unit'),
+    ])
+    const [action, ...rest] = next({ testFlow: orphans })
+    expect(rest).toEqual([])
+    expect(action).toMatchObject({ action: 'test-register-files', files: [
+      expect.objectContaining({ subject: 'tools/x.test.mjs', fix: 'tenon test register demo --auto' }),
+      expect.objectContaining({ subject: 'tools/y.test.mjs', fix: 'tenon test register demo --auto' }),
+    ] })
+    // 老逻辑里的 test-file-unregistered 不再归登记类，求值也不再产生它；没有孤儿时 next 直接是 run-tests。
+    const claimedOnly = flow([blocker('test-not-run', 'unit', 'tenon test run demo --suite unit')])
+    expect(names({ testFlow: claimedOnly })).toEqual(['run-tests'])
   })
 
   test('测试排在文档与规格彩排之后、评审者之前；旧的 run-test 在 run-tests 之后', () => {

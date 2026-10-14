@@ -21,6 +21,7 @@ import {
 import {
   enumValueAllowed,
   fieldPatch,
+  legacyDecisionValueAllowed,
   REVIEW_GATE_FIELDS,
   scalarField,
   scalarValue,
@@ -79,6 +80,11 @@ function rejectProtectedField(deps: CliDeps, field: FieldName): boolean {
     deps.io.err(`ERROR: ${msg(deps, 'field.managedByInit', { field })}`)
     return true
   }
+  // 任务结果在移动任务目录之前由归档写下（失败时由归档清回）；手写它会让任务不经归档就看起来已经结束。
+  if (field === 'task_result') {
+    deps.io.err(`ERROR: ${msg(deps, 'field.managedByTask', { field })}`)
+    return true
+  }
   // phase_status / verified_at / updated_at 由转换本身落值（flow engine 与 verify-pass 副作用）；
   // 手写 phase_status=done 会让 `list` 显示一个没走过任何出口的「已完成」相位。
   const owner = field === 'created_by' || field === 'assignee' ? 'tenon owner' : 'tenon transition'
@@ -128,14 +134,15 @@ export async function cmdSet(deps: CliDeps, name: string, field: string, value: 
   if (rejectProtectedField(deps, f)) return 1
   const v = coerceValue(f, value)
   if (!enumValueAllowed(deps, f, v)) return 1
+  if (!await legacyDecisionValueAllowed(deps, name, f, v)) return 1
   if (await refuseUnprovenVerdict(deps, name, f, v)) return 1
   if (await refuseInvalidPrUrl(deps, f, v)) return 1
   const dir = resolveChangeDir(deps.cwd, name)
   // track/workflow：锁内按「更新后的最终 {track,workflow} 组合」校验 + 落盘（R2 · 关 TOCTOU、堵旁路）。
   //  - set track    → finalTrack=新值、finalWorkflow=旧 workflow（读 state 补齐）；
   //  - set workflow → finalTrack=旧 track（读 state 补齐）、finalWorkflow=新值。
-  // 两者都过统一的 checkTrackWorkflow（requireTrack + assertWorkflowAllowed）；内建轨 allowed='*'
-  // 恒放行（零回归）。此前 set track 只 requireTrack、不看旧 workflow，是 codex R2 点名的旁路。
+  // 两者都过统一的 trackWorkflowAllowed（该工作流存在且有这条轨道，轨道只认工作流自己的分支）。
+  // 此前 set track 只看轨道、不看旧 workflow，是 codex R2 点名的旁路。
   if (f === 'track' || f === 'workflow') {
     const code = await runComboWrite(deps, dir, owner, (cur) => ({
       kind: 'write',
@@ -180,6 +187,7 @@ export async function cmdSetMany(deps: CliDeps, name: string, pairs: string[]): 
     }
     const v = coerceValue(f, pair.slice(i + 1))
     if (!enumValueAllowed(deps, f, v)) return 1
+    if (!await legacyDecisionValueAllowed(deps, name, f, v)) return 1
     if (await refuseUnprovenVerdict(deps, name, f, v)) return 1
     if (await refuseInvalidPrUrl(deps, f, v)) return 1
     kv[f] = v
@@ -238,8 +246,8 @@ export async function cmdCas(
   // track/workflow：锁内 read + 比对 expect + 最终组合校验 + 条件写（R2 · 关 TOCTOU、堵 cas 旁路）。
   //  - cas track    → finalTrack=next、finalWorkflow=旧 workflow；
   //  - cas workflow → finalTrack=旧 track、finalWorkflow=next。
-  // expect 不命中 → 退 3、不写；命中但最终组合非法 → 退 1、不写。此前 cas track 只 requireTrack
-  // （不看旧 workflow）、cas workflow 完全无 registry 校验——是 codex R2 点名的两条旁路。
+  // expect 不命中 → 退 3、不写；命中但最终组合非法（轨道不是该工作流的分支）→ 退 1、不写。cas 两个入口
+  // 都要带上另一半的旧值再校验组合，不能只校验被改的那一半。
   if (f === 'track' || f === 'workflow') {
     const code = await runComboWrite(deps, dir, owner, (cur) => {
       if (cur.fields[f] !== expect) return { kind: 'cas-miss', patch: fieldPatch(f, next) }

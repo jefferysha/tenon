@@ -54,7 +54,7 @@ export function archivedChangeDir(cwd: string, name: string): string | null {
  * 用归档目录。
  *
  * 归档目录仍然不是继续做事的工作区——那条边界现在由状态守着（`archived=true` 一律拒写，见
- * archivedGuard.refuseFinished），不再由路径守着。此前是反过来的：`openspec archive` 先于
+ * endedTaskGuard.refuseFinished），不再由路径守着。此前是反过来的：`openspec archive` 先于
  * `tenon transition <c> archived` 跑（两条命令没有任何地方说过先后），change 目录被搬走而
  * `archived` 还是 false，于是每条写入路径都在活跃路径上开锁，直接抛
  * `ENOENT ... mkdir '.../.pipeline.lock.claim-<uuid>'`——读能回落、写不能，这条 Change 再也无法

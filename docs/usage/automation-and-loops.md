@@ -39,8 +39,13 @@ Bind it explicitly to a loop:
 tenon afk enqueue <change-name> --loop <loop-id>
 ```
 
-PM's built-in policy can enqueue after Spec completes. Enqueueing does not
-automatically start Docker or a runner.
+Whether a Change may be queued is decided only by `automation.eligible` on the
+Track it was created on. The `pm`, `frontend` and `backend` Tracks of `default`
+are eligible; the `lite` Track and any Track without an `automation` block, every
+flat Workflow included, are not: `tenon afk enqueue` exits `3`, and with `--json`
+reports `reason: "track-not-afk-eligible"`. A Track with
+`automation.enqueue_after_spec: true` (`pm`) enqueues its Change when the Spec is
+done. Enqueueing does not automatically start Docker or a runner.
 
 ## Run safely
 

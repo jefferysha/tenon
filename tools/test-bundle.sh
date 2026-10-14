@@ -4,9 +4,10 @@
 #   1. CLI/dashboard server/SPA 三组发布产物存在（npm run build 产出）
 #   2. CLI 单文件自足：不 import 'commander'/@tenon（全部内联），只留 node: 内建
 #   3. CLI 能从打包根发现 dashboard 并通过 dry-run 验证，不依赖 npm/npx/node_modules
-#   4. 端到端上手路径：临时目录 init → .pipeline.yaml 落盘 → get phase = open
-#      → 登记随 init 生成的 OpenSpec proposal/design/tasks 的真实 skill 证据
+#   4. 端到端上手路径：临时 git 项目 init → .pipeline.yaml 落盘 → get phase = open（不铺 proposal/design 骨架，只有 tasks.md）
+#      → 真实 skill tracker 记 openspec-propose 调用 → 像该技能一样写出 proposal.md（open 步按路径的 required-output）
 #      → transition open-complete → get phase = explore → history JSONL 有 init+transition
+#      → 步骤产出账本记下 open 步新增的 proposal.md 与来源技能 openspec-propose
 #   5. 冻结 N-1 reader 保持旧写入协议；fixture 固定的真实上一正式版本（CLI 字节按 digest 钉死）双向验证：
 #      N-1 创建/写入的 Change 由当前 CLI 读取并继续 mutation；当前 CLI 写入的 Change 由 N-1 CLI 读取并继续
 #      mutation；skills/skills.lock.json 当前 writer → N-1 verifier、N-1 writer → 当前 verifier 都必须通过；
@@ -118,6 +119,15 @@ if [ -f "$BUNDLE" ]; then
   export TENON_USER_NAME=smoke
   # 每一次 bundle 调用（当前与 N-1）都落在临时 runtime home，绝不读写本机真实 Tenon state。
   export TENON_RUNTIME_HOME="$TMP/.tenon-runtime-home"
+  # 步骤产出的观察基于 git（离开步骤时与进入时的检查点比较）：临时项目先做一次空提交作基线，
+  # 后面才能断言账本记下了 open 步写出的 proposal.md。固定提交身份、不读宿主 git 配置。
+  GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 git -C "$TMP" init -q >/dev/null 2>&1 \
+    && GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 git -C "$TMP" \
+      -c user.email=smoke@tenon.test -c user.name=smoke -c commit.gpgsign=false \
+      commit -q --allow-empty -m smoke-baseline >/dev/null 2>&1
+  [ "$?" -eq 0 ] \
+    && ok "bundle: 临时 git 项目基线提交" \
+    || bad "bundle: 临时 git 项目基线提交" "git init / 空提交失败，步骤产出账本无法观察"
   ( cd "$TMP" && TENON_RUNTIME_HOME="$TMP/.tenon-runtime-home" node "$BUNDLE" init t8-smoke --track backend --preset full ) 2>/dev/null
   [ -f "$TMP/openspec/changes/t8-smoke/.pipeline.yaml" ] \
     && ok "bundle: init 落盘 .pipeline.yaml" || bad "bundle: init 落盘 .pipeline.yaml" "文件缺失"
@@ -125,9 +135,13 @@ if [ -f "$BUNDLE" ]; then
     && ! grep -q '^pipeline_document_locale:' "$TMP/openspec/changes/t8-smoke/.pipeline.yaml" \
     && ok "bundle: 新 Change 以回滚兼容 sidecar 固定中文文档语言" \
     || bad "bundle: 新 Change 以回滚兼容 sidecar 固定中文文档语言" "sidecar 缺失或 locale 泄漏到 canonical projection"
-  grep -q '^# 提案$' "$TMP/openspec/changes/t8-smoke/proposal.md" \
-    && ok "bundle: 默认 proposal 使用中文模板" \
-    || bad "bundle: 默认 proposal 使用中文模板" "$(head -1 "$TMP/openspec/changes/t8-smoke/proposal.md" 2>/dev/null)"
+  # 新机制：init 不再预先铺 proposal/design 骨架（文档由技能按自己的 SKILL.md 写），只留 tasks.md 骨架，且用中文模板。
+  [ ! -e "$TMP/openspec/changes/t8-smoke/proposal.md" ] && [ ! -e "$TMP/openspec/changes/t8-smoke/design.md" ] \
+    && [ "$(head -1 "$TMP/openspec/changes/t8-smoke/tasks.md" 2>/dev/null)" = '# 任务' ] \
+    && grep -q '^## 立项$' "$TMP/openspec/changes/t8-smoke/tasks.md" \
+    && ok "bundle: 新 Change 不铺 proposal/design 骨架，tasks.md 使用中文模板" \
+    || bad "bundle: 新 Change 不铺 proposal/design 骨架，tasks.md 使用中文模板" \
+      "$(ls "$TMP/openspec/changes/t8-smoke" 2>/dev/null | tr '\n' ' ') tasks首行='$(head -1 "$TMP/openspec/changes/t8-smoke/tasks.md" 2>/dev/null)'"
   phase="$(cd "$TMP" && node "$BUNDLE" get t8-smoke phase 2>/dev/null)"
   [ "$phase" = "open" ] && ok "bundle: get phase = open" || bad "bundle: get phase = open" "得到 '$phase'"
   ( cd "$TMP" && node "$BUNDLE" set t8-smoke pre_verify_review_result pass ) >/dev/null 2>&1
@@ -170,33 +184,22 @@ if [ -f "$BUNDLE" ]; then
     && ok "bundle: hook 记录 tenon 调用证据" \
     || bad "bundle: hook 记录 tenon 调用证据" "skill-tracker 失败"
 
-  # default workflow 的 OpenSpec 文档契约要求 open 阶段先登记 proposal/design/tasks。它们是 init
-  # 创建的最小骨架；这里通过真实 CLI 绑定产物 hash 和 openspec-propose skill 证据，证明入库 bundle
-  # 同时包含新文档链路，而不是把冒烟测试回退成历史上的无证据直转。先调用同包的 PostToolUse
-  # skill tracker 生成真实的 `Skill: openspec-propose` 审计行；document record 会验证这条证据。
+  # 新文档机制：Tenon 不预先规定 open 步写哪些文档，也不要求登记；技能按自己的 SKILL.md 写文件，离开步骤时
+  # Tenon 自动记下本步新增 / 修改 / 删除的文件与来源技能（读加载时间标注）。default 的 open 步只有一条按路径的
+  # required-output：openspec/changes/{change}/proposal.md。这里先调用同包的 PostToolUse skill tracker
+  # 生成真实的 `Skill: openspec-propose` 审计行，再像该技能一样直接写出 proposal.md，证明入库 bundle
+  # 带着新的产出记录链路，而不是把冒烟测试回退成历史上的无证据直转。
   printf '{"cwd":"%s","tool_name":"Skill","skill":"openspec-propose","session_id":"bundle-smoke-session","tool_use_id":"bundle-smoke-openspec-propose"}' "$TMP" \
     | CLAUDE_PLUGIN_ROOT="$ROOT" bash "$ROOT/hooks/skill-tracker.sh" >/dev/null 2>&1
   [ "$?" -eq 0 ] \
     && ok "bundle: hook 记录 openspec-propose 调用证据" \
     || bad "bundle: hook 记录 openspec-propose 调用证据" "skill-tracker 失败"
-  # document record 拒绝仍含模板占位符的骨架：先像真实作者一样填上内容，再登记。
-  node -e '
-    const fs = require("node:fs")
-    for (const path of process.argv.slice(1)) {
-      fs.writeFileSync(path, fs.readFileSync(path, "utf8").replaceAll("待填写", "冒烟测试内容").replaceAll("将本阶段目标拆成可验证任务。", "冒烟测试任务"), "utf8")
-    }
-  ' "$TMP/openspec/changes/t8-smoke/proposal.md" "$TMP/openspec/changes/t8-smoke/design.md" "$tasks_path"
-  for row in \
-    'proposal proposal.md' \
-    'openspec-design design.md' \
-    'tasks tasks.md'; do
-    kind="${row%% *}"
-    file="${row#* }"
-    ( cd "$TMP" && node "$BUNDLE" document record t8-smoke "$kind" "openspec/changes/t8-smoke/$file" --producer openspec-propose ) 2>/dev/null
-    [ "$?" -eq 0 ] \
-      && ok "bundle: 登记 $kind 文档证据" \
-      || bad "bundle: 登记 $kind 文档证据" "document record 失败"
-  done
+  # 像 openspec-propose 一样直接写出 proposal.md（有真实内容）；没有 document record / scaffold 这一步。
+  proposal_path="$TMP/openspec/changes/t8-smoke/proposal.md"
+  printf '# 提案\n\n## 为什么\n\n冒烟测试：验证入库 bundle 能走完立项步并记录本步产出。\n\n## 变更内容\n\n- 无代码变更，仅用于 bundle 冒烟。\n' > "$proposal_path"
+  [ -s "$proposal_path" ] \
+    && ok "bundle: 按 openspec-propose 写出 proposal.md" \
+    || bad "bundle: 按 openspec-propose 写出 proposal.md" "proposal.md 未写出"
   ( cd "$TMP" && node "$BUNDLE" transition t8-smoke open-complete ) 2>"$TMP/transition.err"
   phase="$(cd "$TMP" && node "$BUNDLE" get t8-smoke phase 2>/dev/null)"
   [ "$phase" = "explore" ] && ok "bundle: transition 后 phase = explore" || bad "bundle: transition 后 phase = explore" "得到 '$phase'; $(cat "$TMP/transition.err" 2>/dev/null)"
@@ -204,6 +207,19 @@ if [ -f "$BUNDLE" ]; then
   if [ -f "$hist" ] && grep -q '"kind":"init"' "$hist" && grep -q '"kind":"transition"' "$hist"; then
     ok "bundle: history JSONL 记 init+transition"
   else bad "bundle: history JSONL 记 init+transition" "$(cat "$hist" 2>/dev/null | head -2 || echo 缺文件)"; fi
+  # 离开 open 步时 Tenon 把本步实际产出记进步骤产出账本：proposal.md 新增，来源是写入前加载的 openspec-propose。
+  ledger_out="$(node -e '
+    const fs = require("node:fs")
+    const ledger = JSON.parse(fs.readFileSync(process.argv[1], "utf8"))
+    const open = ledger.visits.find((visit) => visit.step === "open" && visit.exit && visit.exit.event === "open-complete")
+    if (!open) { console.log("缺 open 步的离开记录"); process.exit(2) }
+    if (open.exit.observation !== "observed") { console.log("observation=" + open.exit.observation); process.exit(3) }
+    const hit = open.outputs.find((output) => output.path === "openspec/changes/t8-smoke/proposal.md")
+    if (!hit || hit.change !== "added" || hit.skill !== "openspec-propose") { console.log(JSON.stringify(open.outputs)); process.exit(4) }
+  ' "$TMP/openspec/changes/t8-smoke/.pipeline-step-outputs.json" 2>&1)"
+  [ "$?" -eq 0 ] \
+    && ok "bundle: 步骤产出账本记下 open 步新增的 proposal.md（来源 openspec-propose）" \
+    || bad "bundle: 步骤产出账本记下 open 步新增的 proposal.md（来源 openspec-propose）" "$ledger_out"
 
   # 5. N-1 兼容。冻结 reader 是可离线、可重复的硬门；真实 previous runtime 是可用时的第二证据，
   # 不把某台开发机的 managed cache 变成 CI 前置条件。

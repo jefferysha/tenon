@@ -1,8 +1,11 @@
+import { execFileSync } from 'node:child_process'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, test } from 'vitest'
 import { createWorkflowRunRepository } from './workflow-run-repository.js'
+import { readStepOutputLedger } from './step-output-ledger.js'
+import { legacyDefaultInitialWorkflow } from '../workflow/test-support.js'
 import { createStateStore } from './store.js'
 import { createTransitionRecordStore } from './transition-record-store.js'
 import { readCurrentRunRevision } from './run-revision-store.js'
@@ -33,7 +36,7 @@ const authoritySnapshot = (over: {
   reservationId?: string
   runId?: string
 } = {}) => {
-  const workflow = compileEffectiveWorkflowPlan('default')
+  const workflow = compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' })
   const attemptId = over.attemptId ?? 'att-1'
   const iterationId = `iteration-${attemptId}`
   return createWorkflowActionAuthoritySnapshot({
@@ -157,24 +160,24 @@ describe('WorkflowRunRepository.initChange —— 新 change 的唯一创建入�
     expect(run.transitionSequence).toBe(0)
     const state = await store.read(changeDir)
     expect(state.fields.track).toBe('backend')
+    // 新 default 没有文档契约：不绑文档治理 profile / 指纹，只冻结工作流计划。
     expect(state.runMetadata).toMatchObject({
       runId: 'id-1',
       transitionSequence: 0,
-      documentProfile: 'legacy-full',
-      documentGovernanceFingerprint:
-        effectiveWorkflowPlanBinding(compileEffectiveWorkflowPlan('default')).documentGovernanceFingerprint,
-      workflowPlanFingerprint: compileEffectiveWorkflowPlan('default').workflowFingerprint,
+      workflowPlanFingerprint: compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' }).workflowFingerprint,
       workflowPlanSnapshot: {
         version: 4,
         workflowId: 'default',
-        workflowFingerprint: compileEffectiveWorkflowPlan('default').workflowFingerprint,
+        workflowFingerprint: compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' }).workflowFingerprint,
       },
     })
+    expect(state.runMetadata?.documentProfile).toBeUndefined()
+    expect(state.runMetadata?.documentGovernanceFingerprint).toBeUndefined()
     await expect(readFile(join(changeDir, '.pipeline-document-locale.json'), 'utf8'))
       .resolves.toBe('{"version":1,"locale":"zh-CN"}\n')
   })
 
-  test('default init 同时补最小 OpenSpec 文档与 tasks.md 来源；custom workflow 不被注入 default 骨架', async () => {
+  test('新 default（观察模式）init 只铺 tasks.md 来源，不铺 proposal / design、不建文档账本；custom workflow 不被注入 default 骨架', async () => {
     const root = await freshRepoRoot()
     const { repo } = makeRepo()
     const base: InitOptions = {
@@ -182,13 +185,14 @@ describe('WorkflowRunRepository.initChange —— 新 change 的唯一创建入�
       clock: () => '2026-07-16T00:00:00Z',
     }
     const created = await repo.initChange(base)
-    await expect(readFile(join(created.changeDir, 'proposal.md'), 'utf8')).resolves.toContain('# 提案')
-    await expect(readFile(join(created.changeDir, 'design.md'), 'utf8')).resolves.toContain('# 设计')
     await expect(readFile(join(created.changeDir, 'tasks.md'), 'utf8')).resolves.toContain('- [ ]')
+    for (const absent of ['proposal.md', 'design.md', '.pipeline-documents.json']) {
+      await expect(readFile(join(created.changeDir, absent), 'utf8'), absent).rejects.toMatchObject({ code: 'ENOENT' })
+    }
 
     const english = await repo.initChange({ ...base, name: 'english-change', documentLocale: 'en' })
-    await expect(readFile(join(english.changeDir, 'proposal.md'), 'utf8')).resolves.toContain('# Proposal')
-    await expect(readFile(join(english.changeDir, 'design.md'), 'utf8')).resolves.toContain('# Design')
+    const tasks = await readFile(join(english.changeDir, 'tasks.md'), 'utf8')
+    expect(tasks).toContain('# Tasks')
     await expect(readFile(join(english.changeDir, '.pipeline-document-locale.json'), 'utf8'))
       .resolves.toBe('{"version":1,"locale":"en"}\n')
 
@@ -198,6 +202,62 @@ describe('WorkflowRunRepository.initChange —— 新 change 的唯一创建入�
       initialWorkflow: { workflow: 'release-train', phase: 'draft' },
     })
     await expect(readFile(join(custom.changeDir, 'tasks.md'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  test('新 default（观察模式）init 建产出账本：第一次访问 sequence 0、step 是第一步、run 身份一致', async () => {
+    const root = await freshRepoRoot()
+    const { repo } = makeRepo()
+    const base: InitOptions = {
+      repoRoot: root, name: 'visit-change', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full',
+      clock: () => '2026-07-16T00:00:00Z',
+    }
+    const { changeDir, run } = await repo.initChange(base)
+    const ledger = await readStepOutputLedger(changeDir)
+    expect(ledger.visits).toHaveLength(1)
+    expect(ledger.visits[0]).toMatchObject({
+      run_id: run.id, sequence: 0, step: 'open', entered_at: '2026-07-16T00:00:00Z', exit: null, outputs: [], reads: [],
+    })
+    // 非 git 的临时目录采不到检查点：离开时按 unavailable 处理。
+    expect(ledger.visits[0]?.checkpoint).toBeNull()
+    // lite 不走 OpenSpec 也有访问记录；custom workflow（没有冻结计划也不是契约）同样。
+    const lite = await repo.initChange({ ...base, name: 'lite-change', track: 'lite' })
+    expect((await readStepOutputLedger(lite.changeDir)).visits[0]).toMatchObject({ sequence: 0, step: 'open' })
+    const custom = await repo.initChange({ ...base, name: 'custom-visit', initialWorkflow: { workflow: 'release-train', phase: 'draft' } })
+    expect((await readStepOutputLedger(custom.changeDir)).visits[0]).toMatchObject({ sequence: 0, step: 'draft' })
+  })
+
+  test('初始化把第一次访问的检查点记在 git 工作区里；任务自己的骨架（tasks.md）已在检查点里，不算第一步的产出', async () => {
+    const root = await freshRepoRoot()
+    execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: root })
+    const { repo } = makeRepo()
+    const { changeDir } = await repo.initChange({
+      repoRoot: root, name: 'git-change', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full',
+      clock: () => '2026-07-16T00:00:00Z',
+    })
+    const checkpoint = (await readStepOutputLedger(changeDir)).visits[0]?.checkpoint
+    expect(checkpoint).not.toBeNull()
+    expect(Object.keys(checkpoint?.files ?? {})).toContain('openspec/changes/git-change/tasks.md')
+  })
+
+  test('升级前冻结的带契约任务（legacy 快照）照旧铺三份文档并建文档账本，不建产出账本', async () => {
+    const root = await freshRepoRoot()
+    const { repo } = makeRepo()
+    const created = await repo.initChange({
+      repoRoot: root, name: 'legacy-contract', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full',
+      clock: () => '2026-07-16T00:00:00Z',
+      initialWorkflow: legacyDefaultInitialWorkflow('backend', 'step-graph'),
+    })
+    await expect(readFile(join(created.changeDir, 'proposal.md'), 'utf8')).resolves.toContain('# 提案')
+    await expect(readFile(join(created.changeDir, 'design.md'), 'utf8')).resolves.toContain('# 设计')
+    await expect(readFile(join(created.changeDir, 'tasks.md'), 'utf8')).resolves.toContain('- [ ]')
+    await expect(readFile(join(created.changeDir, '.pipeline-documents.json'), 'utf8')).resolves.toContain('"version"')
+    await expect(readFile(join(created.changeDir, '.pipeline-step-outputs.json'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+    const english = await repo.initChange({
+      repoRoot: root, name: 'legacy-contract-en', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full',
+      clock: () => '2026-07-16T00:00:00Z', documentLocale: 'en',
+      initialWorkflow: legacyDefaultInitialWorkflow('backend', 'step-graph'),
+    })
+    await expect(readFile(join(english.changeDir, 'proposal.md'), 'utf8')).resolves.toContain('# Proposal')
   })
 
   test('store.init 失败（如同名 change 已存在）→ initChange 整体 reject，不会返回一个"半成品"结果', async () => {
@@ -297,7 +357,7 @@ describe('WorkflowRunRepository.establishRun —— 新 change 在 init 时钉�
     expect((await store.read(dir)).runMetadata).toBeUndefined()
 
     const run = await repo.establishRun(dir, { openspecContract: true })
-    const defaultBinding = effectiveWorkflowPlanBinding(compileEffectiveWorkflowPlan('default'))
+    const defaultBinding = effectiveWorkflowPlanBinding(compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' }))
 
     expect(run).toMatchObject(defaultBinding)
     expect((await store.read(dir)).runMetadata).toMatchObject(defaultBinding)
@@ -314,7 +374,7 @@ describe('WorkflowRunRepository.establishRun —— 新 change 在 init 时钉�
       })
     })
     await rm(join(dir, '.pipeline-workflow-governance.json'))
-    const binding = effectiveWorkflowPlanBinding(compileEffectiveWorkflowPlan('default'))
+    const binding = effectiveWorkflowPlanBinding(compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' }))
 
     const upgraded = await repo.establishRun(dir, binding)
     expect(upgraded).toMatchObject({
@@ -617,7 +677,7 @@ describe('WorkflowRunRepository.transact —— commit() 真提交', () => {
   test('commit 保留初始化时绑定的完整 workflow plan fingerprint', async () => {
     const root = await freshRepoRoot()
     const { repo, store } = makeRepo()
-    const plan = compileEffectiveWorkflowPlan('default')
+    const plan = compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' })
     const { changeDir } = await repo.initChange({
       repoRoot: root,
       name: 'bound-plan',

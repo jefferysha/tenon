@@ -209,7 +209,7 @@ describe('init —— 新任务建在 worktree 里', () => {
     const { cwd } = await fx.repoWithCommit()
     await writeFiles(cwd, { '.pipeline/workflows/onboarding.yaml': TWO_STEP_WF })
     const { deps, err } = fx.realIn(cwd)
-    expect(await cmdInit(deps, 'demo', { track: 'backend', workflow: 'onboarding' }), err.join('\n')).toBe(0)
+    expect(await cmdInit(deps, 'demo', { workflow: 'onboarding' }), err.join('\n')).toBe(0)
     const worktree = join(cwd, '.worktrees', 'demo')
     expect(existsSync(join(worktree, '.pipeline'))).toBe(false)
     const yaml = await readFile(join(worktree, 'openspec', 'changes', 'demo', '.pipeline.yaml'), 'utf8')

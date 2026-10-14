@@ -140,7 +140,16 @@ steps:
 
   it('document contract 未知 version fail-loud；openspec_contract 已移除并提示替代写法', () => {
     expect(() => parseWorkflow('name: bad\ndocument_contract:\n  version: v2\n  slots:\n    - kind: proposal\n      owner_step: one\n      producers: [writer]\n  reads: []\nsteps:\n')).toThrow(/version/)
-    expect(() => parseWorkflow('name: bad\nopenspec_contract: required\nsteps:\n')).toThrow('workflow 解析错误：openspec_contract 已移除——改为 openspec: true 并声明 document_contract')
+    expect(() => parseWorkflow('name: bad\nopenspec_contract: required\nsteps:\n')).toThrow('workflow 解析错误：openspec_contract 已移除——改为顶层 openspec: true，或在分支（tracks.<id>）下写 spec: openspec')
+    // 建议的替代写法里不能再出现已删除的 document_contract。
+    let message = ''
+    try {
+      parseWorkflow('name: bad\nopenspec_contract: required\nsteps:\n')
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error)
+    }
+    expect(message).not.toBe('')
+    expect(message).not.toContain('document_contract')
   })
 
   it('openspec: true 解析为 true；false 归一为缺省；其它值与重复声明 fail-loud', () => {
@@ -430,6 +439,76 @@ steps:
   })
 })
 
+describe('parseWorkflow —— required-output 守卫', () => {
+  const guardYaml = (guardLines: string[]): string => [
+    'name: demo',
+    'steps:',
+    '  - id: write',
+    '    label: 写',
+    '    gate: null',
+    '    skills: []',
+    '    guards:',
+    ...guardLines,
+    '    transitions: []',
+  ].join('\n')
+
+  it('path 读成字符串模式原样保留（含 {change} 占位与通配符），可带 when；不折成 field', () => {
+    const def = parseWorkflow(guardYaml([
+      '      - type: required-output',
+      '        path: docs/superpowers/specs/*.md',
+      '      - type: required-output',
+      '        path: openspec/changes/{change}/specs/*/spec.md',
+      '        when:',
+      '          track_in: [backend]',
+    ]))
+    expect(def.steps[0]?.guards).toEqual([
+      { type: 'required-output', path: 'docs/superpowers/specs/*.md' },
+      { type: 'required-output', path: 'openspec/changes/{change}/specs/*/spec.md', when: { kind: 'track-in', values: ['backend'] } },
+    ])
+  })
+
+  it('path 值允许内部空格（目录名带空格的项目）', () => {
+    const def = parseWorkflow(guardYaml(['      - type: required-output', '        path: docs/my notes/*.md']))
+    expect(def.steps[0]?.guards).toEqual([{ type: 'required-output', path: 'docs/my notes/*.md' }])
+  })
+
+  it('写在边的 guards 上同样解析', () => {
+    const def = parseWorkflow([
+      'name: demo',
+      'steps:',
+      '  - id: verify',
+      '    guards: []',
+      '    transitions:',
+      '      - event: verify-pass',
+      '        to: done',
+      '        guards:',
+      '          - type: required-output',
+      '            path: docs/superpowers/reports/{change}-verify.md',
+    ].join('\n'))
+    expect(def.steps[0]?.transitions[0]?.guards).toEqual([
+      { type: 'required-output', path: 'docs/superpowers/reports/{change}-verify.md' },
+    ])
+  })
+
+  it('缺 path → fail-loud', () => {
+    expect(() => parseWorkflow(guardYaml(['      - type: required-output']))).toThrow("guard 'required-output' 缺 path")
+  })
+
+  it('required-output 不接受 field 等附加字段', () => {
+    expect(() => parseWorkflow(guardYaml(['      - type: required-output', '        path: a.md', '        field: plan'])))
+      .toThrow(/required-output.*不接受附加字段 'field'/)
+  })
+
+  it('其它变体不接受 path：file-exists 仍只认 field（path 折叠只属于 file-exists 的旧写法）', () => {
+    expect(() => parseWorkflow(guardYaml(['      - type: file-exists', '        path: docs/a.md'])))
+      .toThrow(/file-exists.*不接受附加字段 'path'/)
+    expect(() => parseWorkflow(guardYaml(['      - type: field-nonempty', '        field: plan', '        path: docs/a.md'])))
+      .toThrow(/field-nonempty.*不接受附加字段 'path'/)
+    expect(parseWorkflow(guardYaml(['      - type: file-exists', '        field: plan'])).steps[0]?.guards)
+      .toEqual([{ type: 'file-exists', path: { kind: 'field', field: 'plan' } }])
+  })
+})
+
 describe('parseWorkflow —— 显式 artifacts 块（G2 P4）', () => {
   it('artifacts 块解析进 StepDef.artifacts（producer_policy snake→camel producerPolicy）', () => {
     const wf = parseWorkflow(
@@ -519,12 +598,104 @@ describe('parseWorkflow —— 顶层键顺序无关', () => {
     expect(() => parseWorkflow('name: empty\nopenspec: true\n')).toThrow("缺少 'steps:' 或 'tracks:'")
   })
 
+  it('未知顶层键的提示不再把已删除的 document_contract 列为支持的键', () => {
+    let message = ''
+    try {
+      parseWorkflow(`name: odd\n${STEPS}\nextra: 1\n`)
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error)
+    }
+    expect(message).toContain('支持 steps / tracks、openspec、route、decomposition、interaction')
+    expect(message).not.toContain('document_contract')
+  })
+
   it('docs/usage/custom-workflows-and-tracks.md 的示例可解析并通过校验', () => {
     const doc = readFileSync(new URL('../../../../docs/usage/custom-workflows-and-tracks.md', import.meta.url), 'utf8')
     const example = /```yaml\n(name: release-note\n[\s\S]*?)```/u.exec(doc)?.[1]
     expect(example).toBeDefined()
     const wf = parseWorkflow(example ?? '')
-    expect(wf.documentContract?.reads.map((read) => read.step)).toEqual(['implement', 'prove'])
     expect(validateWorkflow(wf)).toEqual([])
+  })
+})
+
+describe('parseWorkflow · 分支新键 spec / route / automation', () => {
+  const STEPS = `    steps:
+      - id: open
+        label: 立项
+        gate: null
+        skills: []
+        inputs: []
+        outputs: []
+        guards: []
+        transitions: []`
+  const branch = (head: string): string => `name: demo\nopenspec: true\ntracks:\n  lite:\n${head}\n${STEPS}\n`
+
+  it('块写法：spec / route / automation 解析为定义层字段，route 缺省项补默认', () => {
+    const wf = parseWorkflow(branch(`    label: 轻量
+    spec: none
+    route:
+      keywords: [修复, typo]
+      exclude: [迁移]
+      priority: 500
+    automation:
+      eligible: false
+      enqueue_after_spec: false`))
+    expect(wf.tracks?.lite).toMatchObject({
+      label: '轻量',
+      spec: 'none',
+      route: { keywords: ['修复', 'typo'], exclude: ['迁移'], priority: 500, fallback: false },
+      automation: { eligible: false, enqueueAfterSpec: false },
+    })
+  })
+
+  it('单行 flow map 写法与块写法等价', () => {
+    const inline = parseWorkflow(branch(`    route: { keywords: [a, b], priority: 3, fallback: true }
+    automation: { eligible: true, enqueue_after_spec: true }`))
+    expect(inline.tracks?.lite?.route).toEqual({ keywords: ['a', 'b'], exclude: [], priority: 3, fallback: true })
+    expect(inline.tracks?.lite?.automation).toEqual({ eligible: true, enqueueAfterSpec: true })
+    const block = parseWorkflow(branch(`    route:
+      keywords: [a, b]
+      priority: 3
+      fallback: true
+    automation:
+      eligible: true
+      enqueue_after_spec: true`))
+    expect(block).toEqual(inline)
+  })
+
+  it('automation 只写 eligible 时 enqueue_after_spec 缺省为 false', () => {
+    const wf = parseWorkflow(branch('    automation: { eligible: true }'))
+    expect(wf.tracks?.lite?.automation).toEqual({ eligible: true, enqueueAfterSpec: false })
+  })
+
+  it('不写新键的分支解析结果不带 spec / route / automation（旧文件字节级不变）', () => {
+    const lite = parseWorkflow(branch('    label: 轻量')).tracks?.lite
+    expect(lite).toBeDefined()
+    for (const key of ['spec', 'route', 'automation']) expect(lite).not.toHaveProperty(key)
+  })
+
+  it('分支未知键报错并点名该键', () => {
+    expect(() => parseWorkflow(branch('    colour: red'))).toThrow(/colour/)
+    expect(() => parseWorkflow(branch('    route:\n      keywords: [a]\n      priority: 1\n      colour: red'))).toThrow(/colour/)
+    expect(() => parseWorkflow(branch('    automation: { eligible: true, colour: red }'))).toThrow(/colour/)
+  })
+
+  it('spec 只接受 openspec 或 none，且不得重复', () => {
+    expect(parseWorkflow(branch('    spec: openspec')).tracks?.lite?.spec).toBe('openspec')
+    expect(() => parseWorkflow(branch('    spec: markdown'))).toThrow(/spec/)
+    expect(() => parseWorkflow(branch('    spec: none\n    spec: openspec'))).toThrow(/重复声明 spec/)
+  })
+
+  it('route / automation 的必填项与字面量错误 fail-loud', () => {
+    expect(() => parseWorkflow(branch('    route:\n      priority: 1'))).toThrow(/keywords/)
+    expect(() => parseWorkflow(branch('    route:\n      keywords: [a]'))).toThrow(/priority/)
+    expect(() => parseWorkflow(branch('    route:\n      keywords: [a]\n      priority: high'))).toThrow(/priority/)
+    expect(() => parseWorkflow(branch('    route:\n      keywords: [a]\n      priority: 1\n      fallback: maybe'))).toThrow(/fallback/)
+    expect(() => parseWorkflow(branch('    route:\n      keywords: a\n      priority: 1'))).toThrow(/keywords/)
+    expect(() => parseWorkflow(branch('    route:\n      keywords: [a]\n      keywords: [b]\n      priority: 1'))).toThrow(/重复/)
+    expect(() => parseWorkflow(branch('    automation:\n      enqueue_after_spec: true'))).toThrow(/eligible/)
+    expect(() => parseWorkflow(branch('    automation: { eligible: yes }'))).toThrow(/eligible/)
+    expect(() => parseWorkflow(branch('    route:\n    spec: none'))).toThrow(/route/)
+    expect(() => parseWorkflow(branch('    route: { keywords: [a], priority: 1 }\n    route: { keywords: [b], priority: 2 }'))).toThrow(/重复声明 route/)
   })
 })

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { WbStepDef, WbWorkflowDef } from '../api/governanceTypes'
 import { countDraftChanges } from './draftChanges'
-import { setStepTestPolicyInDef } from './workbenchDefinition'
+import { setStepTestLevelInDef } from './workbenchDefinition'
 
 function stage(id: string, extra: Partial<WbStepDef> = {}): WbStepDef {
   return { id, label: id, gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [], ...extra }
@@ -15,7 +15,7 @@ const BASE: WbWorkflowDef = {
     be: { label: '后端', steps: [stage('x')] },
   },
   source: 'global',
-  effectiveIo: {},
+  branches: { _base: {}, pm: { label: '产品' } },
 }
 
 function copy(): WbWorkflowDef {
@@ -25,7 +25,7 @@ function copy(): WbWorkflowDef {
 describe('countDraftChanges：「未保存 N 处」按阶段 / 轨道 / 工作流级字段计数', () => {
   it('没有改动、或只有读接口附带字段不同 → 0；任一边为 null → 0', () => {
     expect(countDraftChanges(BASE, copy())).toBe(0)
-    expect(countDraftChanges(BASE, { ...BASE, source: 'builtin', effectiveIo: undefined })).toBe(0)
+    expect(countDraftChanges(BASE, { ...BASE, source: 'builtin', branches: undefined })).toBe(0)
     expect(countDraftChanges(null, BASE)).toBe(0)
   })
 
@@ -79,26 +79,55 @@ describe('countDraftChanges：「未保存 N 处」按阶段 / 轨道 / 工作�
     expect(countDraftChanges(base, reordered)).toBe(0)
   })
 
-  it('文档契约的改动记到所属阶段：同一阶段加两份输出 = 1 处；OpenSpec 开关连带清空契约只算开关 1 处', () => {
-    const base: WbWorkflowDef = { name: 'flow', openspec: true, steps: [stage('a'), stage('b')], documentContract: { version: 'v1', slots: [], reads: [] } }
-    const twoOutputs: WbWorkflowDef = { ...base, documentContract: { version: 'v1', slots: [
-      { kind: 'proposal', ownerStep: 'a', producers: ['openspec-propose'] },
-      { kind: 'tasks', ownerStep: 'a', producers: ['openspec-propose'] },
-    ], reads: [] } }
-    expect(countDraftChanges(base, twoOutputs)).toBe(1)
-    const withRead: WbWorkflowDef = { ...twoOutputs, documentContract: { ...twoOutputs.documentContract!, reads: [{ step: 'b', kinds: ['proposal'] }] } }
-    expect(countDraftChanges(base, withRead)).toBe(2)
-    expect(countDraftChanges(withRead, { ...withRead, openspec: false, documentContract: undefined })).toBe(1)
+  it('阶段里的必须产出、技能、测试策略的改动都记到所属阶段：同一阶段两处改动 = 1 处；OpenSpec 开关只算开关 1 处', () => {
+    const base: WbWorkflowDef = { name: 'flow', openspec: true, steps: [stage('a'), stage('b')] }
+    const edited: WbWorkflowDef = { ...base, steps: [
+      stage('a', { guards: [{ type: 'required-output', path: 'docs/specs/*.md' }], skills: [{ id: 'brainstorming' }] }),
+      stage('b'),
+    ] }
+    expect(countDraftChanges(base, edited)).toBe(1)
+    expect(countDraftChanges(edited, { ...edited, steps: [edited.steps[0]!, stage('b', { gate: 'review' })] })).toBe(1)
+    expect(countDraftChanges(base, { ...base, openspec: false })).toBe(1)
   })
 })
 
-describe('countDraftChanges · 测试策略', () => {
-  it('改策略算所属阶段的 1 处，改回去就不算', () => {
+describe('countDraftChanges · 轨道设置', () => {
+  const governed: WbWorkflowDef = { ...BASE, openspec: true }
+
+  it('改关键词 = 轨道 1 处；改规范 = 1 处', () => {
+    const words = JSON.parse(JSON.stringify(governed)) as WbWorkflowDef
+    words.tracks!.pm!.route = { keywords: ['产品'], exclude: [], priority: 100, fallback: false }
+    expect(countDraftChanges(governed, words)).toBe(1)
+    const none = JSON.parse(JSON.stringify(governed)) as WbWorkflowDef
+    none.tracks!.pm!.spec = 'none'
+    expect(countDraftChanges(governed, none)).toBe(1)
+    none.tracks!.pm!.route = { keywords: ['产品'], exclude: [], priority: 100, fallback: false }
+    expect(countDraftChanges(governed, none)).toBe(2)
+  })
+
+  it('同样的设置、只是键顺序不同不算改动', () => {
+    const before = JSON.parse(JSON.stringify(governed)) as WbWorkflowDef
+    before.tracks!.pm!.route = { keywords: ['a'], exclude: [], priority: 1, fallback: false }
+    const after = JSON.parse(JSON.stringify(before)) as WbWorkflowDef
+    after.tracks!.pm!.route = { fallback: false, priority: 1, exclude: [], keywords: ['a'] }
+    expect(countDraftChanges(before, after)).toBe(0)
+  })
+})
+
+describe('countDraftChanges · 测试档位', () => {
+  it('改档位算所属阶段的 1 处，换档位仍是 1 处', () => {
     const flat: WbWorkflowDef = { name: 'flat', steps: [stage('s')] }
-    const edited = setStepTestPolicyInDef(flat, 's', { plan: 'required' })
+    const edited = setStepTestLevelInDef(flat, 's', 'changed')
     expect(countDraftChanges(flat, edited)).toBe(1)
-    expect(countDraftChanges(flat, setStepTestPolicyInDef(edited, 's', undefined))).toBe(0)
-    const twice = setStepTestPolicyInDef(edited, 's', { plan: 'required', kinds: ['unit'] })
+    const twice = setStepTestLevelInDef(edited, 's', 'full')
     expect(countDraftChanges(edited, twice)).toBe(1)
+    expect(countDraftChanges(flat, twice)).toBe(1)
+  })
+
+  it('选档替换旧策略也是 1 处；选回不要求的原状（没有声明）不产生草稿改动', () => {
+    const flat: WbWorkflowDef = { name: 'flat', steps: [stage('s')] }
+    expect(countDraftChanges(flat, setStepTestLevelInDef(flat, 's', 'none'))).toBe(0)
+    const legacy: WbWorkflowDef = { name: 'flat', steps: [{ ...stage('s'), test_policy: { plan: 'required' } }] }
+    expect(countDraftChanges(legacy, setStepTestLevelInDef(legacy, 's', 'plan'))).toBe(1)
   })
 })

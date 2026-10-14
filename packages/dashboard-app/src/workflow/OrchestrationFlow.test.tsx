@@ -581,6 +581,32 @@ describe('OrchestrationFlow · 策略要求运行的测试种类', () => {
   })
 })
 
+describe('OrchestrationFlow · 名称不翻译', () => {
+  afterEach(() => window.localStorage.removeItem('tenon-dashboard-lang'))
+
+  it('英文界面：default 的阶段名与测试项名照样显示存下来的 label，没有 label 的显示 id', () => {
+    window.localStorage.setItem('tenon-dashboard-lang', 'en')
+    const stages: FlowStage[] = [
+      { id: 'open', label: '立项', gate: null, entries: [entry('skill', 'openspec-propose', 0)] },
+      { id: 'verify', label: '验证', gate: 'review', entries: [entry('test', 'code-size', 0, [], { label: '代码规模' }), entry('test', 'unit', 1)] },
+      { id: 'build', label: 'build', gate: null, entries: [] },
+    ]
+    renderFlow({ stages, returns: [], flows: [], mode: 'overview' })
+    expect(screen.getByTestId('orch-stage-open')).toHaveTextContent('立项')
+    expect(screen.getByTestId('orch-stage-verify')).toHaveTextContent('验证')
+    expect(screen.getByTestId('orch-stage-build')).toHaveTextContent('build')
+    expect(screen.getByTestId('orch-node-test-code-size')).toHaveTextContent('代码规模')
+    expect(screen.getByTestId('orch-node-test-unit')).toHaveTextContent('unit')
+  })
+
+  it('阶段画布（单列）里测试项名同样不按界面语言换', () => {
+    window.localStorage.setItem('tenon-dashboard-lang', 'en')
+    const stages: FlowStage[] = [{ id: 'verify', label: '验证', gate: null, entries: [entry('test', 'code-size', 0, [], { label: '代码规模' })] }]
+    renderFlow({ stages, returns: [], flows: [], mode: 'stage' })
+    expect(screen.getByTestId('orch-node-test-code-size')).toHaveTextContent('代码规模')
+  })
+})
+
 describe('OrchestrationFlow · 与 kernel 同一份编排', () => {
   it('草稿直接走 kernel orchestrate：未声明依赖串行、声明依赖成波', () => {
     const serial = orchestrate({ steps: [{ id: 's', label: 'S', gate: null, skills: [{ id: 'a' }, { id: 'b' }, { id: 'c' }], transitions: [] }] })
@@ -590,7 +616,7 @@ describe('OrchestrationFlow · 与 kernel 同一份编排', () => {
 
   it('草稿的 gate null 与服务端编译同口径：画成自动；review 不动', () => {
     const stage = (id: string, gate: 'review' | 'auto' | null) => ({ id, label: id, gate, skills: [], inputs: [], outputs: [], guards: [], transitions: [] })
-    const drawn = draftOrchestration({ name: 'flow', steps: [stage('a', null), stage('b', 'auto'), stage('c', 'review')] }, undefined, {})
+    const drawn = draftOrchestration({ name: 'flow', steps: [stage('a', null), stage('b', 'auto'), stage('c', 'review')] }, undefined)
     expect(drawn.stages.map((item) => item.gate)).toEqual(['auto', 'auto', 'review'])
     renderFlow({ stages: drawn.stages, returns: [], flows: [], mode: 'overview' })
     expect(screen.getAllByTestId('orch-gate').map((mark) => mark.getAttribute('data-gate'))).toEqual(['auto', 'auto', 'review'])

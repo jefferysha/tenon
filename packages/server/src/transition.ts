@@ -36,18 +36,21 @@ import {
   loadRegistry,
   judgeStepSkillSlots,
   loadWorkflow,
+  makeGuardFileContext,
   missingStepSkillMessages,
   nodeLoopIoStrict,
   resolveRequiredSkillSlots,
   stateStorageExistsSync,
+  universalGuardCapabilities,
   taskPlanTasksThroughPhaseForChange, assessBuildRevisionTrust, createBuildRevisionToken, expectedBuildRevisionKind,
   probeBuildRevisionIdentity, readCurrentRunRevision, readStepRounds, readValidatedTransitionHead, safeRevisionHash,
-  readReviewGateBinding, renderAgentBlocker, reviewGateBindingMatches,
-  actorOf, isTenonUser, ownerRequiredMessage, USER_MISSING_HINT, userSlug,
+  readReviewGateBinding, reviewGateBindingMatches,
+  actorOf, isTenonUser, USER_MISSING_HINT, userSlug,
 } from '@tenon/kernel'
 import type {
-  BreadcrumbWriter, EffectiveSkillResolver, FlowEngine, HistoryWriter, StateStore, TrackDefinition,
-  TrackPolicyProfile, TransitionApplicationResult, TransitionContext, TransitionRecordStore, WorkflowRunRepository,
+  AutomationPolicyBits, BreadcrumbWriter, EffectiveSkillResolver, FlowEngine, HistoryWriter, StateStore,
+  TransitionContext, TransitionRecordStore, UniversalGuardCapabilities,
+  WorkflowRunRepository,
 } from '@tenon/kernel'
 import { enqueueAfterSpecComplete } from '@tenon/automation'
 import { errText, mapTransitionResult, type TransitionOutcome } from './transitionResult.js'
@@ -89,7 +92,7 @@ export interface TransitionDeps {
    * .pipeline-history.jsonl 记账（G20 / v5-T1）：转换成功后追加一行，形状对齐 CLI 侧
    * cli/commands/transition.ts 的既有口径——kind='transition' + raw=触发它的 event 名
    * （「transition-kind 的 raw = event」不变式）。best-effort：写失败仅 WARN 走 stderr，
-   * 绝不影响主写已成功的 200（同 server.ts POST /api/changes 的 kind=init 记账语义）。
+   * 绝不影响主写已成功的 200（同 CLI init 的 kind=init 记账语义）。
    * guard/前置校验拒绝的转换在 withLock 内即抛错，天然零记账。缺省 = 不记账（测试可不注入）。
    */
   history?: HistoryWriter
@@ -103,8 +106,7 @@ export interface TransitionDeps {
    * HTTP adapter 提供的 effective track policy 解析器。存在时，已提交的 spec-complete 会走
    * automation 的独立 auto-enqueue policy；缺席只用于低层 transition 单测，绝不伪造配置。
    */
-  resolveTrackPolicy?: (trackId: string) => TrackPolicyProfile
-  resolveTrack?: (trackId: string) => TrackDefinition
+  resolveTrackPolicy?: (trackId: string) => AutomationPolicyBits
   skillResolver?: EffectiveSkillResolver
   /** Declared identity for the root; defaults to the server resolver. Only the owner may advance. */
   resolveUser?: ResolveUser
@@ -151,8 +153,11 @@ export async function performTransition(
   const workspaceFingerprint = deps.workspaceFingerprint
   const captureBuildRevision = deps.captureBuildRevision
   const assessBuildRevision = deps.assessBuildRevision
-  const ctx: TransitionContext = {
+  const ctx: TransitionContext & UniversalGuardCapabilities = {
     fileExists: fileExists ? (p: string): boolean => fileExists(root, p) : undefined,
+    // step-graph 的通用离开条件（任务勾选 / AFK 排队 / 依赖结束），与 CLI 同一份实现。Dashboard 的写回
+    // 永远不是调度器自己执行，所以不开 automationRunner 旁路（同 stepExitReadiness）。
+    ...universalGuardCapabilities(dir, makeGuardFileContext(root, { automationRunner: false })(name)),
     gitHeadSha: gitHeadSha ? (): Promise<string> => gitHeadSha(root) : undefined,
     workspaceFingerprint: workspaceFingerprint
       ? (): Promise<string> => workspaceFingerprint(root, name)
@@ -236,7 +241,6 @@ export async function performTransition(
     clock: deps.clock,
     history: deps.history,
     breadcrumb: deps.breadcrumb,
-    resolveTrack: deps.resolveTrack,
     // 验证轮次上限的强制层：用完后受约束步骤的回退边不再放行（与 CLI 的 `tenon transition` 同一份判定）。
     roundsOf: ({ changeDir: targetDir, plan, state, stepId }) => readStepRounds({
       ...(deps.recordStore === undefined ? {} : { recordStore: deps.recordStore }),

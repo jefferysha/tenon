@@ -1,10 +1,8 @@
 import { createHash } from 'node:crypto'
 import {
   ADAPTER_CAPABILITY_BY_HOST,
-  BUILTIN_WORKFLOW_IDS,
   DEFAULT_WORKFLOW_SOURCE,
-  builtinWorkflow,
-  loadTrackRegistry,
+  listTracks,
   parseWorkflow,
   type AdapterCatalogEntryV1,
   type DefinitionCatalogV1,
@@ -27,7 +25,6 @@ import {
   readWorkflowForApi,
   type WorkflowRootAnchor,
 } from './workflows.js'
-import type { TrackValidationContext } from '@tenon/kernel'
 
 /**
  * 能力矩阵一律来自 adapters/registry.yaml 的生成表（ADAPTER_CAPABILITY_BY_HOST），
@@ -62,8 +59,8 @@ function digest(value: unknown): string {
   return createHash('sha256').update(stableJson(value), 'utf8').digest('hex').slice(0, 32)
 }
 
-function workflowEntry(workflow: WorkflowDef, source: WorkflowCatalogEntryV1['source']): WorkflowCatalogEntryV1 {
-  const steps = workflow.steps.map((step, order) => ({
+function stepEntries(steps: WorkflowDef['steps']): WorkflowCatalogEntryV1['steps'] {
+  return steps.map((step, order) => ({
     id: step.id,
     label: step.label,
     order,
@@ -72,26 +69,44 @@ function workflowEntry(workflow: WorkflowDef, source: WorkflowCatalogEntryV1['so
     skill_dependencies: Object.fromEntries(step.skills.map((skill: { id: string; depends_on?: readonly string[] }) => [skill.id, [...(skill.depends_on ?? [])]])),
     transition_events: step.transitions.map((transition: { event: string }) => transition.event),
   }))
+}
+
+function workflowEntry(workflow: WorkflowDef, source: WorkflowCatalogEntryV1['source']): WorkflowCatalogEntryV1 {
   return {
     id: workflow.name,
     version: 'v1',
     fingerprint: digest(workflow),
     source,
     readonly: source === 'builtin',
-    steps,
+    steps: stepEntries(workflow.steps),
   }
+}
+
+/**
+ * 轨道就是工作流的分支：每条分支一个条目，身份是「工作流 + 轨道 id」（allowed_workflows 只有它所在的工作流）。
+ * 分支没有独立的 revision，随工作流内容走；平铺工作流的唯一隐式分支用工作流名当 id。
+ */
+function trackEntries(workflow: WorkflowDef, entry: WorkflowCatalogEntryV1): TrackCatalogEntryV1[] {
+  return listTracks(workflow).map((branch) => ({
+    id: branch.id,
+    label: branch.label,
+    builtin: entry.source === 'builtin',
+    revision: entry.fingerprint.slice(0, 16),
+    source: entry.source === 'builtin' ? 'builtin' : 'project',
+    default_workflow: entry.id,
+    allowed_workflows: [entry.id],
+  }))
 }
 
 function pipelineEntry(
   workflow: WorkflowCatalogEntryV1,
   track: TrackCatalogEntryV1,
+  branchSteps: WorkflowCatalogEntryV1['steps'],
 ): PipelineCatalogEntryV1 {
-  const stages = workflow.steps.map((step, order) => {
-    const previous = order === 0 ? [] : [workflow.steps[order - 1]?.id ?? '']
-    const sourceStep = workflow.steps[order]
-    const skillDependencies = sourceStep?.skill_dependencies ?? {}
-    const mode = sourceStep !== undefined
-      && sourceStep.skill_ids.length > 1
+  const stages = branchSteps.map((step, order) => {
+    const previous = order === 0 ? [] : [branchSteps[order - 1]?.id ?? '']
+    const skillDependencies = step.skill_dependencies
+    const mode = step.skill_ids.length > 1
       && Object.values(skillDependencies).every((dependencies) => dependencies.length === 0)
       ? 'parallel' as const
       : 'serial' as const
@@ -148,30 +163,29 @@ function adapterEntries(catalog: HostTargetCatalogDto, hostHome: string): Adapte
   })
 }
 
-function workflowDefinitions(anchor: WorkflowRootAnchor): WorkflowCatalogEntryV1[] {
-  const result: WorkflowCatalogEntryV1[] = []
-  const names = listWorkflowNames(anchor)
-  const defaultOverride = names.includes('default') ? readWorkflowForApi(anchor, 'default') : null
-  result.push(defaultOverride === null
-    ? workflowEntry(parseWorkflow(DEFAULT_WORKFLOW_SOURCE), 'builtin')
-    : workflowEntry(defaultOverride, 'project'))
-  for (const id of BUILTIN_WORKFLOW_IDS) {
-    const workflow = builtinWorkflow(id)
-    if (workflow !== null) result.push(workflowEntry(workflow, 'builtin'))
+interface CatalogWorkflow {
+  readonly entry: WorkflowCatalogEntryV1
+  readonly definition: WorkflowDef
+}
+
+function workflowDefinitions(anchor: WorkflowRootAnchor): CatalogWorkflow[] {
+  const result: CatalogWorkflow[] = []
+  const add = (definition: WorkflowDef, source: WorkflowCatalogEntryV1['source']): void => {
+    result.push({ entry: workflowEntry(definition, source), definition })
   }
+  const names = listWorkflowNames(anchor)
+  add(names.includes('default') ? readWorkflowForApi(anchor, 'default') : parseWorkflow(DEFAULT_WORKFLOW_SOURCE), names.includes('default') ? 'project' : 'builtin')
   for (const name of names.filter((candidate) => !isDefaultWorkflowName(candidate))) {
-    const workflow = readWorkflowForApi(anchor, name)
-    result.push(workflowEntry(workflow, 'project'))
+    add(readWorkflowForApi(anchor, name), 'project')
   }
   const seen = new Set<string>()
-  return result.filter((entry) => !seen.has(entry.id) && (seen.add(entry.id), true))
+  return result.filter(({ entry }) => !seen.has(entry.id) && (seen.add(entry.id), true))
 }
 
 export interface DefinitionCatalogDeps {
   readonly anchor: WorkflowRootAnchor
   readonly hostHome: string
   readonly operationRunner: PipelineCliRunner
-  readonly trackValidationContext: TrackValidationContext
   readonly generatedAt: string
 }
 
@@ -181,20 +195,14 @@ export async function buildDefinitionCatalog(deps: DefinitionCatalogDeps): Promi
   if (hostResult.exitCode !== 0) throw new Error('宿主 catalog 命令失败')
   const hostCatalog = decodeHostTargetCatalog(parsePipelineCliJson(hostResult.stdout))
   if (hostCatalog === null) throw new Error('宿主 catalog 响应无效')
-  const trackRegistry = loadTrackRegistry(deps.anchor.path, deps.trackValidationContext)
-  const tracks = trackRegistry.ordered.map<TrackCatalogEntryV1>((track) => ({
-    id: track.id,
-    label: track.label,
-    builtin: track.builtin,
-    revision: trackRegistry.revision,
-    source: track.builtin ? 'builtin' : 'project',
-    default_workflow: track.workflow.default,
-    allowed_workflows: track.workflow.allowed,
+  const catalogWorkflows = workflowDefinitions(deps.anchor)
+  const workflows = catalogWorkflows.map(({ entry }) => entry)
+  const tracks = catalogWorkflows.flatMap(({ entry, definition }) => trackEntries(definition, entry))
+  const pipelines = catalogWorkflows.flatMap(({ entry, definition }) => listTracks(definition).map((branch) => {
+    const track = tracks.find((candidate) => candidate.default_workflow === entry.id && candidate.id === branch.id)
+    if (track === undefined) throw new Error(`definition catalog: 轨道 ${entry.id}/${branch.id} 缺条目`)
+    return pipelineEntry(entry, track, stepEntries(branch.steps))
   }))
-  const workflows = workflowDefinitions(deps.anchor)
-  const pipelines = workflows.flatMap((workflow) => tracks
-    .filter((track) => track.allowed_workflows === '*' || track.allowed_workflows.includes(workflow.id))
-    .map((track) => pipelineEntry(workflow, track)))
   const base = {
     schema_version: 'definition-catalog/v1' as const,
     generated_at: deps.generatedAt,

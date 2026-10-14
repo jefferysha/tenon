@@ -16,6 +16,7 @@ import {
   reviewGateBindingForState, writeReviewGateBindingUnderLock,
 } from '@tenon/kernel'
 import type { BreadcrumbWriter } from '@tenon/kernel'
+import { legacyDefaultInitialWorkflow } from '@tenon/kernel/workflow/test-support'
 import { performTransition, type TransitionDeps } from './transition.js'
 import {
   initChange,
@@ -36,15 +37,6 @@ describe('真实 e2e —— server 并发 transition 尾部写入严格串行（
     await mkdir(join(root, '.pipeline', 'workflows'), { recursive: true })
     await writeFile(join(root, '.pipeline', 'workflows', 'serial.yaml'), `name: serial
 openspec: true
-document_contract:
-  version: v1
-  slots:
-    - kind: proposal
-      owner_step: one
-      producers: [openspec-propose]
-  reads:
-    - step: two
-      kinds: [proposal]
 steps:
   - id: one
     label: One
@@ -68,12 +60,11 @@ steps:
       - event: two-complete
         to: one
 `, 'utf8')
-    const initializedChangeDir = await initChange(store, root, name, {
+    await initChange(store, root, name, {
       track: 'simple',
       initialWorkflow: { workflow: 'serial', phase: 'one', openspecContract: false },
     })
     const changeDir = join(root, 'openspec', 'changes', name)
-    await seedGovernedDocumentEvidence(root, initializedChangeDir, name)
     // Use a non-review custom workflow so the lock-tail assertion does not need to
     // write an approval receipt while the first transition still owns the Change lock.
     await recordWorkflowPhaseSkill(root, changeDir, 'openspec-propose')
@@ -238,7 +229,8 @@ steps:
     const store = newStore()
     const root = await makeProject()
     const name = 'invalid-utf8'
-    const changeDir = await initChange(store, root, name)
+    // build 出口读 tasks.md 的旧引擎（阶段清单）规则：用升级前创建的任务验证。
+    const changeDir = await initChange(store, root, name, { initialWorkflow: legacyDefaultInitialWorkflow('backend') })
     await seedGovernedDocumentEvidence(root, changeDir, name)
     await writeFile(join(changeDir, 'tasks.md'), Buffer.from([0xc3, 0x28]))
     await store.setMany(changeDir, {

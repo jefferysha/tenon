@@ -288,10 +288,6 @@ steps:
     label: Implement
     gate: null
     skills: []
-    inputs: []
-    outputs:
-      - field: build_sha
-        type: string
     guards: []
     transitions:
       - event: ready
@@ -300,10 +296,6 @@ steps:
     label: Assure
     gate: review
     skills: []
-    inputs:
-      - field: build_sha
-        type: string
-    outputs: []
     guards: []
     transitions:
       - event: pass
@@ -321,7 +313,7 @@ steps:
     guards: []
     transitions: []
 `, 'utf8')
-    await h.run(['init', 'demo', '--track', 'backend', '--preset', 'full', '--workflow', 'custom-review'])
+    expect(await h.run(['init', 'demo', '--preset', 'full', '--workflow', 'custom-review']), h.err.join('\n')).toBe(0)
     await h.seedArtifact('demo', 'phase', 'assure-anything')
     await h.seedArtifact('demo', 'isolation', 'branch')
     await h.seedArtifact('demo', 'build_sha', 'legacy-sha')
@@ -711,7 +703,8 @@ describe('decision server adapters · one approval approves exactly the frozen s
       },
     })
     const catalogAfter = await readFile(join(h.cwd, CATALOG), 'utf8')
-    expect(catalogAfter).toMatch(/kind: integration\s+reason: 请求之后才声明的\s+approved_by: null/u)
+    // 目录写回只改批准的那一项：请求之后手写的声明连同它的 flow 写法逐字保留。
+    expect(catalogAfter).toContain('  - { kind: integration, reason: 请求之后才声明的, approved_by: null }\n')
     const { seal } = await readTestSeal(h.cwd, SLUG)
     expect(isApproved(seal, 'demo', CATALOG, await protectedFileDigest(h.cwd, CATALOG))).toBe(false)
   })

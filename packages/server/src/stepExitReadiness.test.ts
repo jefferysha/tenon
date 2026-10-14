@@ -10,6 +10,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import type { TenonUser } from '@tenon/kernel'
+import { legacyDefaultInitialWorkflow } from '@tenon/kernel/workflow/test-support'
 import { buildSnapshot } from './snapshot.js'
 import { initChange, makeProject, newStore, testFlow } from './test-support.js'
 
@@ -42,7 +43,8 @@ async function buildFixture(): Promise<{ root: string; name: string; changeDir: 
   const store = newStore()
   const root = await makeProject()
   const name = 'parity-change'
-  const changeDir = await initChange(store, root, name, { track: 'backend' })
+  // 「缺技能 / 缺文档 / tasks.md 未勾」三类出口阻断是旧引擎（阶段清单）的规则，用升级前创建的任务来验证两边同一份判定。
+  const changeDir = await initChange(store, root, name, { track: 'backend', initialWorkflow: legacyDefaultInitialWorkflow('backend') })
   const seeded = await store.read(changeDir)
   await store.write(changeDir, { ...seeded, fields: { ...seeded.fields, phase: 'build' } })
   // 未勾的任务：旧格式（无阶段标题）整张清单归 build。

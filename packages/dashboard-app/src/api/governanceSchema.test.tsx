@@ -23,6 +23,10 @@ const guards = [
   ['full-direct-override', { type: 'full-direct-override' }],
   ['build-head-unchanged', { type: 'build-head-unchanged', field: 'build_sha' }],
   ['spec-migration-applied', { type: 'spec-migration-applied' }],
+  ['tasks-through-step', { type: 'tasks-through-step' }],
+  ['not-afk-queued', { type: 'not-afk-queued' }],
+  ['dependencies-ended', { type: 'dependencies-ended' }],
+  ['required-output', { type: 'required-output', path: 'docs/superpowers/specs/*.md' }],
 ] as const
 
 function decodeWithGuard(guard: unknown) {
@@ -136,26 +140,39 @@ describe('decodeWorkflowDefinition', () => {
     })).toBeNull()
   })
 
-  it('decodes the openspec switch, branch contracts and slot roles; rejects the removed openspecContract key', () => {
-    const contract = {
-      version: 'v1',
-      slots: [
-        { kind: 'tasks', ownerStep: 'one', producers: ['writer'] },
-        { kind: 'design-md', ownerStep: 'one', role: 'require', producers: [] },
-      ],
-      reads: [],
-    }
-    expect(decodeWorkflowDefinition({ name: 'governed', openspec: true, documentContract: contract, steps: [step] }))
-      .toMatchObject({ openspec: true, documentContract: { slots: [{ kind: 'tasks' }, { kind: 'design-md', role: 'require' }] } })
-    expect(decodeWorkflowDefinition({
-      name: 'branched', openspec: true, steps: [], tracks: { web: { label: '前端', documentContract: contract, steps: [step] } },
-    })?.tracks?.web?.documentContract?.slots).toHaveLength(2)
+  it('decodes the openspec switch; rejects the removed openspecContract key and a branch that still carries a document contract', () => {
+    expect(decodeWorkflowDefinition({ name: 'governed', openspec: true, steps: [step] })).toMatchObject({ openspec: true })
     expect(decodeWorkflowDefinition({ name: 'old', openspecContract: 'required', steps: [step] })).toBeNull()
     expect(decodeWorkflowDefinition({ name: 'switch', openspec: 'yes', steps: [step] })).toBeNull()
+    const contract = { version: 'v1', slots: [{ kind: 'tasks', ownerStep: 'one', producers: ['writer'] }], reads: [] }
     expect(decodeWorkflowDefinition({
-      name: 'bad-role', openspec: true, steps: [step],
-      documentContract: { ...contract, slots: [{ kind: 'tasks', ownerStep: 'one', role: 'read', producers: [] }] },
+      name: 'branched', openspec: true, steps: [], tracks: { web: { label: '前端', steps: [step] } },
+    })?.tracks?.web).toEqual({ label: '前端', steps: [step] })
+    expect(decodeWorkflowDefinition({
+      name: 'branched', openspec: true, steps: [], tracks: { web: { label: '前端', documentContract: contract, steps: [step] } },
     })).toBeNull()
+  })
+
+  it('a definition no longer carries materialised IO or a document contract; branches keep only their label', () => {
+    const decoded = decodeWorkflowDefinition({
+      name: 'io',
+      steps: [step],
+      effectiveIo: { one: { inputs: [], outputs: [] } },
+      documentContract: { version: 'v1', slots: [], reads: [] },
+      branches: { _base: {}, lite: { label: '轻量' } },
+    })
+    expect(decoded).not.toHaveProperty('effectiveIo')
+    expect(decoded).not.toHaveProperty('documentContract')
+    expect(decoded?.branches).toEqual({ _base: {}, lite: { label: '轻量' } })
+    expect(decodeWorkflowDefinition({ name: 'io', steps: [step], branches: { _base: { label: 3 } } })).toBeNull()
+  })
+
+  it('required-output carries a string path and nothing else', () => {
+    expect(decodeWithGuard({ type: 'required-output', path: 'docs/plans/{change}-plan.md' })?.steps[0]?.guards[0])
+      .toEqual({ type: 'required-output', path: 'docs/plans/{change}-plan.md' })
+    expect(decodeWithGuard({ type: 'required-output' })).toBeNull()
+    expect(decodeWithGuard({ type: 'required-output', path: 3 })).toBeNull()
+    expect(decodeWithGuard({ type: 'required-output', path: '' })).toBeNull()
   })
 
   it('decodes step tests with their pass criteria, inputs and outputs; rejects closed-set violations', () => {
@@ -190,16 +207,6 @@ describe('decodeWorkflowDefinition', () => {
     }
   })
 
-  it('effectiveIo document slots carry role and scope; the legacy locked-only shape is rejected', () => {
-    const io = (slot: Record<string, unknown>) => decodeWorkflowDefinition({
-      name: 'io', steps: [step], effectiveIo: { one: { inputs: [], outputs: [slot] } },
-    })
-    const slot = { kind: 'document', id: 'tasks', role: 'update', scope: 'change', producers: ['writer'], consumers: [] }
-    expect(io(slot)?.effectiveIo?.one?.outputs).toEqual([slot])
-    expect(io({ kind: 'document', id: 'tasks', producers: ['writer'], consumers: [], locked: true })).toBeNull()
-    expect(io({ ...slot, scope: 'repo' })).toBeNull()
-  })
-
   it('accepts every canonical default-workflow guard and action used by the kernel', () => {
     const decoded = decodeWorkflowDefinition({
       name: 'default',
@@ -230,6 +237,62 @@ describe('decodeWorkflowDefinition', () => {
         guards: [{ type: 'spec-migration-applied' }],
       },
     ])
+  })
+
+  it('decodes the three universal leave conditions on a step and on an exit, parameterless', () => {
+    const decoded = decodeWorkflowDefinition({
+      name: 'universal',
+      steps: [{
+        ...step,
+        guards: [{ type: 'tasks-through-step' }],
+        transitions: [{
+          event: 'build-complete',
+          to: 'verify',
+          guards: [{ type: 'not-afk-queued' }, { type: 'dependencies-ended' }],
+        }],
+      }],
+    })
+
+    expect(decoded?.steps[0]?.guards).toEqual([{ type: 'tasks-through-step' }])
+    expect(decoded?.steps[0]?.transitions[0]?.guards).toEqual([{ type: 'not-afk-queued' }, { type: 'dependencies-ended' }])
+  })
+
+  it('keeps the branch keys spec / route / automation of a built-in default track, exactly', () => {
+    const branch = {
+      label: '轻量',
+      spec: 'none',
+      route: { keywords: ['修复'], exclude: ['迁移'], priority: 500, fallback: false },
+      automation: { eligible: false, enqueueAfterSpec: false },
+      steps: [step],
+    }
+    const decoded = decodeWorkflowDefinition({ name: 'default', openspec: true, steps: [], tracks: { lite: branch } })
+    expect(decoded?.tracks?.lite).toMatchObject({
+      label: '轻量',
+      spec: 'none',
+      route: { keywords: ['修复'], exclude: ['迁移'], priority: 500, fallback: false },
+      automation: { eligible: false, enqueueAfterSpec: false },
+    })
+    // 没写这三个键的分支解码后也不出现它们（写回时不凭空多出键）。
+    const bare = decodeWorkflowDefinition({ name: 'default', steps: [], tracks: { plain: { steps: [step] } } })
+    expect(bare?.tracks?.plain).not.toHaveProperty('spec')
+    expect(bare?.tracks?.plain).not.toHaveProperty('route')
+    expect(bare?.tracks?.plain).not.toHaveProperty('automation')
+  })
+
+  it('rejects malformed branch keys instead of dropping them', () => {
+    const tracks = (over: Record<string, unknown>) =>
+      decodeWorkflowDefinition({ name: 'd', steps: [], tracks: { lite: { steps: [step], ...over } } })
+    expect(tracks({ spec: 'markdown' })).toBeNull()
+    expect(tracks({ route: { keywords: ['a'], exclude: [], priority: 1, fallback: false, colour: 'red' } })).toBeNull()
+    expect(tracks({ route: { keywords: 'a', exclude: [], priority: 1, fallback: false } })).toBeNull()
+    expect(tracks({ route: { keywords: ['a'], exclude: [], priority: -1, fallback: false } })).toBeNull()
+    expect(tracks({ automation: { eligible: 'no', enqueueAfterSpec: false } })).toBeNull()
+    expect(tracks({ automation: { eligible: true } })).toBeNull()
+    expect(tracks({ colour: 'red' })).toBeNull()
+  })
+
+  it.each(['tasks-through-step', 'not-afk-queued', 'dependencies-ended'])('%s takes no parameters', (type) => {
+    expect(decodeWithGuard({ type, n: 1 })).toBeNull()
   })
 
   it.each(guards)('%s rejects an illegal top-level data key instead of silently normalizing it', (_name, guard) => {
@@ -388,6 +451,42 @@ describe('decodeWorkflowDefinition · 步骤 test_policy', () => {
     expect(withPolicy({ browsers: [''] })).toBeNull()
     expect(withPolicy('unit')).toBeNull()
     expect(withPolicy(null)).toBeNull()
+  })
+})
+
+describe('decodeWorkflowDefinition · 步骤 test（测试档位）', () => {
+  const withLevel = (level: unknown, extra: Record<string, unknown> = {}) => decodeWorkflowDefinition({
+    name: 'levels', steps: [{ ...step, test: level, ...extra }],
+  })
+
+  it('四个档位原样解出，写回前整形后逐字相同（保存不丢档位）', () => {
+    for (const level of ['none', 'plan', 'changed', 'full']) {
+      const decoded = withLevel(level)
+      expect(decoded?.steps[0]?.test).toBe(level)
+      const written = JSON.parse(JSON.stringify(definitionForWrite(decoded as WbWorkflowDef))) as WbWorkflowDef
+      expect(written.steps[0]?.test).toBe(level)
+    }
+  })
+
+  it('track 分支里的步骤同样保留；没声明的步骤不补键', () => {
+    const decoded = decodeWorkflowDefinition({
+      name: 'branches', steps: [],
+      tracks: { backend: { steps: [{ ...step, test: 'changed' }, step] } },
+    })
+    expect(decoded?.tracks?.backend?.steps[0]?.test).toBe('changed')
+    expect(decoded?.tracks?.backend?.steps[1]).not.toHaveProperty('test')
+    expect(decodeWorkflowDefinition({ name: 'bare', steps: [step] })?.steps[0]).not.toHaveProperty('test')
+  })
+
+  it('未知档位、非字符串整份作废', () => {
+    expect(withLevel('quick')).toBeNull()
+    expect(withLevel('FULL')).toBeNull()
+    expect(withLevel(true)).toBeNull()
+    expect(withLevel(null)).toBeNull()
+  })
+
+  it('同一步同时有 test 与 test_policy 整份作废（互斥）', () => {
+    expect(withLevel('full', { test_policy: { run: ['unit'] } })).toBeNull()
   })
 })
 

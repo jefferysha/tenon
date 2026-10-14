@@ -21,6 +21,62 @@ async function writeCatalog(text: string): Promise<string> {
   return path
 }
 
+const COMMENTED = [
+  '# 项目测试目录：改命令请直接改这里', 'schema: tenon-test-catalog/v1', 'suites:', '  # ── 单测 ──',
+  '  - id: unit', '    kind: unit', '    runner: vitest', '    command: npm test', '    files:', '      - src/**/*.test.ts',
+  '    report:', '      format: junit', '      path: test-results/unit.xml',
+  '  # ── 静态检查 ──',
+  '  - id: lint', '    kind: lint', '    runner: custom', '    command: npm run lint', '    report:', '      format: exit-code', '',
+].join('\n')
+
+describe('updateCatalog 按节点写回', () => {
+  it('改一个套件的命令：只有这一行变，注释与排版逐字保留', async () => {
+    const path = await writeCatalog(COMMENTED)
+    const outcome = await updateCatalog(repo, (current) => ({
+      catalog: { ...current, suites: current.suites.map((suite) => (suite.id === 'unit' ? { ...suite, command: 'npm run unit' } : suite)) },
+      value: 'edited',
+    }))
+    expect(outcome).toEqual({ ok: true, value: 'edited' })
+    expect(await readFile(path, 'utf8')).toBe(COMMENTED.replace('command: npm test', 'command: npm run unit'))
+  })
+
+  it('得到的目录与原来深相等但是新对象：不重写文件，字节一个不动', async () => {
+    const path = await writeCatalog(COMMENTED)
+    expect(await updateCatalog(repo, (current) => ({ catalog: { ...current, suites: [...current.suites] }, value: 1 }))).toEqual({ ok: true, value: 1 })
+    expect(await readFile(path, 'utf8')).toBe(COMMENTED)
+  })
+
+  it('目录文件不存在：整份规范化写出（新建）', async () => {
+    const path = testSystemPaths(repo).catalog
+    const outcome = await updateCatalog(repo, (current) => ({
+      catalog: { ...current, not_applicable: [{ kind: 'typecheck', reason: '纯 JavaScript 项目', approved_by: null }] }, value: 'created',
+    }))
+    expect(outcome).toEqual({ ok: true, value: 'created' })
+    expect(await readFile(path, 'utf8')).toBe('schema: tenon-test-catalog/v1\nsuites: []\nnot_applicable:\n  - kind: typecheck\n    reason: 纯 JavaScript 项目\n    approved_by: null\n')
+  })
+
+  it('改出不合法的目录：拒绝并说明，原文件一个字节都不动', async () => {
+    const path = await writeCatalog(COMMENTED)
+    const outcome = await updateCatalog(repo, (current) => ({
+      catalog: { ...current, suites: current.suites.map((suite) => (suite.id === 'unit' ? { ...suite, report: { format: 'junit' as const, path: 'src/escape.xml' } } : suite)) },
+      value: 'bad',
+    }))
+    expect(outcome.ok).toBe(false)
+    expect(outcome.ok ? '' : outcome.message).toContain('改动后的目录不合法')
+    expect(await readFile(path, 'utf8')).toBe(COMMENTED)
+  })
+
+  it('并发的两个写者：读—改—写都在锁内，注释保留，两边的改动都在', async () => {
+    const path = await writeCatalog(COMMENTED)
+    const setCommand = (id: string, command: string) => updateCatalog(repo, (current) => ({
+      catalog: { ...current, suites: current.suites.map((suite) => (suite.id === id ? { ...suite, command } : suite)) }, value: id,
+    }))
+    const results = await Promise.all([setCommand('unit', 'npm run unit'), setCommand('lint', 'npm run lint:all')])
+    expect(results.map((result) => result.ok)).toEqual([true, true])
+    expect(await readFile(path, 'utf8')).toBe(COMMENTED.replace('command: npm test', 'command: npm run unit').replace('command: npm run lint', 'command: npm run lint:all'))
+  })
+})
+
 describe('updateCatalog 的观察步骤', () => {
   it('observe 在持锁时、读目录之前运行：它的结果交给 mutate，它期间落盘的改动 mutate 读得到', async () => {
     const path = await writeCatalog(CATALOG)

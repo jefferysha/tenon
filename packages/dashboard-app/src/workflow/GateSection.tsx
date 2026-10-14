@@ -5,6 +5,7 @@ import type { WorkflowEditor } from '../workbench/useWorkflowEditor'
 import { backTargetOf, gateKind } from '../workbench/workbenchDefinition'
 import { GateSegment } from './GateSegment'
 import { Hint } from './Hint'
+import { leaveConditionsOf } from './leaveConditions'
 import { issuesFor } from './lint'
 import { lintMessage } from './lintMessages'
 import { SectionHead } from './SectionHead'
@@ -15,10 +16,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 const BACK_NONE = '__none__'
 
 /**
- * 「门禁」段：门禁分段控件（评审 / 自动）→ 退回目标 → 测试策略（结构化表单）。退回目标只能是本阶段之前的
- * 阶段——往后跳在流程里不存在，从选项里就配不出来。测试策略是放行本阶段要满足的测试条件，所以归在门禁里。
+ * 「门禁」段：门禁分段控件（评审 / 自动）→ 退回目标 → 离开条件（只读，每条一行）→ 测试档位（四选一单选）。
+ * 退回目标只能是本阶段之前的阶段——往后跳在流程里不存在，从选项里就配不出来。离开条件在 YAML 里改，这里只列出，
+ * 「必须产出 <路径>」就是其中一种。测试档位是放行本阶段要满足的测试条件，所以归在门禁里。
  */
-export function GateSection({ editor, step, hasOutputs }: { editor: WorkflowEditor; step: WbStepDef; hasOutputs: boolean }): JSX.Element {
+export function GateSection({ editor, step }: { editor: WorkflowEditor; step: WbStepDef }): JSX.Element {
   const { t } = useT()
   const def = editor.def
   const steps = def?.steps ?? []
@@ -30,15 +32,16 @@ export function GateSection({ editor, step, hasOutputs }: { editor: WorkflowEdit
   const backIssues = issuesFor(editor.lint, step.id)
     .filter((issue) => issue.kind.startsWith('transition-'))
     .map((issue) => lintMessage(t, issue, editor.labelOf))
+  const leave = leaveConditionsOf(step, steps, editor.branch)
   return (
     <section className="grid gap-3.5 py-6" data-testid="stage-gate">
       <SectionHead title={t('workflow.gate_title')} />
       <div className="flex items-center gap-2">
         <GateSegment stepId={step.id} value={step.gate} disabled={!editable} onChange={(gate) => editor.setGate(step.id, gate)} />
-        {/* 自动门禁看的是产物齐全；阶段没有输出时它无从判断，标警示图标，原因放 Tooltip。 */}
-        {gateKind(step.gate) === 'auto' && !hasOutputs && (
-          <Hint label={t('workflow.gate_auto_no_output')}>
-            <button type="button" className="grid size-8 flex-none place-items-center rounded-sm text-amber-d outline-none focus-visible:ring-2 focus-visible:ring-(--accent)" aria-label={t('workflow.gate_auto_no_output')} data-testid="stage-gate-auto-warning">
+        {/* 自动门禁放行靠离开条件全部满足；阶段一条离开条件都没有时它什么也不检查，标警示图标，原因放 Tooltip。 */}
+        {gateKind(step.gate) === 'auto' && leave.length === 0 && (
+          <Hint label={t('workflow.gate_auto_no_conditions')}>
+            <button type="button" className="grid size-8 flex-none place-items-center rounded-sm text-amber-d outline-none focus-visible:ring-2 focus-visible:ring-(--accent)" aria-label={t('workflow.gate_auto_no_conditions')} data-testid="stage-gate-auto-warning">
               <AlertTriangle className="size-4" aria-hidden="true" />
             </button>
           </Hint>
@@ -68,12 +71,26 @@ export function GateSection({ editor, step, hasOutputs }: { editor: WorkflowEdit
           )}
         </div>
       )}
+      {leave.length > 0 && (
+        <ul className="grid gap-1.5" data-testid="stage-leave-conditions">
+          {leave.map((condition) => {
+            const text = t(condition.key, condition.vars)
+            return (
+              <li key={`${condition.key}${JSON.stringify(condition.vars ?? {})}`} className="flex items-center gap-2 whitespace-nowrap text-body text-text-2">
+                <span className="size-1.5 flex-none rounded-full bg-border-2" aria-hidden="true" />
+                <span className="min-w-0 truncate" title={text}>{text}</span>
+              </li>
+            )
+          })}
+        </ul>
+      )}
       <TestPolicyForm
         stepId={step.id}
-        policy={step.test_policy}
+        level={step.test}
+        legacyPolicy={step.test_policy}
         legacyTests={step.tests ?? []}
         editable={editable}
-        onChange={(next) => editor.setTestPolicy(step.id, next)}
+        onChange={(next) => editor.setTestLevel(step.id, next)}
       />
     </section>
   )

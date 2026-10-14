@@ -31,14 +31,13 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import {
-  BUILTIN_TRACK_DEFINITIONS,
   compileEffectiveWorkflowPlan, createEffectiveSkillResolver, createLoopLedgerStore, createLoopsYamlText,
   createStateStore, createTransitionRecordStore, createWorkflowRunRepository,
   ledgerDirPath, ledgerFilePath, loadManifest, loadRegistry, nodeLoopIoStrict,
   readRegistrySnapshot, updateLoopInYaml, writeRegistryWithGovernance,
   workflowPlanSnapshot,
-  type ExtendedManifestData, type LoopLedgerStore, type NewLoopEntryInput, type StateStore, type TrackRegistry,
-  type VerificationResult, type WorkflowRunRepository,
+  type ExtendedManifestData, type LoopLedgerStore, type NewLoopEntryInput, type StateStore, type StepDef,
+  type VerificationResult, type WorkflowDef, type WorkflowRunRepository,
 } from '@tenon/kernel'
 import {
   createExecutionPreparation, createFsSkillContentLocator, createLifecyclePorts, createLoopAdmission,
@@ -56,51 +55,59 @@ const TEST_CREATOR = { id: 'tester@tenon.test', name: 'Tester', trust: 'declared
 
 const PROFILE = 'backend' // 具名 profile（词法与存在性都合法，见 registry.ts::SKILL_BUNDLE_ID_RE + 下方 isSkillProfileKnown）
 const SKILL_ID = 'demo-skill'
+/** 另一条分支（frontend）的同名步骤声明的技能：任务在 backend，AFK loop 取到的必须是 backend 分支自己的步骤。 */
+const OTHER_BRANCH_SKILL_ID = 'other-branch-skill'
 const FIXED_CLOCK = '2026-07-18T00:00:00.000Z'
-const TEST_TRACK_REGISTRY: TrackRegistry = {
-  ordered: BUILTIN_TRACK_DEFINITIONS,
-  byId: new Map(BUILTIN_TRACK_DEFINITIONS.map((track) => [track.id, track])),
-  revision: '0123456789abcdef',
-  source: 'builtin-only',
-}
-const AFK_WORKFLOW = compileEffectiveWorkflowPlan('skill-bundle-afk', {
+const branchSteps = (skill: string): StepDef[] => [{
+  id: 'build', label: 'Build', gate: null,
+  skills: [{ id: skill }], inputs: [], outputs: [], guards: [], transitions: [{ event: 'build-complete', to: 'verify' }],
+}, {
+  id: 'verify', label: 'Verify', gate: null,
+  skills: [{ id: skill }], inputs: [], outputs: [], guards: [], transitions: [],
+}]
+// 带 tracks 的自定义工作流：顶层没有 steps；frontend 排在 backend 前面，任何「取第一条分支」的实现都会取到它。
+// AFK 资格只读分支的 automation.eligible。
+const AFK_WORKFLOW_DEF: WorkflowDef = {
   name: 'skill-bundle-afk',
   interaction: { version: 'v1', mode: 'afk' },
-  steps: [{
-    id: 'build', label: 'Build', gate: null,
-    skills: [{ id: SKILL_ID }], inputs: [], outputs: [], guards: [], transitions: [{ event: 'build-complete', to: 'verify' }],
-  }, {
-    id: 'verify', label: 'Verify', gate: null,
-    skills: [{ id: SKILL_ID }], inputs: [], outputs: [], guards: [], transitions: [],
-  }],
-})
+  steps: [],
+  tracks: {
+    frontend: { steps: branchSteps(OTHER_BRANCH_SKILL_ID), automation: { eligible: true, enqueueAfterSpec: false } },
+    backend: { steps: branchSteps(SKILL_ID), automation: { eligible: true, enqueueAfterSpec: false } },
+  },
+}
+const AFK_WORKFLOW = compileEffectiveWorkflowPlan('skill-bundle-afk', AFK_WORKFLOW_DEF, { track: 'backend' })
 const AFK_WORKFLOW_SNAPSHOT = workflowPlanSnapshot(AFK_WORKFLOW)
+const branchYaml = (track: string, skill: string): string => `  ${track}:
+    automation: { eligible: true }
+    steps:
+      - id: build
+        label: Build
+        gate: null
+        skills:
+          - id: ${skill}
+        inputs: []
+        outputs: []
+        guards: []
+        transitions:
+          - event: build-complete
+            to: verify
+      - id: verify
+        label: Verify
+        gate: null
+        skills:
+          - id: ${skill}
+        inputs: []
+        outputs: []
+        guards: []
+        transitions: []
+`
 const AFK_WORKFLOW_YAML = `name: ${AFK_WORKFLOW.id}
 interaction:
   version: v1
   mode: afk
-steps:
-  - id: build
-    label: Build
-    gate: null
-    skills:
-      - id: ${SKILL_ID}
-    inputs: []
-    outputs: []
-    guards: []
-    transitions:
-      - event: build-complete
-        to: verify
-  - id: verify
-    label: Verify
-    gate: null
-    skills:
-      - id: ${SKILL_ID}
-    inputs: []
-    outputs: []
-    guards: []
-    transitions: []
-`
+tracks:
+${branchYaml('frontend', OTHER_BRANCH_SKILL_ID)}${branchYaml('backend', SKILL_ID)}`
 
 /** 最小真实 manifest 定稿：custom workflow 的 'build' step 在 'backend' track 的
  * explicit profile allowlist 恰是 SKILL_ID；custom bundle 仍只消费冻结 StepIR 声明，不注入 default。
@@ -219,7 +226,6 @@ function exactWorkflowActionAuthority(store: StateStore, repoRoot: string) {
       id: string; workflowId?: string; workflowPlanFingerprint?: string
       loopId?: string; iterationId?: string
     }
-    registry: TrackRegistry
   }) => {
     const state = await store.read(changeDir(repoRoot, input.change))
     const metadata = state.runMetadata
@@ -244,15 +250,11 @@ function exactWorkflowActionAuthority(store: StateStore, repoRoot: string) {
       skill: query
         ? parseSkillActionAuthorityContract(skillActionAuthorityContract(query, ['enter-afk']), query)
         : { status: 'missing' as const, grants: [] },
-      project: { status: 'valid' as const, grants: ['enter-afk' as const] },
       run: exact
         ? { status: 'valid' as const, grants: ['enter-afk' as const] }
         : { status: 'fingerprint-mismatch' as const, grants: [] },
-      projectAuthority: {
-        version: 'v1' as const,
-        track_id: 'backend',
-        track_registry_revision: input.registry.revision,
-      },
+      // 项目层由准入读冻结计划里该分支的 automation；宿主只说明任务记着哪条轨道。
+      trackId: String(state.fields.track ?? ''),
     }
   }
 }
@@ -276,6 +278,9 @@ async function setupRig(opts: { loopId?: string } = {}): Promise<Rig> {
   await writeFile(join(skillsRoot, SKILL_ID, 'SKILL.md'), `# ${SKILL_ID}\n真实技能说明文档（H10 集成测试固定内容，禁止随意改动其字节，快照 hash 断言依赖它）。\n`, 'utf8')
   await writeFile(join(skillsRoot, SKILL_ID, 'scripts', 'run.sh'), '#!/bin/sh\necho demo\n', 'utf8')
   await chmod(join(skillsRoot, SKILL_ID, 'scripts', 'run.sh'), 0o755)
+  // 另一条分支的技能也真实存在：静态 wiring 逐条核对能进 AFK 的分支，这条必须过；任务实际取到哪条看运行时坐标。
+  await mkdir(join(skillsRoot, OTHER_BRANCH_SKILL_ID), { recursive: true })
+  await writeFile(join(skillsRoot, OTHER_BRANCH_SKILL_ID, 'SKILL.md'), `# ${OTHER_BRANCH_SKILL_ID}\n另一条分支的技能。\n`, 'utf8')
 
   const store = createStateStore()
   await initAfkChange(store, repoRoot, change)
@@ -316,7 +321,6 @@ function buildAdmission(rig: Rig): LoopAdmission {
       rig.runRepo.bindAutomationPolicy(changeDir(rig.repoRoot, change), policy, binding),
     bindWorkflowActionAuthority: (change, snapshot) =>
       rig.runRepo.bindWorkflowActionAuthority(changeDir(rig.repoRoot, change), snapshot),
-    withWorkflowActionAuthorityLock: async (use) => use(TEST_TRACK_REGISTRY),
     workflowActionAuthority: exactWorkflowActionAuthority(rig.store, rig.repoRoot),
   })
 }
@@ -443,6 +447,7 @@ describe('端到端全链 —— admission→prepareSkillBundle→snapshot→set
     if (snapshot?.kind !== 'skill-bundle-snapshot' || run?.kind !== 'run') throw new Error('unreachable：上方已 expect 定义')
     expect(snapshot.resolution_source).toBe('custom')
     expect(snapshot.skill_bundle_id).toBe(PROFILE)
+    // 带 tracks 的自定义工作流：frontend 排在前面，但任务在 backend 分支——AFK loop 取到的是任务自己分支的步骤。
     expect(snapshot.slots).toEqual([{ token: SKILL_ID, alternatives: [SKILL_ID], concrete_skill_id: SKILL_ID, tree_sha256: expect.stringMatching(/^[0-9a-f]{64}$/) }])
     expect(snapshot.snapshot_sha256).toBe(receivedBundle?.snapshotSha256)
     expect(run.result).toBe('paused')
@@ -749,7 +754,6 @@ describe('旧 ledger JSONL fixture 回归 —— 手写历史行与新真实 res
         runRepo.bindAutomationPolicy(changeDir(repoRoot, name), policy, binding),
       bindWorkflowActionAuthority: (name, snapshot) =>
         runRepo.bindWorkflowActionAuthority(changeDir(repoRoot, name), snapshot),
-      withWorkflowActionAuthorityLock: async (use) => use(TEST_TRACK_REGISTRY),
       workflowActionAuthority: exactWorkflowActionAuthority(store, repoRoot),
     })
     const result = await admission.reserve(change)

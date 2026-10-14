@@ -69,7 +69,7 @@ describe('评审者的 attach_on 与 host 组合', () => {
     await writeFile(join(harness.cwd, '.pipeline', 'workflows', 'crossvendor.yaml'), WF, 'utf8')
     initGit(harness.cwd)
     commitAll(harness.cwd, 'base', '2026-01-01T00:00:00Z')
-    expect(await harness.run(['init', CHANGE, '--track', 'backend', '--workflow', 'crossvendor', '--preset', 'full'], { env: ENV }), harness.err.join('\n')).toBe(0)
+    expect(await harness.run(['init', CHANGE, '--workflow', 'crossvendor', '--preset', 'full'], { env: ENV }), harness.err.join('\n')).toBe(0)
     return harness
   }
 

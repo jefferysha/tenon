@@ -184,6 +184,8 @@ export interface DevProjectOptions {
   readonly catalogInTask?: CatalogOptions
   /** build 步骤测试策略要求的种类；缺省只要求 `unit`。 */
   readonly policyRun?: readonly string[]
+  /** 随基线提交的额外文件（路径 → 内容），例如任务要用、又不该算进「任务里改过受保护的工作流」的项目工作流。 */
+  readonly baselineFiles?: Readonly<Record<string, string>>
 }
 
 export async function devProject(options: DevProjectOptions = {}): Promise<Dev> {
@@ -198,6 +200,7 @@ export async function devProject(options: DevProjectOptions = {}): Promise<Dev> 
     ...(options.deleteLegacyTest === true ? { [LEGACY_TEST_PATH]: LEGACY_TEST } : {}),
     [CATALOG_PATH]: catalog('单测', options.catalog),
     '.pipeline/workflows/trusted.yaml': workflow(options.integrity ?? 'unset', options.policyRun ?? ['unit']),
+    ...(options.baselineFiles ?? {}),
   })
   git(h.cwd, ['init', '-q', '-b', 'main'])
   commitAll(h.cwd, 'base', '2026-01-01T00:00:00Z')

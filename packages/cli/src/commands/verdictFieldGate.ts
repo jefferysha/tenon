@@ -13,42 +13,63 @@
  *   · `verify_result` 由 verify-pass / verify-fail 转换落值；只有当前步的出口 guard 点名它为手填
  *     结论（default 的 pm verify）时才接受写入，且只接受 guard 要的值、同样要证据。
  *
- * default 的每条轨道 build 都声明了就绪证据：frontend / backend 是必需测试，pm / free / chat 是
- * 必需评审者 `spec-consistency`（真机：这三条轨道从前什么都不声明，模型直接 set pass 自批）。
+ * default 的每条轨道 build 都声明了就绪证据：frontend / backend 是必需测试，pm 是必需评审者
+ * `spec-consistency`（真机：这几条轨道从前什么都不声明，模型直接 set pass 自批）。
  * 自定义工作流的某一步没有声明任何就绪证据时，闸无从核对，照旧放行——让它可核对的办法是在
- * 工作流里给这一步声明测试或评审者。
+ * 工作流里给这一步声明测试或评审者。读不到任务的工作流计划（文件被删且没有冻结快照）则不同：没有声明可言，
+ * 闸失败关闭，拒写这两个字段并说明修法，不放行自批。
+ *
+ * 「哪些字段是手填的结论、只接受哪些值」读的是离开条件：按 YAML 执行的任务取步骤 guards ∪ 前进边 guards
+ * （`leaveGuards`），拒写原因用 kernel 的 guard 渲染，与离开条件失败是同一句话；旧执行模型（阶段清单）的任务
+ * 沿用事件策略表与旧文案，旧引擎下个版本删除时这一支一并删。
  */
 import {
-  defaultEventGuardFields, INLINE_SUITE_PREFIX, isForwardExit, phaseExitGuardFields, renderTestBlocker, testItemSettled,
-  type EffectiveWorkflowPlan, type EventName, type FieldName, type PipelineState,
+  defaultEventGuardFields, evaluateWorkflowIrStepGuards, INLINE_SUITE_PREFIX, isForwardExit, phaseExitGuardFields,
+  isValidWorkflowName, renderTestBlocker, resolveWorkflowName, testItemSettled,
+  type CompiledGuardConfig, type EffectiveWorkflowPlan, type EventName, type FieldName, type PipelineState, type StepIR,
 } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
 import { resolveChangeDir } from '../paths.js'
 import { str } from '../render.js'
 import { testEvidenceContextFor, testEvidenceReaderFor } from '../testEvidenceContext.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
+import { isLegacyExecution } from './execution-cli-seam.js'
+import { leaveGuards } from './exitGuards.js'
 import { agentStepViews } from './statusStepAgents.js'
 
 const PRE_VERIFY = 'pre_verify_review_result'
 const VERIFY_RESULT = 'verify_result'
 export const VERDICT_FIELDS: ReadonlySet<string> = new Set([PRE_VERIFY, VERIFY_RESULT])
 
-/** 当前步出口会读的手填字段 → guard 接受的值（undefined = 只要求非空）。 */
-function stepFieldRequirements(
+type FieldGuard = Extract<CompiledGuardConfig, { readonly type: 'field-equals' | 'field-in' }>
+
+function isFieldGuard(guard: CompiledGuardConfig): guard is FieldGuard {
+  return guard.type === 'field-equals' || guard.type === 'field-in'
+}
+
+/** 按 YAML 执行的任务：当前步离开条件（步骤 guards ∪ 前进边 guards）里点名每个字段的 field-equals / field-in。 */
+function leaveFieldGuards(plan: EffectiveWorkflowPlan, state: PipelineState, step: StepIR): ReadonlyMap<string, readonly FieldGuard[]> {
+  const out = new Map<string, FieldGuard[]>()
+  for (const guard of leaveGuards(plan, step, state)) {
+    if (!isFieldGuard(guard)) continue
+    out.set(guard.field, [...(out.get(guard.field) ?? []), guard])
+  }
+  return out
+}
+
+/** 旧执行模型的任务：当前步出口会读的手填字段 → guard 接受的值（undefined = 只要求非空）。 */
+function legacyFieldRequirements(
   plan: EffectiveWorkflowPlan,
   state: PipelineState,
-  stepId: string,
+  step: StepIR,
 ): ReadonlyMap<string, readonly string[] | undefined> {
   const out = new Map<string, readonly string[] | undefined>()
-  const step = plan.workflow.steps.find((candidate) => candidate.id === stepId)
-  if (step === undefined) return out
   for (const guard of step.guards) {
     if (guard.type === 'field-equals') out.set(guard.field, [guard.value])
     else if (guard.type === 'field-in') out.set(guard.field, guard.values)
   }
-  if (plan.capabilities.execution.model !== 'phase-manifest') return out
   for (const transition of step.transitions) {
-    if (!isForwardExit(plan, stepId, transition.to, transition.event)) continue
+    if (!isForwardExit(plan, step.id, transition.to, transition.event)) continue
     for (const item of defaultEventGuardFields(transition.event as EventName, state)) {
       if (!out.has(item.field)) out.set(item.field, item.required)
     }
@@ -57,6 +78,38 @@ function stepFieldRequirements(
     if (!out.has(item.field)) out.set(item.field, item.required)
   }
   return out
+}
+
+const MANAGED_BY_TRANSITION = `ERROR: 字段 '${VERIFY_RESULT}' 由 tenon transition 管理，禁止通过 set/set-many/cas 写入（verify-pass / verify-fail 落值）`
+
+/**
+ * `verify_result` 的手填闸：只有当前步出口点名它为手填结论、且写入的值被那条离开条件接受才放行。
+ * 返回拒写原因（整行 ERROR），放行返回 null。
+ */
+async function verifyResultRefusal(
+  plan: EffectiveWorkflowPlan,
+  state: PipelineState,
+  dir: string,
+  step: StepIR,
+  raw: string,
+): Promise<string | null> {
+  if (isLegacyExecution(plan)) {
+    const requirements = legacyFieldRequirements(plan, state, step)
+    if (!requirements.has(VERIFY_RESULT)) return MANAGED_BY_TRANSITION
+    const required = requirements.get(VERIFY_RESULT)
+    return required !== undefined && !required.includes(raw)
+      ? `ERROR: 字段 '${VERIFY_RESULT}' 在步骤 '${step.id}' 只接受 ${required.join(' / ')}`
+      : null
+  }
+  const guards = leaveFieldGuards(plan, state, step).get(VERIFY_RESULT)
+  if (guards === undefined) return MANAGED_BY_TRANSITION
+  // 把要写的值代入后求值同一批离开条件：不接受就原样用它们的失败文案，不在这里另拼。
+  const result = await evaluateWorkflowIrStepGuards(
+    { ...state, fields: { ...state.fields, [VERIFY_RESULT]: raw } },
+    { ...step, guards },
+    { changeDirAbs: dir },
+  )
+  return result.pass ? null : `ERROR: 拒绝写入 ${VERIFY_RESULT}=${raw}：${result.failures.join('；')}`
 }
 
 /** 本步就绪证据里还差的项，每项一句话 + 解开它的命令；空 = 证据齐全（或本步没声明证据）。 */
@@ -97,6 +150,16 @@ async function missingEvidence(
 }
 
 /**
+ * 读不到工作流计划的拒写原因。状态里记的 workflow 名可被改成任意文本，只有合法的工作流名才回显、才拼进恢复路径。
+ */
+function unreadablePlanMessage(name: string, field: FieldName, workflow: string): string {
+  const named = isValidWorkflowName(workflow) ? `workflow '${workflow}'` : '它记着的 workflow（名字不合法，不予回显）'
+  const restore = isValidWorkflowName(workflow) ? `恢复 .pipeline/workflows/${workflow}.yaml，或运行` : '运行'
+  return `ERROR: 无法核对字段 '${field}' 的证据：读不到任务 '${name}' 的工作流计划（${named}未找到，任务也没有冻结的计划快照）。`
+    + `${restore} tenon task terminate ${name} 后新建任务`
+}
+
+/**
  * true = 已拒写并打印原因。在 set / set-many / cas 的字段校验之后、落盘之前调用。
  * 判定在写锁之外：证据在判定与落盘之间被并发改动的窗口与其余 guard 预检同一口径。
  */
@@ -113,17 +176,17 @@ export async function refuseUnprovenVerdict(
     const dir = resolveChangeDir(deps.cwd, name)
     const state = await deps.store.read(dir)
     const plan = effectiveWorkflowForState(deps, state)
-    if (plan === null) return false
+    if (plan === null) {
+      // 结论是「本步已通过」的批准，读不到计划就没有声明的证据可核对：失败关闭，不能当成「无需核对」放行。
+      deps.io.err(unreadablePlanMessage(name, field, resolveWorkflowName(state)))
+      return true
+    }
     const stepId = str(state.fields.phase)
     if (field === VERIFY_RESULT) {
-      const requirements = stepFieldRequirements(plan, state, stepId)
-      if (!requirements.has(field)) {
-        deps.io.err(`ERROR: 字段 '${field}' 由 tenon transition 管理，禁止通过 set/set-many/cas 写入（verify-pass / verify-fail 落值）`)
-        return true
-      }
-      const required = requirements.get(field)
-      if (required !== undefined && !required.includes(raw)) {
-        deps.io.err(`ERROR: 字段 '${field}' 在步骤 '${stepId}' 只接受 ${required.join(' / ')}`)
+      const step = plan.workflow.steps.find((candidate) => candidate.id === stepId)
+      const refusal = step === undefined ? MANAGED_BY_TRANSITION : await verifyResultRefusal(plan, state, dir, step, raw)
+      if (refusal !== null) {
+        deps.io.err(refusal)
         return true
       }
     }

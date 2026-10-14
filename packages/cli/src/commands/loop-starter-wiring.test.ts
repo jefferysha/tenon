@@ -46,7 +46,7 @@ const EMPTY_RESOLVER: EffectiveSkillResolver = {
   resolveDefault: () => [],
   resolveCustom: () => [],
 }
-const DEFAULT_CAPABILITY = compileEffectiveWorkflowPlan('default').capabilities.skills
+const DEFAULT_CAPABILITY = compileEffectiveWorkflowPlan('default', undefined, { track: 'backend' }).capabilities.skills
 
 function workflowIr(name: string, stepIds: readonly string[]): WorkflowIR {
   return {

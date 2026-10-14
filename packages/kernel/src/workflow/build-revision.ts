@@ -70,6 +70,16 @@ export interface BuildRevisionBlocker {
   readonly revisionHash?: string
 }
 
+/**
+ * 构建候选的隔离方式不再是用户要填的槽（设计 §1b Q1 删除了 isolation 的检查与推荐值）：状态里没设（空串或字面 'null'）
+ * 就按 in-place 取——冻结与复验都绑定工作区内容，不依赖 Git 分支 / worktree，也不依赖 HEAD。显式写过的
+ * branch / worktree / in-place 原样使用；枚举之外的脏值原样返回，由调用方失败关闭。
+ * 冻结（freeze-build-sha）与复验（build-head-unchanged）必须经这一个函数取值，两边才不会各取各的。
+ */
+export function effectiveBuildIsolation(raw: string): string {
+  return raw === '' || raw === 'null' ? 'in-place' : raw
+}
+
 export interface BuildRevisionAssessmentRequest {
   readonly buildSha: unknown
   readonly isolation: string

@@ -1,5 +1,7 @@
 /**
- * 候选代码指纹的生产口径：`fingerprintWorkspace` 只忽略「声明的」测试产物路径，这里负责从项目里找出这些声明。
+ * 候选代码指纹的生产口径：`fingerprintWorkspace` 忽略「声明的」测试产物路径，这里负责从项目里找出这些声明。
+ * 声明之外，`test-results/`、`playwright-report/`、`coverage/` 下未被 git 跟踪的证据格式文件（日志、报告、截图等）
+ * 也不计入，那条通用规则在 `workspace/test-evidence-files.ts`，不需要这里声明。
  *
  *   · 测试目录（`.tenon/tests/catalog.yaml`）：每个套件的 `report.path`、`coverage.path`（istanbul 摘要旁的
  *     `coverage-final.json` 一并算）与 `artifacts[]`，都相对套件 `cwd`；

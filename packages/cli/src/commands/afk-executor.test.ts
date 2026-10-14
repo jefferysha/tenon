@@ -51,8 +51,7 @@ async function resolveTestAfkWorkflowActionAuthority(
   context: Parameters<typeof resolveAfkWorkflowActionAuthority>[2],
   run: Parameters<typeof resolveAfkWorkflowActionAuthority>[3],
 ) {
-  const registry = deps.loadRegistry()
-  return resolveAfkWorkflowActionAuthority(deps, change, context, run, registry)
+  return resolveAfkWorkflowActionAuthority(deps, change, context, run)
 }
 
 const report = (over: Partial<RoundReport> = {}): RoundReport => ({
@@ -357,7 +356,7 @@ describe('resolveAfkWorkflowActionAuthority · PR3 fresh non-Workflow layers', (
     expect(facts.skill).toEqual({ status: 'missing', grants: [] })
   })
 
-  it('grants the AFK entry action only for verified bundle wiring, eligible track, and exact queued Run', async () => {
+  it('grants the AFK entry action only for verified bundle wiring and the exact queued Run, and reports the recorded track', async () => {
     const state = {
       ...mockState({ track: 'backend', automation: 'queued' }),
       runMetadata: {
@@ -382,13 +381,9 @@ describe('resolveAfkWorkflowActionAuthority · PR3 fresh non-Workflow layers', (
     }, exactRun)).resolves.toEqual({
       platform: { status: 'valid', grants: ['enter-afk'] },
       skill: { status: 'valid', grants: ['enter-afk'] },
-      project: { status: 'valid', grants: ['enter-afk'] },
       run: { status: 'valid', grants: ['enter-afk'] },
-      projectAuthority: {
-        version: 'v1',
-        track_id: 'backend',
-        track_registry_revision: deps.loadRegistry().revision,
-      },
+      // 项目层不在这里：准入读任务冻结计划里所选分支的 automation，宿主只说明任务记着哪条轨道。
+      trackId: 'backend',
     })
     expect(resolver).toHaveBeenCalledOnce()
     expect(resolver).toHaveBeenCalledWith({
@@ -399,34 +394,21 @@ describe('resolveAfkWorkflowActionAuthority · PR3 fresh non-Workflow layers', (
     })
   })
 
-  it('propagates a registry provider failure instead of converting it into malformed project policy', async () => {
-    const providerError = new Error('tracks registry EIO')
-    const deps = makeDeps({
-      cwd: '/repo',
-      state: mockState({ track: 'backend', automation: 'queued' }),
-    })
-    deps.loadRegistry = () => { throw providerError }
-
-    await expect(resolveTestAfkWorkflowActionAuthority(
-      deps,
-      'ready-a',
-      { skill_bundle_id: null, loop_id: 'lp', iteration_id: 'iteration-current' },
-      exactRun,
-    )).rejects.toBe(providerError)
-  })
-
-  it('keeps an unknown track as the deterministic malformed project-policy denial', async () => {
+  it.each(['lite', 'unknown-track'])('does not judge project eligibility for track %j: it reports the recorded track and no project layer', async (track) => {
     const facts = await resolveTestAfkWorkflowActionAuthority(
-      makeDeps({
+      withEnterAfkSkillAuthority(makeDeps({
         cwd: '/repo',
-        state: mockState({ track: 'unknown-track', automation: 'queued' }),
-      }),
+        state: mockState({ track, automation: 'queued' }),
+      })),
       'ready-a',
       { skill_bundle_id: null, loop_id: 'lp', iteration_id: 'iteration-current' },
       exactRun,
     )
 
-    expect(facts.project).toEqual({ status: 'malformed', grants: [] })
+    // 项目层由准入读冻结计划里该分支的 automation 判定（没写 = 不可进入 AFK）；宿主不能代授。
+    expect(facts).not.toHaveProperty('project')
+    expect(facts).not.toHaveProperty('projectAuthority')
+    expect(facts.trackId).toBe(track)
   })
 
   it('propagates a Skill authority provider failure instead of converting it into malformed skill policy', async () => {
@@ -486,7 +468,6 @@ describe('resolveAfkWorkflowActionAuthority · PR3 fresh non-Workflow layers', (
 
   it.each([
     ['skill', mockState({ track: 'backend', automation: 'queued' }), null, 'missing'],
-    ['project', mockState({ track: 'free', automation: 'queued' }), '_all', 'valid'],
     ['run', mockState({ track: 'backend', automation: 'off' }), '_all', 'valid'],
   ] as const)('keeps %s denial independent instead of expanding it from AFK mode', async (
     layer,

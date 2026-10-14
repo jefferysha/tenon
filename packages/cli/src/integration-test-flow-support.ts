@@ -10,7 +10,7 @@ import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import {
   actorOf, appendTestRunRecordV2, catalogSuite, catalogSuitesDigest, candidateFingerprint, emptyTestPlan,
-  isTenonUser, parseTestCatalog, readTestPlanState, replaceTestReportBlock, resolveTenonUser, testPolicyDigest,
+  isTenonUser, parseTestCatalog, readTestPlanState, replaceTestReportBlock, resolveStepTestPolicy, resolveTenonUser, testPolicyDigest,
   testSystemPaths, userSlug, writeTestPlan,
   type PlanCase, type PlanSuite, type RecordActor, type SuiteRunV2, type TestCatalog, type TestPlan,
 } from '@tenon/kernel'
@@ -148,9 +148,11 @@ export async function appendFlowRecord(
   const changeDir = join(context.cwd, 'openspec', 'changes', context.change)
   const state = await context.deps.store.read(changeDir)
   const plan = effectiveWorkflowForState(context.deps, state)
-  const policy = plan?.workflow.steps.find((step) => step.id === context.stepId)?.test_policy
-  if (plan === null || policy === undefined) throw new Error(`flow fixture: 步骤 ${context.stepId} 没有测试策略`)
+  const stepDef = plan?.workflow.steps.find((step) => step.id === context.stepId)
   const catalog = await loadCatalog(context.cwd)
+  // 记录绑定的策略摘要是求值后的策略（档位按目录求值）。
+  const policy = stepDef === undefined ? undefined : resolveStepTestPolicy(stepDef, catalog)
+  if (plan === null || policy === undefined) throw new Error(`flow fixture: 步骤 ${context.stepId} 没有测试策略`)
   const planState = await readTestPlanState(changeDir, context.change)
   if (planState.state !== 'ok') throw new Error('flow fixture: run-tests 时计划必须已登记')
   const suites = suiteIds.map((id) => {

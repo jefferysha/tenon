@@ -6,6 +6,9 @@
  *       build-head-unchanged 六个基础 guard 的组合。
  *   · workflow/stepGuard.ts evaluateStepGuards 两个 v1 guard
  *     → tasks-at-least 原样、nonempty-output 由 compileWorkflow 编译期展开（本表只留兜底）。
+ *   · 设计 consolidate-workflow-tracks §1b 的三个通用离开条件 tasks-through-step / not-afk-queued /
+ *     dependencies-ended，以及文档机制重做的 required-output：判定全部来自 GuardInput 的同名能力，
+ *     能力缺失 = 失败关闭（不是 skipped）。
  * 每个 handler 的判定逐条对齐老仓 case 块语义（就地注释标注）；单测 guard-handlers.test.ts 逐分支
  * 手写期望值（对齐老仓，不 import 任何旧函数当 oracle）。
  *
@@ -17,8 +20,10 @@ import { taskCount } from '../flow/guard.js'
 import { matchesTrackPredicate } from './predicates.js'
 import type { FieldName } from '../types.js'
 import type { WorkflowGuardConfig } from './types.js'
-import type { CompiledGuardConfig, GuardDecision, GuardInput, OutputPresentGuard } from './ir.js'
-import { makeBuildRevisionBlocker, safeRevisionHash } from './build-revision.js'
+import type {
+  CompiledGuardConfig, GuardDecision, GuardInput, OutputPresentGuard, UniversalGuardCapabilityName,
+} from './ir.js'
+import { effectiveBuildIsolation, makeBuildRevisionBlocker, safeRevisionHash } from './build-revision.js'
 
 export type GuardHandler<C extends WorkflowGuardConfig> = (
   config: C,
@@ -26,11 +31,11 @@ export type GuardHandler<C extends WorkflowGuardConfig> = (
 ) => GuardDecision | Promise<GuardDecision>
 
 /**
- * 注册表按**定义层** WorkflowGuardConfig 全 8 键建（含 nonempty-output）：nonempty-output 只留
+ * 注册表按**定义层** WorkflowGuardConfig 全部变体建（含 nonempty-output）：nonempty-output 只留
  * fail-loud 兜底 handler，防有人绕过编译器直接构造它进运行期；而 evaluateGuards / 编译产物的
- * guards[] 用运行层 CompiledGuardConfig（严格 typed guard 7 键 + output-present）。dispatchGuard
- * 先单独派发 output-present（编译产物，不在定义层注册表内，见 evalOutputPresent），其余 7 键的 type
- * ⊆ 本注册表键集（8 键定义层的子集），索引恒命中。
+ * guards[] 用运行层 CompiledGuardConfig（严格 typed guard + output-present）。dispatchGuard
+ * 先单独派发 output-present（编译产物，不在定义层注册表内，见 evalOutputPresent），其余变体的 type
+ * ⊆ 本注册表键集（定义层的子集），索引恒命中。
  */
 export type GuardHandlerRegistry = {
   readonly [K in WorkflowGuardConfig['type']]: GuardHandler<Extract<WorkflowGuardConfig, { type: K }>>
@@ -55,6 +60,18 @@ function isUnset(v: string): boolean {
 }
 
 const PASSED: GuardDecision = { kind: 'passed' }
+
+type UniversalGuardType = 'tasks-through-step' | 'not-afk-queued' | 'dependencies-ended' | 'required-output'
+
+/** 通用离开条件的能力没注入：失败关闭并点名缺什么（不同于文件面能力的 skipped 降级）。 */
+function capabilityUnavailable(guardType: UniversalGuardType, capability: UniversalGuardCapabilityName): GuardDecision {
+  return { kind: 'failed', guardType, actual: 'capability-unavailable', missingCapability: capability }
+}
+
+/** 能力抛错也失败关闭；异常原文可能带路径，不进判定结果。 */
+function evaluationError(guardType: UniversalGuardType): GuardDecision {
+  return { kind: 'failed', guardType, actual: 'evaluation-error' }
+}
 
 export const GUARD_HANDLERS: GuardHandlerRegistry = Object.freeze({
   /** stepGuard.ts L38-44 同语义：tasks.md 任务数 ≥ n。文件读取走 readText 能力注入
@@ -156,7 +173,7 @@ export const GUARD_HANDLERS: GuardHandlerRegistry = Object.freeze({
     try {
       const result = await input.assessBuildRevision({
         buildSha,
-        isolation: scalarValue(input.fields, 'isolation'),
+        isolation: effectiveBuildIsolation(scalarValue(input.fields, 'isolation')),
         expectedStep: input.currentStep,
         stateHash,
       })
@@ -194,6 +211,62 @@ export const GUARD_HANDLERS: GuardHandlerRegistry = Object.freeze({
       guardType: 'spec-migration-applied',
       actual: status.reason,
       expected: ['not-required', 'applied'],
+    }
+  },
+
+  /** 设计 §1b Q5：截至当前步骤的任务都已勾选。判定本身来自 `tasksThroughStep` 能力（沿用 TaskPlan /
+   *  tasks.md 现有口径，本层不另数任务）；当前步骤未知时无从判定，同样失败关闭。 */
+  'tasks-through-step': async (_config, input) => {
+    if (!input.tasksThroughStep) return capabilityUnavailable('tasks-through-step', 'tasksThroughStep')
+    const step = input.currentStep
+    if (step === undefined || step === '') {
+      return { kind: 'failed', guardType: 'tasks-through-step', actual: 'current-step-unavailable' }
+    }
+    try {
+      const result = await input.tasksThroughStep(step)
+      return result.complete ? PASSED : { kind: 'failed', guardType: 'tasks-through-step', detail: result.unchecked }
+    } catch {
+      return evaluationError('tasks-through-step')
+    }
+  },
+
+  /** 设计 §1b Q7：AFK 排队中的任务不能被手动推进。调度器自己执行时由调用方注入恒 false。 */
+  'not-afk-queued': async (_config, input) => {
+    if (!input.afkQueued) return capabilityUnavailable('not-afk-queued', 'afkQueued')
+    try {
+      return (await input.afkQueued()) ? { kind: 'failed', guardType: 'not-afk-queued', actual: 'queued' } : PASSED
+    } catch {
+      return evaluationError('not-afk-queued')
+    }
+  },
+
+  /** 设计 §1b Q8：`depends_on` 的依赖都已结束；失败时 detail 只点名未结束的依赖。 */
+  'dependencies-ended': async (_config, input) => {
+    if (!input.dependencyStates) return capabilityUnavailable('dependencies-ended', 'dependencyStates')
+    try {
+      const pending = (await input.dependencyStates()).filter((dependency) => !dependency.ended).map((dependency) => dependency.name)
+      return pending.length === 0 ? PASSED : { kind: 'failed', guardType: 'dependencies-ended', detail: pending }
+    } catch {
+      return evaluationError('dependencies-ended')
+    }
+  },
+
+  /** 文档机制重做 §6：本任务里当前这一步必须产出匹配 `path` 的文件。判定来自 `requiredOutput` 能力（观察到的产出账本，
+   *  观察不可用时退化为文件存在）；能力缺失、当前步骤未知、能力抛错都失败关闭，不降级为跳过。 */
+  'required-output': async (config, input) => {
+    // 失败决策都带原样的路径模式：`{change}` 不在这里展开——同一工作流里停在同一步的任务因此得到逐字相同的离开条件，
+    // Dashboard 快照才能把它们合并成一份；显示时由客户端换成任务名（CLI 文案另由 renderGuardFailure 展开）。
+    const path = config.path
+    const failure = (decision: GuardDecision): GuardDecision => decision.kind === 'failed' ? { ...decision, path } : decision
+    if (!input.requiredOutput) return failure(capabilityUnavailable('required-output', 'requiredOutput'))
+    const step = input.currentStep
+    if (step === undefined || step === '') {
+      return failure({ kind: 'failed', guardType: 'required-output', actual: 'current-step-unavailable' })
+    }
+    try {
+      return (await input.requiredOutput(step, config.path)) ? PASSED : failure({ kind: 'failed', guardType: 'required-output', actual: 'missing' })
+    } catch {
+      return failure(evaluationError('required-output'))
     }
   },
 })

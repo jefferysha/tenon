@@ -155,7 +155,7 @@ export function createSchedulerExecution(input: SchedulerExecutionDeps) {
         }
       }
 
-      // ── fresh authority + claim：同一 TrackRegistry 锁内重验后才 queued→scheduled ──
+      // ── fresh authority + claim：重验授权事实（项目层读冻结计划里所选分支的 automation）后才 queued→scheduled ──
       phase = 'claim'
       const claimResult = await authorityClaim.claim(
         ctx,

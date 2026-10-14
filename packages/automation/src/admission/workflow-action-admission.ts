@@ -3,12 +3,10 @@ import {
   effectiveWorkflowPlanFromSnapshot,
   evaluateWorkflowDecompositionMaterialization,
   evaluateWorkflowAction,
-  requireTrack,
   sameWorkflowActionAuthoritySnapshot,
   workflowPolicyPermissionLayer,
   type BudgetReservationRecord,
   type RunRecord,
-  type TrackRegistry,
   type WorkflowActionEvaluation,
   type WorkflowAuthorityBinding,
   type WorkflowDecompositionCandidate,
@@ -21,10 +19,11 @@ import {
 } from '@tenon/kernel'
 import type { ExecutionContext } from './execution-context.js'
 import type { createAdmissionJournal } from './loop-admission-journal.js'
+import { frozenProjectLayer } from './frozen-project-layer.js'
 import {
   buildAfkWorkflowActionAuthoritySnapshot,
-  isWorkflowProjectAuthorityIdentityV1,
   type WorkflowActionAuthorityFacts,
+  type WorkflowProjectAuthority,
 } from './workflow-action-authority-binding.js'
 import {
   errText,
@@ -126,12 +125,17 @@ export function evaluateBoundWorkflowDecompositionMaterialization(input: {
 interface BoundAfkLayers {
   readonly interactionMode: WorkflowInteractionMode
   readonly layers: WorkflowPermissionLayers
+  /** 项目层授权所依据的冻结分支；项目层不放行 enter-afk 时为 undefined。 */
+  readonly projectAuthority?: WorkflowProjectAuthority
 }
 
-/** Derives the frozen Workflow ceiling and preserves the exact layer inputs used by the evaluator. */
+/**
+ * Derives the frozen Workflow ceiling and the frozen Project layer from the immutable WorkflowRun
+ * snapshot, and preserves the exact layer inputs used by the evaluator.
+ */
 function afkLayersAgainstBoundRun(
   run: BoundWorkflowRun,
-  dynamic: Pick<WorkflowActionAuthorityFacts, 'platform' | 'skill' | 'project' | 'run'>,
+  dynamic: Pick<WorkflowActionAuthorityFacts, 'platform' | 'skill' | 'run' | 'trackId'>,
 ): BoundAfkLayers {
   const missing = unavailableLayer('missing')
   let interactionMode: WorkflowInteractionMode = 'interactive'
@@ -150,28 +154,30 @@ function afkLayersAgainstBoundRun(
       workflow = { status: 'fingerprint-mismatch', grants: [] }
     }
   }
+  const project = frozenProjectLayer(run, dynamic.trackId)
   return {
     interactionMode,
     layers: {
       platform: dynamic.platform,
       skill: dynamic.skill,
-      project: dynamic.project,
+      project: project.layer,
       workflow,
       run: dynamic.run,
     },
+    ...(project.authority === undefined ? {} : { projectAuthority: project.authority }),
   }
 }
 
 function evaluateAfkAgainstBoundRun(
   run: BoundWorkflowRun,
-  dynamic: Pick<WorkflowActionAuthorityFacts, 'platform' | 'skill' | 'project' | 'run'>,
+  dynamic: Pick<WorkflowActionAuthorityFacts, 'platform' | 'skill' | 'run' | 'trackId'>,
 ): WorkflowActionEvaluation {
   return evaluateAfkWorkflowAdmission(afkLayersAgainstBoundRun(run, dynamic))
 }
 
 const missingDynamicAuthority = (): WorkflowActionAuthorityFacts => {
   const missing = unavailableLayer('missing')
-  return { platform: missing, skill: missing, project: missing, run: missing }
+  return { platform: missing, skill: missing, run: missing }
 }
 
 interface BoundAfkAuthorityEvaluation {
@@ -180,68 +186,53 @@ interface BoundAfkAuthorityEvaluation {
 }
 
 /**
- * Resolves fresh non-Workflow facts against the exact TrackRegistry snapshot held by the caller.
- * The Workflow ceiling still comes only from the immutable WorkflowRun snapshot.
+ * Resolves fresh non-Workflow facts (platform / skill / run / recorded track) and evaluates them against
+ * the immutable WorkflowRun snapshot. The Workflow ceiling and the Project layer come only from that
+ * snapshot, so the fact provider can report its observations but cannot grant either layer.
  */
 export async function evaluateBoundAfkWorkflowAdmission(input: {
   readonly change: string
   readonly context: ExecutionContext
   readonly run: BoundWorkflowRun
-  readonly registry: TrackRegistry
   readonly workflowActionAuthority: NonNullable<LoopAdmissionDeps['workflowActionAuthority']>
   readonly expectedAuthority?: WorkflowActionAuthoritySnapshotV1
 }): Promise<BoundAfkAuthorityEvaluation> {
   let dynamic: WorkflowActionAuthorityFacts
   try {
-    dynamic = await input.workflowActionAuthority(input)
+    dynamic = await input.workflowActionAuthority({
+      change: input.change, context: input.context, run: input.run,
+    })
   } catch (error) {
     throw new WorkflowActionAuthorityResolutionError(error)
   }
 
-  const identity = dynamic.projectAuthority
-  const identityMatchesRegistry = isWorkflowProjectAuthorityIdentityV1(identity)
-    && identity.track_registry_revision === input.registry.revision
-  let canonicalProject: WorkflowPermissionLayerInput = unavailableLayer('malformed')
-  if (identityMatchesRegistry && identity !== undefined) {
-    try {
-      const track = requireTrack(input.registry, identity.track_id)
-      canonicalProject = {
-        status: 'valid',
-        grants: track.policyProfile.automationEligible ? ['enter-afk'] : [],
-      }
-    } catch {
-      canonicalProject = unavailableLayer('malformed')
-    }
-  }
-  // The provider can report its observation for diagnostics, but cannot grant project authority.
-  const trustedDynamic = { ...dynamic, project: canonicalProject }
-  const effective = afkLayersAgainstBoundRun(input.run, trustedDynamic)
+  const effective = afkLayersAgainstBoundRun(input.run, dynamic)
   const authorization = evaluateAfkWorkflowAdmission(effective)
   if (!authorization.allowed) return { authorization }
 
   let binding: WorkflowActionAuthoritySnapshotV1
   try {
-    if (!identityMatchesRegistry || identity === undefined) throw new Error('project identity unavailable')
+    if (effective.projectAuthority === undefined) throw new Error('project authority unavailable')
     binding = buildAfkWorkflowActionAuthoritySnapshot({
       run: input.run,
       context: input.context,
-      projectAuthority: identity,
+      project: effective.projectAuthority,
       layers: effective.layers,
     })
   } catch {
     return {
-      authorization: evaluateAfkAgainstBoundRun(input.run, {
-        ...trustedDynamic,
-        run: unavailableLayer('malformed'),
+      authorization: evaluateAfkWorkflowAdmission({
+        ...effective,
+        layers: { ...effective.layers, run: unavailableLayer('malformed') },
       }),
     }
   }
   if (input.expectedAuthority !== undefined
     && !sameWorkflowActionAuthoritySnapshot(input.expectedAuthority, binding)) {
     return {
-      authorization: evaluateAfkAgainstBoundRun(input.run, {
-        ...trustedDynamic,
-        project: { status: 'identity-mismatch', grants: [] },
+      authorization: evaluateAfkWorkflowAdmission({
+        ...effective,
+        layers: { ...effective.layers, project: { status: 'identity-mismatch', grants: [] } },
       }),
     }
   }
@@ -277,7 +268,6 @@ export async function bindAndEvaluateAfkWorkflowRun(input: {
   readonly context: ExecutionContext
   readonly bindAutomationPolicy: NonNullable<LoopAdmissionDeps['bindAutomationPolicy']>
   readonly bindWorkflowActionAuthority: LoopAdmissionDeps['bindWorkflowActionAuthority']
-  readonly withWorkflowActionAuthorityLock: LoopAdmissionDeps['withWorkflowActionAuthorityLock']
   readonly workflowActionAuthority: LoopAdmissionDeps['workflowActionAuthority']
 }): Promise<{
   readonly context: ExecutionContext
@@ -286,10 +276,9 @@ export async function bindAndEvaluateAfkWorkflowRun(input: {
 }> {
   const run = await bindAfkWorkflowRun(input)
   const boundContext = Object.freeze({ ...input.context, workflow_run_id: run.id })
-  const authorityLock = input.withWorkflowActionAuthorityLock
   const authorityResolver = input.workflowActionAuthority
   const bindAuthority = input.bindWorkflowActionAuthority
-  if (authorityLock === undefined || authorityResolver === undefined || bindAuthority === undefined) {
+  if (authorityResolver === undefined || bindAuthority === undefined) {
     return {
       context: boundContext,
       run,
@@ -298,23 +287,20 @@ export async function bindAndEvaluateAfkWorkflowRun(input: {
   }
   let evaluated: BoundAfkAuthorityEvaluation
   try {
-    evaluated = await authorityLock(async (registry) => {
-      const result = await evaluateBoundAfkWorkflowAdmission({
-        change: input.change,
-        context: boundContext,
-        run,
-        registry,
-        workflowActionAuthority: authorityResolver,
-      })
-      if (result.binding !== undefined) {
-        const bound = await bindAuthority(input.change, result.binding)
-        if (bound.workflowActionAuthority === undefined
-          || !sameWorkflowActionAuthoritySnapshot(bound.workflowActionAuthority, result.binding)) {
-          throw new Error('WorkflowRun repository did not persist the exact Workflow action authority snapshot')
-        }
-      }
-      return result
+    const result = await evaluateBoundAfkWorkflowAdmission({
+      change: input.change,
+      context: boundContext,
+      run,
+      workflowActionAuthority: authorityResolver,
     })
+    if (result.binding !== undefined) {
+      const bound = await bindAuthority(input.change, result.binding)
+      if (bound.workflowActionAuthority === undefined
+        || !sameWorkflowActionAuthoritySnapshot(bound.workflowActionAuthority, result.binding)) {
+        throw new Error('WorkflowRun repository did not persist the exact Workflow action authority snapshot')
+      }
+    }
+    evaluated = result
   } catch (error) {
     if (error instanceof WorkflowActionAuthorityResolutionError) throw error
     throw new WorkflowActionAuthorityResolutionError(error)
@@ -328,15 +314,15 @@ export async function bindAndEvaluateAfkWorkflowRun(input: {
 type AdmissionJournal = ReturnType<typeof createAdmissionJournal>
 
 /**
- * Re-resolves authority and performs the queued→scheduled claim before releasing the same
- * TrackRegistry lock. Any drift/revocation therefore closes the reservation with zero charge
- * without invoking the claim callback.
+ * Re-resolves authority and performs the queued→scheduled claim right after the exact durable
+ * authority rebind. Any drift (the change now records another track, the frozen branch no longer
+ * grants AFK, a layer changed) therefore closes the reservation with zero charge without invoking
+ * the claim callback; the claim itself re-checks the recorded track under the change lock.
  */
 export async function claimWithFreshAfkWorkflowAuthority(input: {
   readonly context: ExecutionContext
   readonly bindAutomationPolicy: LoopAdmissionDeps['bindAutomationPolicy']
   readonly bindWorkflowActionAuthority: LoopAdmissionDeps['bindWorkflowActionAuthority']
-  readonly withWorkflowActionAuthorityLock: LoopAdmissionDeps['withWorkflowActionAuthorityLock']
   readonly workflowActionAuthority: LoopAdmissionDeps['workflowActionAuthority']
   readonly claim: (expectedTrackId: string) => Promise<boolean>
   readonly clock: () => string
@@ -346,12 +332,10 @@ export async function claimWithFreshAfkWorkflowAuthority(input: {
   const expected = input.context.workflow_action_authority
   const bindAutomationPolicy = input.bindAutomationPolicy
   const bindAuthority = input.bindWorkflowActionAuthority
-  const authorityLock = input.withWorkflowActionAuthorityLock
   const authorityResolver = input.workflowActionAuthority
   if (expected === undefined
     || bindAutomationPolicy === undefined
     || bindAuthority === undefined
-    || authorityLock === undefined
     || authorityResolver === undefined) {
     return closeWorkflowAuthorizationDenial({
       context: input.context,
@@ -383,16 +367,16 @@ export async function claimWithFreshAfkWorkflowAuthority(input: {
   let claimStarted = false
   let fresh: BoundAfkAuthorityEvaluation & { readonly claimed?: boolean }
   try {
-    fresh = await authorityLock(async (registry) => {
-      const evaluated = await evaluateBoundAfkWorkflowAdmission({
-        change: input.context.change,
-        context: input.context,
-        run,
-        registry,
-        workflowActionAuthority: authorityResolver,
-        expectedAuthority: expected,
-      })
-      if (!evaluated.authorization.allowed) return evaluated
+    const evaluated = await evaluateBoundAfkWorkflowAdmission({
+      change: input.context.change,
+      context: input.context,
+      run,
+      workflowActionAuthority: authorityResolver,
+      expectedAuthority: expected,
+    })
+    if (!evaluated.authorization.allowed) {
+      fresh = evaluated
+    } else {
       if (evaluated.binding === undefined) {
         throw new Error('allowed Workflow action evaluation produced no durable authority snapshot')
       }
@@ -402,8 +386,8 @@ export async function claimWithFreshAfkWorkflowAuthority(input: {
         throw new Error('WorkflowRun repository did not rebind the exact Workflow action authority snapshot')
       }
       claimStarted = true
-      return { ...evaluated, claimed: await input.claim(expected.track_id) }
-    })
+      fresh = { ...evaluated, claimed: await input.claim(expected.track_id) }
+    }
   } catch (error) {
     if (claimStarted) throw error
     const bindingError = error instanceof WorkflowActionAuthorityResolutionError

@@ -3,7 +3,7 @@
  * 全部是「线上形状」的纯数据，可直接 JSON.stringify 当 fetch 响应体。
  */
 import type {
-  PolicyReport, RecordDetail, RecordListResponse, SuiteBaselinesResponse, SuiteRun, SuiteVerdict,
+  CatalogLevel, PolicyReport, RecordDetail, RecordListResponse, SuiteBaselinesResponse, SuiteRun, SuiteVerdict,
   TestCatalogResponse, TestPlanBrief, TestPlanView, TestTotals,
 } from './testSystemTypes'
 
@@ -15,6 +15,24 @@ export const FIXTURE_PROFILE = 'darwin-arm64-m3max-node22-1a2b3c4d'
 
 export function totals(over: Partial<TestTotals> = {}): TestTotals {
   return { cases: 10, pass: 10, fail: 0, skip: 0, flaky: 0, knownFail: 0, ...over }
+}
+
+/** 三档都是内建缺省（目录没写 levels）。 */
+export function defaultLevels(): CatalogLevel[] {
+  return [
+    { name: 'plan', required: ['unit'], touched: [], scenarios: 'off', requireBaseline: false, source: 'default' },
+    { name: 'changed', required: ['unit'], touched: ['static'], scenarios: 'off', requireBaseline: false, source: 'default' },
+    { name: 'full', required: ['unit'], touched: ['integration', 'e2e', 'static', 'benchmark'], scenarios: 'off', requireBaseline: false, source: 'default' },
+  ]
+}
+
+/** 目录写了 full 档（覆盖率 / 不稳定 / 基线 / 场景门槛），其余两档是内建缺省。 */
+export function mixedLevels(): CatalogLevel[] {
+  const [plan, changed, full] = defaultLevels() as [CatalogLevel, CatalogLevel, CatalogLevel]
+  return [plan, changed, {
+    ...full, scenarios: 'required', coverage: { lines: 80, branches: 60 }, flaky: { max: 2, failOnNew: true },
+    requireBaseline: true, source: 'catalog',
+  }]
 }
 
 export function catalogResponse(): TestCatalogResponse {
@@ -57,6 +75,7 @@ export function catalogResponse(): TestCatalogResponse {
         id: 'web-dev', start: 'npm run dev -- --port 5178', cwd: 'packages/dashboard-app',
         ready: { kind: 'url', value: 'http://127.0.0.1:5178/', timeoutS: 60 }, stop: 'SIGTERM',
       }],
+      levels: mixedLevels(),
     },
     knownFailures: {
       state: 'ok',
@@ -116,7 +135,7 @@ export function verdict(over: Partial<SuiteVerdict> & { suite: string }): SuiteV
   return { origin: 'catalog', kind: 'unit', reason: 'run', state: 'passed', ...over }
 }
 
-/** verify 步：单测通过（含 flaky 与覆盖率）、e2e 因代码变化过期、基准退化、缺 a11y，且有未登记文件与场景追溯。 */
+/** verify 步（旧策略）：单测通过（含 flaky 与覆盖率）、e2e 因代码变化过期、基准退化、缺 a11y，且有自动认领的文件、孤儿文件与场景追溯。 */
 export function verifyReport(over: Partial<PolicyReport> = {}): PolicyReport {
   return {
     stepId: 'verify',
@@ -131,7 +150,7 @@ export function verifyReport(over: Partial<PolicyReport> = {}): PolicyReport {
       { code: 'test-stale', blocking: true, message: '套件 浏览器 e2e（web-e2e）的运行已过期：代码已变化', fix: 'tenon test run add-login --suite web-e2e', subject: 'web-e2e' },
       { code: 'benchmark-regression', blocking: true, message: '套件 接口基准：p95_ms 退化 18%', fix: 'tenon test run add-login --suite api-bench', subject: 'api-bench' },
       { code: 'test-kind-missing', blocking: true, message: '本阶段要求 a11y 测试', fix: "tenon test waive add-login --kind a11y --reason '<不适用的原因>'", subject: 'a11y' },
-      { code: 'test-file-unregistered', blocking: true, message: '测试文件 e2e/new.spec.ts 没有登记', fix: 'tenon test register add-login --file e2e/new.spec.ts --suite web-e2e', subject: 'e2e/new.spec.ts' },
+      { code: 'test-file-orphan', blocking: true, message: '测试文件 scripts/tmp.test.mjs 没有套件认领', fix: 'tenon test register add-login --auto', subject: 'scripts/tmp.test.mjs' },
       { code: 'flaky-over-limit', blocking: true, message: 'flaky 用例 3 个，超过上限 2', fix: 'tenon test run add-login --stage' },
     ],
     notices: [{ code: 'known-failure-fixed', message: '已知失败 src/a.test.ts › 旧用例 已通过', fix: "tenon test known rm --suite web-unit --test 'src/a.test.ts › 旧用例'", subject: 'src/a.test.ts › 旧用例' }],
@@ -152,7 +171,40 @@ export function verifyReport(over: Partial<PolicyReport> = {}): PolicyReport {
       { covers: 'spec:auth/退出登录', kind: 'spec', title: 'auth · 退出登录', required: true, state: 'uncovered', tests: [] },
       { covers: 'task:2.3', kind: 'task', title: '密码为空时禁用提交', stage: 'build', required: true, state: 'passing', tests: [{ ref: 'Login.test.tsx › 密码为空时禁用提交', status: 'pass', suite: 'web-unit', runId: '20260929T100000Z-abc122' }] },
     ],
-    files: { checked: true, unregistered: [{ path: 'e2e/new.spec.ts', suites: ['web-e2e'] }], orphans: ['scripts/tmp.test.mjs'] },
+    files: { checked: true, claimed: [{ path: 'e2e/new.spec.ts', suites: ['web-e2e'] }], orphans: ['scripts/tmp.test.mjs'] },
+    notApplicable: [],
+    ...over,
+  }
+}
+
+/**
+ * verify 步（档位 full，目录没写 levels）：单测通过；碰到的 e2e 类套件（旧种类名 playwright）过期；
+ * 集成、静态、基准类没有被改动碰到，没有运行；自动认领一个文件，没有孤儿；场景不要求映射，三条都没映射。
+ */
+export function levelReport(over: Partial<PolicyReport> = {}): PolicyReport {
+  return {
+    stepId: 'verify',
+    pass: false,
+    chain: 'intact',
+    policy: {
+      plan: 'required', kinds: [], run: [], runIfRegistered: [], scope: 'full', files: 'any', scenarios: 'off', integrity: 'notice',
+      requireBaseline: false, browsers: [],
+      level: { name: 'full', required: ['unit'], touched: ['integration', 'e2e', 'static', 'benchmark'], source: 'default' },
+    },
+    blockers: [
+      { code: 'test-stale', blocking: true, message: '套件 浏览器 e2e（web-e2e）的运行已过期：代码已变化', fix: 'tenon test run add-login --suite web-e2e', subject: 'web-e2e' },
+    ],
+    notices: [],
+    suites: [
+      verdict({ suite: 'web-unit', label: '前端单测', kind: 'unit', runId: '20260929T100000Z-abc122', finishedAt: '2026-09-29T10:00:00Z', totals: totals({ cases: 120, pass: 120 }) }),
+      verdict({ suite: 'web-e2e', label: '浏览器 e2e', kind: 'playwright', state: 'stale', staleBecause: ['candidate'], runId: FIXTURE_RUN, finishedAt: '2026-09-29T11:00:00Z' }),
+    ],
+    trace: [
+      { covers: 'spec:auth/登录成功跳转首页', kind: 'spec', title: 'auth · 登录成功跳转首页', required: true, state: 'uncovered', tests: [] },
+      { covers: 'spec:auth/退出登录', kind: 'spec', title: 'auth · 退出登录', required: true, state: 'uncovered', tests: [] },
+      { covers: 'task:2.3', kind: 'task', title: '密码为空时禁用提交', stage: 'build', required: true, state: 'uncovered', tests: [] },
+    ],
+    files: { checked: true, claimed: [{ path: 'src/Login.test.tsx', suites: ['web-unit'] }], orphans: [] },
     notApplicable: [],
     ...over,
   }

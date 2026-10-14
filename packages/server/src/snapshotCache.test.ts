@@ -331,21 +331,19 @@ describe('createSnapshotCache —— 单个 change 的详情', () => {
 describe('createSnapshotCache —— 身份解析复用', () => {
   const alice: TenonUserResolution = { id: 'a@x.io', name: 'A', slug: 'a-at-x.io', source: 'env', trust: 'declared' }
 
-  it('指纹与构建在 TTL 内复用每个 root 的查看者 / 执行者身份；过期后重新解析；按项目失效只清该项目', async () => {
+  it('指纹与构建在 TTL 内复用每个 root 的执行者身份；过期后重新解析；按项目失效只清该项目', async () => {
     let clock = 0
-    const viewer = vi.fn((_root: string) => alice)
     const acting = vi.fn((_root: string) => alice)
     const fingerprints = vi.fn(async (deps: SnapshotDeps, _now: number, roots: readonly string[]) => {
-      for (const root of roots) deps.viewer?.(root)
+      for (const root of roots) deps.resolveUser?.(root)
       return roots.map((root) => ({ root, key: 'fp', revs: new Map<string, string>() }))
     })
     const list = vi.fn<ProjectScanners['list']>(async (deps, root) => {
-      deps.viewer?.(root)
       deps.resolveUser?.(root)
       return listProject(root, 't')
     })
     const cache = createSnapshotCache({
-      snapshotDeps: () => ({ viewer, resolveUser: acting, registry: () => ['/r1', '/r2'], version: '1', clock: () => 't', capabilities: {} }) as unknown as SnapshotDeps,
+      snapshotDeps: () => ({ resolveUser: acting, registry: () => ['/r1', '/r2'], version: '1', clock: () => 't', capabilities: {} }) as unknown as SnapshotDeps,
       scanners: { list },
       fingerprints,
       now: () => clock,
@@ -354,21 +352,20 @@ describe('createSnapshotCache —— 身份解析复用', () => {
 
     await cache.list()
     await cache.fingerprint()
-    expect(viewer.mock.calls.map(([root]) => root)).toEqual(['/r1', '/r2'])
-    expect(acting).toHaveBeenCalledTimes(2)
+    expect(acting.mock.calls.map(([root]) => root)).toEqual(['/r1', '/r2'])
 
     clock = 1_000
     await cache.fingerprint()
-    expect(viewer).toHaveBeenCalledTimes(4)
+    expect(acting).toHaveBeenCalledTimes(4)
 
     cache.invalidate(['/r1'])
     await cache.fingerprint()
-    expect(viewer.mock.calls.filter(([root]) => root === '/r1')).toHaveLength(3)
-    expect(viewer.mock.calls.filter(([root]) => root === '/r2')).toHaveLength(2)
+    expect(acting.mock.calls.filter(([root]) => root === '/r1')).toHaveLength(3)
+    expect(acting.mock.calls.filter(([root]) => root === '/r2')).toHaveLength(2)
 
     cache.invalidate()
     await cache.fingerprint()
-    expect(viewer.mock.calls.filter(([root]) => root === '/r2')).toHaveLength(3)
+    expect(acting.mock.calls.filter(([root]) => root === '/r2')).toHaveLength(3)
   })
 })
 
@@ -420,5 +417,51 @@ describe('sendSharedSnapshot —— ETag / gzip / If-None-Match', () => {
     sendSharedSnapshot(request({ 'accept-encoding': 'identity' }), plain.res, big)
     expect(plain.headers()).not.toHaveProperty('Content-Encoding')
     expect(plain.body().toString('utf8')).toBe(big.body)
+  })
+})
+
+describe('createSnapshotCache.archivedDetail —— 已结束任务的文档在归档后的位置', () => {
+  const evidence = (paths: string[]): NonNullable<ChangeSnapshot['documents']> => ({
+    governed: true,
+    blockers: [],
+    items: [{ kind: 'proposal', status: 'stale', requiredRead: false, paths, producers: ['tenon'], timeline: [] }],
+  })
+  const reviewer = (reportPath: string | null) => ({ agent: 'security', role: 'reviewer', reportPath }) as unknown as NonNullable<ChangeSnapshot['agentRuns']>[number]['agents'][number]
+
+  it('台账里登记的是移动前的 openspec/changes/<名>/…：详情里改成 archive/<目录>/…，其余文档不动', async () => {
+    const change: ChangeSnapshot = {
+      ...listChange('2026-10-05-fix-login'),
+      workflowRules: { ...listChange('x').workflowRules, policy: undefined as never },
+      documents: evidence(['openspec/changes/fix-login/proposal.md', 'docs/adr/fix-login.md']),
+      agentRuns: [{ stepId: 'verify', agents: [reviewer('openspec/changes/fix-login/.pipeline-agent-reports/run-1.md'), reviewer(null)] }],
+    }
+    const cache = createSnapshotCache({
+      snapshotDeps: () => ({ registry: () => ['/a'], version: '1', clock: () => 't', capabilities: {} }) as unknown as SnapshotDeps,
+      scanners: { archivedDetail: async () => ({ change }) },
+    })
+
+    const shared = await cache.archivedDetail('/a', '2026-10-05-fix-login')
+
+    expect(shared?.change.documents?.items[0]?.paths).toEqual([
+      'openspec/changes/archive/2026-10-05-fix-login/proposal.md',
+      'docs/adr/fix-login.md',
+    ])
+    expect(shared?.change.agentRuns?.[0]?.agents.map((agent) => agent.reportPath)).toEqual([
+      'openspec/changes/archive/2026-10-05-fix-login/.pipeline-agent-reports/run-1.md',
+      null,
+    ])
+    expect(JSON.parse(shared?.body ?? '{}').documents.items[0].paths[0]).toBe('openspec/changes/archive/2026-10-05-fix-login/proposal.md')
+    // 扫描结果本身不被改写（同一个对象可能被别处持有）。
+    expect(change.documents?.items[0]?.paths[0]).toBe('openspec/changes/fix-login/proposal.md')
+  })
+
+  it('没有文档证据的任务照常返回', async () => {
+    const change: ChangeSnapshot = { ...listChange('2026-10-05-lite'), workflowRules: { ...listChange('x').workflowRules, policy: undefined as never } }
+    const cache = createSnapshotCache({
+      snapshotDeps: () => ({ registry: () => ['/a'], version: '1', clock: () => 't', capabilities: {} }) as unknown as SnapshotDeps,
+      scanners: { archivedDetail: async () => ({ change }) },
+    })
+
+    expect((await cache.archivedDetail('/a', '2026-10-05-lite'))?.change.documents).toBeUndefined()
   })
 })

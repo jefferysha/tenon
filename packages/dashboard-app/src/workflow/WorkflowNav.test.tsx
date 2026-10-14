@@ -12,7 +12,7 @@ function step(id: string, label: string, gate: WbStepDef['gate'], to: string[]):
 const DEF: WbWorkflowDef = { name: 'default', steps: [step('open', '立项', null, ['explore']), step('explore', '调研', 'review', ['spec']), step('spec', '规格', 'review', ['build']), step('build', '实现', null, ['verify', 'spec'])] }
 
 function renderNav(overrides: Partial<Parameters<typeof WorkflowNav>[0]> = {}) {
-  const fns = { onSwitch: vi.fn(), onSwitchBranch: vi.fn(), onCreate: vi.fn(), onExport: vi.fn(), onDelete: vi.fn(), onNewTrack: vi.fn(), onDeleteTrack: vi.fn(), onSelect: vi.fn(), onAddStage: vi.fn(), onReorder: vi.fn(), onToggleOpenspec: vi.fn(), onDeleteStage: vi.fn() }
+  const fns = { onSwitch: vi.fn(), onSwitchBranch: vi.fn(), onCreate: vi.fn(), onExport: vi.fn(), onDelete: vi.fn(), onNewTrack: vi.fn(), onTrackSettings: vi.fn(), onDeleteTrack: vi.fn(), onSelect: vi.fn(), onAddStage: vi.fn(), onReorder: vi.fn(), onToggleOpenspec: vi.fn(), onDeleteStage: vi.fn() }
   render(
     <I18nProvider><TooltipProvider>
       <WorkflowNav
@@ -39,12 +39,11 @@ function renderNav(overrides: Partial<Parameters<typeof WorkflowNav>[0]> = {}) {
 }
 
 describe('WorkflowNav', () => {
-  it('工作流名点开菜单切换；名称只出现一次，可编辑的 default 不带锁（没有来源 / 轨道数副行）', async () => {
+  it('工作流名点开菜单切换；名称只出现一次（没有来源 / 轨道数副行）', async () => {
     const user = userEvent.setup()
     const { onSwitch } = renderNav()
     expect(screen.getByTestId('wb-wf-switch')).toHaveTextContent('default')
     expect(screen.queryByTestId('wb-wf-meta')).toBeNull()
-    expect(screen.queryByTestId('wb-wf-lock')).toBeNull()
     expect(screen.getByTestId('workflow-nav')).not.toHaveTextContent('全局')
     await user.click(screen.getByTestId('wb-wf-switch'))
     expect(screen.getByTestId('wb-wf-item-default')).toHaveAttribute('role', 'menuitemradio')
@@ -187,16 +186,16 @@ describe('WorkflowNav', () => {
     // Radix Tooltip 的定位层要 ResizeObserver；jsdom 没有。
     vi.stubGlobal('ResizeObserver', class { observe(): void {} unobserve(): void {} disconnect(): void {} })
     renderNav({ lint: [
-      { kind: 'step-no-output', stepId: 'spec', severity: 'warning' },
+      { kind: 'agent-missing', stepId: 'spec', agent: 'ghost', severity: 'warning' },
       { kind: 'transition-empty-event', stepId: 'spec', severity: 'error' },
-      { kind: 'step-no-output', stepId: 'build', severity: 'warning' },
+      { kind: 'agent-missing', stepId: 'build', agent: 'ghost', severity: 'warning' },
     ] })
     expect(screen.getByTestId('wb-lint-spec')).toHaveAttribute('data-severity', 'error')
     expect(screen.getByTestId('wb-lint-build')).toHaveAttribute('data-severity', 'warning')
     expect(screen.getByTestId('wb-lint-build').tagName.toLowerCase()).toBe('svg')
     expect(screen.queryByTestId('wb-lint-open')).toBeNull()
     act(() => { screen.getByTestId('wb-step-build').focus() })
-    expect(await screen.findByRole('tooltip')).toHaveTextContent('缺输出')
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('智能体 ghost 不存在')
     vi.unstubAllGlobals()
   })
 
@@ -214,21 +213,34 @@ describe('WorkflowNav', () => {
     expect(screen.getByTestId('wb-stage-delete-open')).toHaveAttribute('aria-disabled', 'true')
   })
 
-  it('切换器列出插件内建（simple）并带锁；当前是内建时名旁一把锁（说明在 Tooltip），⋯ 里没有删除 / 恢复，新建仍可用', async () => {
+  it('没有写凭证：⋯ 里的删除与 OpenSpec 开关置灰，新建只看 canCreate', async () => {
     const user = userEvent.setup()
-    const { onCreate } = renderNav({ names: ['default', 'release', 'simple'], current: 'simple', canWrite: false, readOnly: true, canCreate: true })
-    expect(screen.getByTestId('wb-wf-lock')).toHaveAccessibleName('插件内建，只读')
+    const { onCreate } = renderNav({ names: ['default', 'release', 'design-system'], current: 'release', canWrite: false, canCreate: true })
     await user.click(screen.getByTestId('wb-wf-switch'))
-    expect(screen.getByTestId('wb-wf-item-simple')).toBeInTheDocument()
-    expect(screen.getByTestId('wb-wf-item-lock-simple')).toHaveAccessibleName('插件内建，只读')
-    expect(screen.queryByTestId('wb-wf-item-lock-default')).toBeNull()
+    expect(screen.getByTestId('wb-wf-item-design-system')).toBeInTheDocument()
     await user.keyboard('{Escape}')
     await user.click(screen.getByTestId('wb-wf-menu'))
-    expect(screen.queryByTestId('wb-wf-menu-delete')).toBeNull()
-    expect(screen.queryByTestId('wb-wf-menu-restore')).toBeNull()
+    expect(screen.getByTestId('wb-wf-menu-delete')).toHaveAttribute('aria-disabled', 'true')
     expect(screen.getByTestId('wb-wf-menu-openspec')).toHaveAttribute('aria-disabled', 'true')
     await user.click(screen.getByTestId('wb-wf-menu-new'))
     expect(onCreate).toHaveBeenCalledTimes(1)
+  })
+
+  it('⋯ 里有「轨道设置」作用于当前轨道：无凭证置灰，平铺工作流（没有轨道）不列', async () => {
+    const user = userEvent.setup()
+    const { onTrackSettings } = renderNav()
+    await user.click(screen.getByTestId('wb-wf-menu'))
+    await user.click(screen.getByTestId('wb-wf-menu-track-settings'))
+    expect(onTrackSettings).toHaveBeenCalledTimes(1)
+    cleanup()
+    renderNav({ canWrite: false })
+    await user.click(screen.getByTestId('wb-wf-menu'))
+    expect(screen.getByTestId('wb-wf-menu-track-settings')).toHaveAttribute('aria-disabled', 'true')
+    cleanup()
+    renderNav({ branches: [{ id: '', label: null }], branch: '' })
+    await user.click(screen.getByTestId('wb-wf-menu'))
+    expect(screen.getByTestId('wb-wf-menu-new')).toBeInTheDocument()
+    expect(screen.queryByTestId('wb-wf-menu-track-settings')).toBeNull()
   })
 
   it('OpenSpec 开关的说明在 Tooltip：聚焦菜单项时出现', async () => {
@@ -236,7 +248,7 @@ describe('WorkflowNav', () => {
     renderNav({ current: 'release' })
     await user.click(screen.getByTestId('wb-wf-menu'))
     act(() => { screen.getByTestId('wb-wf-menu-openspec').focus() })
-    expect((await screen.findAllByText('开启后阶段可加文档输入 / 输出；关闭时输入输出只来自字段')).length).toBeGreaterThan(0)
+    expect((await screen.findAllByText('开启后任务按 OpenSpec 管理规格')).length).toBeGreaterThan(0)
   })
 
   it('回流弧带悬停标签：从哪退回到哪；悬停时整条弧高亮', async () => {

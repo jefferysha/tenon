@@ -61,8 +61,9 @@ describe('真实 e2e —— artifact register', () => {
   }
 
   // ── default 轨（真 manifest resolver）──
+  // artifact 登记只服务升级前创建、冻结着 artifact 声明的任务：default 轨用升级前的 default 原文立项（契约模式）。
   test('default 轨：explore/frontend design_doc + 打包的 openspec-explore producer → 真写字段', async () => {
-    expect(await h.run(['init', CH, '--track', 'frontend', '--preset', 'full'])).toBe(0)
+    expect(await h.initLegacyContractDefault(CH, 'frontend')).toBe(0)
     await h.seedPhase(CH, 'explore')
 
     expect(
@@ -73,29 +74,10 @@ describe('真实 e2e —— artifact register', () => {
     expect(await h.read(CH)).toMatch(/^design_doc: artifacts\/design\.md$/m)
   })
 
-  test('T-R6：动态 track 按 registry 的 frontend skill profile 校验 producer，不把 track id 当 profile', async () => {
-    await mkdir(join(h.cwd, '.pipeline'), { recursive: true })
-    await writeFile(join(h.cwd, '.pipeline', 'tracks.yaml'), `version: 1
-tracks:
-  - id: designer-mobile
-    label: Designer Mobile
-    workflow:
-      default: default
-      allowed: '*'
-    policy_profile:
-      review_seed: pending
-      automation_eligible: true
-      coverage_profile: frontend
-      routing:
-        enabled: false
-      skills:
-        matrix: true
-        profile: frontend
-`, 'utf8')
-
-    // R6：registry entry 只提供 policy；可用性必须由 workflow branch 明确声明。
-    // 使用真实 branch，避免把 registry-only track 当作 default workflow 的隐式分支。
-    await writeWorkflow('designer-mobile', `name: designer-mobile
+  test('T-R6：工作流分支声明的自定义轨道按分支步骤声明的技能校验 producer，不把 track id 当 profile', async () => {
+    // 轨道的可用性与技能都只来自工作流分支的声明，没有别的登记处。分支步骤声明了 file_path 输出（升级前的写法，新定义不能再写
+    // outputs），所以任务取升级前冻结的快照立项。
+    expect(await h.initLegacyWorkflow(CH, `name: designer-mobile
 tracks:
   designer-mobile:
     label: Designer Mobile
@@ -111,9 +93,7 @@ tracks:
             type: file_path
         guards: []
         transitions: []
-`)
-
-    expect(await h.run(['init', CH, '--track', 'designer-mobile', '--preset', 'full', '--workflow', 'designer-mobile'])).toBe(0)
+`, { track: 'designer-mobile' })).toBe(0)
     expect(
       await h.run(['artifact', 'register', CH, 'design_doc', 'artifacts/design.md', '--producer', 'openspec-explore']),
       h.err.join('\n'),
@@ -123,7 +103,7 @@ tracks:
   })
 
   test('default 轨：整个 a|b token 作 producer → 拒（exit 1），字段不写', async () => {
-    expect(await h.run(['init', CH, '--track', 'frontend', '--preset', 'full'])).toBe(0)
+    expect(await h.initLegacyContractDefault(CH, 'frontend')).toBe(0)
     await h.seedPhase(CH, 'explore')
 
     expect(await h.run(['artifact', 'register', CH, 'design_doc', 'x.md', '--producer', 'opsx:explore|openspec-explore'])).toBe(1)
@@ -131,22 +111,22 @@ tracks:
   })
 
   test('default 轨：spec/pm 的显式 artifacts: [] 允许通过 set 写入 plan', async () => {
-    expect(await h.run(['init', CH, '--track', 'pm', '--preset', 'full'])).toBe(0)
+    expect(await h.initLegacyContractDefault(CH, 'pm')).toBe(0)
     await h.seedPhase(CH, 'spec')
     expect(await h.run(['set', CH, 'plan', 'p.md'])).toBe(0)
     expect(await h.read(CH)).toMatch(/^plan: p\.md$/m)
   })
 
   test('default 轨：spec/backend 的 plan 仍受 artifact 门禁约束', async () => {
-    expect(await h.run(['init', CH, '--track', 'backend', '--preset', 'full'])).toBe(0)
+    expect(await h.initLegacyContractDefault(CH, 'backend')).toBe(0)
     await h.seedPhase(CH, 'spec')
     expect(await h.run(['set', CH, 'plan', 'p.md'])).toBe(1)
     expect(h.err.join('\n')).toContain('artifact register')
     expect(await h.read(CH)).not.toMatch(/^plan: p\.md$/m)
   })
 
-  test('default free：matrix=false 只关闭自动编排，不抹掉 verification_report producer allowlist', async () => {
-    expect(await h.run(['init', CH, '--track', 'free', '--preset', 'full'])).toBe(0)
+  test('default backend：verification_report 的 producer allowlist 来自步骤声明的技能（没有矩阵叠加）', async () => {
+    expect(await h.initLegacyContractDefault(CH, 'backend')).toBe(0)
     await h.seedPhase(CH, 'verify')
 
     expect(
@@ -167,8 +147,7 @@ tracks:
 
   // ── custom 轨 ──
   test('custom 轨：draft step 声明的 skill-alpha 作 producer → 真写 design_doc', async () => {
-    await writeWorkflow('cwf', CUSTOM_WF)
-    expect(await h.run(['init', CH, '--track', 'backend', '--preset', 'full', '--workflow', 'cwf'])).toBe(0)
+    expect(await h.initLegacyWorkflow(CH, CUSTOM_WF)).toBe(0)
     expect(await h.read(CH)).toMatch(/^phase: draft$/m)
 
     expect(await h.run(['artifact', 'register', CH, 'design_doc', 'd.md', '--producer', 'skill-alpha'])).toBe(0)
@@ -177,15 +156,13 @@ tracks:
   })
 
   test('custom 轨：非 step skill 作 producer → 拒，字段不写', async () => {
-    await writeWorkflow('cwf', CUSTOM_WF)
-    expect(await h.run(['init', CH, '--track', 'backend', '--preset', 'full', '--workflow', 'cwf'])).toBe(0)
+    expect(await h.initLegacyWorkflow(CH, CUSTOM_WF)).toBe(0)
     expect(await h.run(['artifact', 'register', CH, 'design_doc', 'd.md', '--producer', 'not-a-step-skill'])).toBe(1)
     expect(await h.read(CH)).not.toMatch(/^design_doc: d\.md$/m)
   })
 
   test('custom 轨：初始化后改写 workflow 图仍按不可变快照登记', async () => {
-    await writeWorkflow('cwf', CUSTOM_WF)
-    expect(await h.run(['init', CH, '--track', 'backend', '--preset', 'full', '--workflow', 'cwf'])).toBe(0)
+    expect(await h.initLegacyWorkflow(CH, CUSTOM_WF)).toBe(0)
     // 改写 workflow：首 step 重命名为 draft2，原 phase 'draft' 不再在图里
     await writeWorkflow('cwf', CUSTOM_WF.replace('id: draft\n', 'id: draft2\n'))
     expect(await h.run(['artifact', 'register', CH, 'design_doc', 'd.md', '--producer', 'skill-alpha'])).toBe(0)
@@ -193,8 +170,7 @@ tracks:
   })
 
   test('custom 轨：workflow 文件损坏不影响已初始化 Change 的冻结快照', async () => {
-    await writeWorkflow('cwf', CUSTOM_WF)
-    expect(await h.run(['init', CH, '--track', 'backend', '--preset', 'full', '--workflow', 'cwf'])).toBe(0)
+    expect(await h.initLegacyWorkflow(CH, CUSTOM_WF)).toBe(0)
     await writeWorkflow('cwf', 'name: cwf\nsteps:\n  - not-a-valid-step: true\n')
     expect(await h.run(['artifact', 'register', CH, 'design_doc', 'd.md', '--producer', 'skill-alpha'])).toBe(0)
     expect(await h.read(CH)).toMatch(/^design_doc: d\.md$/m)
@@ -218,8 +194,7 @@ tracks:
 
   // ── P6 cutover：custom workflow 的 artifact 字段 set/set-many/cas 拒（codex 阻断 3 补测）──
   test('P6 custom 显式 artifact：draft 步 set design_doc → 拒 exit1，不写、指引 register', async () => {
-    await writeWorkflow('cwf', CUSTOM_WF)
-    expect(await h.run(['init', CH, '--track', 'backend', '--preset', 'full', '--workflow', 'cwf'])).toBe(0)
+    expect(await h.initLegacyWorkflow(CH, CUSTOM_WF)).toBe(0)
     expect(await h.read(CH)).toMatch(/^phase: draft$/m)
     expect(await h.run(['set', CH, 'design_doc', 'd.md'])).toBe(1)
     expect(await h.read(CH)).not.toMatch(/^design_doc: d\.md$/m)
@@ -227,23 +202,20 @@ tracks:
   })
 
   test('P6 custom 显式 artifact：set-many 含 design_doc → 整批拒 exit1，非 artifact 字段也不写', async () => {
-    await writeWorkflow('cwf', CUSTOM_WF)
-    expect(await h.run(['init', CH, '--track', 'backend', '--preset', 'full', '--workflow', 'cwf'])).toBe(0)
+    expect(await h.initLegacyWorkflow(CH, CUSTOM_WF)).toBe(0)
     expect(await h.run(['set-many', CH, 'assignee=bob', 'design_doc=d.md'])).toBe(1)
     expect(await h.read(CH)).not.toMatch(/^design_doc: d\.md$/m)
     expect(await h.read(CH)).not.toMatch(/^assignee: bob$/m)
   })
 
   test('P6 custom 显式 artifact：cas design_doc → 拒 exit1（artifact 优先于 CAS 语义）', async () => {
-    await writeWorkflow('cwf', CUSTOM_WF)
-    expect(await h.run(['init', CH, '--track', 'backend', '--preset', 'full', '--workflow', 'cwf'])).toBe(0)
+    expect(await h.initLegacyWorkflow(CH, CUSTOM_WF)).toBe(0)
     expect(await h.run(['cas', CH, 'design_doc', '', 'd.md'])).toBe(1)
     expect(await h.read(CH)).not.toMatch(/^design_doc: d\.md$/m)
   })
 
   test('P6 custom fail-closed：workflow 损坏时 set artifact 候选字段 → 拒 exit1（不降级放行）', async () => {
-    await writeWorkflow('cwf', CUSTOM_WF)
-    expect(await h.run(['init', CH, '--track', 'backend', '--preset', 'full', '--workflow', 'cwf'])).toBe(0)
+    expect(await h.initLegacyWorkflow(CH, CUSTOM_WF)).toBe(0)
     await writeWorkflow('cwf', 'name: cwf\nsteps:\n  - not-a-valid-step: true\n')
     expect(await h.run(['set', CH, 'design_doc', 'd.md'])).toBe(1)
     expect(await h.read(CH)).not.toMatch(/^design_doc: d\.md$/m)
@@ -267,8 +239,7 @@ steps:
     guards: []
     transitions: []
 `
-    await writeWorkflow('twf', TRACK_WF)
-    expect(await h.run(['init', CH, '--track', 'backend', '--preset', 'full', '--workflow', 'twf'])).toBe(0)
+    expect(await h.initLegacyWorkflow(CH, TRACK_WF)).toBe(0)
     expect(await h.read(CH)).toMatch(/^phase: s1$/m)
     // track 是当前 step 的 artifact → set track 必须被 cutover 拒（旧代码无条件剔除 track 会漏判 → 绕过）
     expect(await h.run(['set', CH, 'track', 'frontend'])).toBe(1)
@@ -290,8 +261,7 @@ steps:
     guards: []
     transitions: []
 `
-    await writeWorkflow('dwf', DERIVED_WF)
-    expect(await h.run(['init', CH, '--track', 'backend', '--preset', 'full', '--workflow', 'dwf'])).toBe(0)
+    expect(await h.initLegacyWorkflow(CH, DERIVED_WF)).toBe(0)
     expect(await h.read(CH)).toMatch(/^phase: draft$/m)
     // plan 由 file_path output 派生成 artifact（无显式 artifacts 块）→ set 也拒
     expect(await h.run(['set', CH, 'plan', 'p.md'])).toBe(1)
@@ -317,14 +287,17 @@ steps:
     guards: []
     transitions: []
 `
-    await writeWorkflow('twf2', TRACK_WF2)
-    expect(await h.run(['init', CH, '--track', 'backend', '--preset', 'full', '--workflow', 'twf2'])).toBe(0)
-    // expect 命中当前 track=backend，但 track 是 artifact → 仍拒（不落盘、不因命中而写）
-    expect(await h.run(['cas', CH, 'track', 'backend', 'frontend'])).toBe(1)
-    expect(await h.read(CH)).toMatch(/^track: backend$/m)
+    expect(await h.initLegacyWorkflow(CH, TRACK_WF2)).toBe(0)
+    // expect 命中当前 track（平铺工作流的隐式轨道 = 工作流名），但 track 是 artifact → 仍拒（不落盘、不因命中而写）
+    expect(await h.run(['cas', CH, 'track', 'twf2', 'frontend'])).toBe(1)
+    expect(await h.read(CH)).toMatch(/^track: twf2$/m)
   })
 
-  test('P6 复审阻断1：set-many 切入把 track 声明为 artifact 的目标 workflow 同批写 track → 拒 exit1（meta 切入不绕过）', async () => {
+  // 原来的场景：目标 workflow 把 track 声明为 artifact，set-many 切入它的同批写 track 被 cutover 拒。现在新定义不能再声明
+  // artifacts / outputs（校验直接拒绝），这样的目标 workflow 加载不了；任务本身又绑着冻结的 default 计划，切入别的 workflow
+  // 在身份绑定上就被拒：同样 exit 1、零写入，只是原因换了；artifact cutover 本身（冻结快照里的声明）由上面的 P6 用例与
+  // fields.test.ts 覆盖。
+  test('P6 复审阻断1：set-many 切入声明了已删除键（artifacts / outputs）的目标 workflow → 拒 exit1（计划身份绑定），零写入', async () => {
     const TRACK_WF3 = `name: twf3
 steps:
   - id: open
@@ -344,8 +317,9 @@ steps:
 `
     await writeWorkflow('twf3', TRACK_WF3)
     // 当前 default workflow（phase=open、不声明 track artifact）；切入 twf3（open step 声明 track 为 artifact）同批写 track
-    expect(await h.run(['init', CH, '--track', 'backend', '--preset', 'full'])).toBe(0)
+    expect(await h.initLegacyContractDefault(CH, 'backend')).toBe(0)
     expect(await h.run(['set-many', CH, 'workflow=twf3', 'track=frontend'])).toBe(1)
+    expect(h.err.join('\n')).toContain("workflow plan snapshot identity 不一致：已绑定 'default'，当前 'twf3'")
     expect(await h.read(CH)).not.toMatch(/^workflow: twf3$/m)
     expect(await h.read(CH)).not.toMatch(/^track: frontend$/m)
   })

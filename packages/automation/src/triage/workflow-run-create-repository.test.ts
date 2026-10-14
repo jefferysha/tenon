@@ -103,7 +103,7 @@ function trustedInit(): Omit<InitOptions, 'repoRoot' | 'name' | 'runId' | 'initi
 }
 
 function resolvedPlan(input: WorkflowRunCreateRequest) {
-  if (input.workflowId === 'default') return compileEffectiveWorkflowPlan('default')
+  if (input.workflowId === 'default') return compileEffectiveWorkflowPlan('default', undefined, { track: trustedInit().track })
   return compileEffectiveWorkflowPlan(input.workflowId, {
     name: input.workflowId,
     steps: [{

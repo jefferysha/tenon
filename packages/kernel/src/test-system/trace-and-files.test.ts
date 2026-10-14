@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { parseTestCatalog } from './catalog.js'
 import { globToRegExp, isRepoRelativeGlob, isRepoRelativePath, matchesGlob, repoGlob } from './globs.js'
 import { extractScenarios, extractTaskItems } from './openspec-trace.js'
-import { emptyTestPlan } from './plan.js'
+import { claimChangedTestFiles } from './claim.js'
 import { DESIGN_CATALOG } from './test-support.js'
-import { normalizeRepoPath, suitesOwningFile, testFileRegistration } from './test-files.js'
+import { normalizeRepoPath, suitesOwningFile } from './test-files.js'
 import { looksLikeTestFile } from './vocabulary.js'
 
 const DELTA = `## ADDED Requirements
@@ -127,31 +127,26 @@ describe('glob 匹配', () => {
   })
 })
 
-describe('全量登记强制', () => {
+describe('改动过的测试文件认领', () => {
   const result = parseTestCatalog(DESIGN_CATALOG)
   if (!result.ok) throw new Error('catalog')
   const catalog = result.catalog
 
-  it('被套件认领却没登记 → 未登记；像测试却没人认领 → 孤儿；已登记与普通源码不报', () => {
-    const plan = { ...emptyTestPlan('demo'), files: [{ path: 'e2e/login.spec.ts', suite: 'web-e2e' }] }
-    const registration = testFileRegistration({
-      catalog,
-      plan,
-      changedFiles: [
-        './packages/dashboard-app/src/login/Login.test.tsx',
-        'e2e/login.spec.ts',
-        'e2e/logout.spec.ts',
-        'packages/server/src/x.test.ts',
-        'tools/test_helper.py',
-        'packages/dashboard-app/src/login/Login.tsx',
-        'packages/dashboard-app/src/login/Login.test.tsx',
-      ],
-    })
-    expect(registration.unregistered).toEqual([
-      { path: 'e2e/logout.spec.ts', suites: ['web-e2e'] },
-      { path: 'packages/dashboard-app/src/login/Login.test.tsx', suites: ['web-unit'] },
+  it('被套件认领 → 归入该套件（不看是否登记）；像测试却没人认领 → 孤儿；普通源码不报', () => {
+    const claim = claimChangedTestFiles([
+      './packages/dashboard-app/src/login/Login.test.tsx',
+      'e2e/login.spec.ts',
+      'e2e/logout.spec.ts',
+      'packages/server/src/x.test.ts',
+      'tools/test_helper.py',
+      'packages/dashboard-app/src/login/Login.tsx',
+      'packages/dashboard-app/src/login/Login.test.tsx',
+    ], catalog)
+    expect([...claim.claimed]).toEqual([
+      ['web-unit', ['packages/dashboard-app/src/login/Login.test.tsx']],
+      ['web-e2e', ['e2e/login.spec.ts', 'e2e/logout.spec.ts']],
     ])
-    expect(registration.orphans).toEqual(['packages/server/src/x.test.ts', 'tools/test_helper.py'])
+    expect(claim.orphans).toEqual(['packages/server/src/x.test.ts', 'tools/test_helper.py'])
     expect(suitesOwningFile(catalog, 'README.md')).toEqual([])
     expect(normalizeRepoPath('.\\a\\b.ts')).toBe('a/b.ts')
   })

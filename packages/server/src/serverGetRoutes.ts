@@ -1,30 +1,22 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { lstatSync } from 'node:fs'
 import { dirname, join, resolve as resolvePath } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   DEFAULT_WORKFLOW_SOURCE,
-  builtinWorkflow,
   listAutomationPolicyTemplates,
-  materializeWorkflowIo,
-  selectTrackBranch,
   parseWorkflow,
-  loadTrackRegistry,
   validateWorkflowTrackReferences,
   isDefaultWorkflowName,
   TEMPLATE_WORKFLOW_NAMES,
   templateWorkflowSource,
-  withTrackRegistryLock,
+  withProjectCoordinationLock,
   type StateStore,
-  type TrackRegistry,
-  type TrackValidationContext,
   type TransitionRecordStore,
 } from '@tenon/kernel'
 import { buildAfkLog, buildAfkSnapshot, readAfkRunLog } from './afk.js'
 import { buildAfkReadiness } from './afkReadiness.js'
 import { readAutomationSettings } from './automationConfig.js'
 import type { CadenceScheduler } from './cadence.js'
-import { readConfigSnapshot } from './config.js'
 import { listDockerImages } from './dockerImages.js'
 import { HOOK_METAS, readHooksConfig } from './hooksConfig.js'
 import { buildLoopsSnapshot } from './loops.js'
@@ -102,9 +94,6 @@ export interface GetRouteDeps {
   traceStore?: TraceStoreReader
   workflowRootForRequest: (root: string) => WorkflowRootCheck
   workflowStoreForRequest: (root: string) => WorkflowStoreCheck
-  trackValidationContextFor: (anchor: WorkflowRootAnchor) => TrackValidationContext
-  trackRegistryBody: (registry: TrackRegistry) => Record<string, unknown>
-  manifestPath?: string
   paths: ServerPaths
   hostHome: string; operationsAvailable: boolean; hostTargetPlanRuntime: import('./serverGetHostTargetPlanRoutes.js').HostTargetPlanRuntime
   options: DashboardServerOptions; operationRunner: import('./operations.js').PipelineCliRunner
@@ -134,7 +123,7 @@ export async function handleGet(
     cadenceScheduler, sendJson, sendHtml, serveIndexWithToken, serveAsset, indexHtml, token,
     version, releaseId, transactionId, stateScopeId, isLocalHost, snapshotDeps, handleStream, isRegisteredRoot,
     clock, store, recordStore, loopLedger, registry, traceStore, workflowRootForRequest, workflowStoreForRequest,
-    trackValidationContextFor, trackRegistryBody, manifestPath, paths, hostHome, operationsAvailable,
+    paths, hostHome, operationsAvailable,
     hostTargetPlanRuntime, options, operationRunner, resolveSessionLink, errMsg, orchestrationV2, definitionCatalog, adapterInstall,
   } = deps
   const boundPort = deps.boundPort()
@@ -168,7 +157,7 @@ export async function handleGet(
   })
   if (orchestration !== null) return sendJson(res, orchestration.status, orchestration.body)
   const workflowOrchestration = await resolveWorkflowOrchestrationRoute(req.url ?? '/', path, {
-    workflowRootForRequest, workflowStoreForRequest, trackValidationContextFor, snapshotDeps, errMsg,
+    workflowRootForRequest, workflowStoreForRequest, snapshotDeps, errMsg,
   })
   if (workflowOrchestration !== null) return sendJson(res, workflowOrchestration.status, workflowOrchestration.body)
   const taskPlan = await resolveTaskPlanRoute(req.url ?? '/', path, {
@@ -195,53 +184,6 @@ export async function handleGet(
       try {
         const snap = await buildLoopsSnapshot({ registry: () => dedupeRoots(registry()), now: () => new Date(clock()) })
         return sendJson(res, 200, snap)
-      } catch (e) {
-        return sendJson(res, 500, { ok: false, error: errMsg(e) })
-      }
-    }
-    if (path === '/api/tracks') {
-      const root = new URL(req.url ?? '/', 'http://localhost').searchParams.get('root') ?? ''
-      const rootCheck = workflowRootForRequest(root)
-      if (!rootCheck.ok) return sendJson(res, rootCheck.code, { ok: false, error: rootCheck.error })
-      try {
-        assertWorkflowRootAnchor(rootCheck.anchor)
-        let pipelineExists = true
-        try { lstatSync(join(rootCheck.anchor.path, '.pipeline')) } catch (error) {
-          if ((error as NodeJS.ErrnoException).code === 'ENOENT') pipelineExists = false
-          else throw error
-        }
-        if (pipelineExists) ensureWorkflowProjectCoordinationPath(rootCheck.anchor)
-        const trackRegistry = loadTrackRegistry(rootCheck.anchor.path, trackValidationContextFor(rootCheck.anchor))
-        assertWorkflowRootAnchor(rootCheck.anchor)
-        return sendJson(res, 200, trackRegistryBody(trackRegistry))
-      } catch (error) {
-        return sendJson(res, 500, { ok: false, error: errMsg(error) })
-      }
-    }
-    if (path === '/api/config') {
-      if (!manifestPath) return sendJson(res, 404, { ok: false, error: 'config 数据端未装（capabilities.config=false）' })
-      const root = new URL(req.url ?? '/', 'http://localhost').searchParams.get('root') ?? ''
-      if (root === '') return sendJson(res, 400, { ok: false, error: '缺少 root 参数' })
-      const rootCheck = workflowRootForRequest(root)
-      if (!rootCheck.ok) return sendJson(res, rootCheck.code, { ok: false, error: rootCheck.error })
-      try {
-        assertWorkflowRootAnchor(rootCheck.anchor)
-        let pipelineExists = true
-        try {
-          lstatSync(join(rootCheck.anchor.path, '.pipeline'))
-        } catch (e) {
-          if ((e as NodeJS.ErrnoException).code === 'ENOENT') pipelineExists = false
-          else throw e
-        }
-        if (pipelineExists) ensureWorkflowProjectCoordinationPath(rootCheck.anchor)
-        const snapshot = readConfigSnapshot({
-          manifestPath,
-          repoRoot: rootCheck.anchor.path,
-          trackValidationContext: trackValidationContextFor(rootCheck.anchor),
-          generatedAt: clock(),
-        })
-        assertWorkflowRootAnchor(rootCheck.anchor)
-        return sendJson(res, 200, snapshot)
       } catch (e) {
         return sendJson(res, 500, { ok: false, error: errMsg(e) })
       }
@@ -308,10 +250,6 @@ export async function handleGet(
       const root = new URL(req.url ?? '/', 'http://localhost').searchParams.get('root') ?? ''
       let rootCheck = workflowStoreForRequest(root)
       if (!rootCheck.ok) return sendJson(res, rootCheck.code, { ok: false, error: rootCheck.error })
-      const builtin = builtinWorkflow(wfName)
-      if (builtin !== null) {
-        return sendJson(res, 200, { ...builtin, source: 'builtin', effectiveIo: materializeWorkflowIo(selectTrackBranch(builtin, undefined)), branches: workflowBranchesForApi(builtin) })
-      }
       try {
         try {
           readWorkflowForApi(rootCheck.anchor, wfName)
@@ -327,18 +265,18 @@ export async function handleGet(
         const templateSource = e instanceof WorkflowNotFoundError ? templateWorkflowSource(wfName) : undefined
         if (templateSource !== undefined) {
           const template = parseWorkflow(templateSource)
-          return sendJson(res, 200, { ...template, source: 'builtin', effectiveIo: materializeWorkflowIo(selectTrackBranch(template, undefined)), branches: workflowBranchesForApi(template) })
+          return sendJson(res, 200, { ...template, source: 'builtin', branches: workflowBranchesForApi(template) })
         }
         return sendJson(res, e instanceof WorkflowNotFoundError ? 404 : 500, { ok: false, error: errMsg(e) })
       }
       try {
-        const checked = await withTrackRegistryLock(
+        // 项目协调锁内读，与保存 / 删除串行；轨道谓词只核对这份定义自己的分支。
+        const checked = await withProjectCoordinationLock(
           rootCheck.anchor.path,
-          trackValidationContextFor(rootCheck.anchor),
-          async ({ registry }) => {
+          async () => {
             assertWorkflowRootAnchor(rootCheck.anchor)
             const workflow = readWorkflowForApi(rootCheck.anchor, wfName)
-            return { workflow, errors: validateWorkflowTrackReferences(workflow, registry) }
+            return { workflow, errors: validateWorkflowTrackReferences(workflow) }
           },
         )
         if (checked.errors.length > 0) {
@@ -349,7 +287,7 @@ export async function handleGet(
             errors: checked.errors,
           })
         }
-        return sendJson(res, 200, { ...checked.workflow, source: rootCheck.global ? 'global' : 'project', effectiveIo: materializeWorkflowIo(selectTrackBranch(checked.workflow, undefined)), branches: workflowBranchesForApi(checked.workflow) })
+        return sendJson(res, 200, { ...checked.workflow, source: rootCheck.global ? 'global' : 'project', branches: workflowBranchesForApi(checked.workflow) })
       } catch (e) {
         if (e instanceof WorkflowNotFoundError) return sendJson(res, 404, { ok: false, error: errMsg(e) })
         return sendJson(res, 409, {

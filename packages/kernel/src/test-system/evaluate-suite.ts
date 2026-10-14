@@ -101,6 +101,8 @@ export interface SuiteResultContext {
   readonly knownFailures: readonly KnownFailure[]
   readonly baselines: ReadonlyMap<string, TestBaselineV2>
   readonly today: string
+  /** 本任务改动过、被本套件 files glob 认领的测试文件（claim.ts）；缺省 = 不核对认领文件（运行时的单套件判定不带）。 */
+  readonly claimed?: readonly string[]
 }
 
 export interface SuiteResultEvaluation {
@@ -109,13 +111,24 @@ export interface SuiteResultEvaluation {
   readonly failing: readonly string[]
   readonly flaky: readonly string[]
   readonly benchmark: readonly BenchmarkMetricVerdict[]
+  /** 本次运行该核对的认领文件：full 范围或没有 selection（退回全量）时全部，否则只有 selection 里点名的。 */
+  readonly claimedChecked: readonly string[]
+  /** `claimedChecked` 里报告中没有执行过（非跳过）用例的文件；是否出阻塞要跨套件汇总（一个文件可被多个套件认领）。 */
+  readonly claimedMissing: readonly string[]
+}
+
+/** 认领文件里本次运行该核对的：范围是 changed / files 时只看 selection 点名的；full 或没有 selection（退回全量）时全查。 */
+function claimedInScope(claimed: readonly string[], run: SuiteRunV2): readonly string[] {
+  if (run.scope === 'full' || run.selection.length === 0) return claimed
+  const selected = new Set(run.selection)
+  return claimed.filter((path) => selected.has(path))
 }
 
 /**
  * node:test 的内置 junit reporter 在 Node 22 及以前不给用例写 file：报告里的用例没有文件归属，已登记的文件对不上。
  * 这条提示只在 node-test 套件的这类阻塞里附上，指向 Tenon 随附的 reporter（`tenon test run` 提供路径）。
  */
-const NODE_TEST_FILE_HINT = '（若报告里的用例没有文件归属——Node 22 及以前内置的 junit reporter 不写 file 属性——'
+export const NODE_TEST_FILE_HINT = '（若报告里的用例没有文件归属——Node 22 及以前内置的 junit reporter 不写 file 属性——'
   + `命令里改用 --test-reporter="\${${NODE_TEST_REPORTER_ENV}:-junit}"，由 tenon test run 提供带 file 的 reporter）`
 
 /**
@@ -251,6 +264,8 @@ export function evaluateSuiteResult(suite: CatalogSuite, ref: SuiteRunRef, conte
   const fileRan = (path: string): boolean => executed.some((item) => fileRefMatches(path, item.file) || fileRefMatches(item.file, path))
     || refs.some(({ ref }) => fileRefMatches(ref.file, path) && refRan(ref))
   const missingFiles = files.filter((path) => !fileRan(path))
+  const claimedChecked = caseFormat ? claimedInScope(context.claimed ?? [], run) : []
+  const claimedMissing = claimedChecked.filter((path) => !fileRan(path))
   if (caseFormat && (missingFiles.length > 0 || missingRefs.length > 0)) {
     const list = [...missingFiles, ...missingRefs]
     const hint = suite.runner === 'node-test' ? NODE_TEST_FILE_HINT : ''
@@ -285,5 +300,5 @@ export function evaluateSuiteResult(suite: CatalogSuite, ref: SuiteRunRef, conte
       blockers.push(testBlocker('browser-project-missing', `套件 ${name} 的报告缺少浏览器 project：${missing.join('、')}`, { fix, subject: suite.id }))
     }
   }
-  return { blockers, notices, failing, flaky, benchmark }
+  return { blockers, notices, failing, flaky, benchmark, claimedChecked, claimedMissing }
 }

@@ -41,7 +41,7 @@ tenon runtime status
 
 #### 正常对话恢复了旧 Change
 
-新目标不应自动绑定用户的 `active-change`。确认 router 是否把请求识别为 resume；多个候选时必须显式点名。独立目标创建新 Change 或走 discussion/simple。
+新目标不应自动绑定用户的 `active-change`。确认 router 是否把请求识别为 resume；多个候选时必须显式点名。独立目标创建新 Change 或走 discussion。
 宿主提供 session id 时，全新未绑定会话里的通用“继续执行”必须 fail-closed，不得回落到仓库级
 用户的 `active-change`；应显式点名 Change，或先建立该会话的精确绑定。
 
@@ -91,6 +91,27 @@ Platform API Key 按用量计费。Tenon 不会替你登录，也不会读取凭
 `tenon` 在 `PATH` 上解析不到时，`tenon doctor` 的 `env:path-tenon` 是黄灯。`tenon test run` 会给测试进程把正在运行的
 `tenon` 放到 `PATH` 最前，所以必需测试 `tenon test code-size --json` 在没有启动器的环境里也能跑；宿主自己的 Bash 和你的 CI
 仍然需要它。把启动器目录（通常是 `~/.local/bin`）加进 `PATH`，或运行 `tenon setup --claude` / `tenon setup --codex` 装上启动器。
+
+#### `code-size` 测试挡住出口，或大改动没被挡住
+
+默认的 `code-size` 测试没有上限：它记录 `files_changed`、`lines_added`、`lines_deleted`、`largest_added_lines`，退出码 0，
+由 `code-size` 评审者按实测值判断规模是否合理。所以大改动不会被行数挡住，这条测试也不需要豁免。如果项目自己的工作流给这条测试写了
+`pass.metrics` 上限，超限的运行以 `metric-threshold` 失败：在那份工作流里调高或去掉上限；只此一次放行就
+`tenon test waive <change> --test code-size --reason …`（评审确认时批准它，并把实测值显示在你的理由旁边）。要启用上限，在工作流 YAML 的该测试下加：
+
+```yaml
+pass:
+  metrics:
+    - name: lines_added
+      max: 3000
+```
+
+#### 新测试文件被报为孤儿，或被认领的文件没有执行
+
+改动过的测试文件由目录里套件的 `files` glob 认领，不用逐个登记。没有任何 glob 匹配的文件是孤儿（`test-file-orphan`）：运行
+`tenon test register <change> --auto`，它把该文件的精确路径追加进合适的套件，从不放宽 glob。被认领的文件没有执行过的用例
+（`registered-test-not-executed`），说明套件的 `files` glob 与测试命令实际跑的文件不一致：到 `.tenon/tests/catalog.yaml`
+改 glob 或命令。没有源码扩展名的路径（例如 `fixtures/data.spec.json`）和 `openspec/`、`.tenon/`、`.pipeline/` 下的任何路径都不会被当成测试文件。
 
 #### `tenon doctor` 的 `env:platform` 是红灯
 
@@ -173,18 +194,18 @@ v0.3.0 与 v0.3.1 里，`.tenon/tests/catalog.yaml` 的 `not_applicable` 条目�
 （`phase 'build' 的 event 'build-done' 已获确认；请直接执行该 transition，不能重复 request`）。
 
 v0.3.2 会记下这次批准，新任务不会再卡住。已经卡住的任务不会因为更新被修好，也没有命令能清掉这个状态。把 `approved_by` 改回 `null` 也没用：
-条目回到未批准，请求照样被拒。可行的做法是归档卡住的任务，在同一个工作区里新建一个任务：
+条目回到未批准，请求照样被拒。可行的做法是终止卡住的任务，在同一个工作区里新建一个任务：
 
 ```bash
-tenon task archive <name> --yes
-tenon init <new-name> --track <track>
+tenon task terminate <name> --yes
+tenon init <new-name> --workflow <workflow> --track <track> --preset full
 ```
 
 新任务照常运行（`tenon test register`、`tenon test run <new-name> --stage`）。条目里已经带着批准人，所以
 `tenon review request <new-name> --event <event>` 只列出待确认的测试配置改动（就是那次目录改写），而不是待批准的豁免。用
 `tenon review acknowledge <new-name>` 确认一次，之后 `tenon test status` 没有阻断项，`tenon transition` 可以通过。
 
-归档的任务还在：`tenon task unarchive <name> --yes` 可以取回。归档不动你的代码，但新任务从它工作流的第一步开始，卡住的任务写下的文档留在它自己那里。
+被终止的任务移进 `openspec/changes/archive/`，在工作台的「已结束」里标为已终止；它不能恢复，想保留关联就在新任务上 `tenon set <new-name> depends_on <name>`。终止不动也不提交你的代码，但新任务从它工作流的第一步开始，卡住的任务写下的文档留在它自己那里。
 
 #### 命令或 hook 报 `tenon runtime Node identity changed`
 
@@ -208,7 +229,7 @@ hook 最多每 30 分钟打印一次这条消息，其余时候无输出地以 0
 
 ## 预期结果
 
-你应能把问题归到一个明确层级，保留失败证据，并选择状态机允许的回边或修复命令。修复后，相同只读命令应显示一致状态，而不是 UI 绿、CLI 红或文档账本缺失。
+你应能把问题归到一个明确层级，保留失败证据，并选择状态机允许的回边或修复命令。修复后，相同只读命令应显示一致状态，而不是 UI 绿、CLI 红或步骤产出记录缺失。
 
 ## 验证
 

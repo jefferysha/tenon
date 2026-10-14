@@ -1,7 +1,7 @@
 import {
-  builtinWorkflow,
   compileWorkflow,
   resolveEffectiveWorkflowPlan,
+  type PlanOptions,
 } from '@tenon/kernel'
 import {
   assertWorkflowRootAnchor,
@@ -22,16 +22,17 @@ function assertDefinitionRoot(anchor: WorkflowRootAnchor): void {
   }
 }
 
+/** 当前定义的指纹，按任务的轨道与冻结计划的执行模型算（`planOptions`），才能和冻结的指纹比对。 */
 export function readCurrentWorkflowDefinition(
   anchor: WorkflowRootAnchor,
   workflow: string,
+  planOptions: PlanOptions,
 ): WorkflowDefinitionCurrent {
   try {
     assertDefinitionRoot(anchor)
     const plan = resolveEffectiveWorkflowPlan(workflow, (name) => {
-      const definition = builtinWorkflow(name) ?? readWorkflowForApi(anchor, name)
-      return compileWorkflow(definition)
-    }, undefined, () => readDefaultOverride(anchor))
+      return compileWorkflow(readWorkflowForApi(anchor, name))
+    }, planOptions, () => readDefaultOverride(anchor))
     if (plan === null) return { kind: 'missing' }
     assertDefinitionRoot(anchor)
     return { kind: 'current', fingerprint: plan.workflowFingerprint }

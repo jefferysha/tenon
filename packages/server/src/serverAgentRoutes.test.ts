@@ -225,8 +225,8 @@ steps:
     const projectWorkflows = join(root, '.pipeline', 'workflows')
     await mkdir(projectWorkflows, { recursive: true })
     await writeFile(join(projectWorkflows, 'default.yaml'), (await readFile(fileURLToPath(new URL('../../../templates/workflows/default.yaml', import.meta.url)), 'utf8'))
-      .replace('            - agent: security\n              required: false\n              block_at: medium\n',
-        '            - agent: security\n              required: false\n              block_at: medium\n            - agent: mine\n              required: true\n              block_at: medium\n'), 'utf8')
+      .replace('            - agent: security\n              required: true\n              block_at: medium\n',
+        '            - agent: security\n              required: true\n              block_at: medium\n            - agent: mine\n              required: true\n              block_at: medium\n'), 'utf8')
     const query = `?root=${encodeURIComponent(root)}`
 
     const detail = parse((await reqGet(port, `/api/agents/mine${query}`)).body)

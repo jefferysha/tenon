@@ -14,7 +14,7 @@
 
 ## 目标
 
-从一次正常对话创建独立 Change，依次经过 Open、Explore、Spec、Build、Verify、Ship 和 Archive，并能用状态、文档账本和实际测试证明每次推进都成立。
+从一次正常对话创建独立 Change，依次经过 Open、Explore、Spec、Build、Verify、Ship 和 Archive，并能用状态、步骤产出记录和实际测试证明每次推进都成立。
 
 ## 前置条件
 
@@ -31,7 +31,7 @@
 
 > 为登录页增加响应式错误提示，并在真实浏览器验证键盘操作。
 
-正常开发对话会先经过路由。中大型实现进入 default；明显简单、低风险的任务可以进入 simple；纯问答不会创建 Change。
+正常开发对话会先经过路由。纯问答不会创建 Change。不带重型信号的开发请求，agent 先读代码，对预计要改的文件运行 `tenon assess`，把推荐（轻量轨道，或改动太大时的重型轨道）摆给你，你确认后才创建 Change；迁移这类重型请求直接进入领域重型轨道。本教程按重型轨道（default 的 frontend 轨道）的七阶段讲。任务结束后，它在工作台的「已结束」分类里带着结果标记。
 
 ### 2. 确认 Change
 
@@ -48,10 +48,10 @@ tenon status <change> --json
 ### 3. 完成三个前置阶段
 
 - Open：明确问题、范围、非目标和验收信号；
-- Explore：调研、方案比较、设计和 ADR；
+- Explore：调研、方案比较和设计；
 - Spec：增量需求、场景和文件级计划。
 
-后续 phase 会通过 `tenon document read <change> all` 对当前 digest 留下读取收据，不能只说“已经看过”。
+每个步骤只会拿到直接上游写出的文档，必须读完并用 `tenon document read <change> all` 留下读取回执才能离开，不能只说“已经看过”。
 
 在每个 review 出口，先完成产物和检查，再请求精确事件的 review。进入 Explore 本身不代表“等待确认”；只有产物完成并执行 `review request` 后，状态才应显示等待。
 
@@ -83,7 +83,7 @@ tenon status <change> --json
 tenon document status <change>
 ```
 
-归档前，任务清单应没有当前及更早阶段的未完成项；applied spec 应对应已经验证的 delta；Archive 应重读验证报告和已应用规格。
+归档前，任务清单应没有当前及更早阶段的未完成项；applied spec 应对应已经验证的 delta；Archive 应读完 Ship 交接来的文档。`tenon document status` 列出本步的输入（已读 / 未读）、已经写出的文件与来源技能，以及必须产出。
 
 ## 任务在哪里：任务 worktree
 
@@ -120,12 +120,13 @@ Claude Code 里 `tenon` 技能用 `EnterWorktree`（`path` 就是该 worktree）
 worktree 为项目根。Codex 没有对应能力：技能请你在该目录开新会话，并结束本轮。恢复一个建在 worktree 里的任务时同理：dispatch 带着
 `worktree_path`，先切换。
 
-**准备 worktree（`setup`）。** 新 worktree 里没有装好的依赖，也没有构建产物。测试目录可以声明顶层的 `setup` 命令，目录在新 worktree 里受信任时，
-`tenon init` 会在其中执行它（输出转到 stderr）：
+**准备 worktree（`setup`）。** 新 worktree 里没有装好的依赖，也没有构建产物。测试目录可以声明顶层的 `setup` 命令，这条命令已受信任时，
+`tenon init` 会在新 worktree 里执行它（输出转到 stderr）：
 
-- 信任按命令摘要生效。`init` 把你在主检出本机封存里信任过的摘要带进 worktree 的封存，所以已提交（摘要相同）的目录立即受信任。如果主检出的目录有未提交的
-  改动，worktree 里是已提交的版本，它的摘要不在你的信任记录里：`setup` **不会**执行，`init` 打印该命令，并请你自己在 worktree 里运行 `tenon test trust`
-  确认（agent 不能替你确认），再手动执行 setup。之后在 worktree 里改了命令同样要重新确认。评审批准和测试记录链头不会被复制。
+- 信任按用户、仓库、单条命令摘要记录，同一仓库的所有 worktree 共享，所以没有什么要「带进」新 worktree：这条 `setup` 你已经信任过
+  （在主检出或任何 worktree 里运行过 `tenon test trust`）就立即执行。还没信任的 `setup` **不会**执行，`init` 打印该命令，并请你自己运行
+  `tenon test trust` 确认（agent 不能替你确认），再手动执行 setup。worktree 里是已提交的目录，主检出里对 `setup` 的未提交改动不算，以已提交的那条命令为准。
+  之后改了这条命令同样要重新确认。
 - 信任绑定的是命令文本（目录的命令摘要），不绑定命令执行时读取的仓库文件，例如 `package.json` 的生命周期脚本、它调用的脚本；这与测试套件的信任方式相同。
   所以 `setup` 一旦被信任，之后的提交改了这些文件，`init` 会在新 worktree 里直接执行改过的版本，不再询问。不想自动执行 `setup`，
   用 `tenon init --in-place` 建任务，或从目录里去掉 `setup`。
@@ -166,8 +167,8 @@ Tenon · <change>
 ## 预期结果
 
 - Todo 一级项与实际 workflow 步骤一致；
-- proposal、design、ADR、delta spec、plan、verification report 和 applied spec 都有真实 producer；
-- 后续阶段对当前 digest 留有 read receipt；
+- 每一步写出的文件都被记录，带来源技能或「未知」；各步的必须产出（proposal、设计、delta spec、计划、验证报告）都已写出；
+- 下一阶段对直接上游的文档留有读取回执；
 - review receipt 绑定准确 phase/event；
 - Verify 失败会回到 Build，而不是强行进入 Ship；
 - Archive 后 Change 不再作为新目标的自动恢复对象。
@@ -186,7 +187,7 @@ tenon document status <change> --json
 
 - 正常对话恢复了旧 Change：确认用户是否明确说“继续”；独立目标应创建新 Change；
 - Todo 不是 workflow 步骤：检查 `tasks.md` 是否由真实 effective workflow 生成；
-- 文档存在但 guard 仍失败：检查 producer、digest 和当前 phase read receipt；
+- 文件存在但必须产出仍缺失：它必须是本任务里这一步新增或修改的；转换因输入未读被拒：执行 `tenon document read <change> all`；
 - UI 显示等待：查看是否真的存在 pending review，还是 AFK 仍在 queued；
 - 刚建的 Change 报 `change not found`：在 Git 仓库的主检出里，新 Change 建在 `.worktrees/<change>`。报错里有 worktree 路径，切到该目录再执行
   （Claude Code 用 `EnterWorktree`，Codex 在该目录开新会话）；`tenon list` 列出每个任务及其路径，见[任务在哪里](#任务在哪里任务-worktree)；

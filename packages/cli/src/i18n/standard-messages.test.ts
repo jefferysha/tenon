@@ -23,6 +23,34 @@ describe('standard 通道命令的输出语言', () => {
       .toBe("评审者 'security' 只在 auth/dependency 路径变化时挂载，本任务的改动没有碰到这些路径，不需要运行它")
   })
 
+  it('观察模式的 document 命令：zh 是约定的那句话，en 不含中文，占位符都被替换', () => {
+    expect(formatMessage('zh', 'document.observed.autoRecorded', { command: 'document record' }))
+      .toBe('本任务的产出由 Tenon 在离开步骤时自动记录，tenon document record 只服务升级前创建的任务')
+    expect(formatMessage('zh', 'document.observed.requiredMissing', { step: 'spec', path: 'docs/superpowers/plans/*.md' }))
+      .toBe("step 'spec' 要求产出匹配 docs/superpowers/plans/*.md 的文件（本任务里这一步还没有写出这样的文件）")
+    const english = [
+      formatMessage('en', 'document.observed.autoRecorded', { command: 'artifact register' }),
+      formatMessage('en', 'document.observed.pathOutsideProject', { path: '../x.md' }),
+      formatMessage('en', 'document.observed.inputLine', { mark: 'UNREAD', path: 'a.md', from: 'explore', skill: 'unknown' }),
+      formatMessage('en', 'document.observed.unreadSummary', { count: 2, change: 'demo' }),
+      formatMessage('en', 'document.observed.requiredMissing', { step: 'spec', path: 'a.md' }),
+      formatMessage('en', 'document.observed.pass'),
+    ]
+    for (const line of english) {
+      expect(CJK.test(line), line).toBe(false)
+      expect(line, line).not.toMatch(/\{[A-Za-z]+\}/u)
+    }
+  })
+
+  it('assess 读不出路径是否存在：两种语言都点名路径与原因', () => {
+    const params = { path: '"src/a.ts"', reason: 'EACCES' }
+    expect(formatMessage('zh', 'assess.path.unreadable', params)).toBe('无法确认路径是否存在（EACCES）：评估不猜，请先修好读取权限："src/a.ts"')
+    const en = formatMessage('en', 'assess.path.unreadable', params)
+    expect(en).toContain('EACCES')
+    expect(en).toContain('"src/a.ts"')
+    expect(CJK.test(en)).toBe(false)
+  })
+
   it('test diff-risk 的错误：zh 保持原文，en 是英文', async () => {
     const zh = depsFor('zh')
     expect(await cmdTestDiffRisk(zh, 'bad name!')).toBe(1)

@@ -1,15 +1,18 @@
 export {
   COVERAGE_FORMATS, COVERAGE_METRICS, ENV_NAME_RE, EXIT_CODE_KINDS, INLINE_SUITE_PREFIX, NODE_TEST_REPORTER_ENV, PLAN_SCOPES,
   POLICY_SCOPES,
-  REPORT_FORMATS, RUN_SCOPES, RUNNER_FORMATS, SERVICE_STOP_SIGNALS, SUITE_ID_RE, TEST_FILE_LIKE_PATTERNS, TEST_KINDS,
-  TEST_RUNNERS, defaultReportFormat, isCaseReportFormat, isCoverageFormat, isPlanScope, isPolicyScope, isReportFormat,
-  isRunScope, isServiceStopSignal, isTestKind, isTestRunner, kindFormatProblem, kindForDirection, kindRunnerProblem,
-  looksLikeTestFile,
+  REPORT_FORMATS, RUN_SCOPES, RUNNER_FORMATS, SERVICE_STOP_SIGNALS, SUITE_ID_RE, TEST_CLASSES, TEST_FILE_LIKE_PATTERNS,
+  TEST_KINDS, TEST_RUNNERS, defaultReportFormat, isCaseReportFormat, isCoverageFormat, isPlanScope, isPolicyScope,
+  isReportFormat, isRunScope, isServiceStopSignal, isTestClass, isTestKind, isTestRunner, kindFormatProblem,
+  kindForDirection, kindRunnerProblem, looksLikeTestFile, testClassOf,
 } from './vocabulary.js'
 export type {
-  CoverageFormat, CoverageMetric, PlanScope, PolicyScope, ReportFormat, RunScope, ServiceStopSignal, TestKind,
-  TestRunner,
+  CoverageFormat, CoverageMetric, PlanScope, PolicyScope, ReportFormat, RunScope, ServiceStopSignal, TestClass,
+  TestKind, TestRunner,
 } from './vocabulary.js'
+export {
+  TEST_CONTROL_DIRS, TEST_SOURCE_EXTENSIONS, hasTestSourceExtension, withoutControlPaths,
+} from './test-paths.js'
 export { YamlSubsetError, parseYamlSubset } from './yaml-subset.js'
 export type { YamlMap, YamlMapEntry, YamlNode, YamlScalar, YamlSeq } from './yaml-subset.js'
 export { emitYaml, formatYamlScalar } from './yaml-emit.js'
@@ -30,6 +33,8 @@ export {
   pendingNotApplicable, withNotApplicable, withoutNotApplicable,
 } from './catalog-na.js'
 export type { NotApplicableApproval } from './catalog-na.js'
+export { DEFAULT_LEVELS, LEVEL_NAMES, resolveLevel } from './levels.js'
+export type { CatalogLevels, LevelName, LevelThresholds, ResolvedLevel } from './levels.js'
 export { emptyCatalog, readCatalogFile, updateCatalog } from './catalog-file.js'
 export type { CatalogFile, UpdateOutcome } from './catalog-file.js'
 export {
@@ -52,8 +57,10 @@ export type {
 export { decodeTestPlanLedger, readTestPlanState, updateTestPlan, writeTestPlan, writeTestPlanUnderLock } from './plan-ledger.js'
 export { approveWaivers, pendingWaivers, testPlanApprovalFreeDigest } from './plan-waivers.js'
 export type { PendingWaiver, StepTestFailure, StepTestFailures, WaiverApproval, WaiverSkipReason } from './plan-waivers.js'
-export { WAIVER_REASON_MAX, stepTestWaiver, waiverReasonText } from './step-test-waivers.js'
+export { WAIVER_REASON_MAX, displaySafeText, foldDisplayText, stepTestWaiver, waiverReasonText } from './step-test-waivers.js'
 export type { StepTestWaiverView } from './step-test-waivers.js'
+export { WAIVER_METRICS_MAX_LISTED, formatWaiverMetrics, latestFailureMetrics, runMetrics } from './waiver-metrics.js'
+export type { WaiverMetric, WaiverMetricsLocale } from './waiver-metrics.js'
 export {
   REVIEW_WAIVERS_FILE, approveFrozenWaivers, boundReviewWaiverSelection, clearReviewWaiverSelection,
   pendingReviewWaivers, readReviewWaiverSelection, writeReviewWaiverSelection,
@@ -114,8 +121,15 @@ export type {
 } from './record-chain.js'
 export { TRACE_TASK_STAGE, extractScenarios, extractTaskItems } from './openspec-trace.js'
 export type { DeltaSection, OpenSpecScenario, TaskItem } from './openspec-trace.js'
-export { normalizeRepoPath, suitesOwningFile, testFileRegistration } from './test-files.js'
-export type { TestFileRegistration, UnregisteredTestFile } from './test-files.js'
+export { normalizeRepoPath, suitesOwningFile } from './test-files.js'
+export type { OwnedTestFile, UnregisteredTestFile } from './test-files.js'
+export { claimChangedTestFiles, claimedByPath, claimedFilesOfSuite, orphansNotInPlan } from './claim.js'
+export type { ChangedTestFiles } from './claim.js'
+export { stageRunSet, suitesWithoutCovers, suitesWithoutCoversNotice, touches } from './stage-run-set.js'
+export type { StageRunItem, StageRunSet } from './stage-run-set.js'
+export {
+  INERT_TEST_POLICY, policyChecksChangedFiles, policyRunsSuites, resolveStepTestPolicy, stepHasTestPolicy,
+} from './resolve-policy.js'
 export {
   TEST_BLOCKER_CODES, TEST_BLOCKER_LABELS, TEST_NOTICE_CODES, TEST_NOTICE_LABELS, renderTestBlocker, shellQuote,
   testBlocker, testNotice,
@@ -153,6 +167,10 @@ export {
   testSealPath, updateTestSeal,
 } from './seal.js'
 export type { SealApproval, SealRead, SealState, SealTrust, SealWrite, TestSeal } from './seal.js'
+export { TRUST_STORE_MAX_ENTRIES, addTrustEntries, readTrustStore, testTrustPaths } from './trust-store.js'
+export type { TrustEntry } from './trust-store.js'
+export { catalogExecEntries, catalogSetupEntry, stepTestExecEntries } from './catalog.js'
+export type { ExecEntry } from './catalog.js'
 export { describeProtectedChange } from './protected-summary.js'
 export {
   INTEGRITY_SIGNAL_CODES, INTEGRITY_SIGNAL_LABELS, evaluateIntegrity, integrityRunSamples, integritySummary, unavailableIntegrity,

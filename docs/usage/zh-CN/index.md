@@ -17,9 +17,9 @@ Tenon 是面向 Codex、Claude Code 等 Agent 宿主的本地优先交付工作�
 | 入口 | 适用目标 | 是否创建 Change | 文档行为 |
 | --- | --- | --- | --- |
 | discussion | 问答、解释、只读分析 | 否 | 不创建治理文档 |
-| simple | 少量、低风险、可快速验证的修改 | 是 | 只遵守 short workflow 自己的合同 |
-| default | 跨模块、需要规格与验证的开发 | 是 | 完整七阶段与 OpenSpec 证据链 |
-| free/custom | 中性任务或团队自定义 DAG | 取决于 workflow | 只生成声明的文档 |
+| `default` 的 `lite` 轨道 | 修缺陷、小改动、错字级改动（建任务前先评估改动范围） | 是 | 无 OpenSpec，只有一道评审门 |
+| `default` 的 `pm` / `frontend` / `backend` 轨道 | 跨模块、需要规格与验证的开发 | 是 | 完整七阶段与 OpenSpec 证据链 |
+| 自定义工作流 | 团队自定义 DAG | 是 | 只生成声明的文档 |
 
 ## 默认生命周期
 
@@ -33,16 +33,18 @@ open → explore → spec ⇄ build ⇄ verify → ship → archive
 
 - `.pipeline/workflows/`：项目自定义 Workflow 的版本化定义；
 - `openspec/changes/<name>/`：活跃 Change 的 proposal、design、tasks、delta spec 与状态投影；
+- `openspec/changes/archive/<日期>-<name>/`：已结束的 Change（完结、已升级、已终止都在这里）；
 - `openspec/specs/`：已经应用、持续维护的主规格；
 - `docs/adr/` 与 `docs/superpowers/`：架构决策、技术设计、计划和验证报告；
 - `.pipeline-document-locale.json`：新 Change 固定的文档呈现语言；
-- `.pipeline-documents.json`：文档 producer、digest 和读取收据账本。
+- `.pipeline-step-outputs.json`：每次步骤访问的产出、来源技能和读取回执；
+- `.pipeline-documents.json`：升级前创建的任务的文档 producer、digest 和读取收据账本。
 
 状态机决定“能否推进”，OpenSpec 描述“系统必须做什么”，计划描述“如何实现”，验证报告描述“实际验了什么”。任何一份文件都不能单独冒充流程完成。
 
 ## 文档如何保证可信
 
-每份受治理文档记录 kind、路径、producer、SHA-256 和后续 phase 的读取收据。模板只提供结构；真实 Skill 必须填写有意义正文并登记。中文是新 Change 的默认呈现语言，但 phase id、命令、文件名、账本字段和 OpenSpec 操作词保持稳定英文 token。
+新任务不预先规定每一步的文档：Tenon 在离开步骤时记录该步新增、修改、删除的文件与来源技能，下一步只拿到直接上游的文档并必须读完（读取回执绑定 SHA-256），工作流只用 `required-output` 要求某一步必须写出哪些文件。升级前创建的任务仍按文档账本，记录 kind、路径、producer、SHA-256 和后续 phase 的读取收据。中文是新 Change 的默认呈现语言，但 phase id、命令、文件名、账本字段和 OpenSpec 操作词保持稳定英文 token。
 
 ## 运行边界
 

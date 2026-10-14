@@ -1,11 +1,16 @@
 /**
  * 受治理文档取证夹具（从 integration-harness.ts 拆出，保持单文件在 500 行以内）。
- * 真 ledger API、真摘要、真 producer 历史校验与真读取回执；只在结束时还原临时 Skill 历史行。
+ * 按任务自己冻结计划的 `capabilities.documents.mode` 分流：
+ * - 契约模式（升级前带文档契约的任务）：真 ledger API、真摘要、真 producer 历史校验与真读取回执；
+ *   只在结束时还原临时 Skill 历史行。
+ * - 观察模式（新任务）：没有账本也没有 producer 绑定，只写文件，再对当前访问写读取回执
+ *   （kernel `recordInputReads`，任务锁内）。harness 项目默认不是 git 仓库，观察记为 unavailable，
+ *   必须产出按「存在匹配文件」判定，所以种下的文件路径要与新模板的必须产出模式对得上。
  */
-import { appendFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import {
-  compileEffectiveWorkflowPlan,
+  changeDeltaSpecPaths,
   createStateStore,
   documentKindsProducedBySkillAtPolicyStep,
   documentRecordsInCurrentStepVisit,
@@ -13,9 +18,12 @@ import {
   readDocumentLedger,
   recordDocument,
   recordDocumentReads,
-  recordedDeltaSpecPaths,
+  recordInputReads,
   sha256Hex,
   SPEC_APPLY_RECEIPT_FILE,
+  stepOutputsContextFor,
+  type DocumentGovernancePolicy,
+  type EffectiveWorkflowPlan,
 } from '@tenon/kernel'
 import {
   recordCanonicalDocumentSkillInvocation,
@@ -25,6 +33,16 @@ import {
 export const FIXED_CLOCK = '2026-07-07T00:00:00Z'
 /** 夹具替 producer 补登产物时写的 Skill 历史行标记（不是 hook 写的）。 */
 export const FIXTURE_HISTORY_TAG = 'integration-harness-bound-document'
+
+/**
+ * 夹具里的 `openspec archive <c>`：落在与真命令相同的 `archive/<日期>-<名>/`，不依赖本机装了 openspec
+ * （生产里 `tenon task finish` 对走 OpenSpec 的轨道调用真命令，见 kernel/archive-task.ts）。
+ */
+export async function harnessOpenspecArchive(root: string, change: string): Promise<void> {
+  const archive = join(root, 'openspec', 'changes', 'archive')
+  await mkdir(archive, { recursive: true })
+  await rename(join(root, 'openspec', 'changes', change), join(archive, `${FIXED_CLOCK.slice(0, 10)}-${change}`))
+}
 
 const GOVERNED_DESIGN = `# governed design
 
@@ -42,23 +60,24 @@ L10_terms: filled
 \`\`\`
 `
 
+/** 任务自己冻结计划里的旧文档契约；观察模式（新任务）没有，返回 undefined。 */
+function contractPolicyOf(plan: EffectiveWorkflowPlan): DocumentGovernancePolicy | undefined {
+  const { mode, policy } = plan.capabilities.documents
+  return mode === 'contract' ? policy : undefined
+}
+
+interface SeedOverrides {
+  readonly design?: string
+  readonly tasks?: string
+  readonly autoSkills?: boolean
+}
+
 /**
- * Test fixture for transition/HTTP behavior that is intentionally orthogonal to document authoring.
- * It uses the real ledger API, real digests, real producer-history validation, and real read receipts;
- * only the temporary Skill history lines are restored afterwards so history-focused assertions keep
- * their original, narrow fixture contract.
+ * 种下的文件：契约模式的验证报告是 `<name>.md`（契约槽的路径），观察模式的是新模板验证边的必须产出
+ * `docs/superpowers/reports/<name>-verify.md`；其余路径两种模式都落在新模板必须产出模式的覆盖范围内。
  */
-export async function seedGovernedDocumentEvidence(
-  root: string,
-  changeDir: string,
-  name: string,
-  overrides: {
-    readonly design?: string
-    readonly tasks?: string
-    readonly autoSkills?: boolean
-  } = {},
-): Promise<void> {
-  const docs = {
+function seededDocuments(name: string, mode: 'contract' | 'observed') {
+  return {
     proposal: `openspec/changes/${name}/proposal.md`,
     design: `openspec/changes/${name}/design.md`,
     tasks: `openspec/changes/${name}/tasks.md`,
@@ -66,9 +85,16 @@ export async function seedGovernedDocumentEvidence(
     adr: `docs/adr/${name}.md`,
     delta: `openspec/changes/${name}/specs/capability/spec.md`,
     plan: `docs/superpowers/plans/${name}.md`,
-    report: `docs/superpowers/reports/${name}.md`,
+    report: mode === 'contract' ? `docs/superpowers/reports/${name}.md` : `docs/superpowers/reports/${name}-verify.md`,
     applied: 'openspec/specs/capability/spec.md',
   }
+}
+
+async function writeSeededDocuments(
+  root: string,
+  docs: ReturnType<typeof seededDocuments>,
+  overrides: SeedOverrides,
+): Promise<void> {
   const contents: Readonly<Record<keyof typeof docs, string>> = {
     proposal: '# proposal\n',
     design: overrides.design ?? GOVERNED_DESIGN,
@@ -84,6 +110,29 @@ export async function seedGovernedDocumentEvidence(
     const target = join(root, docs[key])
     await mkdir(dirname(target), { recursive: true })
     await writeFile(target, contents[key], 'utf8')
+  }
+}
+
+/**
+ * Test fixture for transition/HTTP behavior that is intentionally orthogonal to document authoring.
+ * 契约模式：uses the real ledger API, real digests, real producer-history validation, and real read
+ * receipts; only the temporary Skill history lines are restored afterwards so history-focused
+ * assertions keep their original, narrow fixture contract.
+ * 观察模式：只写文件，再对当前访问写读取回执。
+ */
+export async function seedGovernedDocumentEvidence(
+  root: string,
+  changeDir: string,
+  name: string,
+  plan: EffectiveWorkflowPlan,
+  overrides: SeedOverrides = {},
+): Promise<void> {
+  const policy = contractPolicyOf(plan)
+  const docs = seededDocuments(name, policy === undefined ? 'observed' : 'contract')
+  await writeSeededDocuments(root, docs, overrides)
+  if (policy === undefined) {
+    await readGovernedDocumentsForCurrentVisit(root, changeDir, plan)
+    return
   }
 
   const historyPath = join(changeDir, '.pipeline-history.jsonl')
@@ -121,7 +170,7 @@ export async function seedGovernedDocumentEvidence(
     })
     if (!confirmed) throw new Error(`fixture native confirmation rejected for ${producer}`)
     const ledger = await recordDocument({
-      repoRoot: root, changeDir, phase, policy: defaultDocumentPolicy(), kind, path, producer, recordedAt: FIXED_CLOCK,
+      repoRoot: root, changeDir, phase, policy, kind, path, producer, recordedAt: FIXED_CLOCK,
     })
     const canonicalRecord = [...ledger.records].reverse().find((candidate) =>
       candidate.kind === kind && candidate.path === path && candidate.recordedAt === FIXED_CLOCK)
@@ -148,7 +197,7 @@ export async function seedGovernedDocumentEvidence(
     await record('verify', 'verification-report', docs.report, 'verification-before-completion')
     await record('ship', 'applied-spec', docs.applied, 'tenon')
     await store.set(changeDir, 'phase', originalPhase)
-    await readGovernedDocumentsForCurrentVisit(root, changeDir, recordedAt)
+    await readGovernedDocumentsForCurrentVisit(root, changeDir, plan, recordedAt)
   } finally {
     if (originalHistory === undefined) {
       await rm(historyPath, { force: true })
@@ -164,14 +213,17 @@ export async function seedGovernedDocumentEvidence(
  * 走的是真 confirmation + 真 recordDocument，与真实 `tenon document record` 同一条路。
  *
  * 只重登内容没变过的记录：用例故意改坏的文档保持 stale，被测命令照样看得见那个失败。
+ * 观察模式没有技能与产物的绑定，什么都不做。
  */
 export async function recordBoundDocumentsForCurrentVisit(
   root: string,
   changeDir: string,
   name: string,
+  plan: EffectiveWorkflowPlan,
   skills: readonly string[],
 ): Promise<void> {
-  const policy = defaultDocumentPolicy()
+  const policy = contractPolicyOf(plan)
+  if (policy === undefined) return
   const phase = String((await createStateStore().read(changeDir)).fields.phase)
   const ledger = await readDocumentLedger(changeDir)
   if (ledger === undefined) return
@@ -213,20 +265,28 @@ export async function recordBoundDocumentsForCurrentVisit(
   }
 }
 
-/** Fixtures record the built-in default document table (identical in every default branch). */
-function defaultDocumentPolicy() { const policy = compileEffectiveWorkflowPlan('default').documentPolicy; if (!policy) throw new Error('default must be document-governed'); return policy }
-
+/**
+ * 当前步骤访问的读取回执：契约模式照旧经文档台账读 `all`；观察模式对当前访问的交接输入写回执
+ * （kernel `recordInputReads`，与 `tenon document read <change> all` 同一入口，任务锁内）。
+ */
 export async function readGovernedDocumentsForCurrentVisit(
   root: string,
   changeDir: string,
+  plan: EffectiveWorkflowPlan,
   readAt = FIXED_CLOCK,
 ): Promise<void> {
+  const policy = contractPolicyOf(plan)
+  if (policy === undefined) {
+    const store = createStateStore()
+    await store.withLock(changeDir, () => recordInputReads(stepOutputsContextFor(changeDir), 'all', readAt))
+    return
+  }
   const state = await createStateStore().read(changeDir)
   await recordDocumentReads({
     repoRoot: root,
     changeDir,
     phase: String(state.fields.phase),
-    policy: defaultDocumentPolicy(),
+    policy,
     kind: 'all',
     readAt,
   })
@@ -238,10 +298,10 @@ export async function readGovernedDocumentsForCurrentVisit(
  * main spec on disk plus a `mode: "apply"` receipt whose delta and target digests are taken from
  * the bytes actually present. It deliberately does not fabricate `mode`, does not touch the main
  * spec's bytes (the ledger's `applied-spec` digest is bound to them), and does nothing when the
- * change has no recorded delta spec — a test that wants the unapplied state simply does not call it.
+ * change has no delta spec (ledger-recorded, or under the task's specs/ for observed tasks) — a test that wants the unapplied state simply does not call it.
  */
 export async function seedAppliedSpec(root: string, changeDir: string, change: string): Promise<void> {
-  const deltas = await recordedDeltaSpecPaths(changeDir)
+  const deltas = await changeDeltaSpecPaths(changeDir)
   if (deltas.length === 0) return
   const prefix = `openspec/changes/${change}/specs/`
   const targets: { path: string; before_sha256: string | null; after_sha256: string; change: string }[] = []

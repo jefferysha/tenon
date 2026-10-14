@@ -1,7 +1,8 @@
 /**
  * 运行集规划（纯函数）：命令行参数 × 任务计划 × 当前阶段策略 → 要跑的套件与范围。
- *   --stage        阶段运行集 = 策略 run（必跑）与 run_if_registered（计划登记了才跑）里种类对应的计划套件；
- *                  策略要求全量时一律 full，否则用计划里各套件登记的范围。没有任何选择参数时缺省就是 --stage。
+ *   --stage        阶段运行集 = kernel 的 stageRunSet（与门禁求值同一份）：档位策略按档位 × 目录 × 本任务改动算，
+ *                  旧策略取 run / run_if_registered 种类对应的计划套件（files: registered 时再加认领文件所属的套件）。
+ *                  空运行集合法（改动没碰到任何套件）。没有任何选择参数时缺省就是 --stage。
  *   --suite <id>   点名的套件（计划里有就沿用它的范围，没有就 full）
  *   --kind <k>     计划里该种类的套件（没有计划时取目录里该种类的全部套件）
  *   --all          计划里的全部套件（没有计划时取目录里的全部套件），全量
@@ -9,7 +10,7 @@
  * 结果按目录里的套件顺序、按 id 去重。
  */
 import {
-  TEST_KINDS, isTestKind, type CatalogSuite, type PlanScope, type StepTestPolicyIR, type TestCatalog, type TestPlan,
+  TEST_KINDS, isTestKind, stageRunSet, type CatalogSuite, type PlanScope, type StepTestPolicyIR, type TestCatalog, type TestPlan,
 } from '@tenon/kernel'
 import type { RunItem } from './exec-types.js'
 
@@ -24,10 +25,13 @@ export interface RunFlags {
 export interface RunSetInput {
   readonly catalog: TestCatalog
   readonly plan: TestPlan | undefined
+  /** 已求值的步骤策略（档位或旧 `test_policy`，见 resolveStepTestPolicy）；步骤没有测试声明时 undefined。 */
   readonly policy: StepTestPolicyIR | undefined
   readonly flags: RunFlags
   readonly stepId: string
   readonly change: string
+  /** 本任务改动的文件；缺省 / undefined = 读不到改动列表（档位的运行集只含计划里显式登记的套件，full 档另加必需类）。 */
+  readonly changedFiles?: readonly string[] | undefined
 }
 
 export type RunSetResult = { readonly items: readonly RunItem[] } | { readonly error: string }
@@ -70,14 +74,13 @@ export function planRunSet(input: RunSetInput): RunSetResult {
     for (const entry of everything) put(entry.suite, 'full', 'explicit')
   }
   if (flags.stage || !explicit) {
-    if (policy === undefined) return { error: `步骤 ${input.stepId} 没有 test_policy，没有阶段运行集；用 --suite / --kind / --all 指定要跑的套件` }
+    if (policy === undefined) return { error: `步骤 ${input.stepId} 没有测试档位（test:）或 test_policy，没有阶段运行集；用 --suite / --kind / --all 指定要跑的套件` }
     if (plan === undefined) return { error: `阶段运行集来自任务测试计划，${input.change} 还没有可用的计划；执行 tenon test plan ${input.change} --seed` }
-    for (const entry of planned(plan, catalog)) {
-      const why = policy.run.includes(entry.suite.kind) ? 'run' : policy.run_if_registered.includes(entry.suite.kind) ? 'if-registered' : undefined
-      if (why !== undefined) put(entry.suite, policy.scope === 'full' ? 'full' : entry.scope, why, policy.scope === 'full' ? undefined : entry)
-    }
-    // 策略没有必须运行的种类（run 为空）时，阶段运行集为空是正常的，交给调用方如实说明；有必须运行的种类却没有套件才是缺登记。
-    if (chosen.size === 0 && policy.run.length > 0) {
+    // 与 tenon status / check 求值用的是同一份运行集（kernel 的 stageRunSet）。
+    for (const item of stageRunSet({ policy, catalog, plan, changedFiles: input.changedFiles }).items) put(item.suite, item.scope, item.reason, item)
+    // 档位策略、以及没有必须运行的种类（run 为空）的旧策略，阶段运行集为空是正常的，交给调用方如实说明；
+    // 旧策略有必须运行的种类却没有套件才是缺登记。
+    if (chosen.size === 0 && policy.level === undefined && policy.run.length > 0) {
       return { error: `步骤 ${input.stepId} 的策略要求运行 ${[...policy.run, ...policy.run_if_registered].join('/')}，但任务计划里没有这些种类的套件；tenon test register ${input.change} --suite <id>` }
     }
   }

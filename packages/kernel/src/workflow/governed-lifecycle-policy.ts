@@ -1,9 +1,57 @@
-import { DEFAULT_EVENT_POLICY } from '../flow/default-event-policy.js'
+import type { EffectiveWorkflowPlan } from './effective-plan-types.js'
 import type { ActionConfig, CompiledGuardConfig, StepIR, StepTransitionIR } from './ir.js'
+import { NON_PM } from './predicates.js'
 
 export interface GovernedLifecyclePolicy {
   readonly guards: readonly CompiledGuardConfig[]
   readonly actions: readonly ActionConfig[]
+}
+
+const PRE_VERIFY_PASSED: CompiledGuardConfig = { type: 'field-equals', field: 'pre_verify_review_result', value: 'pass' }
+const RESET_PRE_VERIFY: ActionConfig = { type: 'reset-pre-verify-review' }
+
+/**
+ * 受治理工作流的固定生命周期（按相邻阶段 id 套用）：只剩安全不变量——实现前评审、build 冻结与验证不被绕过、
+ * 主规格迁移。设计 §1b 已退役的检查（build_mode / isolation / direct_override / branch_status）不在其中；
+ * 内建 `default` 的这些规则全部写在 default.yaml 里，这里只是给阶段 id 恰好对得上的自定义工作流兜底，
+ * 与 YAML 里同样的声明按结构去重（mergeLifecycleGuards / mergeLifecycleActions）。
+ * 旧执行模型的转换表（flow/default-event-policy.ts）另有一份，只服务快照里记着旧模型的任务。
+ */
+const GOVERNED_LIFECYCLE: Readonly<Record<string, GovernedLifecyclePolicy>> = {
+  'spec>build': { guards: [], actions: [RESET_PRE_VERIFY] },
+  'build>spec': { guards: [], actions: [RESET_PRE_VERIFY] },
+  'build>verify': { guards: [PRE_VERIFY_PASSED], actions: [{ type: 'freeze-build-sha' }] },
+  'verify>ship': {
+    guards: [{ type: 'build-head-unchanged', field: 'build_sha' }],
+    actions: [{ type: 'mark-verification-passed' }],
+  },
+  'verify>build': { guards: [], actions: [{ type: 'mark-verification-failed' }, RESET_PRE_VERIFY] },
+  'ship>archive': { guards: [{ type: 'spec-migration-applied' }], actions: [] },
+}
+
+/**
+ * 只在带旧文档契约（`mode: 'contract'`）的计划里注入的离开条件：它们引用的 `plan` / `verification_report` 字段
+ * 由旧的 `tenon artifact register` / 文档登记写入，新任务没有人登记，必须产出改由 YAML 里的 `required-output` 声明。
+ * 守卫按边的先后保持改前顺序（文档检查在前）。
+ */
+const CONTRACT_LIFECYCLE_GUARDS: Readonly<Record<string, readonly CompiledGuardConfig[]>> = {
+  'spec>build': [{ type: 'file-exists', path: { kind: 'field', field: 'plan' }, when: NON_PM }],
+  'verify>ship': [{ type: 'file-exists', path: { kind: 'field', field: 'verification_report' } }],
+}
+
+/**
+ * 固定生命周期的适用范围：`governed` = 走 OpenSpec 生命周期（实现前评审、冻结与校验 build 修订、验证标记、主规格迁移），
+ * `contract` = 冻结计划另带旧文档契约（再加上面引用文档字段的两条）。
+ */
+export interface LifecycleScope {
+  readonly governed: boolean
+  readonly contract: boolean
+}
+
+/** 计划的固定生命周期适用范围：调用方不必各自拼 `governed` / `mode`。 */
+export function lifecycleScopeOf(plan: { readonly capabilities: Pick<EffectiveWorkflowPlan['capabilities'], 'documents'> }): LifecycleScope {
+  const { governed, mode } = plan.capabilities.documents
+  return { governed, contract: mode === 'contract' }
 }
 
 /**
@@ -22,18 +70,15 @@ export interface EffectiveLifecyclePolicy extends GovernedLifecyclePolicy {
 
 /** Canonical lifecycle invariants inherited by document-governed custom workflows. */
 export function governedLifecyclePolicy(
-  governed: boolean,
+  scope: LifecycleScope,
   from: string,
   to: string,
 ): GovernedLifecyclePolicy | undefined {
-  if (!governed) return undefined
-  if (from === 'spec' && to === 'build') return DEFAULT_EVENT_POLICY['spec-complete']
-  if (from === 'build' && to === 'spec') return DEFAULT_EVENT_POLICY['requirements-changed']
-  if (from === 'build' && to === 'verify') return DEFAULT_EVENT_POLICY['build-complete']
-  if (from === 'verify' && to === 'ship') return DEFAULT_EVENT_POLICY['verify-pass']
-  if (from === 'verify' && to === 'build') return DEFAULT_EVENT_POLICY['verify-fail']
-  if (from === 'ship' && to === 'archive') return DEFAULT_EVENT_POLICY['ship-complete']
-  return undefined
+  if (!scope.governed) return undefined
+  const key = `${from}>${to}`
+  const fixed = Object.hasOwn(GOVERNED_LIFECYCLE, key) ? GOVERNED_LIFECYCLE[key] : undefined
+  if (fixed === undefined || !scope.contract || !Object.hasOwn(CONTRACT_LIFECYCLE_GUARDS, key)) return fixed
+  return { ...fixed, guards: [...(CONTRACT_LIFECYCLE_GUARDS[key] ?? []), ...fixed.guards] }
 }
 
 export function mergeLifecycleGuards(
@@ -78,12 +123,12 @@ function isRevisionGuard(guard: CompiledGuardConfig): boolean {
  * their historical behaviour.
  */
 export function effectiveLifecyclePolicy(
-  governed: boolean,
+  scope: LifecycleScope,
   from: StepIR,
   edge: StepTransitionIR,
   to: StepIR | undefined,
 ): EffectiveLifecyclePolicy {
-  const fixed = governedLifecyclePolicy(governed, from.id, edge.to)
+  const fixed = governedLifecyclePolicy(scope, from.id, edge.to)
   const semantic = semanticRevisionLifecyclePolicy(from, edge, to, fixed?.actions)
   const actions = mergeLifecycleActions(
     mergeLifecycleActions(edge.actions, fixed?.actions),

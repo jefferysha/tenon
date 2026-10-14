@@ -4,9 +4,7 @@
 
 Define the compiled execution plan that lets every runtime consumer apply Workflow, Track, document,
 Skill, review, automation, and projection policy through one capability-based contract.
-
 ## Requirements
-
 ### Requirement: Every Workflow SHALL compile into one effective execution plan
 
 The kernel SHALL compile built-in and project-defined Workflows through the
@@ -17,15 +15,17 @@ transition application.
 
 Runtime consumers SHALL NOT use a Workflow name such as `default` as a
 capability test. A built-in name MAY remain a stable identity, but behavior
-SHALL be selected through explicit plan capabilities.
+SHALL be selected through explicit plan capabilities. Every newly compiled plan
+SHALL use the step-graph execution model; the phase-manifest model SHALL only
+be selected when restoring a frozen snapshot that recorded it.
 
 #### Scenario: Default uses the shared compiler
 
-- **WHEN** a default Change is initialized or resumed
-- **THEN** its seven-phase Workflow is compiled through the same effective-plan
-  compiler used for a custom Workflow
-- **AND** its document, review, Skill, and transition invariants remain
-  identical to the existing default contract.
+- **WHEN** a default Change is initialized
+- **THEN** the selected default branch is compiled through the same effective-plan
+  compiler and step-graph execution model used for a custom Workflow
+- **AND** its transitions, leave conditions, and actions come only from
+  `default.yaml`.
 
 #### Scenario: Custom Workflow uses the same transition application
 
@@ -41,32 +41,17 @@ SHALL be selected through explicit plan capabilities.
   compatibility/compiler module
 - **THEN** the architecture check fails with the governing rule and location.
 
-### Requirement: Track policy SHALL overlay rather than replace Workflow policy
+#### Scenario: A frozen legacy plan keeps its execution model
 
-A Track SHALL contribute routing, coverage, and automation eligibility without
-removing the selected Workflow's graph, documents, Skills, gates, or
-transitions. The neutral `free` Track SHALL add no domain coverage or domain
-Skill matrix and SHALL still execute the complete selected effective plan.
-
-#### Scenario: Free executes a governed short Workflow
-
-- **GIVEN** a three-step Workflow declares a document governance profile
-- **WHEN** it is selected with `track=free`
-- **THEN** the three authored steps and declared documents are enforced
-- **AND** no PM, frontend, or backend phases or Skills are injected.
-
-#### Scenario: Simple remains lightweight
-
-- **WHEN** the packaged `simple` Workflow is selected
-- **THEN** its effective plan has no OpenSpec document policy by default
-- **AND** its `change`, `verify`, `done`, and `escalated` graph remains intact.
+- **WHEN** a Change whose snapshot recorded `phase-manifest` is resumed after upgrade
+- **THEN** the restored plan keeps `phase-manifest` and the snapshot fingerprint still verifies.
 
 ### Requirement: Todo and UI projections SHALL derive from the effective plan
 
 The server SHALL project actual step order, visits, gates, Skills, and document
 requirements from the effective plan. Dashboard and native Todo consumers
 SHALL render that projection and SHALL NOT substitute the default seven phases
-for a custom or short Workflow.
+for a custom, short, or lite-track Workflow branch.
 
 #### Scenario: Three-step Workflow renders three primary Todo stages
 
@@ -77,10 +62,16 @@ for a custom or short Workflow.
 
 #### Scenario: Default retains seven primary Todo stages
 
-- **WHEN** a Change uses the default Workflow
+- **WHEN** a Change uses the default Workflow with the pm, frontend, or backend track
 - **THEN** Open through Archive remain the seven primary Todo stages
 - **AND** implementation tasks from the Change remain nested under their
   owning phases.
+
+#### Scenario: Default lite track renders its own steps
+
+- **WHEN** a Change uses the default Workflow with the lite track
+- **THEN** its primary Todo lists open, build, verify, and done
+- **AND** no explore, spec, ship, or archive stage appears.
 
 ### Requirement: Effective plan compilation SHALL fail closed and remain bounded
 
@@ -100,3 +91,30 @@ not execute project text or external commands.
 - **WHEN** a Workflow/profile contains data outside the bounded schema
 - **THEN** parsing rejects it as unknown/invalid data
 - **AND** no field is sourced, evaluated, or executed.
+
+### Requirement: Branch capabilities SHALL come from the selected Workflow branch
+
+The effective plan SHALL derive the OpenSpec lifecycle (`capabilities.documents.governed`) from the selected branch's
+`spec`, the document mode (`capabilities.documents.mode`: `contract` when the frozen plan carries a document contract,
+`observed` otherwise) from the plan's frozen policy, and automation eligibility from its `automation` settings.
+Compilation SHALL NOT add Skills from any matrix outside the Workflow YAML and SHALL NOT read a coverage profile, review
+seed, or Track registry. A Change bound to the `legacy-full` profile without a frozen snapshot SHALL be given the frozen
+`openspec-v1` document policy rather than downgraded.
+
+#### Scenario: Lite branch in a governed Workflow is ungoverned
+
+- **WHEN** the default Workflow is compiled for the lite branch with `spec: none`
+- **THEN** the plan reports no OpenSpec lifecycle, no OpenSpec finish and the `observed` document mode
+- **AND** the pm, frontend, and backend branches of the same Workflow report the OpenSpec lifecycle with the
+  `observed` document mode.
+
+#### Scenario: A frozen contract plan keeps contract mode
+
+- **WHEN** a Change created before the upgrade restores its frozen plan that carries the default document contract
+- **THEN** the plan reports the `contract` document mode with that frozen policy.
+
+#### Scenario: Step Skills come only from YAML
+
+- **WHEN** the backend branch's explore step declares five Skills in `default.yaml`
+- **THEN** the plan's required Skills for that step are exactly those five.
+

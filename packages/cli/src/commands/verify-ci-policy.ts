@@ -5,7 +5,7 @@
  */
 import {
   ChangedFilesUnavailableError, TEST_BLOCKER_LABELS, TEST_NOTICE_LABELS, changeStartOfFields, declaredTestOutputs, evaluateTestEvidence,
-  integrityDiffInSession,
+  integrityDiffInSession, stepDeclaresTests,
   type CandidateMode, type ChangedFilesSession, type CiFinding, type EffectiveWorkflowPlan, type PipelineState,
   type SuiteVerdict, type TestEvidenceReport, type TestRunRecordV2,
 } from '@tenon/kernel'
@@ -13,12 +13,6 @@ import type { CliDeps } from '../deps.js'
 import { localeOf } from '../i18n/messages.js'
 import { candidateClues, resolveBaseRef } from './verify-ci-git.js'
 import { shallowReason, verifyMsg } from './verify-ci-text.js'
-
-type Step = EffectiveWorkflowPlan['workflow']['steps'][number]
-
-function declaresTests(step: Step): boolean {
-  return (step.tests?.length ?? 0) > 0 || step.test_policy !== undefined
-}
 
 /**
  * 判定用的步骤：显式指定的；否则当前 phase，它没有声明测试时取它之前最近一个声明了的步骤
@@ -38,7 +32,7 @@ export function resolveEvaluatedStep(
   const from = index === -1 ? steps.length - 1 : index
   for (let i = from; i >= 0; i--) {
     const step = steps[i]
-    if (step !== undefined && declaresTests(step)) return { step: step.id }
+    if (step !== undefined && stepDeclaresTests(step)) return { step: step.id }
   }
   return { step: null }
 }

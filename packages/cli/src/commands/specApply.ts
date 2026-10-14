@@ -8,12 +8,12 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import {
-  readDocumentLedger, renderDocumentTemplate, sha256Hex, SPEC_APPLY_RECEIPT_FILE,
-  type DocumentLocale, type DocumentRecord,
+  changeDeltaSpecPaths, renderDocumentTemplate, sha256Hex, SPEC_APPLY_RECEIPT_FILE,
+  type DocumentLocale,
 } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
 import { isValidChangeName, resolveChangeDir } from '../paths.js'
-import { refuseArchived } from '../archivedGuard.js'
+import { refuseArchived } from '../endedTaskGuard.js'
 import { resolveChangeDocumentLocale } from '../documentLocale.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
 import {
@@ -142,19 +142,22 @@ export async function cmdSpecApply(
     return 1
   }
   if (await refuseArchived(deps, change)) return 1
-  let deltas: readonly DocumentRecord[]
+  let deltas: readonly string[]
   try {
     if (effectiveWorkflowForState(deps, state)?.capabilities.documents.governed !== true) {
       deps.io.err(`ERROR: 任务 '${change}' 的工作流未开启 openspec，无需应用规格`)
       return 1
     }
-    deltas = (await readDocumentLedger(dir))?.records.filter((record) => record.kind === 'delta-spec') ?? []
+    // delta spec 的来源由 kernel 统一回答（带账本的任务取账本，观察模式扫任务目录 specs/），
+    // 与 next 的 validate-spec / apply-spec 判定、ship 出口的 spec-migration-applied 守卫同源。
+    deltas = await changeDeltaSpecPaths(dir)
   } catch (e) {
     deps.io.err(`ERROR: ${errMsg(e)}`)
     return 1
   }
   if (deltas.length === 0) {
-    deps.io.err(`ERROR: delta-spec-unrecorded：任务 '${change}' 还没有登记 delta spec`)
+    deps.io.err(`ERROR: delta-spec-unrecorded：任务 '${change}' 还没有 delta spec`
+      + `（写在 openspec/changes/${change}/specs/<capability>/spec.md；带文档账本的任务需先登记）`)
     return 1
   }
   const cli = await runOpenspec(['--version'], deps.cwd)
@@ -166,9 +169,9 @@ export async function cmdSpecApply(
   const mode = opts.dryRun === true ? 'dry-run' : 'apply'
   // 回执里的 delta 摘要取盘上当前字节：`step.next` 用它判断「这份回执还对得上现在的 delta spec 吗」，
   // 台账里冻结的那一份回答不了这个问题。
-  const deltaRefs = await Promise.all(deltas.map(async (record) => ({
-    path: record.path,
-    sha256: sha256Hex(await readMaybe(deps.cwd, record.path) ?? ''),
+  const deltaRefs = await Promise.all(deltas.map(async (path) => ({
+    path,
+    sha256: sha256Hex(await readMaybe(deps.cwd, path) ?? ''),
   })))
   const settled = await alreadyApplied(deps.cwd, dir, deltaRefs)
   const rehearsed = settled === null

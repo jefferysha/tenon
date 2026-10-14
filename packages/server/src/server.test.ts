@@ -20,23 +20,23 @@ import {
   recordWorkflowPhaseSkill,
   seedGovernedDocumentEvidence,
 } from './test-support.js'
-import type { FlowEngine, StateStore, UpstreamSkillView } from '@tenon/kernel'
+import type { FlowEngine, InitOptions, StateStore, UpstreamSkillView } from '@tenon/kernel'
 import { seedApprovedTestPolicyWaivers } from '@tenon/kernel/test-system/test-support'
+import { legacyDefaultInitialWorkflow } from '@tenon/kernel/workflow/test-support'
 import { readUpstreamSkillView } from '@tenon/automation'
 import {
-  builtinTrack, compileAutomationPolicySnapshot, compileEffectiveWorkflowPlan, createLoopLedgerStore, effectiveWorkflowPlanBinding,
-  loadEffectiveWorkflowPlan, loadManifest, loadRegistry,
+  compileAutomationPolicySnapshot, compileEffectiveWorkflowPlan, createLoopLedgerStore, effectiveWorkflowPlanBinding,
+  loadEffectiveWorkflowPlan, loadRegistry,
   createTransitionRecordStore, createWorkflowRunRepository,
   reviewGateBindingForState, writeReviewGateBindingUnderLock,
   DEFAULT_LEDGER_CONTEXT_BUNDLE_RESOURCE_LIMITS,
   machineStateScopeId,
   registerProjectRoot, TRANSITION_EVENTS as KERNEL_EVENTS, eventEdge as kernelEventEdge,
-  workflowPlanSnapshot,
+  serializeWorkflow, withProjectCoordinationLock, workflowPlanSnapshot,
 } from '@tenon/kernel'
 import { TRANSITION_EVENTS, eventEdge } from './transition.js'
 import type { LoopActivationValidator } from './loops.js'
 import type { PipelineCliRunner } from './operations.js'
-import type { RouterPatternScorer } from './routerPreview.js'
 import type { CadenceSchedulerOptions } from './cadence.js'
 
 const TEST_CREATOR = { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' } as const
@@ -90,15 +90,13 @@ async function start(opts?: {
   store?: StateStore
   validateLoopActivation?: LoopActivationValidator
   runPipelineCli?: PipelineCliRunner
-  scoreRouterPattern?: RouterPatternScorer
   clock?: () => string
   cadence?: false | Omit<CadenceSchedulerOptions, 'roots' | 'clock' | 'runPipelineCli'>
   legacyWithoutRunIdentity?: boolean
-  initialWorkflow?: { workflow: string; phase: string }
+  initialWorkflow?: InitOptions['initialWorkflow']
   seedGovernedEvidence?: boolean
   seedPhaseSkill?: boolean
   resolveUser?: DashboardServerOptions['resolveUser']
-  skillsRoot?: string
 }): Promise<Harness> {
   const store = opts?.store ?? newStore()
   const root = await makeProject()
@@ -128,11 +126,9 @@ async function start(opts?: {
     clock: opts?.clock ?? (() => '2026-07-07T00:00:00Z'),
     pollIntervalMs: opts?.pollIntervalMs ?? 20,
     manifestPath: opts?.manifestPath,
-    ...(opts?.skillsRoot === undefined ? {} : { skillsRoot: opts.skillsRoot }),
     execDocker: opts?.execDocker,
     validateLoopActivation: opts?.validateLoopActivation,
     runPipelineCli: opts?.runPipelineCli,
-    scoreRouterPattern: opts?.scoreRouterPattern,
     cadence: opts?.cadence,
     ...(opts?.resolveUser === undefined ? {} : { resolveUser: opts.resolveUser }),
   })
@@ -164,13 +160,6 @@ async function approveReviewForTransition(
     h.changeDir,
     reviewGateBindingForState(state, phase, event, requestedAt),
   )
-}
-
-/** 同 start()，但额外真拷贝仓库 manifest.yaml 到临时文件并注入，供 config 端点测试使用。 */
-async function startWithConfig(opts?: { version?: string; token?: string }): Promise<Harness & { manifestPath: string }> {
-  const manifestPath = await makeTempManifest()
-  const h = await start({ ...opts, manifestPath })
-  return { ...h, manifestPath }
 }
 
 describe('GET /api/health —— 存活探针 + 本 server 版本（B4）', () => {
@@ -239,9 +228,12 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
   ): string =>
     `/api/context-bundle/preview?root=${encodeURIComponent(root)}&change=${encodeURIComponent(change)}`
     + `&target=${encodeURIComponent(target)}&budgetBytes=${encodeURIComponent(budgetBytes)}`
+  /** 这组测旧账本绑定的预览（契约模式）：任务按升级前带文档契约的 default 快照建，立项时照旧铺三份骨架与文档账本。 */
+  const startContract = (opts?: Parameters<typeof start>[0]): Promise<Harness> =>
+    start({ ...opts, initialWorkflow: legacyDefaultInitialWorkflow('backend', 'step-graph') })
 
   it.runIf(process.platform === 'linux')('以真 Change/ledger 返回安全 metadata，并把无 required reads 的 open 明确投影为空态', async () => {
-    const h = await start()
+    const h = await startContract()
     const ledgerPath = join(h.changeDir, '.pipeline-documents.json')
     const stateBefore = await h.store.read(h.changeDir)
     const ledgerBefore = await readFile(ledgerPath, 'utf8')
@@ -319,7 +311,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
   })
 
   it.runIf(process.platform === 'linux')('API 与 CLI 一样保留合法 UTF-8 BOM，不误报 stale 或少算 source bytes', async () => {
-    const h = await start()
+    const h = await startContract()
     const proposalPath = join(h.changeDir, 'proposal.md')
     const content = `\uFEFF${await readFile(proposalPath, 'utf8')}`
     await writeFile(proposalPath, content, 'utf8')
@@ -341,7 +333,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
   })
 
   it('在读取前拒绝非法请求和未注册 root，返回稳定机器码', async () => {
-    const h = await start()
+    const h = await startContract()
     const unknownRoot = await makeProject()
     const invalidPaths = [
       '/api/context-bundle/preview',
@@ -366,7 +358,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
   })
 
   it.runIf(process.platform !== 'linux')('无 fd-relative traversal 时在读取 Change 内容前返回安全 capability error', async () => {
-    const h = await start()
+    const h = await startContract()
     const response = await reqGet(h.port, previewPath(h.root))
     expect(response.status).toBe(501)
     expect(response.json()).toEqual({
@@ -379,7 +371,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
   })
 
   it.runIf(process.platform === 'linux')('canonical state 损坏返回安全 409 机器码且不继续读取 ledger', async () => {
-    const h = await start()
+    const h = await startContract()
     await writeFile(join(h.changeDir, '.pipeline-run', 'current.json'), Buffer.from([0xff]))
     await unlink(join(h.changeDir, '.pipeline-documents.json'))
 
@@ -396,7 +388,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
   })
 
   it.runIf(process.platform === 'linux')('连续两次 set 后 head record 缺失仍返回 409，且不读取 ledger', async () => {
-    const h = await start()
+    const h = await startContract()
     const repo = createWorkflowRunRepository({
       store: h.store,
       recordStore: createTransitionRecordStore(),
@@ -426,7 +418,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
   })
 
   it.runIf(process.platform === 'linux')('把 missing/stale 映射为 409，并给出可执行恢复动作而不返回部分预览', async () => {
-    const missingLedger = await start({ seedGovernedEvidence: false })
+    const missingLedger = await startContract({ seedGovernedEvidence: false })
     await unlink(join(missingLedger.changeDir, '.pipeline-documents.json'))
     const noLedger = await reqGet(missingLedger.port, previewPath(missingLedger.root))
     expect(noLedger.status).toBe(409)
@@ -436,7 +428,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
     })
     expect(noLedger.json<{ repairAction?: string }>().repairAction).toBeTruthy()
 
-    const missingDocument = await start()
+    const missingDocument = await startContract()
     await unlink(join(missingDocument.changeDir, 'proposal.md'))
     const noDocument = await reqGet(missingDocument.port, previewPath(missingDocument.root))
     expect(noDocument.status).toBe(409)
@@ -447,7 +439,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
     expect(noDocument.json<{ repairAction?: string }>().repairAction).toBeTruthy()
     expect(noDocument.json()).not.toHaveProperty('preview')
 
-    const staleDocument = await start()
+    const staleDocument = await startContract()
     await writeFile(join(staleDocument.changeDir, 'proposal.md'), '# drifted proposal\n', 'utf8')
     const stale = await reqGet(staleDocument.port, previewPath(staleDocument.root))
     expect(stale.status).toBe(409)
@@ -458,7 +450,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
     expect(stale.json<{ repairAction?: string }>().repairAction).toBeTruthy()
     expect(stale.json()).not.toHaveProperty('preview')
 
-    const linkedDocument = await start()
+    const linkedDocument = await startContract()
     const linkedProposal = join(linkedDocument.changeDir, 'proposal.md')
     const outsideDir = await makeProject()
     const outsideProposal = join(outsideDir, 'proposal.md')
@@ -475,7 +467,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
   })
 
   it.runIf(process.platform === 'linux')('非法持久化 ledger path 映射为 409 且安全日志不泄露 path/root', async () => {
-    const h = await start()
+    const h = await startContract()
     const ledgerPath = join(h.changeDir, '.pipeline-documents.json')
     const ledger = JSON.parse(await readFile(ledgerPath, 'utf8')) as {
       records: Array<{ path: string }>
@@ -502,7 +494,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
   })
 
   it.runIf(process.platform === 'linux')('预算不足返回 422 safe preview，但不返回正文或有效 aggregate digest', async () => {
-    const h = await start()
+    const h = await startContract()
     const response = await reqGet(h.port, previewPath(h.root, h.name, 'explore', '1'))
     expect(response.status).toBe(422)
     const body = response.json<{
@@ -532,7 +524,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
   })
 
   it.runIf(process.platform === 'linux')('低预算也会在读取超大源文档前返回 413，且响应不泄露绝对路径', async () => {
-    const h = await start()
+    const h = await startContract()
     const proposalPath = join(h.changeDir, 'proposal.md')
     const content = 'x'.repeat(
       DEFAULT_LEDGER_CONTEXT_BUNDLE_RESOURCE_LIMITS.maxSourceBytesPerDocument + 1,
@@ -564,7 +556,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
   })
 
   it('注册 root inode 被换位后 fail closed，绝不读取替换目录', async () => {
-    const h = await start()
+    const h = await startContract()
     const parked = `${h.root}.context-bundle-registered-inode`
     const outside = await makeProject()
     await rename(h.root, parked)
@@ -576,7 +568,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
   })
 
   it.runIf(process.platform === 'linux')('Change 目录被换为 symlink 时按 root guard fail closed', async () => {
-    const h = await start()
+    const h = await startContract()
     const parked = `${h.changeDir}.registered-inode`
     const outside = await makeProject()
     await rename(h.changeDir, parked)
@@ -617,102 +609,6 @@ describe('GET /api/cadence/status —— 生产时钟调度状态', () => {
       enabled: true,
       loops: [{ root: h.root, loop_id: 'clock-loop', runner: 'codex', state: 'succeeded', exit_code: 0 }],
     })
-  })
-})
-
-describe('POST /api/router/preview —— 公共 Track Router 真决策预览', () => {
-  it('按 effective registry 保序返回 score/priority/order，winner 使用 hook 同款平手规则', async () => {
-    const score = vi.fn<RouterPatternScorer>(async (pattern) => {
-      if (pattern.includes('UI')) return 2
-      if (pattern.includes('backend')) return 2
-      return 0
-    })
-    const h = await start({ scoreRouterPattern: score })
-    const response = await reqPost(h.port, '/api/router/preview', {
-      root: h.root,
-      prompt: 'build the UI and backend',
-    }, { headers: { Authorization: `Bearer ${h.token}` } })
-
-    expect(response.status).toBe(200)
-    const body = response.json<{
-      winner: { track: { id: string }; score: number; priority: number; order: number } | null
-      candidates: Array<{ track: { id: string }; score: number; routable: boolean; order: number }>
-      suppressed_reason: string | null
-    }>()
-    expect(body.suppressed_reason).toBeNull()
-    expect(body.winner).toMatchObject({ track: { id: 'frontend' }, score: 2, priority: 300, order: 4 })
-    expect(body.candidates.map((candidate) => candidate.track.id)).toEqual(['chat', 'simple', 'standard', 'pm', 'frontend', 'backend', 'free'])
-    expect(body.candidates[0]).toMatchObject({ score: 0, routable: false, order: 0 })
-    expect(score).toHaveBeenCalledTimes(7)
-  })
-
-  it('讨论型 prompt 返回 suppression；空 prompt/root 未注册在执行 scorer 前拒绝', async () => {
-    const score = vi.fn<RouterPatternScorer>(async () => 1)
-    const h = await start({ scoreRouterPattern: score })
-    const auth = { headers: { Authorization: `Bearer ${h.token}` } }
-    const suppressed = await reqPost(h.port, '/api/router/preview', {
-      root: h.root,
-      prompt: '为什么 UI 会失败',
-    }, auth)
-    expect(suppressed.status).toBe(200)
-    expect(suppressed.json<{ winner: unknown; suppressed_reason: string }>()).toMatchObject({
-      winner: null,
-      suppressed_reason: 'discussion',
-    })
-
-    const empty = await reqPost(h.port, '/api/router/preview', { root: h.root, prompt: '' }, auth)
-    expect(empty.status).toBe(400)
-    const outsider = await makeProject()
-    const unknownRoot = await reqPost(h.port, '/api/router/preview', { root: outsider, prompt: 'backend' }, auth)
-    expect(unknownRoot.status).toBe(404)
-    expect(score).toHaveBeenCalledTimes(5)
-  })
-
-  it('standard 通道的两条规则与 hook 一致：命中的 standard 压过 frontend / backend；被重型信号排除的实现类请求回落 backend', async () => {
-    const standardHit = vi.fn<RouterPatternScorer>(async (pattern) => {
-      if (pattern.includes('UI')) return 3
-      if (pattern.includes('修复|修正')) return 1
-      return 0
-    })
-    const h = await start({ scoreRouterPattern: standardHit })
-    const auth = { headers: { Authorization: `Bearer ${h.token}` } }
-    const dominated = await reqPost(h.port, '/api/router/preview', { root: h.root, prompt: 'fix the UI' }, auth)
-    expect(dominated.json<{ winner: { track: { id: string } } }>().winner.track.id).toBe('standard')
-
-    const heavy = vi.fn<RouterPatternScorer>(async (pattern) => {
-      if (pattern.includes('架构|architecture')) return 1
-      if (pattern.includes('修复|修正')) return 1
-      return 0
-    })
-    const h2 = await start({ scoreRouterPattern: heavy })
-    const fallback = await reqPost(h2.port, '/api/router/preview', { root: h2.root, prompt: '新增登录鉴权' }, {
-      headers: { Authorization: `Bearer ${h2.token}` },
-    })
-    expect(fallback.json<{ winner: { track: { id: string }; score: number } }>().winner).toMatchObject({ track: { id: 'backend' }, score: 1 })
-  })
-
-  it('draft_track 仅在本次预览追加 custom 候选，生产 scorer 看见未保存 pattern', async () => {
-    const score = vi.fn<RouterPatternScorer>(async (pattern) => pattern === 'draft-only' ? 5 : 0)
-    const h = await start({ scoreRouterPattern: score })
-    const response = await reqPost(h.port, '/api/router/preview', {
-      root: h.root,
-      prompt: 'representative intent',
-      draft_track: {
-        id: 'release', label: 'Release', builtin: false,
-        workflow: { default: 'default', allowed: '*' },
-        policyProfile: {
-          reviewSeed: 'pending', automationEligible: true, coverageProfile: 'backend',
-          routing: { enabled: true, pattern: 'draft-only', priority: 999 },
-          skills: { matrix: true, profile: 'backend' },
-        },
-      },
-    }, { headers: { Authorization: `Bearer ${h.token}` } })
-    expect(response.status).toBe(200)
-    expect(response.json<{ winner: { track: { id: string } }; candidates: Array<{ track: { id: string } }> }>()).toMatchObject({
-      winner: { track: { id: 'release' } },
-      candidates: [{ track: { id: 'chat' } }, { track: { id: 'simple' } }, { track: { id: 'standard' } }, { track: { id: 'pm' } }, { track: { id: 'frontend' } }, { track: { id: 'backend' } }, { track: { id: 'free' } }, { track: { id: 'release' } }],
-    })
-    expect(score).toHaveBeenCalledWith('draft-only', 'representative intent')
   })
 })
 
@@ -1176,13 +1072,13 @@ describe('POST /api/change/<name>/transition —— B5 token 鉴权', () => {
     expect(r.status).toBe(200)
   })
 
-  it('free/matrix=false 仍由 frozen phase Skill 阻断当前 visit（HTTP transition 与 CLI 共用 required projection）', async () => {
+  it('frozen phase Skill 阻断当前 visit（技能只来自工作流 YAML；HTTP transition 与 CLI 共用 required projection）', async () => {
     const manifestPath = await makeTempManifest()
     const h = await start({ manifestPath, seedPhaseSkill: false })
     const state = await h.store.read(h.changeDir)
     await h.store.write(h.changeDir, {
       ...state,
-      fields: { ...state.fields, track: 'free' },
+      fields: { ...state.fields, track: 'backend' },
     })
 
     const r = await reqPost(h.port, `/api/change/${h.name}/transition`, {
@@ -1515,7 +1411,7 @@ describe('POST /api/change/<name>/transition —— G1 default 轨收尾（bread
       repoRoot: h.root,
       changeDir: h.changeDir,
       changeName: h.name,
-      plan: compileEffectiveWorkflowPlan('default', undefined, builtinTrack('pm')),
+      plan: compileEffectiveWorkflowPlan('default', undefined, { track: 'pm' }),
       stepId: 'spec',
       actor: TEST_CREATOR,
       recordedAt: '2026-07-07T00:00:00Z',
@@ -1576,8 +1472,8 @@ describe('POST 写端点纵深防线（老仓安全模型 parity）', () => {
     expect(after.fields.phase).toBe('open')
   })
 
-  it('未知 event → 400', async () => {
-    const h = await start()
+  it('未知 event → 400（旧引擎的在途 default 任务；新任务按 YAML 执行，未支持的事件给 409 并列出可用事件）', async () => {
+    const h = await start({ initialWorkflow: legacyDefaultInitialWorkflow('backend') })
     const r = await reqPost(h.port, `/api/change/${h.name}/transition`, { root: h.root, event: 'bogus' }, {
       headers: { Authorization: `Bearer ${h.token}` },
     })
@@ -2074,252 +1970,33 @@ describe('GET /api/stream —— SSE 真推送（.pipeline.yaml 变化即推）'
   })
 })
 
-describe('GET /api/config?root= —— G3/T-R5 动态 Track config（本机回环只读不鉴权）', () => {
-  it('capabilities.config=false 的实例（未注入 manifestPath）→ 404，snapshot 亦如实标 config:false', async () => {
-    const h = await start() // 默认不带 manifestPath（同现有全部既存测试）
+describe('已删除的轨道登记表与技能矩阵接口', () => {
+  it('GET /api/config、GET /api/tracks、POST /api/tracks、PATCH / DELETE /api/tracks/:id、POST /api/config/mandatory-skills、POST /api/changes 都不存在；快照不再声明 config 能力', async () => {
+    const h = await start()
+    const auth = { Authorization: `Bearer ${h.token}` }
+    const root = encodeURIComponent(h.root)
     const snap = (await reqGet(h.port, '/api/snapshot')).json<{ capabilities: Record<string, boolean> }>()
-    expect(snap.capabilities.config).toBe(false)
-    const r = await reqGet(h.port, '/api/config')
-    expect(r.status).toBe(404)
+    expect(snap.capabilities).not.toHaveProperty('config')
+    expect((await reqGet(h.port, `/api/config?root=${root}`)).status).toBe(404)
+    expect((await reqGet(h.port, `/api/tracks?root=${root}`)).status).toBe(404)
+    expect((await reqPost(h.port, '/api/tracks', { root: h.root, revision: 'x', track: {} }, { headers: auth })).status).toBe(404)
+    expect((await reqPost(h.port, '/api/config/mandatory-skills', { phase: 'build', track: 'backend', skills: ['x'] }, { headers: auth })).status).toBe(404)
+    expect((await reqPost(h.port, '/api/changes', { root: h.root, name: 'x', track: 'backend' }, { headers: auth })).status).toBe(404)
+    expect((await reqDelete(h.port, `/api/tracks/qa?root=${root}&revision=x`, { headers: auth })).status).toBe(404)
+    expect((await reqPatch(h.port, '/api/tracks/qa', { root: h.root, revision: 'x', patch: { label: 'q' } }, { headers: auth })).status).toBe(405)
   })
 
-  it('绑定注册 root，返回 dashboard 所需的完整 effective registry（含第 6 条自定义轨）', async () => {
-    const h = await startWithConfig()
-    const snap = (await reqGet(h.port, '/api/snapshot')).json<{ capabilities: Record<string, boolean> }>()
-    expect(snap.capabilities.config).toBe(true)
+  it('写坏了的 .pipeline/tracks.yaml 不被读取：工作流页读写、快照都照常', async () => {
+    const h = await start()
+    const auth = { Authorization: `Bearer ${h.token}` }
     await mkdir(join(h.root, '.pipeline'), { recursive: true })
-    await writeFile(join(h.root, '.pipeline', 'tracks.yaml'), `version: 1
-tracks:
-  - id: qa
-    label: Quality
-    workflow:
-      default: default
-      allowed: [default]
-    policy_profile:
-      review_seed: pending
-      automation_eligible: true
-      coverage_profile: backend
-      routing:
-        enabled: true
-        pattern: '(qa|test)'
-        priority: 250
-      skills:
-        matrix: true
-        profile: frontend
-`, 'utf8')
-
-    const r = await reqGet(h.port, `/api/config?root=${encodeURIComponent(h.root)}`)
-    expect(r.status).toBe(200)
-    const body = r.json<any>()
-    expect(body.ok).toBe(true)
-    expect(body.generated_at).toBe('2026-07-07T00:00:00Z')
-    expect(body.source).toBe('project-file')
-    expect(body.revision).toMatch(/^[0-9a-f]{16}$/)
-    expect(body.tracks.map((track: { id: string }) => track.id)).toEqual(['chat', 'simple', 'standard', 'pm', 'frontend', 'backend', 'free', 'qa'])
-    expect(body.tracks.find((track: { id: string }) => track.id === 'qa')).toEqual({
-      id: 'qa',
-      label: 'Quality',
-      builtin: false,
-      workflow: { default: 'default', allowed: ['default'] },
-      policyProfile: {
-        reviewSeed: 'pending',
-        automationEligible: true,
-        coverageProfile: 'backend',
-        routing: { enabled: true, pattern: '(qa|test)', priority: 250 },
-        skills: { matrix: true, profile: 'frontend' },
-      },
-    })
-    expect(body.mandatory_skills_writable_profiles).toEqual(['pm', 'frontend', 'backend'])
-    expect(body.mandatory_skills['build.backend']).toContain('test-driven-development')
-    expect(body.mandatory_skills['open._all']).toContain('openspec-propose')
-  })
-
-  it('项目无 tracks.yaml → kernel 合法 builtin-only 七轨，不要求迁移文件', async () => {
-    const h = await startWithConfig()
-    const r = await reqGet(h.port, `/api/config?root=${encodeURIComponent(h.root)}`)
-    expect(r.status).toBe(200)
-    const body = r.json<any>()
-    expect(body.source).toBe('builtin-only')
-    expect(body.tracks.map((track: { id: string }) => track.id)).toEqual(['chat', 'simple', 'standard', 'pm', 'frontend', 'backend', 'free'])
-  })
-
-  it('缺 root → 400；未注册 root → 404', async () => {
-    const h = await startWithConfig()
-    expect((await reqGet(h.port, '/api/config')).status).toBe(400)
-    expect((await reqGet(h.port, `/api/config?root=${encodeURIComponent('/tmp/not-registered')}`)).status).toBe(404)
-  })
-
-  it.each([
-    ['空文件', ''],
-    ['畸形定义', 'version: 1\ntracks:\n  - id: qa\n'],
-  ])('%s registry → 500 且不返回半张/static fallback registry', async (_label, registryText) => {
-    const h = await startWithConfig()
-    await mkdir(join(h.root, '.pipeline'), { recursive: true })
-    await writeFile(join(h.root, '.pipeline', 'tracks.yaml'), registryText, 'utf8')
-
-    const r = await reqGet(h.port, `/api/config?root=${encodeURIComponent(h.root)}`)
-    expect(r.status).toBe(500)
-    const body = r.json<{ ok: boolean; tracks?: unknown }>()
-    expect(body.ok).toBe(false)
-    expect(body.tracks).toBeUndefined()
-  })
-
-  it('server 启动后 registered root 换成外部 symlink → 403，不读取外部 registry', async () => {
-    const { mkdtemp, rename, symlink } = await import('node:fs/promises')
-    const { tmpdir } = await import('node:os')
-    const h = await startWithConfig()
-    const parked = `${h.root}.config-registered-inode`
-    const outside = await mkdtemp(join(tmpdir(), 'config-root-swap-outside-'))
-    await mkdir(join(outside, '.pipeline'))
-    await writeFile(join(outside, '.pipeline', 'tracks.yaml'), `version: 1
-tracks:
-  - id: stolen
-    label: Stolen
-    workflow:
-      default: default
-      allowed: '*'
-    policy_profile:
-      review_seed: pending
-      automation_eligible: true
-      coverage_profile: none
-      routing:
-        enabled: false
-      skills:
-        matrix: false
-        profile: _all
-`, 'utf8')
-    await rename(h.root, parked)
-    await symlink(outside, h.root, 'dir')
-
-    const r = await reqGet(h.port, `/api/config?root=${encodeURIComponent(h.root)}`)
-    expect(r.status).toBe(403)
-    expect(r.body).not.toContain('Stolen')
-  })
-
-  it('.pipeline 是外部 symlink → 500，不读取外部 tracks.yaml', async () => {
-    const { mkdtemp, symlink } = await import('node:fs/promises')
-    const { tmpdir } = await import('node:os')
-    const h = await startWithConfig()
-    const outside = await mkdtemp(join(tmpdir(), 'config-pipeline-link-outside-'))
-    await writeFile(join(outside, 'tracks.yaml'), `version: 1
-tracks:
-  - id: stolen
-    label: Stolen
-    workflow:
-      default: default
-      allowed: '*'
-    policy_profile:
-      review_seed: pending
-      automation_eligible: true
-      coverage_profile: none
-      routing:
-        enabled: false
-      skills:
-        matrix: false
-        profile: _all
-`, 'utf8')
-    await symlink(outside, join(h.root, '.pipeline'), 'dir')
-
-    const r = await reqGet(h.port, `/api/config?root=${encodeURIComponent(h.root)}`)
-    expect(r.status).toBe(500)
-    expect(r.body).not.toContain('Stolen')
-  })
-})
-
-describe('GET/POST/PATCH/DELETE /api/tracks —— v3 Studio Track CRUD', () => {
-  const policy = {
-    reviewSeed: 'pending' as const,
-    automationEligible: true,
-    coverageProfile: 'backend' as const,
-    routing: { enabled: true as const, pattern: '(qa|test)', priority: 250 },
-    skills: { matrix: true, profile: 'frontend' },
-  }
-
-  it('真 HTTP 创建→修改→删除自定义 Track；每步 revision 推进且真落盘', async () => {
-    const h = await startWithConfig()
-    const auth = { Authorization: `Bearer ${h.token}` }
-    const initial = await reqGet(h.port, `/api/tracks?root=${encodeURIComponent(h.root)}`)
-    expect(initial.status).toBe(200)
-    const first = initial.json<any>()
-    expect(first.tracks.map((track: { id: string }) => track.id)).toEqual(['chat', 'simple', 'standard', 'pm', 'frontend', 'backend', 'free'])
-
-    const created = await reqPost(h.port, '/api/tracks', {
-      root: h.root,
-      revision: first.revision,
-      track: {
-        id: 'qa', label: 'Quality', workflow: { default: 'default', allowed: ['default'] }, policyProfile: policy,
-      },
-    }, { headers: auth })
-    expect(created.status).toBe(200)
-    const second = created.json<any>()
-    expect(second.revision).not.toBe(first.revision)
-    expect(second.tracks.at(-1)).toMatchObject({ id: 'qa', label: 'Quality', builtin: false })
-    expect(await readFile(join(h.root, '.pipeline', 'tracks.yaml'), 'utf8')).toContain('id: qa')
-
-    const updated = await reqPatch(h.port, '/api/tracks/qa', {
-      root: h.root,
-      revision: second.revision,
-      patch: { label: 'QA & Release', workflowAllowed: '*' },
-    }, { headers: auth })
-    expect(updated.status).toBe(200)
-    const third = updated.json<any>()
-    expect(third.tracks.find((track: { id: string }) => track.id === 'qa')).toMatchObject({
-      label: 'QA & Release', workflow: { allowed: '*' },
-    })
-
-    const removed = await reqDelete(
-      h.port,
-      `/api/tracks/qa?root=${encodeURIComponent(h.root)}&revision=${encodeURIComponent(third.revision)}`,
-      { headers: auth },
-    )
-    expect(removed.status).toBe(200)
-    const fourth = removed.json<any>()
-    expect(fourth.tracks.some((track: { id: string }) => track.id === 'qa')).toBe(false)
-    expect(await readFile(join(h.root, '.pipeline', 'tracks.yaml'), 'utf8')).not.toContain('id: qa')
-  })
-
-  it('stale revision → 409 且不覆盖新值', async () => {
-    const h = await startWithConfig()
-    const auth = { Authorization: `Bearer ${h.token}` }
-    const first = (await reqGet(h.port, `/api/tracks?root=${encodeURIComponent(h.root)}`)).json<any>()
-    const body = {
-      root: h.root,
-      revision: first.revision,
-      track: { id: 'qa', label: 'Quality', workflow: { default: 'default', allowed: '*' }, policyProfile: policy },
-    }
-    expect((await reqPost(h.port, '/api/tracks', body, { headers: auth })).status).toBe(200)
-    const stale = await reqPost(h.port, '/api/tracks', { ...body, track: { ...body.track, id: 'ops' } }, { headers: auth })
-    expect(stale.status).toBe(409)
-    expect(stale.json<any>()).toMatchObject({ ok: false, code: 'TRACK_REVISION_CONFLICT' })
-    const current = (await reqGet(h.port, `/api/tracks?root=${encodeURIComponent(h.root)}`)).json<any>()
-    expect(current.tracks.map((track: { id: string }) => track.id)).not.toContain('ops')
-  })
-
-  it('活跃 Change 引用自定义 Track → DELETE 409 并列出 change，零删除', async () => {
-    const h = await startWithConfig()
-    const auth = { Authorization: `Bearer ${h.token}` }
-    const first = (await reqGet(h.port, `/api/tracks?root=${encodeURIComponent(h.root)}`)).json<any>()
-    const created = await reqPost(h.port, '/api/tracks', {
-      root: h.root,
-      revision: first.revision,
-      track: { id: 'qa', label: 'Quality', workflow: { default: 'default', allowed: '*' }, policyProfile: policy },
-    }, { headers: auth })
-    const second = created.json<any>()
-    const change = await reqPost(h.port, '/api/changes', {
-      // default 没有 qa 分支：registry 自定义 track 建 change 要显式选一个不分轨道的工作流。
-      root: h.root, name: 'qa-change', track: 'qa', workflow: 'simple', title: 'QA change',
-    }, { headers: auth })
-    expect(change.status).toBe(200)
-
-    const removed = await reqDelete(
-      h.port,
-      `/api/tracks/qa?root=${encodeURIComponent(h.root)}&revision=${encodeURIComponent(second.revision)}`,
-      { headers: auth },
-    )
-    expect(removed.status).toBe(409)
-    expect(removed.json<any>()).toMatchObject({ ok: false, code: 'TRACK_REFERENCED', references: ['qa-change'] })
-    const current = (await reqGet(h.port, `/api/tracks?root=${encodeURIComponent(h.root)}`)).json<any>()
-    expect(current.tracks.map((track: { id: string }) => track.id)).toContain('qa')
+    await writeFile(join(h.root, '.pipeline', 'tracks.yaml'), 'version: [broken\n', 'utf8')
+    expect((await reqGet(h.port, '/api/snapshot')).status).toBe(200)
+    const list = await reqGet(h.port, `/api/workflows?root=${encodeURIComponent(h.root)}`)
+    expect(list.status).toBe(200)
+    const body = { name: 'plain', steps: [{ id: 'only', label: '唯一', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [] }], root: h.root }
+    const saved = await reqPost(h.port, '/api/workflows/plain', body, { headers: auth })
+    expect(saved.status).toBe(200)
   })
 })
 
@@ -2386,160 +2063,6 @@ describe('GET /api/skills/sources —— 上游技能来源视图（只读，不
     // 本地跑过 npm run skills:fetch 的检出有锁（被 .gitignore 忽略）：那时不得出现 lock-missing。
     if (existsSync(join(process.cwd(), 'skills', 'skills.lock.json'))) expect(upstream.some((row) => row.reason === 'lock-missing')).toBe(false)
     else expect(upstream.every((row) => row.status === 'failed' && row.reason === 'lock-missing')).toBe(true)
-  })
-})
-
-describe('POST /api/config/mandatory-skills —— M3 config 写端点（同 B5 token 鉴权模式）', () => {
-  it('无 token → 401（与 transition 端点同一鉴权模式）', async () => {
-    const h = await startWithConfig()
-    const r = await reqPost(h.port, '/api/config/mandatory-skills', { phase: 'build', track: 'backend', skills: ['x'] })
-    expect(r.status).toBe(401)
-  })
-
-  it('错 token → 401', async () => {
-    const h = await startWithConfig()
-    const r = await reqPost(h.port, '/api/config/mandatory-skills', { phase: 'build', track: 'backend', skills: ['x'] }, {
-      headers: { Authorization: 'Bearer wrong-token' },
-    })
-    expect(r.status).toBe(401)
-  })
-
-  it('对 token → 200 且真改盘 manifest.yaml（build.backend 真变，其余条目不变）', async () => {
-    const h = await startWithConfig()
-    const r = await reqPost(h.port, '/api/config/mandatory-skills', { phase: 'build', track: 'backend', skills: ['new-a', 'new-b'] }, {
-      headers: { Authorization: `Bearer ${h.token}` },
-    })
-    expect(r.status).toBe(200)
-    const body = r.json<{ ok: boolean; phase: string; track: string; skills: string[] }>()
-    expect(body).toEqual({ ok: true, phase: 'build', track: 'backend', skills: ['new-a', 'new-b'] })
-
-    // 真副作用：磁盘上的 manifest.yaml 已改，且真过 kernel loadManifest 重解析
-    const reparsed = loadManifest(h.manifestPath!)
-    expect(reparsed.mandatorySkills.build.backend).toEqual(['new-a', 'new-b'])
-    expect(reparsed.mandatorySkills.explore.pm).toEqual(['brainstorming', 'grilling', 'domain-modeling'])
-
-    // 且 GET /api/config 立刻回显新值（读写一致，非缓存旧值）
-    const after = (await reqGet(h.port, `/api/config?root=${encodeURIComponent(h.root)}`))
-      .json<{ mandatory_skills: Record<string, string[]> }>()
-    expect(after.mandatory_skills['build.backend']).toEqual(['new-a', 'new-b'])
-  })
-
-  it('X-Pipeline-Token header 亦被接受（对 token → 200，同 transition 端点）', async () => {
-    const h = await startWithConfig()
-    const r = await reqPost(h.port, '/api/config/mandatory-skills', { phase: 'spec', track: 'pm', skills: ['ok'] }, {
-      headers: { 'X-Pipeline-Token': h.token },
-    })
-    expect(r.status).toBe(200)
-  })
-
-  it('非本地 Host header → 403（同 transition 端点共用的 DNS 重绑定守卫）', async () => {
-    const h = await startWithConfig()
-    const r = await reqPost(h.port, '/api/config/mandatory-skills', { phase: 'build', track: 'backend', skills: ['x'] }, {
-      headers: { Host: 'evil.example:1234', Authorization: `Bearer ${h.token}` },
-    })
-    expect(r.status).toBe(403)
-  })
-
-  it('非 application/json → 400（同 transition 端点共用的同源策略防线）', async () => {
-    const h = await startWithConfig()
-    const r = await reqPost(h.port, '/api/config/mandatory-skills', null, {
-      rawBody: 'phase=build&track=backend',
-      headers: { 'Content-Type': 'text/plain', Authorization: `Bearer ${h.token}` },
-    })
-    expect(r.status).toBe(400)
-  })
-
-  it('宿主不许模型调用的技能（disable-model-invocation: true）→ 400 拒写，manifest 零改动', async () => {
-    const skillsRoot = await mkdtemp(join(tmpdir(), 'pl-dash-skills-'))
-    const writeSkill = async (id: string, frontmatter: string): Promise<void> => {
-      await mkdir(join(skillsRoot, id), { recursive: true })
-      await writeFile(join(skillsRoot, id, 'SKILL.md'), `---\nname: ${id}\n${frontmatter}---\n\nbody\n`, 'utf8')
-    }
-    await writeSkill('manual-only', 'disable-model-invocation: true\n')
-    await writeSkill('model-ok', '')
-    const manifestPath = await makeTempManifest()
-    const h = await start({ manifestPath, skillsRoot })
-    const before = await readFile(manifestPath, 'utf8')
-    const auth = { headers: { Authorization: `Bearer ${h.token}` } }
-
-    const refused = await reqPost(h.port, '/api/config/mandatory-skills', {
-      phase: 'build', track: 'backend', skills: ['model-ok', 'manual-only'],
-    }, auth)
-    expect(refused.status).toBe(400)
-    expect(refused.json<{ ok: boolean; code?: string; error: string; detail?: unknown }>()).toMatchObject({
-      ok: false,
-      code: 'mandatory-skill-not-invocable',
-      error: expect.stringContaining('manual-only'),
-      detail: [{ token: 'manual-only', skill_ids: ['manual-only'] }],
-    })
-    expect(await readFile(manifestPath, 'utf8')).toBe(before)
-
-    // `a|b` 满足其一即可：只要有一个备选可调用就放行；读不到 SKILL.md 的未知技能不冤枉。
-    const alternative = await reqPost(h.port, '/api/config/mandatory-skills', {
-      phase: 'build', track: 'backend', skills: ['manual-only|model-ok', 'not-installed'],
-    }, auth)
-    expect(alternative.status).toBe(200)
-    expect(loadManifest(manifestPath).mandatorySkills.build.backend).toEqual(['manual-only|model-ok', 'not-installed'])
-  })
-
-  it('capabilities.config=false（未注入 manifestPath）→ 404，即便带对 token', async () => {
-    const h = await start()
-    const r = await reqPost(h.port, '/api/config/mandatory-skills', { phase: 'build', track: 'backend', skills: ['x'] }, {
-      headers: { Authorization: `Bearer ${h.token}` },
-    })
-    expect(r.status).toBe(404)
-  })
-
-  it('archive 相位 → 400，原文件不改动', async () => {
-    const h = await startWithConfig()
-    const before = await readFile(h.manifestPath!, 'utf8')
-    const r = await reqPost(h.port, '/api/config/mandatory-skills', { phase: 'archive', track: 'backend', skills: ['x'] }, {
-      headers: { Authorization: `Bearer ${h.token}` },
-    })
-    expect(r.status).toBe(400)
-    expect(await readFile(h.manifestPath!, 'utf8')).toBe(before)
-  })
-
-  it('未知 track（如 _all）→ 400，原文件不改动', async () => {
-    const h = await startWithConfig()
-    const before = await readFile(h.manifestPath!, 'utf8')
-    const r = await reqPost(h.port, '/api/config/mandatory-skills', { phase: 'build', track: '_all', skills: ['x'] }, {
-      headers: { Authorization: `Bearer ${h.token}` },
-    })
-    expect(r.status).toBe(400)
-    expect(await readFile(h.manifestPath!, 'utf8')).toBe(before)
-  })
-
-  it('含非法字符的 skill token（注入尝试：逗号 + 方括号 + 伪 key）→ 400，原文件逐字节不改动', async () => {
-    const h = await startWithConfig()
-    const before = await readFile(h.manifestPath!, 'utf8')
-    const r = await reqPost(
-      h.port,
-      '/api/config/mandatory-skills',
-      { phase: 'build', track: 'backend', skills: ['legit', 'evil], injected.key: [pwn'] },
-      { headers: { Authorization: `Bearer ${h.token}` } },
-    )
-    expect(r.status).toBe(400)
-    const body = r.json<{ ok: boolean; error: string }>()
-    expect(body.ok).toBe(false)
-    expect(await readFile(h.manifestPath!, 'utf8')).toBe(before) // 字节级不变——无注入生效
-  })
-
-  it('并发提交两个不同 phase.track（多标签页同时编辑）→ 都真生效、互不覆盖丢失', async () => {
-    const h = await startWithConfig()
-    const [r1, r2] = await Promise.all([
-      reqPost(h.port, '/api/config/mandatory-skills', { phase: 'spec', track: 'frontend', skills: ['tab-1'] }, {
-        headers: { Authorization: `Bearer ${h.token}` },
-      }),
-      reqPost(h.port, '/api/config/mandatory-skills', { phase: 'verify', track: 'backend', skills: ['tab-2'] }, {
-        headers: { Authorization: `Bearer ${h.token}` },
-      }),
-    ])
-    expect(r1.status).toBe(200)
-    expect(r2.status).toBe(200)
-    const reparsed = loadManifest(h.manifestPath!)
-    expect(reparsed.mandatorySkills.spec.frontend).toEqual(['tab-1'])
-    expect(reparsed.mandatorySkills.verify.backend).toEqual(['tab-2'])
   })
 })
 
@@ -3232,26 +2755,10 @@ describe('POST /api/afk/:name/enqueue —— 挂入 AFK 队列（afk-workbench �
     expect(await h.store.get(h.changeDir, 'automation')).toBe('queued')
   })
 
-  it('动态 data track 的 automationEligible=false → 400（与 track id 无关）', async () => {
+  it('状态里记着工作流没有的轨道 → 400（轨道只认工作流分支，不会因 tracks.yaml 里登记过而放行）', async () => {
     const h = await start()
     await mkdir(join(h.root, '.pipeline'), { recursive: true })
-    await writeFile(join(h.root, '.pipeline', 'tracks.yaml'), `version: 1
-tracks:
-  - id: data
-    label: Data
-    workflow:
-      default: default
-      allowed: '*'
-    policy_profile:
-      review_seed: pending
-      automation_eligible: false
-      coverage_profile: backend
-      routing:
-        enabled: false
-      skills:
-        matrix: true
-        profile: backend
-`, 'utf8')
+    await writeFile(join(h.root, '.pipeline', 'tracks.yaml'), 'version: [broken\n', 'utf8')
     await h.store.set(h.changeDir, 'track', 'data')
 
     const r = await reqPost(h.port, `/api/afk/${h.name}/enqueue`, { root: h.root }, { headers: { Authorization: `Bearer ${h.token}` } })
@@ -3538,7 +3045,7 @@ describe('GET /api/orchestration-graph —— Change 编排图', () => {
       repoRoot: h.root,
       name: 'modern-change',
       track: 'backend',
-      reviewSeed: builtinTrack('backend').policyProfile.reviewSeed,
+      reviewSeed: 'pending',
       creator: TEST_CREATOR, preset: 'full',
       initialWorkflow: {
         workflow: 'modern',
@@ -3586,7 +3093,7 @@ describe('工作流全局存储（root 为空 = 用户级 configRoot/workflows�
 
     const list = await reqGet(h.port, '/api/workflows')
     expect(list.status).toBe(200)
-    expect(list.json<{ names: string[]; default: { source: string } }>()).toEqual({ names: ['shared', 'design-system', 'standard'], default: { source: 'builtin' } })
+    expect(list.json<{ names: string[]; default: { source: string } }>()).toEqual({ names: ['shared', 'design-system'], default: { source: 'builtin' } })
 
     const one = await reqGet(h.port, '/api/workflows/shared')
     expect(one.status).toBe(200)
@@ -3598,7 +3105,7 @@ describe('工作流全局存储（root 为空 = 用户级 configRoot/workflows�
     expect(viaProject.json<{ source: string }>().source).toBe('global')
 
     // POST 无 root → 写到全局目录，项目目录不出现文件。
-    const body = { root: '', name: 'team', steps: [{ id: 's1', label: 'x', gate: null, skills: [], inputs: [], outputs: [{ field: 'build_sha', type: 'string' }], guards: [], transitions: [] }] }
+    const body = { root: '', name: 'team', steps: [{ id: 's1', label: 'x', gate: null, skills: [], inputs: [], outputs: [], guards: [{ type: 'required-output', path: 'docs/team.md' }], transitions: [] }] }
     const posted = await reqPost(h.port, '/api/workflows/team', body, { headers: { Authorization: `Bearer ${h.token}` } })
     expect(posted.status).toBe(200)
     expect((await readdir(globalDir)).sort()).toEqual(['shared.yaml', 'team.yaml'])
@@ -3631,7 +3138,7 @@ describe('GET /api/workflows —— 列出自定义 workflow（GOAL E8）', () =
     const r = await reqGet(port, `/api/workflows?root=${encodeURIComponent(root)}`)
     expect(r.status).toBe(200)
     // 模板工作流恒在列表里（default 例外：它由 default 字段表达来源）。
-    expect(r.json<{ names: string[] }>().names).toEqual(['design-system', 'standard'])
+    expect(r.json<{ names: string[] }>().names).toEqual(['design-system'])
   })
 
   it('真扫 .pipeline/workflows/*.yaml，排除 default，200 返回 names', async () => {
@@ -3644,14 +3151,14 @@ describe('GET /api/workflows —— 列出自定义 workflow（GOAL E8）', () =
     await writeFile(join(dir, 'default.yaml'), wf.replace('onboarding', 'default'), 'utf8')
     const r = await reqGet(h.port, `/api/workflows?root=${encodeURIComponent(h.root)}`)
     expect(r.status).toBe(200)
-    expect(r.json<{ names: string[] }>().names).toEqual(['onboarding', 'design-system', 'standard'])
+    expect(r.json<{ names: string[] }>().names).toEqual(['onboarding', 'design-system'])
   })
 
   it('无 .pipeline/workflows 目录 → 200 + 只有模板名（不是错误）', async () => {
     const h = await start()
     const r = await reqGet(h.port, `/api/workflows?root=${encodeURIComponent(h.root)}`)
     expect(r.status).toBe(200)
-    expect(r.json<{ names: string[] }>().names).toEqual(['design-system', 'standard'])
+    expect(r.json<{ names: string[] }>().names).toEqual(['design-system'])
   })
 
   it('server 启动后 registered root 被改名并在原路径换成外部 symlink → 403，绝不读取外部 workflow', async () => {
@@ -3734,14 +3241,17 @@ describe('GET /api/workflows/:name —— 读单个 workflow（GOAL E8）', () =
     expect(body.steps.map((s) => s.id)).toEqual(['s1'])
   })
 
-  it('插件内建 simple workflow 无需项目文件，并且项目同名文件不能覆盖它', async () => {
+  it('simple 已退役（由 default 的 lite 轨道取代）：没有内建定义，项目里叫 simple 的文件是普通项目工作流', async () => {
     const { mkdir, writeFile } = await import('node:fs/promises')
     const h = await start()
+    const missing = await reqGet(h.port, `/api/workflows/simple?root=${encodeURIComponent(h.root)}`)
+    expect(missing.status).toBe(404)
+
     const dir = join(h.root, '.pipeline', 'workflows')
     await mkdir(dir, { recursive: true })
     await writeFile(
       join(dir, 'simple.yaml'),
-      'name: simple\nsteps:\n  - id: shadow\n    label: shadow\n    gate: null\n    skills: []\n    inputs: []\n    outputs: []\n    guards: []\n    transitions: []\n',
+      'name: simple\nsteps:\n  - id: mine\n    label: mine\n    gate: null\n    skills: []\n    inputs: []\n    outputs: []\n    guards: []\n    transitions: []\n',
       'utf8',
     )
 
@@ -3749,8 +3259,7 @@ describe('GET /api/workflows/:name —— 读单个 workflow（GOAL E8）', () =
     expect(r.status).toBe(200)
     const body = r.json<{ name: string; steps: Array<{ id: string }> }>()
     expect(body.name).toBe('simple')
-    expect(body.steps.map((step) => step.id)).toEqual(['change', 'verify', 'done', 'escalated'])
-    expect(r.body).not.toContain('shadow')
+    expect(body.steps.map((step) => step.id)).toEqual(['mine'])
   })
 
   it('workflow 不存在 → 404', async () => {
@@ -3861,23 +3370,25 @@ describe('GET /api/workflows/:name —— 读单个 workflow（GOAL E8）', () =
     expect(r.json<{ error: string }>().error).toContain('未找到')
   })
 
-  it('T-R6：磁盘已有 workflow 引用已删除 dynamic track → 409 degraded，不把孤儿配置伪装成健康 200', async () => {
+  it('磁盘已有 workflow 的轨道谓词引用本工作流已没有的分支 → 409 降级，不把孤儿配置伪装成健康 200', async () => {
     const h = await start()
     const dir = join(h.root, '.pipeline', 'workflows')
     await mkdir(dir, { recursive: true })
     await writeFile(join(dir, 'orphan.yaml'), `name: orphan
-steps:
-  - id: s1
-    label: x
-    gate: null
-    skills: []
-    inputs: []
-    outputs: []
-    guards:
-      - type: full-direct-override
-        when:
-          track_in: [removed-track]
-    transitions: []
+tracks:
+  kept:
+    steps:
+      - id: s1
+        label: x
+        gate: null
+        skills: []
+        inputs: []
+        outputs: []
+        guards:
+          - type: full-direct-override
+            when:
+              track_in: [removed-track]
+        transitions: []
 `, 'utf8')
 
     const r = await reqGet(h.port, `/api/workflows/orphan?root=${encodeURIComponent(h.root)}`)
@@ -4005,7 +3516,53 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
     expect(await readFile(target, 'utf8')).toBe(before)
   })
 
-  it('name === default：body 不满足 default 骨架（非七阶段）→ 400 并列出原因，不落盘', async () => {
+  it('步骤的 test 档位原样往返；换成另一档后读回的是新档位', async () => {
+    const h = await start()
+    const auth = { headers: { Authorization: `Bearer ${h.token}` } }
+    const withLevel = (level: string) => ({
+      ...VALID_BODY, root: h.root,
+      steps: VALID_BODY.steps.map((step) => (step.id === 'intake' ? { ...step, test: level } : step)),
+    })
+    const first = await reqPost(h.port, '/api/workflows/onboarding', withLevel('changed'), auth)
+    expect(first.status, first.body).toBe(200)
+    const read = (): Promise<{ steps: Array<{ id: string; test?: string }> }> =>
+      reqGet(h.port, `/api/workflows/onboarding?root=${encodeURIComponent(h.root)}`).then((res) => res.json())
+    expect((await read()).steps.find((step) => step.id === 'intake')?.test).toBe('changed')
+    const second = await reqPost(h.port, '/api/workflows/onboarding', withLevel('full'), auth)
+    expect(second.status, second.body).toBe(200)
+    const after = await read()
+    expect(after.steps.find((step) => step.id === 'intake')?.test).toBe('full')
+    expect(after.steps.find((step) => step.id === 'done')).not.toHaveProperty('test')
+  })
+
+  it('同一步同时有 test 与 test_policy → 400 点名该步，不覆盖已发布的定义', async () => {
+    const h = await start()
+    const auth = { headers: { Authorization: `Bearer ${h.token}` } }
+    expect((await reqPost(h.port, '/api/workflows/onboarding', { ...VALID_BODY, root: h.root }, auth)).status).toBe(200)
+    const target = join(h.root, '.pipeline', 'workflows', 'onboarding.yaml')
+    const before = await readFile(target, 'utf8')
+    const both = await reqPost(h.port, '/api/workflows/onboarding', {
+      ...VALID_BODY, root: h.root,
+      steps: VALID_BODY.steps.map((step) => (step.id === 'intake' ? { ...step, test: 'full', test_policy: { run: ['unit'] } } : step)),
+    }, auth)
+    expect(both.status).toBe(400)
+    const errors = both.json<{ errors: string[] }>().errors
+    expect(errors.some((error) => error.includes('intake') && error.includes('test 与 test_policy 只能写一个'))).toBe(true)
+    expect(await readFile(target, 'utf8')).toBe(before)
+  })
+
+  it('未知档位 → 400，列出四个可选值', async () => {
+    const h = await start()
+    const r = await reqPost(h.port, '/api/workflows/onboarding', {
+      ...VALID_BODY, root: h.root,
+      steps: VALID_BODY.steps.map((step) => (step.id === 'intake' ? { ...step, test: 'quick' } : step)),
+    }, { headers: { Authorization: `Bearer ${h.token}` } })
+    expect(r.status).toBe(400)
+    const errors = r.json<{ errors: string[] }>().errors
+    expect(errors.some((error) => ['none', 'plan', 'changed', 'full'].every((level) => error.includes(level)))).toBe(true)
+  })
+
+  it('name === default：body 不满足 default 骨架（缺 openspec: true）→ 400 并列出原因，不落盘', async () => {
     const h = await start()
     const r = await reqPost(
       h.port, '/api/workflows/default', { ...VALID_BODY, name: 'default', root: h.root },
@@ -4013,7 +3570,7 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
     )
     expect(r.status).toBe(400)
     const body = r.json<{ ok: false; errors: string[] }>()
-    expect(body.errors.some((error) => error.includes('7 个标准阶段'))).toBe(true)
+    expect(body.errors.some((error) => error.includes('default 必须保持 openspec: true'))).toBe(true)
     expect(existsSync(join(h.root, '.pipeline', 'workflows', 'default.yaml'))).toBe(false)
   })
 
@@ -4021,20 +3578,14 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
     const h = await start()
     const builtin = await reqGet(h.port, `/api/workflows/default?root=${encodeURIComponent(h.root)}`)
     expect(builtin.status).toBe(200)
-    const { source: builtinSource, effectiveIo: builtinIo, branches: builtinBranches, ...template } = builtin.json<Record<string, unknown>>()
-    expect(Object.keys(builtinBranches as Record<string, unknown>)).toEqual(['chat', 'pm', 'frontend', 'backend', 'free'])
+    const { source: builtinSource, branches: builtinBranches, ...template } = builtin.json<Record<string, unknown>>()
+    // 每步的输入输出不再由定义物化：工作流 API 没有 effectiveIo，分支视图只剩标签（真实产出在任务的 stepIo）。
+    expect(template).not.toHaveProperty('effectiveIo')
+    expect(builtinBranches).toEqual({ lite: { label: '轻量' }, pm: { label: '产品' }, frontend: { label: '前端' }, backend: { label: '后端' } })
     expect(builtinSource).toBe('builtin')
-    expect(Object.keys(builtinIo as Record<string, unknown>)).toEqual(['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive'])
     expect(template.openspec).toBe(true)
-    const documentSlots = Object.values(builtinBranches as Record<string, { effectiveIo: Record<string, { inputs: Array<Record<string, unknown>>; outputs: Array<Record<string, unknown>> }> }>)
-      .flatMap((branch) => Object.values(branch.effectiveIo).flatMap((io) => [...io.inputs, ...io.outputs]))
-      .filter((slot) => slot.kind === 'document')
-    expect(documentSlots.length).toBeGreaterThan(0)
-    // 前端分支的 design-md 是项目级文档（scope: project），其余仍是 change 级。
-    expect(documentSlots.every((slot) => typeof slot.role === 'string' && !('locked' in slot))).toBe(true)
-    expect(new Set(documentSlots.map((slot) => slot.scope))).toEqual(new Set(['change', 'project']))
-    expect(documentSlots.filter((slot) => slot.scope === 'project').every((slot) => slot.id === 'design-md')).toBe(true)
     const tracks = template.tracks as Record<string, { documentContract?: unknown; steps: Array<{ id: string; skills: Array<{ id: string }> }> }>
+    expect(Object.values(tracks).some((branch) => 'documentContract' in branch)).toBe(false)
     const edited = { ...tracks, backend: { ...tracks.backend!, steps: tracks.backend!.steps.map((step) => step.id === 'open' ? { ...step, skills: [...step.skills, { id: 'brainstorming' }] } : step) } }
     const saved = await reqPost(
       h.port, '/api/workflows/default', { ...template, tracks: edited, root: h.root },
@@ -4047,10 +3598,10 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
     expect(loaded.status).toBe(200)
     const override = loaded.json<{ source: string; tracks: Record<string, { documentContract?: unknown; steps: Array<{ id: string; skills: Array<{ id: string }> }> }> }>()
     expect(override.source).toBe('project')
-    expect(override.tracks.backend?.documentContract).toEqual(tracks.backend?.documentContract)
+    expect(override.tracks.backend).not.toHaveProperty('documentContract')
     expect(override.tracks.backend?.steps[0]?.skills.map((skill) => skill.id)).toEqual(['openspec-propose', 'brainstorming'])
     const listed = await reqGet(h.port, `/api/workflows?root=${encodeURIComponent(h.root)}`)
-    expect(listed.json<{ names: string[]; default: { source: string } }>()).toEqual({ names: ['design-system', 'standard'], default: { source: 'project' } })
+    expect(listed.json<{ names: string[]; default: { source: string } }>()).toEqual({ names: ['design-system'], default: { source: 'project' } })
 
     const removed = await reqDelete(
       h.port, `/api/workflows/default?root=${encodeURIComponent(h.root)}`,
@@ -4103,24 +3654,17 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
     expect(content).toContain('name: onboarding')
   })
 
-  it('三步 workflow 的 declarative document contract 经 POST/GET 完整往返，不被扩成七阶段', async () => {
+  it('三步 workflow（带 required-output 守卫）经 POST/GET 完整往返，不被扩成七阶段，也不带文档契约与物化的输入输出', async () => {
     const h = await start()
     const body = {
       name: 'short-governed',
       root: h.root,
       openspec: true,
-      documentContract: {
-        version: 'v1',
-        slots: [{ kind: 'proposal', ownerStep: 'shape', producers: ['writer'] }],
-        reads: [
-          { step: 'implement', kinds: ['proposal'] },
-          { step: 'prove', kinds: ['proposal'] },
-        ],
-      },
       steps: [
         {
           id: 'shape', label: 'Shape', gate: null,
-          skills: [{ id: 'writer' }], inputs: [], outputs: [], guards: [],
+          skills: [{ id: 'writer' }], inputs: [], outputs: [],
+          guards: [{ type: 'required-output', path: 'openspec/changes/{change}/proposal.md' }],
           transitions: [{ event: 'shaped', to: 'implement' }],
         },
         {
@@ -4141,16 +3685,28 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
 
     const loaded = await reqGet(h.port, `/api/workflows/short-governed?root=${encodeURIComponent(h.root)}`)
     expect(loaded.status).toBe(200)
-    const { source, effectiveIo, branches, ...definition } = loaded.json<Record<string, unknown>>()
-    expect(Object.keys(branches as Record<string, unknown>)).toEqual(['_base'])
-    expect(definition).toEqual({
-      name: body.name,
-      openspec: true,
-      documentContract: body.documentContract,
-      steps: body.steps,
-    })
+    const readBack = loaded.json<Record<string, unknown>>()
+    const { source, branches, ...definition } = readBack
+    expect(branches).toEqual({ _base: {} })
+    expect(definition).toEqual({ name: body.name, openspec: true, steps: body.steps })
     expect(source).toBe('project')
-    expect(effectiveIo).toBeTypeOf('object')
+    expect(readBack).not.toHaveProperty('effectiveIo')
+  })
+
+  it('POST 仍带 documentContract → 400 点名「已删除」，不落盘', async () => {
+    const h = await start()
+    const r = await reqPost(
+      h.port, '/api/workflows/legacy-contract',
+      {
+        name: 'legacy-contract', root: h.root, openspec: true,
+        documentContract: { version: 'v1', slots: [{ kind: 'proposal', ownerStep: 'shape', producers: ['writer'] }], reads: [] },
+        steps: [{ id: 'shape', label: 'Shape', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [] }],
+      },
+      { headers: { Authorization: `Bearer ${h.token}` } },
+    )
+    expect(r.status).toBe(400)
+    expect(r.json<{ errors: string[] }>().errors.some((error) => error.includes('document_contract 已删除'))).toBe(true)
+    expect(existsSync(join(h.root, '.pipeline', 'workflows', 'legacy-contract.yaml'))).toBe(false)
   })
 
   it('畸形 workflow 嵌套 DTO → 400 decoder 错误，不落盘且不抛 500', async () => {
@@ -4171,20 +3727,21 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
       name: 'closed-dto',
       root: h.root,
       openspec: true,
-      documentContract: {
-        version: 'v1',
-        slots: [{ kind: 'proposal', ownerStep: 'shape', producers: ['writer'] }],
-        reads: [{ step: 'done', kinds: ['proposal'] }],
-      },
       steps: [
         {
           id: 'shape', label: 'Shape', gate: null,
-          skills: [{ id: 'writer' }], inputs: [], outputs: [], guards: [],
+          skills: [{ id: 'writer' }], inputs: [], outputs: [],
+          guards: [{ type: 'required-output', path: 'openspec/changes/{change}/proposal.md' }],
           transitions: [{ event: 'done', to: 'done' }],
         },
         { id: 'done', label: 'Done', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [] },
       ],
     }
+    // 没有多余键的原文是合法的：下面的 400 只能来自那一个多余键。
+    const baseline = await reqPost(h.port, '/api/workflows/closed-baseline', { ...governed, name: 'closed-baseline' }, {
+      headers: { Authorization: `Bearer ${h.token}` },
+    })
+    expect(baseline.status, baseline.body).toBe(200)
     const variants = [
       { label: 'workflow', body: { ...governed, extra: true } },
       {
@@ -4192,33 +3749,23 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
         body: { ...governed, steps: [{ ...governed.steps[0], extra: true }, governed.steps[1]] },
       },
       {
-        label: 'document_contract',
-        body: { ...governed, documentContract: { ...governed.documentContract, extra: true } },
-      },
-      {
-        label: 'slot',
+        label: 'guard',
         body: {
           ...governed,
-          documentContract: {
-            ...governed.documentContract,
-            slots: [{ ...governed.documentContract.slots[0], extra: true }],
-          },
+          steps: [{ ...governed.steps[0], guards: [{ ...governed.steps[0].guards[0], extra: true }] }, governed.steps[1]],
         },
       },
       {
-        label: 'read',
+        label: 'transition',
         body: {
           ...governed,
-          documentContract: {
-            ...governed.documentContract,
-            reads: [{ ...governed.documentContract.reads[0], extra: true }],
-          },
+          steps: [{ ...governed.steps[0], transitions: [{ ...governed.steps[0].transitions[0], extra: true }] }, governed.steps[1]],
         },
       },
     ]
 
     for (const variant of variants) {
-      const name = `closed-${variant.label.replace('_', '-')}`
+      const name = `closed-${variant.label}`
       const response = await reqPost(
         h.port,
         `/api/workflows/${name}`,
@@ -4230,24 +3777,24 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
     }
   })
 
-  it('完整 Step IR（多行 prompt + contracts/artifact + step/edge guards + actions）→ 保存后 GET 逐字段读回', async () => {
+  it('完整 Step IR（多行 prompt + required-output / step / edge guards + actions）→ 保存后 GET 逐字段读回', async () => {
     const h = await start()
     const body = {
       name: 'full-step-ir', root: h.root,
       steps: [
         {
-          id: 'build', label: '构建', gate: null, skills: [], inputs: [],
-          outputs: [{ field: 'build_sha', type: 'string' }], guards: [],
+          id: 'build', label: '构建', gate: null, skills: [], inputs: [], outputs: [], guards: [],
           transitions: [{ event: 'build-complete', to: 'verify' }],
         },
         {
           id: 'verify', label: '验证', gate: 'review',
           prompt: 'Run API tests.\nRun browser E2E in Chromium and WebKit.',
           skills: [{ id: 'browser' }],
-          inputs: [{ field: 'build_sha', type: 'string' }],
-          outputs: [{ field: 'verification_report', type: 'file_path' }],
-          artifacts: [{ field: 'verification_report', type: 'file_path', producerPolicy: 'effective-step-skills' }],
-          guards: [{ type: 'field-nonempty', field: 'build_sha' }],
+          inputs: [], outputs: [],
+          guards: [
+            { type: 'field-nonempty', field: 'build_sha' },
+            { type: 'required-output', path: 'docs/superpowers/reports/{change}-verify.md' },
+          ],
           transitions: [{
             event: 'verify-pass', to: 'done',
             guards: [{ type: 'field-equals', field: 'branch_status', value: 'pending' }],
@@ -4263,7 +3810,7 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
     expect(saved.status, saved.body).toBe(200)
     const loaded = await reqGet(h.port, `/api/workflows/full-step-ir?root=${encodeURIComponent(h.root)}`)
     expect(loaded.status).toBe(200)
-    const { source: _source, effectiveIo: _effectiveIo, branches: _branches, ...definition } = loaded.json<Record<string, unknown>>()
+    const { source: _source, branches: _branches, ...definition } = loaded.json<Record<string, unknown>>()
     expect(definition).toEqual({ name: body.name, steps: body.steps })
   })
 
@@ -4277,65 +3824,38 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
     expect(existsSync(join(h.root, '.pipeline', 'workflows', 'onboarding.yaml'))).toBe(false)
   })
 
-  it('T-R6：body predicate 引用未知 dynamic track → 400 + 定位 errors，绝不先保存再运行时坏', async () => {
+  /** 两条轨道的工作流：`data` 分支里的离开条件带一个轨道谓词。 */
+  const branchedBody = (values: string[], root: string) => ({
+    name: 'onboarding',
+    steps: [],
+    tracks: {
+      data: { steps: [{ ...VALID_BODY.steps[0], guards: [{ type: 'full-direct-override', when: { kind: 'track-in', values } }] }, VALID_BODY.steps[1]] },
+      ops: { steps: VALID_BODY.steps },
+    },
+    root,
+  })
+
+  it('轨道谓词引用本工作流没有的轨道 → 400 + 定位 errors，绝不先保存再运行时坏', async () => {
     const h = await start()
-    const body = {
-      ...VALID_BODY,
-      steps: [
-        {
-          ...VALID_BODY.steps[0],
-          guards: [{ type: 'full-direct-override', when: { kind: 'track-in', values: ['ghost-track'] } }],
-        },
-        VALID_BODY.steps[1],
-      ],
-      root: h.root,
-    }
-    const r = await reqPost(h.port, '/api/workflows/onboarding', body, {
+    const r = await reqPost(h.port, '/api/workflows/onboarding', branchedBody(['ghost-track'], h.root), {
       headers: { Authorization: `Bearer ${h.token}` },
     })
 
     expect(r.status).toBe(400)
     const result = r.json<{ ok: false; errors: string[] }>()
-    expect(result.errors.some((error) => error.includes("未知 track 'ghost-track'"))).toBe(true)
+    expect(result.errors).toContain("workflow.tracks.data.steps[0].guards[0].when.values[0]: 未知 track 'ghost-track'")
     expect(existsSync(join(h.root, '.pipeline', 'workflows', 'onboarding.yaml'))).toBe(false)
   })
 
-  it('T-R6：predicate 引用 effective registry 中 custom track → 200，真保存', async () => {
+  it('轨道谓词引用本工作流的另一条分支 → 200，真保存；写坏的 tracks.yaml 不影响', async () => {
     const h = await start()
     await mkdir(join(h.root, '.pipeline'), { recursive: true })
-    await writeFile(join(h.root, '.pipeline', 'tracks.yaml'), `version: 1
-tracks:
-  - id: data
-    label: Data
-    workflow:
-      default: default
-      allowed: '*'
-    policy_profile:
-      review_seed: pending
-      automation_eligible: true
-      coverage_profile: backend
-      routing:
-        enabled: false
-      skills:
-        matrix: true
-        profile: backend
-`, 'utf8')
-    const body = {
-      ...VALID_BODY,
-      steps: [
-        {
-          ...VALID_BODY.steps[0],
-          guards: [{ type: 'full-direct-override', when: { kind: 'track-in', values: ['data'] } }],
-        },
-        VALID_BODY.steps[1],
-      ],
-      root: h.root,
-    }
-    const r = await reqPost(h.port, '/api/workflows/onboarding', body, {
+    await writeFile(join(h.root, '.pipeline', 'tracks.yaml'), 'version: [broken\n', 'utf8')
+    const r = await reqPost(h.port, '/api/workflows/onboarding', branchedBody(['ops'], h.root), {
       headers: { Authorization: `Bearer ${h.token}` },
     })
 
-    expect(r.status).toBe(200)
+    expect(r.status, r.body).toBe(200)
     expect(existsSync(join(h.root, '.pipeline', 'workflows', 'onboarding.yaml'))).toBe(true)
   })
 
@@ -4534,33 +4054,7 @@ steps:
     expect(existsSync(join(dir, 'onboarding.yaml'))).toBe(false)
   })
 
-  it('T-R7：effective builtin track 的 workflow.default + allowed[] 真引用 → 结构化 409，列全来源且零删除', async () => {
-    const h = await start()
-    const target = await installWorkflow(h)
-    await installTracks(h, `version: 1
-builtins:
-  chat:
-    workflow:
-      default: onboarding
-      allowed: [onboarding, default]
-`)
-
-    const r = await reqDelete(
-      h.port, `/api/workflows/onboarding?root=${encodeURIComponent(h.root)}`,
-      { headers: { Authorization: `Bearer ${h.token}` } },
-    )
-
-    expect(r.status).toBe(409)
-    const body = r.json<{ ok: false; code: string; workflow: string; references: Array<{ kind: string; source: string }> }>()
-    expect(body).toMatchObject({ ok: false, code: 'WORKFLOW_REFERENCED', workflow: 'onboarding' })
-    expect(body.references).toEqual(expect.arrayContaining([
-      { kind: 'track-default', source: 'track:chat' },
-      { kind: 'track-allowed', source: 'track:chat' },
-    ]))
-    expect(await readFile(target, 'utf8')).toContain('name: onboarding')
-  })
-
-  it('T-R7：custom track 引用目标 workflow → 409（不只扫 builtins）', async () => {
+  it('轨道不再按名字引用工作流：旧的 tracks.yaml（哪怕写坏了）既不算引用也不挡删除', async () => {
     const h = await start()
     const target = await installWorkflow(h)
     await installTracks(h, `version: 1
@@ -4570,26 +4064,22 @@ tracks:
     workflow:
       default: onboarding
       allowed: [onboarding, default]
-    policy_profile:
-      review_seed: pending
-      automation_eligible: true
-      coverage_profile: backend
-      routing:
-        enabled: false
-      skills:
-        matrix: true
-        profile: backend
 `)
+    const broken = await installWorkflow(h, 'other')
+    await installTracks(h, 'version: [broken\n')
 
-    const r = await reqDelete(
+    const first = await reqDelete(
       h.port, `/api/workflows/onboarding?root=${encodeURIComponent(h.root)}`,
       { headers: { Authorization: `Bearer ${h.token}` } },
     )
-    expect(r.status).toBe(409)
-    expect(r.json<{ references: Array<{ source: string }> }>().references).toEqual(
-      expect.arrayContaining([{ kind: 'track-default', source: 'track:data' }, { kind: 'track-allowed', source: 'track:data' }]),
+    expect(first.status, first.body).toBe(200)
+    expect(existsSync(target)).toBe(false)
+    const second = await reqDelete(
+      h.port, `/api/workflows/other?root=${encodeURIComponent(h.root)}`,
+      { headers: { Authorization: `Bearer ${h.token}` } },
     )
-    expect(existsSync(target)).toBe(true)
+    expect(second.status, second.body).toBe(200)
+    expect(existsSync(broken)).toBe(false)
   })
 
   it('T-R7：活跃 change 的 state.workflow 引用 → 409 + change 来源，零删除', async () => {
@@ -4754,52 +4244,35 @@ loops:
     expect(existsSync(target)).toBe(true)
   })
 
-  it('T-R7：POST create 在 workflow 校验后、state 发布前暂停时并发 DELETE → 共同锁令新引用先落，DELETE 随后 409', async () => {
-    const base = newStore()
-    let releaseInit!: () => void
-    let enteredInit!: () => void
-    const release = new Promise<void>((resolve) => { releaseInit = resolve })
-    const entered = new Promise<void>((resolve) => { enteredInit = resolve })
-    const blockingStore: StateStore = {
-      read: (dir) => base.read(dir),
-      write: (dir, state, intent) => base.write(dir, state, intent),
-      writeUnderLock: (dir, state, intent) => base.writeUnderLock(dir, state, intent),
-      get: (dir, field) => base.get(dir, field),
-      set: (dir, field, value) => base.set(dir, field, value),
-      setMany: (dir, values) => base.setMany(dir, values),
-      cas: (dir, field, expectValue, next) => base.cas(dir, field, expectValue, next),
-      casMany: (dir, field, expectValues, values) => base.casMany(dir, field, expectValues, values),
-      inspectProjection: (dir) => base.inspectProjection(dir),
-      repairProjection: (dir, opts) => base.repairProjection(dir, opts),
-      importLegacyProjection: (dir) => base.importLegacyProjection(dir),
-      withLock: (dir, fn) => base.withLock(dir, fn),
-      init: async (options) => {
-        if (options.name === 'racy-reference') {
-          enteredInit()
-          await release
-        }
-        return base.init(options)
-      },
-    }
-    const h = await start({ store: blockingStore })
+  it('T-R7：建任务（`tenon init`）持着项目协调锁、引用尚未落盘时并发 DELETE → 等锁，新引用先落，DELETE 随后 409', async () => {
+    const h = await start()
     const target = await installWorkflow(h)
-    const auth = { headers: { Authorization: `Bearer ${h.token}` } }
-    const create = reqPost(h.port, '/api/changes', {
-      root: h.root, name: 'racy-reference', track: 'backend', workflow: 'onboarding',
-    }, auth)
+    let enteredLock!: () => void
+    let releaseLock!: () => void
+    const entered = new Promise<void>((resolve) => { enteredLock = resolve })
+    const release = new Promise<void>((resolve) => { releaseLock = resolve })
+    // 与 CLI 建任务同一把锁：校验工作流 → 发布引用它的任务，两步之间锁不放。
+    const creating = withProjectCoordinationLock(h.root, async () => {
+      enteredLock()
+      await release
+      const dir = await initChange(h.store, h.root, 'racy-reference', { track: 'pm' })
+      await h.store.set(dir, 'workflow', 'onboarding')
+    })
     await entered
-    const remove = reqDelete(h.port, `/api/workflows/onboarding?root=${encodeURIComponent(h.root)}`, auth)
+    const remove = reqDelete(
+      h.port, `/api/workflows/onboarding?root=${encodeURIComponent(h.root)}`,
+      { headers: { Authorization: `Bearer ${h.token}` } },
+    )
     await new Promise((resolve) => setTimeout(resolve, 40))
-    releaseInit()
+    expect(existsSync(target)).toBe(true)
+    releaseLock()
 
-    const [created, removed] = await Promise.all([create, remove])
-    expect(created.status).toBe(200)
-    expect(removed.status).toBe(409)
+    const [, removed] = await Promise.all([creating, remove])
+    expect(removed.status, removed.body).toBe(409)
     expect(removed.json<{ references: Array<{ source: string }> }>().references).toContainEqual({
       kind: 'active-change', source: 'change:racy-reference',
     })
     expect(existsSync(target)).toBe(true)
-    expect(await base.get(join(h.root, 'openspec', 'changes', 'racy-reference'), 'workflow')).toBe('onboarding')
   })
 
   it('T-R7/G6：project coordination lock 预置为外部 symlink → 500，绝不跟随并写外部 owner/删 workflow', async () => {
@@ -5403,7 +4876,7 @@ describe('POST /api/projects —— 注册项目进机器级注册表（G18）',
     expect(await registerProjectRoot(h.registryPath, proj)).toBe(true)
     const listed = await reqGet(h.port, `/api/workflows?root=${encodeURIComponent(proj)}`)
     expect(listed.status).toBe(200)
-    expect(listed.json<{ names: string[] }>().names).toEqual(['design-system', 'standard'])
+    expect(listed.json<{ names: string[] }>().names).toEqual(['design-system'])
 
     const created = await reqPost(h.port, '/api/workflows/dynamic', {
       root: proj,
@@ -5540,177 +5013,7 @@ describe('DELETE /api/projects —— 注销项目（G18 对称操作）', () =>
   })
 })
 
-describe('POST /api/changes —— tenon init 的 HTTP 化（G18）', () => {
-  /** 先经真端点注册项目（G18 闭环语义），返回可用的 proj root。 */
-  async function withRegisteredProject(h: Awaited<ReturnType<typeof startWithHome>>): Promise<string> {
-    const proj = await makeProject()
-    const r = await reqPost(h.port, '/api/projects', { root: proj }, { headers: { Authorization: `Bearer ${h.token}` } })
-    expect(r.status).toBe(200)
-    return proj
-  }
-
-  it('200 默认：.pipeline.yaml 真落盘（phase=open / track=chat / preset=full）+ snapshot 出现', async () => {
-    const h = await startWithHome()
-    const proj = await withRegisteredProject(h)
-    const r = await reqPost(h.port, '/api/changes', { root: proj, name: 'demo-a' }, { headers: { Authorization: `Bearer ${h.token}` } })
-    expect(r.status).toBe(200)
-    const body = r.json<{ ok: boolean; name: string; path: string }>()
-    expect(body.name).toBe('demo-a')
-    const dir = join(proj, 'openspec', 'changes', 'demo-a')
-    expect(existsSync(join(dir, '.pipeline.yaml'))).toBe(true)
-    expect(await h.store.get(dir, 'phase')).toBe('open')
-    expect(await h.store.get(dir, 'track')).toBe('chat')
-    expect(await h.store.get(dir, 'preset')).toBe('full')
-    const selection = JSON.parse(await readFile(join(dir, '.pipeline-selection.json'), 'utf8')) as {
-      schema_version: string
-      pipeline_id: string
-      source: string
-      workflow_id: string
-      track_id: string
-    }
-    expect(selection).toMatchObject({
-      schema_version: 'pipeline-selection/v1',
-      pipeline_id: 'default:chat:main',
-      source: 'automatic',
-      workflow_id: 'default',
-      track_id: 'chat',
-    })
-    const snap = await reqGet(h.port, '/api/snapshot')
-    expect(JSON.stringify(snap.json())).toContain('demo-a')
-  })
-
-  describe('任务起点 start_sha', () => {
-    const gitIn = (cwd: string, args: string[]): string => execFileSync('git', [
-      '-c', 'user.email=t@t.test', '-c', 'user.name=t', '-c', 'commit.gpgsign=false', ...args,
-    ], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' } })
-
-    it('项目是有提交的仓库：记下建任务时的 HEAD，仍在原目录建立（不建 worktree）', async () => {
-      const h = await startWithHome()
-      const proj = await withRegisteredProject(h)
-      gitIn(proj, ['init', '-q', '-b', 'main'])
-      await writeFile(join(proj, 'a.txt'), 'a\n', 'utf8')
-      gitIn(proj, ['add', '-A'])
-      gitIn(proj, ['commit', '-q', '-m', 'base'])
-      const head = gitIn(proj, ['rev-parse', 'HEAD']).trim()
-      const r = await reqPost(h.port, '/api/changes', { root: proj, name: 'sp-a' }, { headers: { Authorization: `Bearer ${h.token}` } })
-      expect(r.status).toBe(200)
-      const dir = join(proj, 'openspec', 'changes', 'sp-a')
-      expect(await h.store.get(dir, 'start_sha')).toBe(head)
-      // 物理值在伴随文件里；投影与 wire 保持上一正式版认得的闭集。
-      expect(await readFile(join(dir, '.pipeline.yaml'), 'utf8')).not.toContain('start_sha')
-      expect(await readFile(join(dir, '.pipeline-run', 'current.json'), 'utf8')).not.toContain('start_sha')
-      expect(existsSync(join(dir, '.pipeline-run', 'start-sha'))).toBe(true)
-      expect(existsSync(join(proj, '.worktrees'))).toBe(false)
-    })
-
-    it('仓库还没有提交，或根本不是仓库：不写 start_sha，建任务照常成功', async () => {
-      const h = await startWithHome()
-      const proj = await withRegisteredProject(h)
-      const notRepo = await reqPost(h.port, '/api/changes', { root: proj, name: 'sp-b' }, { headers: { Authorization: `Bearer ${h.token}` } })
-      expect(notRepo.status).toBe(200)
-      expect(await readFile(join(proj, 'openspec', 'changes', 'sp-b', '.pipeline.yaml'), 'utf8')).not.toContain('start_sha')
-      gitIn(proj, ['init', '-q', '-b', 'main'])
-      const unborn = await reqPost(h.port, '/api/changes', { root: proj, name: 'sp-c' }, { headers: { Authorization: `Bearer ${h.token}` } })
-      expect(unborn.status).toBe(200)
-      expect(await readFile(join(proj, 'openspec', 'changes', 'sp-c', '.pipeline.yaml'), 'utf8')).not.toContain('start_sha')
-    })
-  })
-
-  it('动态路由确认：提示词原子落盘 + 真 CLI 激活当前会话，并以真实指针复核', async () => {
-    const calls: Array<{ root: string; args: readonly string[] }> = []
-    const h = await startWithHome({
-      runPipelineCli: async (root, args) => {
-        calls.push({ root, args })
-        const { writeActiveChange } = await import('@tenon/kernel')
-        await writeActiveChange(root, 'tester-at-tenon.test', args[2] ?? '')
-        return { exitCode: 0, stdout: '', stderr: '' }
-      },
-    })
-    const proj = await withRegisteredProject(h)
-    const prompt = '为登录页实现响应式前端，并补齐浏览器验收。'
-    const r = await reqPost(h.port, '/api/changes', {
-      root: proj,
-      name: 'route-me',
-      track: 'frontend',
-      workflow: 'default',
-      task_prompt: prompt,
-      activate_session: true,
-    }, { headers: { Authorization: `Bearer ${h.token}` } })
-
-    expect(r.status).toBe(200)
-    expect(calls).toEqual([{ root: proj, args: ['session', 'activate', 'route-me'] }])
-    const body = r.json<{
-      task_prompt_saved: boolean
-      session: { requested: boolean; active: boolean; status: string; exit_code: number | null }
-    }>()
-    expect(body.task_prompt_saved).toBe(true)
-    expect(body.session).toEqual({ requested: true, active: true, status: 'active', exit_code: 0 })
-    const changeDir = join(proj, 'openspec', 'changes', 'route-me')
-    expect(await readFile(join(changeDir, 'REAL_AGENT_TASK.md'), 'utf8')).toBe(`${prompt}\n`)
-    expect(await readFile(join(proj, '.tenon', 'users', 'tester-at-tenon.test', 'local', 'active-change'), 'utf8')).toBe('route-me\n')
-    const entries = await readdir(changeDir)
-    expect(entries.some((entry) => entry.startsWith('.REAL_AGENT_TASK.md.') && entry.endsWith('.tmp'))).toBe(false)
-  })
-
-  it('会话 CLI 的 degraded 成功不会被误报为已激活', async () => {
-    const h = await startWithHome({
-      runPipelineCli: async () => ({ exitCode: 0, stdout: '', stderr: '[activate] pointer write degraded' }),
-    })
-    const proj = await withRegisteredProject(h)
-    const r = await reqPost(h.port, '/api/changes', {
-      root: proj,
-      name: 'degraded-session',
-      task_prompt: '创建一个需要人工继续的任务。',
-      activate_session: true,
-    }, { headers: { Authorization: `Bearer ${h.token}` } })
-
-    expect(r.status).toBe(200)
-    expect(r.json<{ session: unknown }>().session).toEqual({
-      requested: true,
-      active: false,
-      status: 'degraded',
-      exit_code: 0,
-    })
-  })
-
-  it('G19①：200 后真写 history 记账（kind=init 单行 JSONL，对齐 cli init 的 best-effort 记账）', async () => {
-    const h = await startWithHome()
-    const proj = await withRegisteredProject(h)
-    const r = await reqPost(h.port, '/api/changes', { root: proj, name: 'hist-a' }, { headers: { Authorization: `Bearer ${h.token}` } })
-    expect(r.status).toBe(200)
-    const { readFile } = await import('node:fs/promises')
-    const raw = await readFile(join(proj, 'openspec', 'changes', 'hist-a', '.pipeline-history.jsonl'), 'utf8')
-    const lines = raw.trim().split('\n').map((l) => JSON.parse(l) as { kind: string; ts: string })
-    expect(lines).toHaveLength(1)
-    expect(lines[0]!.kind).toBe('init')
-    expect(typeof lines[0]!.ts).toBe('string')
-  })
-
-  it('creator 与负责人 = 服务端解析的声明身份；init 历史带 actor；snapshot 投影 owner/creator', async () => {
-    const h = await startWithHome()
-    const proj = await withRegisteredProject(h)
-    const r = await reqPost(h.port, '/api/changes', { root: proj, name: 'owned-a' }, { headers: { Authorization: `Bearer ${h.token}` } })
-    expect(r.status).toBe(200)
-    const dir = join(proj, 'openspec', 'changes', 'owned-a')
-    expect(await h.store.get(dir, 'created_by')).toBe('Tester <tester@tenon.test>')
-    expect(await h.store.get(dir, 'assignee')).toBe('Tester <tester@tenon.test>')
-    const history = JSON.parse((await readFile(join(dir, '.pipeline-history.jsonl'), 'utf8')).trim()) as Record<string, unknown>
-    expect(history.actor).toEqual({ id: 'tester@tenon.test', name: 'Tester', trust: 'declared' })
-    const snapshot = (await reqGet(h.port, '/api/snapshot')).json<any>()
-    const change = snapshot.projects[0].changes.find((entry: { name: string }) => entry.name === 'owned-a')
-    expect(change.owner).toEqual({ id: 'tester@tenon.test', name: 'Tester', slug: 'tester-at-tenon.test' })
-    expect(change.creator).toEqual({ id: 'tester@tenon.test', name: 'Tester', slug: 'tester-at-tenon.test' })
-  })
-
-  it('身份缺失 → 412 user-missing，零写入', async () => {
-    const h = await startWithHome({ resolveUser: () => ({ missing: true }) })
-    const proj = await withRegisteredProject(h)
-    const r = await reqPost(h.port, '/api/changes', { root: proj, name: 'nobody-a' }, { headers: { Authorization: `Bearer ${h.token}` } })
-    expect(r.status).toBe(412)
-    expect(r.json()).toMatchObject({ ok: false, code: 'user-missing' })
-    expect(existsSync(join(proj, 'openspec', 'changes', 'nobody-a'))).toBe(false)
-  })
-
+describe('GET /api/snapshot —— 旧版 assignee / created_by 的投影', () => {
   it('legacy assignee/created_by（unknown、null）投影为 null', async () => {
     const h = await start()
     await h.store.setMany(h.changeDir, { assignee: 'null', created_by: 'unknown' })
@@ -5719,167 +5022,11 @@ describe('POST /api/changes —— tenon init 的 HTTP 化（G18）', () => {
     expect(change.owner).toBeNull()
     expect(change.creator).toBeNull()
   })
-
-  it('200 显式 track=frontend', async () => {
-    const h = await startWithHome()
-    const proj = await withRegisteredProject(h)
-    const r = await reqPost(h.port, '/api/changes', { root: proj, name: 'fe-x', track: 'frontend' }, { headers: { Authorization: `Bearer ${h.token}` } })
-    expect(r.status).toBe(200)
-    expect(await h.store.get(join(proj, 'openspec', 'changes', 'fe-x'), 'track')).toBe('frontend')
-  })
-
-  it('simple 的 change 步骤不声明技能：HTTP transition 直接推进，边界写在 step prompt 里', async () => {
-    const h = await startWithHome()
-    const proj = await withRegisteredProject(h)
-    const created = await reqPost(
-      h.port,
-      '/api/changes',
-      { root: proj, name: 'simple-http', track: 'simple' },
-      { headers: { Authorization: `Bearer ${h.token}` } },
-    )
-    expect(created.status).toBe(200)
-    const dir = join(proj, 'openspec', 'changes', 'simple-http')
-    const applied = await reqPost(
-      h.port,
-      '/api/change/simple-http/transition',
-      { root: proj, event: 'change-complete' },
-      { headers: { Authorization: `Bearer ${h.token}` } },
-    )
-    expect(applied.status).toBe(200)
-    expect(await h.store.get(dir, 'phase')).toBe('verify')
-  })
-
-  it('200 自定义 workflow：phase 种到首 step、workflow 字段写入（对齐 cli init --workflow 语义）', async () => {
-    const h = await startWithHome()
-    const proj = await withRegisteredProject(h)
-    const { mkdir, writeFile } = await import('node:fs/promises')
-    await mkdir(join(proj, '.pipeline', 'workflows'), { recursive: true })
-    await writeFile(join(proj, '.pipeline', 'workflows', 'rel.yaml'), `name: rel
-steps:
-  - id: draft
-    label: x
-    gate: null
-    skills: []
-    inputs: []
-    outputs: []
-    guards: []
-    transitions:
-      - event: approved
-        to: review
-  - id: review
-    label: y
-    gate: review
-    skills: []
-    inputs: []
-    outputs: []
-    guards: []
-    transitions: []
-`, 'utf8')
-    const r = await reqPost(h.port, '/api/changes', { root: proj, name: 'rel-x', workflow: 'rel' }, { headers: { Authorization: `Bearer ${h.token}` } })
-    expect(r.status).toBe(200)
-    const dir = join(proj, 'openspec', 'changes', 'rel-x')
-    expect(await h.store.get(dir, 'phase')).toBe('draft')
-    expect(await h.store.get(dir, 'workflow')).toBe('rel')
-  })
-
-  it('400：name 非法 / track 非法 / 重复 name', async () => {
-    const h = await startWithHome()
-    const proj = await withRegisteredProject(h)
-    const bad1 = await reqPost(h.port, '/api/changes', { root: proj, name: 'bad name' }, { headers: { Authorization: `Bearer ${h.token}` } })
-    expect(bad1.status).toBe(400)
-    const bad2 = await reqPost(h.port, '/api/changes', { root: proj, name: 'ok-name', track: 'designer' }, { headers: { Authorization: `Bearer ${h.token}` } })
-    expect(bad2.status).toBe(400)
-    const first = await reqPost(h.port, '/api/changes', { root: proj, name: 'dup-x' }, { headers: { Authorization: `Bearer ${h.token}` } })
-    expect(first.status).toBe(200)
-    const dup = await reqPost(h.port, '/api/changes', { root: proj, name: 'dup-x' }, { headers: { Authorization: `Bearer ${h.token}` } })
-    expect(dup.status).toBe(400)
-    const emptyTask = await reqPost(h.port, '/api/changes', {
-      root: proj,
-      name: 'empty-task',
-      task_prompt: '   ',
-    }, { headers: { Authorization: `Bearer ${h.token}` } })
-    expect(emptyTask.status).toBe(400)
-    expect(existsSync(join(proj, 'openspec', 'changes', 'empty-task'))).toBe(false)
-  })
-
-  it('404：workflow 不存在；404：root 未注册（信任锚在本端点生效）；401 无 token', async () => {
-    const h = await startWithHome()
-    const proj = await withRegisteredProject(h)
-    const r1 = await reqPost(h.port, '/api/changes', { root: proj, name: 'x1', workflow: 'ghost' }, { headers: { Authorization: `Bearer ${h.token}` } })
-    expect(r1.status).toBe(404)
-    const outsider = await makeProject()
-    const r2 = await reqPost(h.port, '/api/changes', { root: outsider, name: 'x2' }, { headers: { Authorization: `Bearer ${h.token}` } })
-    expect(r2.status).toBe(404)
-    const r3 = await reqPost(h.port, '/api/changes', { root: proj, name: 'x3' })
-    expect(r3.status).toBe(401)
-    expect(existsSync(join(proj, 'openspec', 'changes', 'x3'))).toBe(false)
-  })
-
-  it('R2：项目 tracks.yaml 驱动 track 校验——自定义轨放行、workflow.allowed 拦截、未注册轨 400', async () => {
-    const h = await startWithHome()
-    const proj = await withRegisteredProject(h)
-    const { mkdir, writeFile } = await import('node:fs/promises')
-    await mkdir(join(proj, '.pipeline', 'workflows'), { recursive: true })
-    await writeFile(join(proj, '.pipeline', 'tracks.yaml'), `version: 1
-tracks:
-  - id: data
-    label: Data
-    workflow:
-      default: data-flow
-      allowed: [data-flow, default]
-    policy_profile:
-      review_seed: pending
-      automation_eligible: true
-      coverage_profile: backend
-      routing:
-        enabled: true
-        pattern: '(数据|ETL)'
-        priority: 150
-      skills:
-        matrix: true
-        profile: backend
-`, 'utf8')
-    await writeFile(join(proj, '.pipeline', 'workflows', 'data-flow.yaml'), `name: data-flow
-steps:
-  - id: draft
-    label: draft
-    gate: null
-    skills: []
-    inputs: []
-    outputs: []
-    guards: []
-    transitions:
-      - event: complete
-        to: done
-  - id: done
-    label: done
-    gate: null
-    skills: []
-    inputs: []
-    outputs: []
-    guards: []
-    transitions: []
-`, 'utf8')
-    const auth = { headers: { Authorization: `Bearer ${h.token}` } }
-    // 自定义轨 data 缺省绑 data-flow → 首态 draft
-    const ok = await reqPost(h.port, '/api/changes', { root: proj, name: 'd1', track: 'data' }, auth)
-    expect(ok.status).toBe(200)
-    const dir = join(proj, 'openspec', 'changes', 'd1')
-    expect(await h.store.get(dir, 'track')).toBe('data')
-    expect(await h.store.get(dir, 'phase')).toBe('draft')
-    // data 的 allowed 不含 other → 落盘前 400 拦截
-    const bad = await reqPost(h.port, '/api/changes', { root: proj, name: 'd2', track: 'data', workflow: 'other' }, auth)
-    expect(bad.status).toBe(400)
-    expect(existsSync(join(proj, 'openspec', 'changes', 'd2'))).toBe(false)
-    // 未注册轨 → 400（registry 驱动，非写死四轨）
-    const ghost = await reqPost(h.port, '/api/changes', { root: proj, name: 'd3', track: 'ghost' }, auth)
-    expect(ghost.status).toBe(400)
-  })
 })
 
 describe('POST /api/change/:name/transition —— 自定义 workflow 双轨（G17 端到端补全）', () => {
-  async function startWithCustomChange(): Promise<Harness & { relDir: string }> {
-    const h = await start()
+  async function startWithCustomChange(startOpts?: Parameters<typeof start>[0]): Promise<Harness & { relDir: string }> {
+    const h = await start(startOpts)
     const { mkdir, writeFile } = await import('node:fs/promises')
     await mkdir(join(h.root, '.pipeline', 'workflows'), { recursive: true })
     await writeFile(join(h.root, '.pipeline', 'workflows', 'rel.yaml'), `name: rel
@@ -5952,8 +5099,8 @@ steps:
     expect(await h.store.get(h.relDir, 'phase')).toBe('review')
   })
 
-  it('default workflow 的行为零回归：未知 event 仍 400', async () => {
-    const h = await startWithCustomChange()
+  it('default workflow 的行为零回归：旧引擎的在途任务未知 event 仍 400', async () => {
+    const h = await startWithCustomChange({ initialWorkflow: legacyDefaultInitialWorkflow('backend') })
     const r = await reqPost(h.port, `/api/change/${h.name}/transition`, { root: h.root, event: 'approved' }, { headers: { Authorization: `Bearer ${h.token}` } })
     expect(r.status).toBe(400)
   })
@@ -6234,7 +5381,7 @@ describe('Bug1：GET 只读数据端点 DNS 重绑定 Host 守卫（统一补齐
   const EVIL = { Host: 'evil.example.com' }
 
   it('此前无守卫的 GET 端点在伪造 Host 下一律 403', async () => {
-    const h = await startWithConfig()
+    const h = await start()
     const rootQ = `root=${encodeURIComponent(h.root)}`
     const paths = [
       '/',
@@ -6249,7 +5396,6 @@ describe('Bug1：GET 只读数据端点 DNS 重绑定 Host 守卫（统一补齐
       '/api/traces/sessions',
       '/api/traces/records?session=x',
       '/api/traces/timeline?session=x',
-      '/api/config',
       '/api/skills/registry',
       '/api/skills/sources',
       `/api/hooks?${rootQ}`,
@@ -6264,9 +5410,9 @@ describe('Bug1：GET 只读数据端点 DNS 重绑定 Host 守卫（统一补齐
   })
 
   it('本地 Host 不受误伤：抽样端点仍正常响应；health 明确保持开放（探针语义，不在守卫范围）', async () => {
-    const h = await startWithConfig()
+    const h = await start()
     expect((await reqGet(h.port, '/api/snapshot')).status).toBe(200)
-    expect((await reqGet(h.port, `/api/config?root=${encodeURIComponent(h.root)}`)).status).toBe(200)
+    expect((await reqGet(h.port, `/api/workflows?root=${encodeURIComponent(h.root)}`)).status).toBe(200)
     expect((await reqGet(h.port, '/api/loops/snapshot')).status).toBe(200)
     // health 探针位于守卫之前，任意 Host 仍放行（不改其既有探针语义）
     expect((await reqGet(h.port, '/api/health', '127.0.0.1', EVIL)).status).toBe(200)
@@ -6327,7 +5473,7 @@ describe('PUT /api/workflows/:name/yaml —— 导入原文', () => {
     expect(existsSync(join(h.root, '.pipeline', 'workflows', 'imported.yaml'))).toBe(false)
   })
 
-  it('合法 YAML → 200 落盘，GET yaml 回读规范化原文，GET json 带 effectiveIo', async () => {
+  it('合法 YAML → 200 落盘，GET yaml 回读规范化原文，GET json 带分支视图、不带 effectiveIo', async () => {
     const h = await start()
     const r = await reqPutText(h.port, `/api/workflows/imported/yaml?root=${encodeURIComponent(h.root)}`, SOURCE, { Authorization: `Bearer ${h.token}` })
     expect(r.status, r.body).toBe(200)
@@ -6336,7 +5482,9 @@ describe('PUT /api/workflows/:name/yaml —— 导入原文', () => {
     const back = await reqGet(h.port, `/api/workflows/imported/yaml?root=${encodeURIComponent(h.root)}`)
     expect(back.body).toContain('name: imported')
     const json = await reqGet(h.port, `/api/workflows/imported?root=${encodeURIComponent(h.root)}`)
-    expect(json.json<{ effectiveIo: Record<string, { outputs: unknown[] }> }>().effectiveIo.s1?.outputs).toEqual([])
+    const definition = json.json<Record<string, unknown>>()
+    expect(definition.branches).toEqual({ _base: {} })
+    expect(definition).not.toHaveProperty('effectiveIo')
   })
 
   it('name 与 URL 不一致 / 解析失败 / 图不合法 → 400 且不落盘', async () => {
@@ -6370,12 +5518,12 @@ describe('PUT /api/workflows/:name/yaml —— 导入原文', () => {
     expect(known.status, known.body).toBe(200)
   })
 
-  it('超过 256KB → 413；内建 simple → 409', async () => {
+  it('超过 256KB → 413；simple 已退役，不再是不可覆盖的内建', async () => {
     const h = await start()
     const huge = SOURCE + '# ' + 'x'.repeat(256 * 1024)
     const tooBig = await reqPutText(h.port, `/api/workflows/imported/yaml?root=${encodeURIComponent(h.root)}`, huge, { Authorization: `Bearer ${h.token}` })
     expect(tooBig.status).toBe(413)
-    const builtin = await reqPutText(h.port, `/api/workflows/simple/yaml?root=${encodeURIComponent(h.root)}`, SOURCE.replace('imported', 'simple'), { Authorization: `Bearer ${h.token}` })
-    expect(builtin.status).toBe(409)
+    const formerBuiltin = await reqPutText(h.port, `/api/workflows/simple/yaml?root=${encodeURIComponent(h.root)}`, SOURCE.replace('imported', 'simple'), { Authorization: `Bearer ${h.token}` })
+    expect(formerBuiltin.status, formerBuiltin.body).toBe(200)
   })
 })

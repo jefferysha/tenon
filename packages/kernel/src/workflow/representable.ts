@@ -6,12 +6,10 @@
  *
  * 分工：
  * - 通用面（空串 / 首尾空白 / 控制字符含 tab·CR·LF / 未配对 surrogate）下沉到 text/representable.ts，
- *   与 tracks/representable.ts 对「lone surrogate + 控制字符」这一通用域判定一致（cross-check 见
- *   representable.test.ts）——修掉此前 workflow 漏拒 lone surrogate、两套事实源行为漂移的阻断。
+ *   workflow 不再自带一份漏拒 lone surrogate 的判定。
  * - workflow 独有叠加：U+2028 行分隔符 / U+2029 段分隔符。serialize 把 value 写进一行
  *   `value: ${g.value}`（serialize.ts），parse 用 `/^\s*value:\s*(.+?)\s*$/` 读回（parse.ts）未开
- *   dotAll，JS 正则 `.` 不匹配这两个行分隔符 → 存后读不回。tracks 的值捕获已放宽到 [\s\S]* 故不拒
- *   此二者——这是两 parser 的真实差异，不是 workflow 遗漏。
+ *   dotAll，JS 正则 `.` 不匹配这两个行分隔符 → 存后读不回。
  *
  * 刻意不拒（承 text 通用面之外）：内部空格、`:`、`#`、引号、逗号、歧义标量形（true/123/~/*）——本窄
  * value 解析器原样读回（value 无引号语义、无注释剥离，`(.+?)` 逐字捕获到行尾 trim 前）。

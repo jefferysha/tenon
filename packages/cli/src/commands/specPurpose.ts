@@ -61,9 +61,18 @@ function whyParagraph(proposal: string): string | undefined {
   return text === '' ? undefined : text
 }
 
+/** `openspec validate --strict`（check:openspec）要求 Purpose 至少这么多个字符（上游 MIN_PURPOSE_LENGTH）。 */
+const MIN_PURPOSE_LENGTH = 50
+
 export function proposalPurpose(proposal: string | null, capability: string): string | undefined {
   if (proposal === null) return undefined
-  return capabilityLine(proposal, capability) ?? whyParagraph(proposal)
+  const line = capabilityLine(proposal, capability)
+  const why = whyParagraph(proposal)
+  if (line === undefined) return why
+  // 点名 capability 的那句说明常常只是一行短语，短过严格校验的下限时补上 `## Why` 第一段作背景
+  // （它常以冒号引出下面的列表，收成句号）；否则新 capability 的主规格过不了 check:openspec。
+  if (line.length >= MIN_PURPOSE_LENGTH || why === undefined) return line
+  return `${line}\n\n${why.replace(/[:：]$/u, '。')}`
 }
 
 /** 主规格文本里还有上游占位 Purpose 吗。 */

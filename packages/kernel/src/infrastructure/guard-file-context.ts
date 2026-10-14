@@ -17,7 +17,8 @@ import {
 } from 'node:fs'
 import { dirname, isAbsolute, join, relative, sep } from 'node:path'
 import { readCurrentRunRevisionSync, stateStorageExistsSync } from '../state/run-revision-store.js'
-import type { BoundedFileRead, PhaseExitFileContext } from '../workflow/phase-exit-context.js'
+import { archiveDirIsTask } from '../workspace/archived-task-name.js'
+import type { BoundedFileRead, PhaseExitFileContext } from '../workflow/legacy-phase-manifest/phase-exit-context.js'
 
 function sameBoundedFile(left: BigIntStats, right: BigIntStats): boolean {
   return left.dev === right.dev
@@ -148,7 +149,7 @@ function activeCanonicalArchived(cwd: string, dep: string): boolean {
 function physicallyArchived(cwd: string, dep: string): boolean {
   try {
     return readdirSync(join(cwd, 'openspec', 'changes', 'archive'), { withFileTypes: true })
-      .some((entry) => entry.isDirectory() && entry.name.endsWith(`-${dep}`))
+      .some((entry) => entry.isDirectory() && archiveDirIsTask(entry.name, dep))
   } catch {
     return false
   }

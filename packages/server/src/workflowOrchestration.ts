@@ -10,13 +10,13 @@ import { join } from 'node:path'
 import {
   HISTORY_FILE, allPathChangesForState, touchedPathClasses,
   buildOrchestration, compileEffectiveWorkflowPlan, completedWorkflowSkillsSinceStepEntry,
-  documentRecordsInCurrentStepVisit, judgeStepSkillsFromHistory, manifestSkillOverlay, orderSkillSlots,
-  pendingSkillDocumentKinds, planEffectiveIo, skillSlotStatuses,
+  documentRecordsInCurrentStepVisit, isTestClass, isTestKind, judgeStepSkillsFromHistory, orderSkillSlots,
+  pendingSkillDocumentKinds, planEffectiveIo, skillSlotStatuses, testClassOf,
   type AgentView, type EffectiveSkillResolver, type EffectiveWorkflowPlan, type OrchestrationEntry,
-  type OrchestrationStage, type PipelineState, type TenonUser, type TrackDefinition, type WorkflowDef,
-  type WorkflowEffectiveIo, type WorkflowOrchestration,
+  type OrchestrationStage, type PipelineState, type TenonUser, type WorkflowDef, type WorkflowOrchestration,
 } from '@tenon/kernel'
 import { projectAgentRuns, type AgentRunsSnapshot } from './agentRuns.js'
+import { changeStepIo, type ChangeStepIo } from './stepIo.js'
 import { projectTestEvidence } from './testEvidenceSnapshot.js'
 import { evidenceUserFor } from './testEvidenceUser.js'
 import type { PolicyReportDto } from './testSystemDtoTypes.js'
@@ -28,8 +28,6 @@ export type OrchestrationRunStatus = 'running' | 'done' | 'waiting' | 'failed' |
 export interface DefinitionOrchestrationResponse extends WorkflowOrchestration {
   readonly workflow: string
   readonly track: string | null
-  /** 每步 manifest 叠加的必需技能 token；编辑器画草稿时与声明技能合并（同一个 kernel orchestrate）。 */
-  readonly overlay: Readonly<Record<string, readonly string[]>>
 }
 
 export interface ChangeOrchestrationEntry extends OrchestrationEntry {
@@ -49,22 +47,22 @@ export interface ChangeOrchestrationResponse {
   readonly stages: readonly ChangeOrchestrationStage[]
   readonly returns: WorkflowOrchestration['returns']
   readonly flows: WorkflowOrchestration['flows']
-  /** 冻结计划物化的每步输入 / 输出（工作台 IO 表读它，不读当前定义）。 */
-  readonly io: WorkflowEffectiveIo
+  /** 每步的输入 / 输出 / 必须产出：新任务是观察到的真实产出，升级前的任务是按冻结契约归属的账本记录。 */
+  readonly stepIo: ChangeStepIo
 }
 
 export function definitionOrchestration(input: {
   readonly name: string
   readonly definition: WorkflowDef
-  readonly track: TrackDefinition | undefined
+  /** 轨道 id：有分支的工作流必须给，平铺工作流可省略。 */
+  readonly track: string | undefined
   readonly resolver: EffectiveSkillResolver | undefined
 }): DefinitionOrchestrationResponse {
-  const plan = compileEffectiveWorkflowPlan(input.name, input.definition, input.track)
+  const plan = compileEffectiveWorkflowPlan(input.name, input.definition, { track: input.track })
   return {
     workflow: input.name,
-    track: input.track?.id ?? null,
+    track: input.track ?? null,
     ...buildOrchestration(plan, input.resolver),
-    overlay: manifestSkillOverlay(plan, input.resolver),
   }
 }
 
@@ -105,8 +103,14 @@ type SuiteState = PolicyReportDto['suites'][number]['state']
  */
 const WORST: Readonly<Record<SuiteState, number>> = { passed: 0, waived: 0, missing: 1, 'waiver-pending': 1, running: 2, stale: 3, failed: 4 }
 
+/** 节点的 kind 是测试类（档位的类节点）时，套件按类归并（coverage 属于单测类）；是种类名（旧策略）时逐字匹配。 */
+function suiteMatchesKind(suiteKind: string, kind: string): boolean {
+  if (suiteKind === kind) return true
+  return isTestClass(kind) && isTestKind(suiteKind) && testClassOf(suiteKind) === kind
+}
+
 function kindStatus(report: PolicyReportDto | undefined, kind: string): OrchestrationRunStatus {
-  const states = (report?.suites ?? []).filter((suite) => suite.kind === kind).map((suite) => suite.state)
+  const states = (report?.suites ?? []).filter((suite) => suiteMatchesKind(suite.kind, kind)).map((suite) => suite.state)
   if (states.length === 0) return 'waiting'
   const worst = states.reduce((acc, state) => (WORST[state] > WORST[acc] ? state : acc))
   return worst === 'passed' || worst === 'waived' ? 'done' : worst === 'missing' || worst === 'waiver-pending' ? 'waiting' : worst
@@ -206,9 +210,9 @@ export async function changeOrchestration(input: {
   const phase = Array.isArray(phaseValue) ? phaseValue.join(',') : phaseValue ?? ''
   const archivedValue = state.fields.archived
   const archived = (Array.isArray(archivedValue) ? archivedValue.join(',') : archivedValue ?? '') === 'true'
-  const io = planEffectiveIo(plan)
-  const orchestration = buildOrchestration(plan, input.resolver, io)
-  const [skills, agents, tests] = await Promise.all([
+  // 画布仍按冻结计划的文档契约物化的槽位排流向（新任务没有契约，没有预先规定的流向）。
+  const orchestration = buildOrchestration(plan, input.resolver, planEffectiveIo(plan))
+  const [skills, agents, tests, stepIo] = await Promise.all([
     currentSkillStatuses({ plan, orchestration, phase, changeDir: input.changeDir, resolver: input.resolver }),
     projectAgentRuns({
       changeDir: input.changeDir,
@@ -226,6 +230,7 @@ export async function changeOrchestration(input: {
       user: evidenceUserFor(state.fields, input.user),
       ...(input.candidate === undefined ? {} : { candidate: input.candidate }),
     }),
+    changeStepIo({ root: input.root, changeDir: input.changeDir, changeName: input.changeName, plan, state }),
   ])
   const trackValue = state.fields.track
   const track = Array.isArray(trackValue) ? trackValue.join(',') : trackValue ?? ''
@@ -237,6 +242,6 @@ export async function changeOrchestration(input: {
     stages: withRunStatus(orchestration, { phase, archived, skills, agents, tests: tests.tests ?? [], policies: tests.testPolicy ?? [] }),
     returns: orchestration.returns,
     flows: orchestration.flows,
-    io,
+    stepIo,
   }
 }

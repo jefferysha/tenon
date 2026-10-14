@@ -1,10 +1,17 @@
-import { describe, expect, it } from 'vitest'
+import { mkdtemp, readFile, realpath, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, describe, expect, it } from 'vitest'
 import {
-  decodeTestRunRecordV2, parseTestCatalog, testPlanApprovalFreeDigest, testPlanDigest,
+  appendTestRunRecordV2, decodeTestRunRecordV2, parseTestCatalog, testPlanApprovalFreeDigest, testPlanDigest, userSlug,
   type StepTestPolicyIR, type TestCatalog, type TestPlan,
 } from '@tenon/kernel'
 import { fixtureCase, fixtureSuiteRun } from '@tenon/kernel/test-system/test-support'
 import { applyRunLevelReasons, draftOf, evaluationShell, machineOf } from './run-record.js'
+import { pathRootsFor, type PathRoots } from './run-paths.js'
+
+/** 不改写任何路径：只测记录装配本身的用例用它。 */
+const NO_ROOTS: PathRoots = { repo: [], home: undefined }
 
 const POLICY: StepTestPolicyIR = {
   plan: 'optional', kinds: [], run: ['unit'], run_if_registered: [], scope: 'changed', files: 'any', scenarios: 'off',
@@ -53,7 +60,7 @@ describe('draftOf', () => {
     const draft = draftOf({
       runId: '20260929T100000Z-abcdef', change: 'demo', workflowRunId: 'run-1', workflow: 'default', track: 'chat', step: 'build',
       workflowFingerprint: 'f'.repeat(64), candidate: 'workspace:sha256:' + 'c'.repeat(64), catalog: CATALOG, planDigest: `sha256:${'d'.repeat(64)}`,
-      policy: POLICY, profile, services: [], suites: [pass, { ...pass, suite: 'other', result: 'fail' }],
+      policy: POLICY, profile, services: [], suites: [pass, { ...pass, suite: 'other', result: 'fail' }], paths: NO_ROOTS,
       actor: { id: 'a@x.io', name: 'A', trust: 'declared' }, host: { kind: 'terminal', sandbox: null }, gitHead: null,
       startedAt: '2026-09-29T10:00:00Z', finishedAt: '2026-09-29T10:00:05Z', durationMs: 4999.6,
     })
@@ -83,6 +90,7 @@ describe('draftOf', () => {
     const draft = draftOf({
       runId: '20260929T100000Z-abcdef', change: 'demo', workflowRunId: 'run-1', workflow: 'default', track: 'chat', step: 'build',
       workflowFingerprint: 'f'.repeat(64), candidate: null, catalog: CATALOG, planDigest: null, policy: undefined, profile, services: [], suites: [],
+      paths: NO_ROOTS,
       actor: { id: 'a@x.io', name: 'A', trust: 'declared' }, host: { kind: 'terminal', sandbox: null }, gitHead: null,
       startedAt: '2026-09-29T10:00:00Z', finishedAt: '2026-09-29T10:00:00Z', durationMs: 0,
     })
@@ -105,5 +113,74 @@ describe('记录绑定的计划摘要（kernel testPlanApprovalFreeDigest）', (
     expect(testPlanApprovalFreeDigest(PLAN)).not.toBe(base)
     expect(testPlanApprovalFreeDigest(withWaiver(null, '换了原因'))).not.toBe(base)
     expect(testPlanApprovalFreeDigest({ ...withWaiver(null), suites: [...PLAN.suites, { suite: 'web', scope: 'full' }] })).not.toBe(base)
+  })
+})
+
+describe('draftOf：运行记录不含本机绝对路径', () => {
+  const made: string[] = []
+  afterEach(async () => {
+    await Promise.all(made.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
+  })
+
+  const HOME = '/home/someone'
+  const ACTOR = { id: 'a@x.io', name: 'A', trust: 'declared' } as const
+
+  async function writeRecord(repo: string, paths: PathRoots, suites: Parameters<typeof draftOf>[0]['suites']): Promise<{ readonly text: string; readonly record: unknown }> {
+    const draft = draftOf({
+      runId: '20260929T100000Z-abcdef', change: 'demo', workflowRunId: 'run-1', workflow: 'default', track: 'chat', step: 'build',
+      workflowFingerprint: 'f'.repeat(64), candidate: null, catalog: CATALOG, planDigest: null, policy: POLICY, profile: machineOf(CATALOG, {}),
+      services: [], suites, paths, actor: ACTOR, host: { kind: 'terminal', sandbox: null }, gitHead: null,
+      startedAt: '2026-09-29T10:00:00Z', finishedAt: '2026-09-29T10:00:05Z', durationMs: 5000,
+    })
+    const written = await appendTestRunRecordV2(repo, userSlug(ACTOR.id), draft)
+    const text = await readFile(written.path, 'utf8')
+    return { text, record: JSON.parse(text) as unknown }
+  }
+
+  it('失败堆栈、期望 / 实际值与原因说明里的仓库根（逻辑 / 真实 / file://）和主目录改写后才写盘；原始套件运行不被改', async () => {
+    const repo = await mkdtemp(join(tmpdir(), 'tenon run record 项目-'))
+    made.push(repo)
+    const real = await realpath(repo)
+    const failure = {
+      message: `expected ${repo}/out.txt to exist`,
+      stack: `at ${repo}/packages/cli/src/a.test.ts:10:5\nat file://${real}/node_modules/x.js:1:1\nat ${HOME}/.npm/y.js:2:2`,
+      expected: `${repo}/e`, actual: `${real}/a`,
+    }
+    const failing = fixtureSuiteRun({
+      suite: 'unit', result: 'fail', command: `node ${repo}/scripts/run.mjs`,
+      reasons: [{ code: 'report-missing', detail: `没有生成 ${repo}/test-results/v.json（${HOME}/.cache）` }],
+      cases: [fixtureCase({ file: 'src/a.test.ts', name: 'x', status: 'fail', failure })],
+    })
+    const paths = await pathRootsFor(repo, HOME)
+
+    const { text, record } = await writeRecord(repo, paths, [failing])
+
+    for (const forbidden of [repo, real, HOME]) expect(text, `记录里不应出现 ${forbidden}`).not.toContain(forbidden)
+    const stored = record as { readonly suites: readonly { readonly command: string; readonly reasons: readonly { readonly detail: string }[]; readonly cases: readonly { readonly failure: typeof failure }[] }[] }
+    const suite = stored.suites[0]
+    expect(suite?.cases[0]?.failure).toEqual({
+      message: 'expected out.txt to exist',
+      stack: 'at packages/cli/src/a.test.ts:10:5\nat node_modules/x.js:1:1\nat ~/.npm/y.js:2:2',
+      expected: 'e', actual: 'a',
+    })
+    expect(suite?.command).toBe('node scripts/run.mjs')
+    expect(suite?.reasons[0]?.detail).toBe('没有生成 test-results/v.json（~/.cache）')
+    // 判定与本机输出用的原始运行没有被改写。
+    expect(failing.cases[0]?.failure).toEqual(failure)
+    expect(failing.command).toContain(repo)
+  })
+
+  it('没有绝对路径的记录：改写前后逐字相同（相对化不引入别的变化）', async () => {
+    const repo = await mkdtemp(join(tmpdir(), 'tenon-run-record-clean-'))
+    made.push(repo)
+    const clean = fixtureSuiteRun({ suite: 'unit' })
+    const withRoots = await writeRecord(repo, await pathRootsFor(repo, HOME), [clean])
+    const draft = draftOf({
+      runId: '20260929T100000Z-abcdef', change: 'demo', workflowRunId: 'run-1', workflow: 'default', track: 'chat', step: 'build',
+      workflowFingerprint: 'f'.repeat(64), candidate: null, catalog: CATALOG, planDigest: null, policy: POLICY, profile: machineOf(CATALOG, {}),
+      services: [], suites: [clean], paths: NO_ROOTS, actor: ACTOR, host: { kind: 'terminal', sandbox: null }, gitHead: null,
+      startedAt: '2026-09-29T10:00:00Z', finishedAt: '2026-09-29T10:00:05Z', durationMs: 5000,
+    })
+    expect(draft.suites).toEqual((withRoots.record as { readonly suites: unknown }).suites)
   })
 })

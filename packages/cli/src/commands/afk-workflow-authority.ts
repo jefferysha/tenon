@@ -3,16 +3,20 @@ import {
   type ExecutionContext,
 } from '@tenon/automation'
 import {
-  requireTrackForRoot,
   resolveWorkflowName,
-  type TrackRegistry,
   type WorkflowPermissionLayerInput,
 } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
 import { changeDir } from '../paths.js'
 import { str } from '../render.js'
 
-/** Fresh non-Workflow facts consumed by the authoritative pre-claim five-layer evaluator. */
+/**
+ * Fresh non-Workflow facts consumed by the authoritative pre-claim five-layer evaluator.
+ *
+ * 项目层不在这里：它读任务冻结计划里所选分支的 `automation.eligible`（没写 automation = 不可进入 AFK），
+ * 由准入在 WorkflowRun 的不可变快照上自己判定，宿主不能代授，也不读任何轨道登记表。宿主只负责说明
+ * 任务状态里记着哪条轨道（`trackId`）。
+ */
 export async function resolveAfkWorkflowActionAuthority(
   deps: Pick<CliDeps, 'cwd' | 'store' | 'resolveSkillActionAuthority'>,
   change: string,
@@ -24,28 +28,8 @@ export async function resolveAfkWorkflowActionAuthority(
     readonly loopId?: string
     readonly iterationId?: string
   },
-  registry: TrackRegistry,
 ) {
   const state = await deps.store.read(changeDir(deps.cwd, change))
-  let project: { status: 'valid' | 'malformed'; grants: readonly ['enter-afk'] | readonly [] }
-  let projectAuthority: {
-    readonly version: 'v1'
-    readonly track_id: string
-    readonly track_registry_revision: string
-  } | undefined
-  const trackId = str(state.fields.track)
-  try {
-    const track = requireTrackForRoot(registry, trackId, deps.cwd)
-    const allowed = track.policyProfile.automationEligible
-    project = { status: 'valid', grants: allowed ? ['enter-afk'] : [] }
-    projectAuthority = {
-      version: 'v1',
-      track_id: track.id,
-      track_registry_revision: registry.revision,
-    }
-  } catch {
-    project = { status: 'malformed', grants: [] }
-  }
   let skill: WorkflowPermissionLayerInput = { status: 'missing', grants: [] }
   if (context.skill_bundle_id !== null && context.skill_bundle_id !== undefined
     && run.workflowPlanFingerprint !== undefined
@@ -83,8 +67,7 @@ export async function resolveAfkWorkflowActionAuthority(
   return {
     platform: { status: 'valid' as const, grants: ['enter-afk' as const] },
     skill,
-    project,
     run: runLayer,
-    ...(projectAuthority === undefined ? {} : { projectAuthority }),
+    trackId: str(state.fields.track),
   }
 }

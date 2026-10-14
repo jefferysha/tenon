@@ -24,28 +24,30 @@
  *
  * exit：0（推进完成/停在门/终态/dry-run）；2（停因 guard 不过）；1（名非法/读失败/transition 出错）。
  *
- * 双轨（对齐 transition/check 先例）：读完 state 按 workflow 字段分流（习语单源 kernel
- * resolveWorkflowName）。default → 上述 manifest 前向边链路逐字不变；非 default → 按该 workflow
- * 的 step-transitions 图推进（cmdAdvanceCustom，停点规则见该函数头）——此前 advance 只认 default
- * manifest，自定义 workflow 的 change 会被 forwardStep 误判成"终态"而永远无法 auto-advance。
+ * 双轨（对齐 transition/check 先例）：读完 state 按冻结计划的执行模型分流（选择单源 execution-cli-seam）。
+ * 按 YAML 执行的任务 → 按 step-transitions 图推进（cmdAdvanceGraph，停点规则见该函数头）；快照记着旧阶段
+ * 清单模型的在途任务 → 上述 manifest 前向边链路逐字不变。
  */
-import { implicitCompletionTransition, resolveStep, resolveWorkflowName } from '@tenon/kernel'
-import type { EffectiveWorkflowPlan, PipelineState, StepIR, StepTransitionIR } from '@tenon/kernel'
+import { resolveStep, resolveWorkflowName } from '@tenon/kernel'
+import type { EffectiveWorkflowPlan, PipelineState } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
-import { refuseArchived } from '../archivedGuard.js'
+import { refuseArchived } from '../endedTaskGuard.js'
 import { changeDir, isValidChangeName } from '../paths.js'
 import { str } from '../render.js'
 import {
   approvedReviewReceipt,
   forwardStep,
   freshHardGate,
+  graphExits,
   guardQuietly,
+  noAdvancingExitLine,
   reviewReceiptStop,
   transitionQuietly,
   type AdvanceOpts,
 } from './advance-support.js'
 import { dryRunDefaultPlan } from './advance-default-dry-run.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
+import { isStepGraphExecution } from './execution-cli-seam.js'
 import { msg } from '../i18n/messages.js'
 
 export type { AdvanceOpts } from './advance-support.js'
@@ -78,11 +80,10 @@ export async function cmdAdvance(deps: CliDeps, name: string, opts: AdvanceOpts 
     return 1
   }
 
-  // 双轨分岔（对齐 transition/check：读完 state 立刻按 workflow 字段分流，习语单源在 kernel
-  // resolveWorkflowName）：default 走下方原有 manifest 前向边链路一行不改；非 default 走
-  // step-transitions 图的自定义推进链路（此前 advance 只认 default manifest——自定义 workflow
-  // 的 change 会被 forwardStep 误判成"终态"，功能缺口在此补上）。
-  if (plan.capabilities.execution.model === 'step-graph') {
+  // 双轨分岔（对齐 transition/check：读完 state 立刻按冻结计划的执行模型分流，选择单源在
+  // execution-cli-seam）：按 YAML 执行的任务走 step-transitions 图的推进链路；快照记着旧阶段清单模型的
+  // 在途任务走下方 manifest 前向边链路，一行不改。
+  if (isStepGraphExecution(plan)) {
     const archived = str(state.fields.archived) === 'true'
     return cmdAdvanceGraph(deps, name, plan, startPhase, archived, through, maxSteps, opts.dryRun ?? false)
   }
@@ -153,31 +154,20 @@ export async function cmdAdvance(deps: CliDeps, name: string, opts: AdvanceOpts 
 // ════ 非 default workflow：按 step-transitions 图自动推进（功能缺口补完）════
 
 /**
- * 自动推进可走的出口。没有前进出边的 step 只走 kernel 推导的隐式完成边 `archived`——它的退回边
- * 是人工决定；进入这类 step 不等于运行完成。返回的 completion 与 exits 中的同一对象，调用方据此
- * 判断「这一步完成并归档了运行」。
- */
-function graphExits(
-  plan: EffectiveWorkflowPlan,
-  step: StepIR,
-): { readonly exits: readonly StepTransitionIR[]; readonly completion?: StepTransitionIR } {
-  const completion = implicitCompletionTransition(plan, step.id)
-  return completion === undefined ? { exits: step.transitions } : { exits: [completion], completion }
-}
-
-/**
  * 自定义 workflow 的停点规则（优先级自上而下，每轮重判；与 default 档同构）：
  *   0. 运行已归档（archived=true）→ 停（推进完成）。
  *   1. 终态：当前 step 没有可自动走的出口（零出边且无隐式完成边）→ 停（推进完成）。
- *      没有前进出边的 step 的出口是隐式完成边 `archived`，走完即归档并停。
+ *      没有前进出边的 step 的出口是隐式完成边 `archived`，走完即归档并停。只剩回退 / 放弃出边的 step
+ *      也没有可自动走的出口：停并列出它们，由人选 event。
  *   2. 硬门 marker：.pipeline-pending-confirm/-interaction 新鲜 → 停——HITL 红线跨轨统一，
  *      --through-gates 也绝不放行（marker 是 hooks 落的"人正被询问"项目级信号，与 workflow 无关）。
  *   3. step.gate 人门（推进前检查，管的是"自动离开"）：gate=review 默认停给人复核、--through-gates
  *      仅可消费已存在的 exact-phase-and-event approval receipt（对位 default 轨的 reviewPhases）。
  *      transition 本身也会重验 receipt，gate 是同一 canonical approval 协议在 automation 面的提前
  *      停点，不是可绕过 transition 的旁路。
- *   4. 多条出边：走向分岔，事件选择权在人（HITL）——自动推进只吃"恰 1 条出边"的确定形，停并列出
- *      可选 events。
+ *   4. 多条前进出边：走向分岔，事件选择权在人（HITL）——自动推进只吃"恰 1 条前进出边"的确定形，停并列出
+ *      可选 events。回退边与放弃边不参与自动选择（判定见 exitGuards.ts），所以一条前进边 + 一条回退边
+ *      （build 的 build-complete / requirements-changed）走前进边，回退边只在显式 `tenon transition` 时走。
  *   5. --max-steps 封顶（防失控保险丝，自定义图允许环，这条保险丝更要紧）。
  *   6. guard 不过（复用 cmdCheck 自定义分支 → kernel evaluateStepGuards 单源）→ 停（exit 2 沿用
  *      check 口径）。
@@ -215,9 +205,9 @@ async function cmdAdvanceGraph(
       deps.io.err(`ERROR: step '${current}' 不在 workflow '${plan.id}' 里`)
       return 1
     }
-    const { exits, completion } = graphExits(plan, step)
+    const { exits, completion, others } = graphExits(plan, step)
     if (exits.length === 0) {
-      deps.io.out(`[STOP] ${name} @ ${current}: 已到终态，无后继事件（推进完成）`)
+      deps.io.out(noAdvancingExitLine(`[STOP] ${name} @ ${current}: `, others, '已到终态，无后继事件（推进完成）'))
       return 0
     }
     // 硬门 marker：confirm/interaction 新鲜绝不自动跨越（--through-gates 也不行）——同 default 档
@@ -226,7 +216,7 @@ async function cmdAdvanceGraph(
       deps.io.out(`[STOP] ${name} @ ${current}: 硬门 .pipeline-pending-${hard} 新鲜存在——三门绝不自动跨越（HITL 红线）`)
       return 0
     }
-    // 分岔先停，让人选择确切 event；没有选中的边就不该尝试消费任何 event-bound receipt。
+    // 前进边多于一条才分岔：先停，让人选择确切 event；没有选中的边就不该尝试消费任何 event-bound receipt。
     if (exits.length > 1) {
       const events = exits.map((transition) => transition.event).join(', ')
       deps.io.out(`[STOP] ${name} @ ${current}: 多条出边需人选 event（HITL），手动 transition 其一：${events}`)
@@ -303,9 +293,9 @@ async function dryRunGraphPlan(
     deps.io.out(`  预计停在 ${start}: 运行已归档，已到终态`)
     return 0
   }
-  const { exits: startExits } = graphExits(plan, startStep)
+  const { exits: startExits, others: startOthers } = graphExits(plan, startStep)
   if (startExits.length === 0) {
-    deps.io.out(`  预计停在 ${start}: 已到终态`)
+    deps.io.out(noAdvancingExitLine(`  预计停在 ${start}: `, startOthers, '已到终态'))
     return 0
   }
   if (startExits.length > 1) {
@@ -344,9 +334,9 @@ async function dryRunGraphPlan(
       deps.io.err(`ERROR: step '${current}' 不在 workflow '${plan.id}' 里`)
       return 1
     }
-    const { exits, completion } = graphExits(plan, step)
+    const { exits, completion, others } = graphExits(plan, step)
     if (exits.length === 0) {
-      deps.io.out(`  预计停在 ${current}: 已到终态`)
+      deps.io.out(noAdvancingExitLine(`  预计停在 ${current}: `, others, '已到终态'))
       return 0
     }
     if (exits.length > 1) {

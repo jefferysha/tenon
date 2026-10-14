@@ -34,7 +34,7 @@ export function buildQueuedGuardBlocks(input: { phase: string; automation: strin
 }
 
 /**
- * per-change opt-in 判定（老仓 automation-config.sh:77-94 ac_opted_in，经 Track Policy 注入）：
+ * per-change opt-in 判定（老仓 automation-config.sh:77-94 ac_opted_in；资格位取自任务所选分支的 `automation`）：
  *   policy 不允许自动化 → false；已预置 automation=queued = 显式挂起意图 → true；否则取 default_opt_in。
  */
 export function optedIn(input: {

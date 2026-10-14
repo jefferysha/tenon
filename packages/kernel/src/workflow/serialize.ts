@@ -8,16 +8,21 @@
  * **exhaustive switch**——旧实现对「非 tasks-at-least」一律兜底写 `- type: nonempty-output`，
  * 联合扩宽后会把任何新变体静默腐蚀成 nonempty-output；现在闭集 exhaustive，未覆盖变体编译期
  * `never` 报错、运行期 throw（fail-loud），保存不再静默丢真相。
+ *
+ * 文档机制重做：`document_contract` 与步骤的 `inputs` / `outputs` / `artifacts` 已从工作流文件里删除，序列化不再写出
+ * （解析器仍读进 IR，给冻结快照与测试夹具表示旧定义；validate.ts 拒绝新定义声明它们）。往返等价因此只对不含这些键的
+ * 定义成立：含它们的旧定义写出后读回是空输入输出、无 artifacts、无契约。
  */
 import type {
-  FieldRef, SkillRef, StepDef, StepTransition, WorkflowActionConfig, WorkflowArtifactConfig, WorkflowDef,
-  WorkflowDecompositionPolicyV1, WorkflowDocumentContractV1, WorkflowGuardConfig,
+  SkillRef, StepDef, StepTransition, WorkflowActionConfig, WorkflowDef,
+  WorkflowDecompositionPolicyV1, WorkflowGuardConfig,
   WorkflowInteractionPolicyV1,
 } from './types.js'
 import type { TrackPredicate } from './predicates.js'
 import { serializeStepAgents } from './serialize-agents.js'
+import { serializeBranchPolicy, serializeRoute } from './serialize-track-branch.js'
 import { serializeStepTests } from './serialize-tests.js'
-import { serializeStepTestPolicy } from './serialize-test-policy.js'
+import { serializeStepTestLevel, serializeStepTestPolicy } from './serialize-test-policy.js'
 
 function serializeSkill(s: SkillRef): string[] {
   const lines = [`      - id: ${s.id}`]
@@ -53,36 +58,6 @@ function serializeInteraction(
   ]
 }
 
-function serializeFieldRef(r: FieldRef): string[] {
-  return [`      - field: ${r.field}`, `        type: ${r.type}`]
-}
-
-/** required_when 块（G2 P4）：kind kebab → YAML snake（同 serializeWhen，但键名 required_when）。 */
-function serializeRequiredWhen(when: TrackPredicate, pad: string): string[] {
-  const key = when.kind === 'track-in' ? 'track_in' : 'track_not_in'
-  return [`${pad}required_when:`, `${pad}  ${key}: [${when.values.join(', ')}]`]
-}
-
-/** 单条显式 artifact → 行（parse parseArtifactsBlock 的反向）：field/type/producer_policy + 可选
- *  required_when，缩进对齐 outputs 块（`- field:` 6 空格、子字段 8 空格、谓词 10 空格）。 */
-function serializeArtifact(a: WorkflowArtifactConfig): string[] {
-  const lines = [
-    `      - field: ${a.field}`,
-    `        type: ${a.type}`,
-    `        producer_policy: ${a.producerPolicy}`,
-  ]
-  if (a.requiredWhen) lines.push(...serializeRequiredWhen(a.requiredWhen, '        '))
-  return lines
-}
-
-/** artifacts 块：undefined（旧 YAML 无本键）→ 不写；`[]` → 写 `artifacts: []`；非空 → 逐条写。
- *  与 StepDef.artifacts? 的三态（缺省 / 空 / 非空）一一对应，往返保真。 */
-function serializeArtifactsBlock(artifacts: readonly WorkflowArtifactConfig[] | undefined): string[] {
-  if (artifacts === undefined) return []
-  if (artifacts.length === 0) return ['    artifacts: []']
-  return ['    artifacts:', ...artifacts.flatMap(serializeArtifact)]
-}
-
 /** track 条件块：kind kebab → YAML snake（track-in→track_in），谓词行缩进 = when 键 +2。 */
 function serializeWhen(when: TrackPredicate, pad: string): string[] {
   const key = when.kind === 'track-in' ? 'track_in' : 'track_not_in'
@@ -104,6 +79,10 @@ function serializeGuard(g: WorkflowGuardConfig, pad: string): string[] {
     case 'full-direct-override': break
     case 'build-head-unchanged': lines.push(`${sub}field: ${g.field}`); break
     case 'spec-migration-applied': break
+    case 'tasks-through-step': break
+    case 'not-afk-queued': break
+    case 'dependencies-ended': break
+    case 'required-output': lines.push(`${sub}path: ${g.path}`); break
     default: {
       const exhaustive: never = g
       throw new Error(`serializeWorkflow: 未知 guard 变体 ${JSON.stringify(exhaustive)}（闭集见 types.ts WorkflowGuardConfig）`)
@@ -148,9 +127,7 @@ function serializeStep(step: StepDef): string[] {
     lines.push(...step.prompt.split('\n').map((line) => `      ${line}`))
   }
   lines.push(...serializeBlockField('skills', step.skills, serializeSkill))
-  lines.push(...serializeBlockField('inputs', step.inputs, serializeFieldRef))
-  lines.push(...serializeBlockField('outputs', step.outputs, serializeFieldRef))
-  lines.push(...serializeArtifactsBlock(step.artifacts))
+  lines.push(...serializeStepTestLevel(step.test))
   lines.push(...serializeStepTests(step.tests))
   lines.push(...serializeStepTestPolicy(step.test_policy))
   lines.push(...serializeStepAgents(step.agents))
@@ -159,45 +136,23 @@ function serializeStep(step: StepDef): string[] {
   return lines
 }
 
-/** 文档契约块（block style）；slot 行序固定 kind / owner_step / role（produce 不写）/ producers（require 不写）。 */
-function serializeDocumentContract(contract: WorkflowDocumentContractV1, indent = ''): string[] {
-  const lines = [
-    'document_contract:',
-    `  version: ${contract.version}`,
-    '  slots:',
-    ...contract.slots.flatMap((slot) => [
-      `    - kind: ${slot.kind}`,
-      `      owner_step: ${slot.ownerStep}`,
-      ...(slot.role === undefined ? [] : [`      role: ${slot.role}`]),
-      ...(slot.role === 'require' ? [] : [`      producers: [${slot.producers.join(', ')}]`]),
-    ]),
-    ...(contract.reads.length === 0
-      ? ['  reads: []']
-      : [
-          '  reads:',
-          ...contract.reads.flatMap((read) => [
-            `    - step: ${read.step}`,
-            `      kinds: [${read.kinds.join(', ')}]`,
-          ]),
-        ]),
-  ]
-  return lines.map((line) => `${indent}${line}`)
-}
-
 export function serializeWorkflow(wf: WorkflowDef): string {
   const lines = [
     `name: ${wf.name}`,
     ...(wf.decomposition === undefined ? [] : serializeDecomposition(wf.decomposition)),
     ...(wf.interaction === undefined ? [] : serializeInteraction(wf.interaction)),
     ...(wf.openspec === true ? ['openspec: true'] : []),
-    ...(wf.documentContract === undefined ? [] : serializeDocumentContract(wf.documentContract)),
+    ...(wf.route === undefined ? [] : serializeRoute(wf.route, '')),
     ...(wf.steps.length === 0 && Object.keys(wf.tracks ?? {}).length > 0 ? [] : ['steps:', ...wf.steps.flatMap(serializeStep)]),
     ...serializeTracks(wf.tracks),
   ]
   return lines.join('\n') + '\n'
 }
 
-/** `tracks:` 块：分支 id 两空格缩进；分支内 steps 项与顶层 steps 同构，整体再缩进四空格（YAML 统一位移，含 prompt 块）。 */
+/**
+ * `tracks:` 块：分支 id 两空格缩进；分支内 steps 项与顶层 steps 同构，整体再缩进四空格（YAML 统一位移，含 prompt 块）。
+ * 分支键序 label → spec → route → automation → steps。
+ */
 function serializeTracks(tracks: WorkflowDef['tracks']): string[] {
   if (tracks === undefined) return []
   const ids = Object.keys(tracks)
@@ -208,7 +163,7 @@ function serializeTracks(tracks: WorkflowDef['tracks']): string[] {
     if (branch === undefined) continue
     lines.push(`  ${id}:`)
     if (branch.label !== undefined && branch.label !== '') lines.push(`    label: ${branch.label}`)
-    if (branch.documentContract !== undefined) lines.push(...serializeDocumentContract(branch.documentContract, '    '))
+    lines.push(...serializeBranchPolicy(branch, '    '))
     lines.push('    steps:')
     lines.push(...branch.steps.flatMap(serializeStep).map((line) => (line === '' ? line : `    ${line}`)))
   }

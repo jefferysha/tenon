@@ -1,43 +1,20 @@
 /**
- * `tenon init` 建好任务 worktree 之后的工作区准备：把本用户在主检出里的信任带过来，目录受信任时执行它声明的 `setup`。
+ * `tenon init` 建好任务 worktree 之后的工作区准备：目录受信任时执行它声明的 `setup`。
  *
- * 信任按命令摘要生效（封存的 trusted 条目只记摘要）：新 worktree 里的目录摘要与主检出里信任过的一致才算受信任——
- * 目录已提交时两边一致；主检出有未提交的目录改动时，worktree 里是 HEAD 版本、摘要不同，按未受信任处理并提示；
- * 之后在 worktree 里改了任何命令也要重新信任。只复制 trusted：评审批准（approvals）绑任务名与路径，共享文件写入记录（writes）
- * 与记录链头（heads）绑主检出里的文件状态，都不属于新 worktree。
+ * 信任按命令记在用户级状态目录（按用户 + 仓库 + 单条命令的摘要，见 test-trust.ts），同一仓库的所有 worktree 共享，
+ * 所以新 worktree 不需要「继承」什么：用户在主检出里（或别的 worktree 里）信任过这条 `setup`，新 worktree 里
+ * 目录声明的 `setup` 摘要一致就算受信任；新 worktree 里是已提交的目录，主检出里未提交的改动不在其中，`setup` 改了就是
+ * 一条新命令，需要重新确认。
  *
  * 准备失败不让已建好的任务失败：本模块不抛错，`tenon init` 的退出码不受影响。
  * 子进程的输出逐行转到 stderr（`--json` 时 stdout 只能有那一行 JSON），不直接继承 stdout。
  */
 import { spawn } from 'node:child_process'
-import {
-  catalogExecDigest, isTenonUser, isTrusted, readCatalogFile, readTestSeal, updateTestSeal, userSlug,
-  type TaskWorktreePlan,
-} from '@tenon/kernel'
+import { isTenonUser, readCatalogFile, userSlug, type TaskWorktreePlan } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
+import { TRUST_ENV, catalogSetupTrustTarget, trustScope, untrustedEntries } from './test-trust.js'
 
 type CreatePlan = Extract<TaskWorktreePlan, { kind: 'create' }>
-
-/**
- * 把 `from`（主检出）里 `slug` 用户的信任条目写进 `to`（新 worktree）的本机封存，返回新增的条目数。
- * 只复制 trusted，目标已有同一摘要的不重复写；主检出封存不存在、被改过（读成空封存）或没有信任条目时什么都不写。
- */
-export async function inheritTrust(input: { readonly from: string; readonly to: string; readonly slug: string }): Promise<number> {
-  const { seal: source } = await readTestSeal(input.from, input.slug)
-  if (source.trusted.length === 0) return 0
-  let copied = 0
-  await updateTestSeal(input.to, input.slug, (seal) => {
-    const known = new Set(seal.trusted.map((entry) => entry.digest))
-    const added = source.trusted.filter((entry) => {
-      if (known.has(entry.digest)) return false
-      known.add(entry.digest)
-      return true
-    })
-    copied = added.length
-    return added.length === 0 ? seal : { ...seal, trusted: [...seal.trusted, ...added] }
-  })
-  return copied
-}
 
 /** 逐行转发：按换行切开，不足一行的尾巴留到下一块（或流结束时冲出）。 */
 function lineForwarder(log: (line: string) => void): { push(chunk: string): void; flush(): void } {
@@ -87,7 +64,7 @@ function shellPath(path: string): string {
 }
 
 /**
- * 新 worktree 的工作区准备：继承信任，然后按新 worktree 里的测试目录决定是否执行 `setup`。
+ * 新 worktree 的工作区准备：按新 worktree 里的测试目录决定是否执行 `setup`。
  * 目录不存在 → 静默；目录无效、没有 setup、未受信任 → 提示并跳过；setup 失败 → WARN 并给出手动重跑的命令。
  */
 export async function prepareInitWorktree(deps: CliDeps, plan: CreatePlan): Promise<void> {
@@ -95,12 +72,6 @@ export async function prepareInitWorktree(deps: CliDeps, plan: CreatePlan): Prom
     const user = deps.user()
     if (!isTenonUser(user)) return
     const slug = userSlug(user.id)
-    try {
-      const copied = await inheritTrust({ from: deps.cwd, to: plan.path, slug })
-      if (copied > 0) deps.io.err(`[SETUP] 已把你在主检出里信任过的 ${copied} 条命令摘要带进新 worktree`)
-    } catch (e) {
-      deps.io.err(`WARN: [SETUP] 信任继承失败（${errMsg(e)}）；新 worktree 里需要重新 tenon test trust`)
-    }
     const file = await readCatalogFile(plan.path)
     if (file.state === 'missing') return
     if (file.state === 'invalid') {
@@ -108,15 +79,16 @@ export async function prepareInitWorktree(deps: CliDeps, plan: CreatePlan): Prom
       return
     }
     const setup = file.catalog.setup
-    if (setup === undefined) {
+    const target = catalogSetupTrustTarget(file.catalog)
+    if (setup === undefined || target === undefined) {
       deps.io.err('[SETUP] 测试目录没有声明 setup，跳过工作区准备')
       return
     }
     const at = shellPath(plan.path)
-    const { seal } = await readTestSeal(plan.path, slug)
-    if (!isTrusted(seal, catalogExecDigest(file.catalog))) {
-      deps.io.err(`[SETUP] 测试目录在新 worktree 里未受信任，没有执行 setup：$ ${setup}`)
-      deps.io.err('  新 worktree 里是已提交的目录，它的命令摘要不在你的信任记录里（例如主检出里还有未提交的目录改动）')
+    // 环境显式信任（CI）与 `tenon test run` 同一口径；否则 setup 这一条命令要在用户级信任存储里（按仓库，与 worktree 无关）。
+    if (deps.env?.(TRUST_ENV) !== '1' && (await untrustedEntries(deps, slug, target, await trustScope(deps))).length > 0) {
+      deps.io.err(`[SETUP] 测试目录里的 setup 未受信任，没有执行：$ ${setup}`)
+      deps.io.err('  它不在你的信任记录里（第一次信任，或新 worktree 里已提交的目录与主检出里未提交的改动不同）')
       deps.io.err(`  请你在自己的终端里运行 cd ${at} && tenon test trust 确认（agent 不能替你确认），再手动执行 cd ${at} && ${setup}`)
       return
     }

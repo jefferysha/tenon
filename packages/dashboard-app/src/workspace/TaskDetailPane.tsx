@@ -17,7 +17,7 @@ import { TestRunDrawer } from './TestRunDrawer'
 import { tabCount } from './testsTabModel'
 import { stageTestCount, stageTestRows } from './stageTests'
 import { StageRail } from './StageRail'
-import { fallbackStepIo, gateProgress, isReadyRow, readableFiles, stageInputs, stageOutputs } from './stageIo'
+import { gateProgress, readableFiles, stageInputs, stageOutputs, stageRequired } from './stageIo'
 import { stageLabel, summaryShort, type TaskRow } from './taskModel'
 import { useChangeOrchestration } from './useChangeOrchestration'
 import { ReviewDecisionPanel } from './ReviewDecisionPanel'
@@ -32,14 +32,17 @@ export interface TaskDetailPaneProps {
   row: TaskRow
   onToast?: (message: string) => void
   onRefresh?: () => void | Promise<void>
-  /** 评审待确认时显示评审台（已归档视图不显示）。 */
+  /** 评审待确认时显示评审台（已结束的任务不显示）。 */
   showReviewConsole?: boolean
-  /** false = 只读快照：不取任务编排与记录，IO 退化为快照里的输出字段名。工作台恒为 true（选中时才取）。 */
+  /** false = 只读快照：不取任务编排与记录，输入输出显示空态。工作台恒为 true（选中时才取）。 */
   fetchDefinition?: boolean
   /** 标题右侧 ⋯ 菜单（与卡片 ⋯ 同一份 taskMenuItems）；缺省 = 无菜单。 */
   menu?: readonly TaskMenuEntry[]
-  /** 已归档视图：不显示评审台。 */
-  archived?: boolean
+  /**
+   * 已结束的任务（只读）：`dir` 是它的归档目录名——编排、记录与文档的读取接口按它认（`?archived=1`），不按任务名。
+   * 没有下一步、评审台与测试页签，测试节点也点不开：测试记录按活跃任务名存放。
+   */
+  archived?: { readonly dir: string }
   /**
    * The task's evidence (documents, runs, tests) comes from `GET /api/change/:name/snapshot`, not from the list row.
    * `loading` / `error` say it is not in `row` yet; absent = `row` already holds it.
@@ -47,11 +50,11 @@ export interface TaskDetailPaneProps {
   evidence?: { status: 'loading' } | { status: 'error'; error: unknown; onRetry: () => void }
 }
 
-/** URL 里的 step 只对它所属的任务生效：change 缺省（隐式选中首条）或与本任务同名。 */
-function initialStep(row: TaskRow, current: string): string {
+/** URL 里的 step 只对它所属的任务生效：change 缺省（隐式选中首条）或与本任务同名（已结束的任务按归档目录名）。 */
+function initialStep(row: TaskRow, readName: string, current: string): string {
   const step = readWorkspaceParam('step')
   const change = new URLSearchParams(window.location.search).get('change')
-  if (step === null || (change !== null && !matchesTaskRef(change, row))) return current
+  if (step === null || (change !== null && !matchesTaskRef(change, { root: row.root, change: { name: readName } }))) return current
   return row.stages.some((stage) => stage.id === step) ? step : current
 }
 
@@ -59,14 +62,16 @@ type DetailView = 'stage' | 'overview'
 
 /**
  * 工作台右列：任务名 / 一行状态 /「阶段 · 总览」页签。阶段页 = 阶段轨 → 所选阶段的编排画布（执行者 → 技能 →
- * 测试 → 评审者，带运行状态）→ 输出与输入；总览页 = 整条工作流的同一张画布，当前阶段高亮。
- * 编排与输入输出都读任务冻结的计划（不读当前定义）。
+ * 测试 → 评审者，带运行状态）→ 输入 / 输出 / 测试页签；总览页 = 整条工作流的同一张画布，当前阶段高亮。
+ * 编排读任务冻结的计划（不读当前定义）；输入输出是任务编排里的 `stepIo`：每步真实发生的产出与交接来的输入。
  */
-export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = true, fetchDefinition = true, menu = [], archived = false, evidence }: TaskDetailPaneProps): JSX.Element {
+export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = true, fetchDefinition = true, menu = [], archived, evidence }: TaskDetailPaneProps): JSX.Element {
   const { t } = useT()
   const { change, root } = row
+  // 读取接口认的任务名：活跃任务是任务名，已结束的任务是归档目录名（页面上显示的仍是 change.name）。
+  const readName = archived?.dir ?? change.name
   const current = row.stages.find((stage) => stage.status === 'current')?.id ?? change.phase
-  const [selectedStep, setSelectedStep] = useState<string>(() => initialStep(row, current))
+  const [selectedStep, setSelectedStep] = useState<string>(() => initialStep(row, readName, current))
   const [view, setView] = useState<DetailView>('stage')
   const identity = `${root} ${change.name}`
   // SSE replaces the whole snapshot object; only this change's own state should reload its decisions.
@@ -84,24 +89,23 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = tr
   }, [identity, current])
   useEffect(() => { writeWorkspaceParam('step', selectedStep === current ? null : selectedStep) }, [selectedStep, current])
   // 编排只在选中任务时取；状态、阶段名与计数都只读快照，编排加载前后不变。
-  const orchestration = useChangeOrchestration(root, change.name, runSignature, fetchDefinition)
+  const orchestration = useChangeOrchestration(root, readName, runSignature, fetchDefinition, archived !== undefined)
   const ready = orchestration.status === 'ready' ? orchestration.orchestration : null
   const labelOf = (id: string): string => stageLabel(id, row.rules)
   const stepIds = row.stages.map((candidate) => candidate.id)
-  const stepIo = ready !== null
-    ? ready.io[selectedStep]
-    : orchestration.status === 'disabled' ? fallbackStepIo(change, selectedStep) : undefined
+  // 聚合视图不发请求、旧服务端不带 stepIo：没有这一步的条目，三者都是空，页签里显示空态。
+  const stepIo = ready?.stepIo[selectedStep]
   const definitionState = orchestration.status === 'disabled' ? 'ready' : orchestration.status
   const stage = ready?.stages.find((candidate) => candidate.id === selectedStep)
-  const stageSkills = useMemo(() => (stage?.entries ?? []).filter((entry) => entry.kind === 'skill').map((entry) => entry.id), [stage])
   const stageFlow = useMemo(() => stage === undefined || stage.entries.length === 0 ? [] : [stage], [stage])
-  const outputs = useMemo(() => stageOutputs(change, stepIo, stageSkills), [change, stepIo, stageSkills])
-  const inputs = useMemo(() => stageInputs(change, stepIo), [change, stepIo])
+  const outputs = stageOutputs(stepIo)
+  const inputs = stageInputs(stepIo)
   const files = useMemo(() => readableFiles([...outputs, ...inputs]), [outputs, inputs])
   const [openIndex, setOpenIndex] = useState<number | null>(null)
   const testRows = useMemo(() => stageTestRows(change, selectedStep), [change, selectedStep])
   const policyReport = change.testPolicy?.find((report) => report.stepId === selectedStep)
-  const hasTestsTab = policyReport !== undefined || testRows.length > 0
+  // 已结束的任务按归档目录名读取，而测试记录按活跃任务名存放：它的测试页恒为空，所以不显示这个页签。
+  const hasTestsTab = archived === undefined && (policyReport !== undefined || testRows.length > 0)
   const [openTest, setOpenTest] = useState<string | null>(null)
   const [openSuite, setOpenSuite] = useState<string | null>(null)
   const [sheet, setSheet] = useState<'inputs' | 'outputs' | 'tests'>('outputs')
@@ -111,16 +115,18 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = tr
   useEffect(() => { if (sheet === 'tests' && !hasTestsTab) setSheet('outputs') }, [sheet, hasTestsTab])
   const activePath = openIndex === null ? null : files[openIndex]?.path ?? null
   const openedSuite = openSuite === null ? undefined : policyReport?.suites.find((suite) => suite.suite === openSuite)
-  const readyOutputs = outputs.filter(isReadyRow).length
   const reviewSatisfied = row.stages.find((candidate) => candidate.id === selectedStep)?.status === 'done'
     || (change.phase === selectedStep && change.reviewHandshake?.status === 'approved')
-  const progress = gateProgress((row.rules ?? change.workflowRules).gateByStep[selectedStep] ?? null, outputs, reviewSatisfied)
+  const progress = gateProgress((row.rules ?? change.workflowRules).gateByStep[selectedStep] ?? null, stageRequired(stepIo), reviewSatisfied)
   const openEntry = useCallback((_stage: string, entry: FlowEntry): void => {
     if (entry.kind === 'test') setOpenTest(entry.id)
     else if (entry.kind !== 'skill') setOpenAgent(entry.id)
   }, [])
-  // 技能没有抽屉；策略要求运行的种类节点是一个种类（可能多个套件），也没有单一的运行可打开。
-  const openable = useCallback((entry: FlowEntry): boolean => entry.kind !== 'skill' && entry.testKind === undefined, [])
+  // 技能没有抽屉；策略要求运行的种类节点是一个种类（可能多个套件），也没有单一的运行可打开；
+  // 已结束的任务没有测试页：它的测试节点同样点不开。
+  const openable = useCallback((entry: FlowEntry): boolean => (
+    entry.kind !== 'skill' && entry.testKind === undefined && (archived === undefined || entry.kind !== 'test')
+  ), [archived])
   const openStage = useCallback((id: string): void => { setSelectedStep(id); setView('stage') }, [])
   const currentStage = row.stages.find((candidate) => candidate.status === 'current')?.id ?? null
   // 评审待确认：信号停在这一阶段的评审门前（总览与这一阶段的画布），不再流动。
@@ -146,8 +152,8 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = tr
                 <StatusPill tone={summaryTone(row)} testId="task-detail-badge">{summaryShort(row, t)}</StatusPill>
               </p>
             </div>
-            {!archived && <NextStepPanel row={row} onToast={onToast} />}
-            {showReviewConsole && !archived && change.reviewHandshake?.status === 'pending' && (
+            {archived === undefined && <NextStepPanel row={row} onToast={onToast} />}
+            {showReviewConsole && archived === undefined && change.reviewHandshake?.status === 'pending' && (
               <ReviewDecisionPanel root={root} change={change.name} snapshotSignature={decisionSignature} rules={row.rules ?? change.workflowRules} phase={change.phase} onRefresh={onRefresh} onToast={onToast} />
             )}
             {fetchDefinition && (
@@ -188,7 +194,6 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = tr
             : (
               <OrchestrationFlow
                 mode="overview"
-                workflow={ready.workflow}
                 stages={ready.stages}
                 returns={ready.returns}
                 flows={ready.flows}
@@ -204,7 +209,7 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = tr
           <>
             {stageFlow.length > 0 && (
               <section className="mb-8" data-testid="stage-skills">
-                <OrchestrationFlow key={`${identity} ${selectedStep}`} mode="stage" workflow={ready?.workflow} stages={stageFlow} withStatus holding={selectedStep === heldStage ? heldStage : null} onOpenEntry={openEntry} openable={openable} ariaLabel={t('workflow.skills_title')} />
+                <OrchestrationFlow key={`${identity} ${selectedStep}`} mode="stage" stages={stageFlow} withStatus holding={selectedStep === heldStage ? heldStage : null} onOpenEntry={openEntry} openable={openable} ariaLabel={t('workflow.skills_title')} />
               </section>
             )}
             {progress !== null && (
@@ -216,51 +221,50 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = tr
                 <span className="tabular-nums text-text-3">· {progress.done}/{progress.total}</span>
               </p>
             )}
-            {(inputs.length > 0 || outputs.length > 0 || hasTestsTab) && (
-              <div className="grid gap-4" data-testid="stage-io">
-                <SheetTabs
-                  sheets={[
-                    { id: 'inputs', label: t('workspace.inputs'), count: inputs.length },
-                    { id: 'outputs', label: t('workspace.outputs'), count: `${readyOutputs}/${outputs.length}` },
-                    ...(!hasTestsTab
-                      ? []
-                      : [{ id: 'tests' as const, label: t('workspace.tests'), count: policyReport === undefined ? stageTestCount(testRows) : tabCount(policyReport, change.testPlan) }]),
-                  ]}
-                  active={sheet}
-                  onChange={setSheet}
-                  ariaLabel={t('workspace.io_sheets')}
-                  idPrefix="task-io"
+            <div className="grid gap-4" data-testid="stage-io">
+              <SheetTabs
+                sheets={[
+                  { id: 'inputs', label: t('workspace.inputs'), count: inputs.length },
+                  { id: 'outputs', label: t('workspace.outputs'), count: outputs.length },
+                  ...(!hasTestsTab
+                    ? []
+                    : [{ id: 'tests' as const, label: t('workspace.tests'), count: policyReport === undefined ? stageTestCount(testRows) : tabCount(policyReport, change.testPlan) }]),
+                ]}
+                active={sheet}
+                onChange={setSheet}
+                ariaLabel={t('workspace.io_sheets')}
+                idPrefix="task-io"
+              />
+              <div role="tabpanel" id="task-io-panel" aria-labelledby={`task-io-tab-${sheet}`}>
+              {sheet === 'tests' ? (
+                policyReport === undefined
+                  ? <StageTestsPanel rows={testRows} activeId={openTest} onOpen={setOpenTest} />
+                  : (
+                    <TaskTestsTab
+                      report={policyReport}
+                      plan={change.testPlan}
+                      legacyRows={testRows}
+                      stageLabelOf={labelOf}
+                      {...(row.owner === null ? {} : { recordedBy: row.owner.name })}
+                      activeSuite={openSuite ?? (openTest === null ? null : `step:${openTest}`)}
+                      onOpenSuite={(suite) => {
+                        if (suite.startsWith('step:')) { setOpenSuite(null); setOpenTest(suite.slice('step:'.length)) } else { setOpenTest(null); setOpenSuite(suite) }
+                      }}
+                    />
+                  )
+              ) : (
+                <StageIoPanel
+                  direction={sheet}
+                  items={sheet === 'inputs' ? inputs : outputs}
+                  activePath={activePath}
+                  definitionState={definitionState}
+                  labelOf={labelOf}
+                  onOpen={(path) => setOpenIndex(files.findIndex((file) => file.path === path))}
                 />
-                <div role="tabpanel" id="task-io-panel" aria-labelledby={`task-io-tab-${sheet}`}>
-                {sheet === 'tests' ? (
-                  policyReport === undefined
-                    ? <StageTestsPanel rows={testRows} activeId={openTest} onOpen={setOpenTest} />
-                    : (
-                      <TaskTestsTab
-                        report={policyReport}
-                        plan={change.testPlan}
-                        legacyRows={testRows}
-                        stageLabelOf={labelOf}
-                        {...(row.owner === null ? {} : { recordedBy: row.owner.name })}
-                        activeSuite={openSuite ?? (openTest === null ? null : `step:${openTest}`)}
-                        onOpenSuite={(suite) => {
-                          if (suite.startsWith('step:')) { setOpenSuite(null); setOpenTest(suite.slice('step:'.length)) } else { setOpenTest(null); setOpenSuite(suite) }
-                        }}
-                      />
-                    )
-                ) : (
-                  <StageIoPanel
-                    direction={sheet}
-                    items={sheet === 'inputs' ? inputs : outputs}
-                    activePath={activePath}
-                    definitionState={definitionState}
-                    onOpen={(path) => setOpenIndex(files.findIndex((file) => file.path === path))}
-                  />
-                )}
-                </div>
+              )}
               </div>
-            )}
-            {fetchDefinition && <TaskRecords root={root} change={change.name} signature={decisionSignature} stageLabelOf={labelOf} />}
+            </div>
+            {fetchDefinition && <TaskRecords root={root} change={readName} archived={archived !== undefined} signature={decisionSignature} stageLabelOf={labelOf} />}
           </>
         )}
       </DetailColumn>
@@ -268,7 +272,7 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = tr
       <AgentRunDrawer
         root={root}
         change={change.name}
-        runnable={!archived && !row.archived && stepIds.indexOf(selectedStep) >= stepIds.indexOf(current)}
+        runnable={archived === undefined && !row.archived && stepIds.indexOf(selectedStep) >= stepIds.indexOf(current)}
         agent={stepAgents.find((agent) => agent.agent === openAgent) ?? null}
         onClose={() => setOpenAgent(null)}
       />

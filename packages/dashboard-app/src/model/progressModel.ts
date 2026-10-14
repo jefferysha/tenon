@@ -82,7 +82,8 @@ export function formatReadinessBlocker(blocker: ReadinessBlocker): string {
     return blocker.agents.map((item) => `agent:${item.agent}:${item.reason}`).join(' ')
   }
   if (blocker.kind === 'step-exit') return blocker.message
-  return blocker.field ?? `guard:${blocker.guardType}`
+  if (blocker.field !== undefined) return blocker.field
+  return blocker.path === undefined ? `guard:${blocker.guardType}` : `guard:${blocker.guardType}:${blocker.path}`
 }
 
 /** fields 值可能是 string[]；非字符串一律当未设（同 evidence.ts fieldStr 口径）。 */

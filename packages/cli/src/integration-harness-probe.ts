@@ -18,10 +18,12 @@ const REAL_CLI = fileURLToPath(new URL('../dist/main.js', import.meta.url))
 
 /**
  * `test diff-risk` 同样默认兑现「风险在限内」；测试进程环境里设 TENON_TEST_REAL_DIFF=1 就转交真实 CLI，
- * 让 standard 通道的集成测试读到夹具仓库里的真实改动。
+ * 让轻量轨道的集成测试读到夹具仓库里的真实改动。`test code-size` 同理，开关是 TENON_TEST_REAL_CODE_SIZE=1：
+ * 代码规模的上限（或没有上限）要在真实的行数上才测得出来。
  */
 const STUB = `#!/bin/sh
 if [ "$1" = "test" ] && [ "$2" = "code-size" ]; then
+  if [ "$TENON_TEST_REAL_CODE_SIZE" = "1" ]; then exec node '${REAL_CLI}' "$@"; fi
   echo '{"files_changed":0,"lines_added":0,"lines_deleted":0,"largest_added_lines":0}'
   exit 0
 fi

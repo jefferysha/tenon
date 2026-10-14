@@ -117,6 +117,44 @@ describe('GET /api/tests/catalog', () => {
     expect(res.raw).not.toContain('sha256:')
   })
 
+  it('目录有效：catalog.levels 是三档的生效定义；没写 levels 时三档都是内建缺省', async () => {
+    const h = await start()
+    await writeCatalog(h.root)
+    const res = await get<{ catalog: { state: 'ok'; levels: Array<Record<string, unknown>> } }>(h.port, h.root, '/api/tests/catalog')
+    expect(res.body.catalog.levels).toEqual([
+      { name: 'plan', required: ['unit'], touched: [], scenarios: 'off', requireBaseline: false, source: 'default' },
+      { name: 'changed', required: ['unit'], touched: ['static'], scenarios: 'off', requireBaseline: false, source: 'default' },
+      { name: 'full', required: ['unit'], touched: ['integration', 'e2e', 'static', 'benchmark'], scenarios: 'off', requireBaseline: false, source: 'default' },
+    ])
+  })
+
+  it('目录写了 levels：写了的那一档来源是目录，只覆盖写了的键，门槛随档位给出', async () => {
+    const h = await start()
+    await writeCatalog(h.root, `${DESIGN_CATALOG}levels:
+  full:
+    required: [unit, integration]
+    scenarios: required
+    coverage: { lines: 80, changed_lines: 90 }
+    flaky: { max: 2, fail_on_new: true }
+    require_baseline: true
+`)
+    const res = await get<{ catalog: { state: 'ok'; levels: Array<Record<string, unknown>> } }>(h.port, h.root, '/api/tests/catalog')
+    expect(res.body.catalog.levels.map((level) => [level.name, level.source])).toEqual([['plan', 'default'], ['changed', 'default'], ['full', 'catalog']])
+    expect(res.body.catalog.levels[2]).toEqual({
+      name: 'full', required: ['unit', 'integration'], touched: ['integration', 'e2e', 'static', 'benchmark'], scenarios: 'required',
+      coverage: { lines: 80, changedLines: 90 }, flaky: { max: 2, failOnNew: true }, requireBaseline: true, source: 'catalog',
+    })
+  })
+
+  it('目录里的 levels 写错：整份目录无效，问题带行号，不给 levels', async () => {
+    const h = await start()
+    await writeCatalog(h.root, `${DESIGN_CATALOG}levels:\n  changed:\n    scope: full\n`)
+    const res = await get<{ catalog: { state: string; issues: string[]; levels?: unknown } }>(h.port, h.root, '/api/tests/catalog')
+    expect(res.body.catalog.state).toBe('invalid')
+    expect(res.body.catalog.issues.some((issue) => /^catalog\.yaml:\d+:/u.test(issue))).toBe(true)
+    expect(res.body.catalog).not.toHaveProperty('levels')
+  })
+
   it('已知失败清单损坏：invalid 带问题，不当成空清单', async () => {
     const h = await start()
     await mkdir(testSystemPaths(h.root).root, { recursive: true })

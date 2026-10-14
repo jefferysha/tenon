@@ -10,15 +10,34 @@ import { join } from 'node:path'
 import {
   DEFAULT_LEDGER_CONTEXT_BUNDLE_BUDGET_BYTES,
   compileLedgerContextBundle,
+  workflowPlanSnapshot,
   type CompiledLedgerContextBundle,
+  type CompiledObservedContextBundle,
   type CompileLedgerContextBundleInput,
+  type CompileObservedContextBundleInput,
+  type FieldName,
+  type PipelineState,
 } from '@tenon/kernel'
-import { makeDeps, mockState } from '../test-support.js'
+import { legacyContractDefaultPlan } from '@tenon/kernel/workflow/test-support'
+import { makeDeps, mockObservedDefaultState, mockState } from '../test-support.js'
 import {
   cmdHandoff,
   type HandoffFs,
   type LedgerContextBundleCompiler,
+  type ObservedContextBundleCompiler,
 } from './handoff.js'
+
+/** 升级前创建、冻结计划带旧文档契约的任务（契约模式）：mockState 的 default 没有契约，是观察模式。 */
+function contractState(fields: Partial<Record<FieldName, string | string[]>>): PipelineState {
+  const plan = legacyContractDefaultPlan('backend')
+  return {
+    ...mockState(fields),
+    runMetadata: {
+      runId: 'mock-contract-run', transitionSequence: 0,
+      workflowPlanFingerprint: plan.workflowFingerprint, workflowPlanSnapshot: workflowPlanSnapshot(plan),
+    },
+  }
+}
 
 const zhLocale = async () => 'zh-CN' as const
 const enLocale = async () => 'en' as const
@@ -181,8 +200,8 @@ describe('--bundle —— 共享 ledger compiler 适配', () => {
     },
   }
 
-  test('只透传 root/change/from/target/policy/budget/fs（policy = change 的文档策略），并保持 context-bundle/v1 输出', async () => {
-    const d = makeDeps({ state: mockState({ phase: 'spec' }) })
+  test('契约模式：只透传 root/change/from/target/policy/budget/fs（policy = change 的文档策略），并保持 context-bundle/v1 输出', async () => {
+    const d = makeDeps({ state: contractState({ phase: 'spec' }) })
     const fs = fakeFs({})
     const calls: CompileLedgerContextBundleInput[] = []
     const compiler: LedgerContextBundleCompiler = async (input) => {
@@ -236,19 +255,91 @@ describe('--bundle —— 共享 ledger compiler 适配', () => {
     expect(compiler).not.toHaveBeenCalled()
   })
 
-  test('workflow 未开启 openspec：--bundle exit 1 并说明原因，不调用编译器（E18）', async () => {
+  test('不走 OpenSpec 的 workflow 也能出包（观察模式）：不再报「未开启 openspec」，不调用契约编译器', async () => {
     const root = await mkdtemp(join(tmpdir(), 'tenon-cli-bundle-ungoverned-'))
     try {
       await mkdir(join(root, '.pipeline', 'workflows'), { recursive: true })
       await writeFile(join(root, '.pipeline', 'workflows', 'plain.yaml'), [
         'name: plain', 'steps:', '  - id: one', '    label: 一', '    gate: null', '    skills: []',
-        '    inputs: []', '    outputs: []', '    guards: []', '    transitions: []', '',
+        '    guards: []', '    transitions: []', '',
       ].join('\n'), 'utf8')
       const d = makeDeps({ cwd: root, state: mockState({ workflow: 'plain', phase: 'one' }) })
       const compiler = vi.fn<typeof compileLedgerContextBundle>()
-      expect(await cmdHandoff(d, 'chg', { bundle: true, target: 'one', json: true }, undefined, zhLocale, compiler)).toBe(1)
-      expect(d.errLines).toEqual(["ERROR: workflow 'plain' 未开启 openspec，--bundle 不适用"])
+      expect(await cmdHandoff(d, 'chg', { bundle: true, target: 'one', json: true }, undefined, zhLocale, compiler)).toBe(0)
+      expect(d.errLines).toEqual([])
+      expect(JSON.parse(d.outLines[0]!)).toMatchObject({ schemaVersion: 'context-bundle/v1', change: 'chg', to: 'one', inputs: [] })
       expect(compiler).not.toHaveBeenCalled()
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test('工作流不可用（读不到计划）：exit 1 并点名任务，两个编译器都不调用', async () => {
+    const d = makeDeps({ state: mockState({ workflow: 'gone', phase: 'one' }) })
+    const contract = vi.fn<typeof compileLedgerContextBundle>()
+    const observed = vi.fn<ObservedContextBundleCompiler>()
+    expect(await cmdHandoff(d, 'chg', { bundle: true, target: 'one' }, undefined, zhLocale, contract, observed)).toBe(1)
+    expect(d.errLines).toEqual(["ERROR: 任务 'chg' 的工作流不可用"])
+    expect(contract).not.toHaveBeenCalled()
+    expect(observed).not.toHaveBeenCalled()
+  })
+})
+
+describe('--bundle —— 观察模式（新任务）用当前步骤的交接输入', () => {
+  const compiled: CompiledObservedContextBundle = {
+    bundle: {
+      schemaVersion: 'context-bundle/v1', change: 'chg', from: 'build', to: 'build', tier: 'strong', inputs: [],
+      budget: { maxBytes: DEFAULT_LEDGER_CONTEXT_BUNDLE_BUDGET_BYTES, usedBytes: 0 },
+      aggregateDigest: `sha256:${'b'.repeat(64)}`,
+    },
+    preview: {
+      change: 'chg', from: 'build', to: 'build', tier: 'strong', documentCount: 0, inputs: [],
+      budget: { maxBytes: DEFAULT_LEDGER_CONTEXT_BUNDLE_BUDGET_BYTES, usedBytes: 0 },
+    },
+  }
+
+  test('透传 root/change/from/target/budget/fs，不带 policy；契约编译器不被调用', async () => {
+    const d = makeDeps({ state: mockObservedDefaultState({ phase: 'build' }) })
+    const fs = fakeFs({})
+    const calls: CompileObservedContextBundleInput[] = []
+    const observed: ObservedContextBundleCompiler = async (input) => { calls.push(input); return compiled }
+    const contract = vi.fn<typeof compileLedgerContextBundle>()
+    expect(await cmdHandoff(d, 'chg', { bundle: true, target: 'build', budgetBytes: 4096, json: true }, fs, zhLocale, contract, observed)).toBe(0)
+    expect(calls).toEqual([{ root: '/repo', change: 'chg', from: 'build', target: 'build', budgetBytes: 4096, fs }])
+    expect(calls[0]).not.toHaveProperty('policy')
+    expect(JSON.parse(d.outLines[0]!)).toEqual(compiled.bundle)
+    expect(contract).not.toHaveBeenCalled()
+  })
+
+  test('没给 --target 时包为当前步骤编译（观察模式的包只服务当前步骤）；--phase 只改 from', async () => {
+    const d = makeDeps({ state: mockObservedDefaultState({ phase: 'build' }) })
+    const calls: CompileObservedContextBundleInput[] = []
+    const observed: ObservedContextBundleCompiler = async (input) => { calls.push(input); return compiled }
+    expect(await cmdHandoff(d, 'chg', { bundle: true, phase: 'spec', json: true }, undefined, zhLocale, undefined, observed)).toBe(0)
+    expect(calls).toEqual([{ root: '/repo', change: 'chg', from: 'spec', target: 'build' }])
+  })
+
+  test('缩进输出（非 --json）仍是同一个 bundle', async () => {
+    const d = makeDeps({ state: mockObservedDefaultState({ phase: 'build' }) })
+    expect(await cmdHandoff(d, 'chg', { bundle: true }, undefined, zhLocale, undefined, async () => compiled)).toBe(0)
+    expect(JSON.parse(d.outLines.join('\n'))).toEqual(compiled.bundle)
+    expect(d.outLines).toEqual([JSON.stringify(compiled.bundle, null, 2)])
+  })
+
+  test('编译器失败（账本损坏、输入过期…）：exit 1，错误原样带出，不输出半个包', async () => {
+    const d = makeDeps({ state: mockObservedDefaultState({ phase: 'build' }) })
+    const observed: ObservedContextBundleCompiler = async () => { throw new Error('Context Bundle stale input') }
+    expect(await cmdHandoff(d, 'chg', { bundle: true, json: true }, undefined, zhLocale, undefined, observed)).toBe(1)
+    expect(d.errLines).toEqual(['ERROR: Context Bundle stale input'])
+    expect(d.outLines).toEqual([])
+  })
+
+  test('不注入编译器时走 kernel 的真实适配器：没有步骤访问记录的任务出空包', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'tenon-cli-bundle-observed-'))
+    try {
+      const d = makeDeps({ cwd: root, state: mockObservedDefaultState({ phase: 'build' }) })
+      expect(await cmdHandoff(d, 'chg', { bundle: true, json: true })).toBe(0)
+      expect(JSON.parse(d.outLines[0]!)).toMatchObject({ change: 'chg', to: 'build', inputs: [], budget: { maxBytes: 120_000, usedBytes: 0 } })
     } finally {
       await rm(root, { recursive: true, force: true })
     }

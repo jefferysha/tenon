@@ -6,6 +6,7 @@
  * 路径约定：`files` / `covers` / `report.path` / `coverage.path` / `artifacts` 都相对套件的 `cwd`；
  * 报告、覆盖率与产物必须落在工作区指纹排除的测试输出目录下，否则跑一次测试就会让记录绑定的候选失效。
  */
+import type { CatalogLevels } from './levels.js'
 import type { MachineProfileMode } from './machine-profile.js'
 import type {
   CoverageFormat, ReportFormat, ServiceStopSignal, TestKind, TestRunner,
@@ -121,6 +122,8 @@ export interface TestCatalog {
   readonly services: readonly CatalogService[]
   /** 项目级不适用声明；没有声明时省略（目录摘要与旧目录逐字相同）。 */
   readonly not_applicable?: readonly CatalogNotApplicable[]
+  /** 测试档位的定义（plan / changed / full 三档的必需类与门槛）；没写时省略，目录摘要与旧目录逐字相同。 */
+  readonly levels?: CatalogLevels
 }
 
 export const CATALOG_DEFAULT_TIMEOUT_S = 900

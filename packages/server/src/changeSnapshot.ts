@@ -23,10 +23,10 @@ import {
   readTerminalActivity,
   type SnapshotDeps,
 } from './snapshot.js'
+import { changeAreaSegments, type ChangeArea } from './changeArea.js'
 import type { ChangeSnapshot } from './types.js'
 import { projectWorkflowDefinitionStatus } from './workflowDefinitionStatus.js'
 import { projectReviewHandshake } from './reviewHandshake.js'
-import { resolveSnapshotTrack } from './skillRuns.js'
 import { readWorkflowSnapshotAuthority } from './workflowSnapshotAuthority.js'
 import {
   resolveSnapshotEffectivePlan,
@@ -227,23 +227,28 @@ export async function readAnchoredTasksMarkdown(
     rootAnchor,
   ))?.source
 }
+/** `area: 'archive'` 读已结束任务（`openspec/changes/archive/<name>`）的状态；只读，路径链与活跃任务同一套校验。 */
 export async function readAnchoredChangeState(
   root: WorkflowRootAnchor,
   changeName: string,
+  area: ChangeArea = 'active',
 ): Promise<AnchoredChangeState | null> {
   assertWorkflowRootAnchor(root)
   let changeAnchor: ChangePathAnchor
   try {
-    changeAnchor = captureChangePathAnchor(root, changeName)
+    changeAnchor = captureChangePathAnchor(root, changeName, area)
   } catch (error) {
     if (error instanceof ContextBundlePathError && error.status === 400) return null
     throw error
   }
-  const prefix = posix.join('openspec', 'changes', changeName)
-  const changeIdentity = changeAnchor.chain.at(-1)
-  if (changeIdentity === undefined) {
+  const areaSegments = changeAreaSegments(area)
+  const prefix = posix.join(...areaSegments, changeName)
+  const anchoredIdentity = changeAnchor.chain.at(-1)
+  if (anchoredIdentity === undefined) {
     throw new ContextBundlePathError(403, 'canonical Change 路径身份缺失')
   }
+  // 任务目录在可信目录链里的层数随区而变（活跃 2，已结束 3）。
+  const changeIdentity = { dev: anchoredIdentity.dev, ino: anchoredIdentity.ino, depth: areaSegments.length }
   const readText = (relativePath: string): string | undefined => {
     try {
       return readTrustedFile(
@@ -305,6 +310,7 @@ export async function readChangeSnapshot(
           throw error
         }
       },
+      { track: stringField(fields.track), executionModel: frozenPlan?.executionModel },
       (error) => error instanceof WorkflowPathError || error instanceof WorkflowReadError,
     )
     const workflowDefinition = projectWorkflowDefinitionStatus(
@@ -327,7 +333,7 @@ export async function readChangeSnapshot(
         if (error instanceof WorkflowNotFoundError) return null
         throw error
       }
-    }, resolveSnapshotTrack(rootPath, trackId, workflowName))
+    }, trackId)
     const { gitHeadSha, workspaceFingerprint } = deps
     const capabilityDeps: WorkflowSnapshotCapabilityDeps = {
       ...(deps.fileExists === undefined ? {} : { fileExists: deps.fileExists }),

@@ -1,14 +1,18 @@
 /**
- * `task delete|archive|unarchive <name> [--yes] [--json]` and `list --archived`. Progress text goes to
- * stderr, machine output to stdout, and the exit code says what happened: 0 done · 1 usage, name, missing
- * task, missing identity, malformed store or failure · 2 confirmation required (rerun with `--yes`) ·
- * 3 blocked. Every refusal is decided by the shared kernel application, so the Dashboard agrees exactly.
+ * `task delete|terminate|finish <name> [--yes] [--json]`. Progress text goes to stderr, machine output to
+ * stdout, and the exit code says what happened: 0 done · 1 usage, name, missing task, missing identity,
+ * wrong state or failure · 2 confirmation required (rerun with `--yes`) · 3 blocked. Every refusal is decided
+ * by the shared kernel application, so the Dashboard agrees exactly.
+ *
+ * 结束一个任务只有两条路，都把任务目录移进 `openspec/changes/archive/`：`finish`（状态机已走到终态：完结 /
+ * 已升级）与 `terminate`（任何还没走完的任务）。没有「隐藏」；`archive` / `unarchive` 已退役，报错并指向 `terminate`。
  */
-import { readTaskArchive, taskLifecycleUnlockHint, USER_MISSING_HINT } from '@tenon/kernel'
-import type { TaskLifecycleApplication, TaskLifecycleOutcome, TaskLifecycleReason, TaskLifecycleReasonCode } from '@tenon/kernel'
+import { taskLifecycleUnlockHint, USER_MISSING_HINT } from '@tenon/kernel'
+import type {
+  PathCommitOutcome, TaskLifecycleApplication, TaskLifecycleOutcome, TaskLifecycleReason, TaskLifecycleReasonCode,
+  TaskResult,
+} from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
-import { renderTable } from '../render.js'
-import { requireUser } from '../userIdentity.js'
 import { cleanupLegacyHostAgentFiles } from './agent-host.js'
 
 const REASON_TEXT: Readonly<Record<TaskLifecycleReasonCode, string>> = {
@@ -18,6 +22,12 @@ const REASON_TEXT: Readonly<Record<TaskLifecycleReasonCode, string>> = {
   'host-session-live': '会话活跃',
   'has-dependents': '被依赖',
   'owned-by-other': '他人负责',
+}
+
+const RESULT_TEXT: Readonly<Record<TaskResult, string>> = {
+  finished: '完结',
+  escalated: '已升级',
+  terminated: '已终止',
 }
 
 export interface TaskLifecycleOpts {
@@ -54,11 +64,23 @@ function reportRefusal(deps: CliDeps, change: string, outcome: TaskLifecycleOutc
     case 'identity-missing':
       deps.io.err(`ERROR: ${USER_MISSING_HINT}`)
       return 1
-    case 'archive-store-corrupt':
-      deps.io.err(`ERROR: 归档记录损坏: ${outcome.path}`)
-      return 1
     case 'delete-failed':
       deps.io.err(`ERROR: 删除失败: ${outcome.cause}`)
+      return 1
+    case 'archive-failed':
+      deps.io.err(`ERROR: 归档失败（${outcome.code}）: ${outcome.cause}`)
+      return 1
+    case 'not-terminal':
+      deps.io.err(
+        `ERROR: 任务 '${change}' 还没走到终态（phase=${outcome.phase}），不能完结；`
+        + `要放弃它请执行 tenon task terminate ${change}`,
+      )
+      return 1
+    case 'already-terminal':
+      deps.io.err(
+        `ERROR: 任务 '${change}' 的状态机已走完（${RESULT_TEXT[outcome.result]}），不能终止；`
+        + `执行 tenon task finish ${change} 归档它`,
+      )
       return 1
     case 'blocked':
       deps.io.err(`ERROR: 任务 '${change}' 被阻止`)
@@ -101,10 +123,16 @@ export async function cmdTaskDelete(deps: CliDeps, name: string, opts: TaskLifec
   return 0
 }
 
-export async function cmdTaskArchive(deps: CliDeps, name: string, opts: TaskLifecycleOpts): Promise<number> {
+function commitLine(commit: PathCommitOutcome, change: string): string | null {
+  if (commit.kind === 'committed') return `[COMMIT] chore(tenon): terminate ${change}`
+  if (commit.kind === 'failed') return `WARN: 终止已完成，但提交失败：${commit.detail}；任务目录改动留在工作区`
+  return null
+}
+
+export async function cmdTaskTerminate(deps: CliDeps, name: string, opts: TaskLifecycleOpts): Promise<number> {
   const app = application(deps)
   if (app === null) return 1
-  const outcome = await app.archive({
+  const outcome = await app.terminate({
     repoRoot: deps.cwd,
     change: name,
     user: deps.user(),
@@ -113,64 +141,51 @@ export async function cmdTaskArchive(deps: CliDeps, name: string, opts: TaskLife
   })
   const refusal = reportRefusal(deps, name, outcome)
   if (refusal !== null) return refusal
-  if (outcome.kind !== 'archived') return 1
-  await cleanupLegacyHostAgentFiles(deps) // 删除 / 归档已成功；旧版本留下的宿主 agent 文件尽力清理，失败只 WARN
+  if (outcome.kind !== 'terminated') return 1
+  for (const warning of outcome.warnings) deps.io.err(`WARN: ${warning}`)
+  await cleanupLegacyHostAgentFiles(deps) // 终止已成功；旧版本留下的宿主 agent 文件尽力清理，失败只 WARN
   if (opts.json === true) {
     deps.io.out(JSON.stringify({
       change: outcome.change,
-      changed: outcome.changed,
-      archived_at: outcome.entry.archivedAt,
-      phase: outcome.entry.phase,
+      result: outcome.archived.result,
+      archived_dir: outcome.archived.archivedDir,
+      ended_at: outcome.archived.endedAt,
+      commit: outcome.commit.kind,
     }))
     return 0
   }
-  deps.io.err(`[ARCHIVE] ${outcome.change} phase=${outcome.entry.phase}`)
+  deps.io.err(`[TERMINATE] ${outcome.change} → ${outcome.archived.archivedDir}`)
+  const line = commitLine(outcome.commit, outcome.change)
+  if (line !== null) deps.io.err(line)
   return 0
 }
 
-export async function cmdTaskUnarchive(deps: CliDeps, name: string, opts: TaskLifecycleOpts): Promise<number> {
+export async function cmdTaskFinish(deps: CliDeps, name: string, opts: TaskLifecycleOpts): Promise<number> {
   const app = application(deps)
   if (app === null) return 1
-  const outcome = await app.unarchive({ repoRoot: deps.cwd, change: name, user: deps.user(), channel: 'terminal' })
+  const outcome = await app.finish({ repoRoot: deps.cwd, change: name })
   const refusal = reportRefusal(deps, name, outcome)
   if (refusal !== null) return refusal
-  if (outcome.kind !== 'unarchived') return 1
-  if (opts.json === true) {
-    deps.io.out(JSON.stringify({ change: outcome.change, changed: outcome.changed }))
-    return 0
-  }
-  deps.io.err(`[UNARCHIVE] ${outcome.change}`)
-  return 0
-}
-
-export async function cmdListArchived(deps: CliDeps, opts: { readonly json?: boolean }): Promise<number> {
-  const user = requireUser(deps)
-  if (user === null) return 1
-  const read = await readTaskArchive(deps.cwd, user)
-  if (read.kind === 'corrupt') {
-    deps.io.err(`ERROR: 归档记录损坏: ${read.path}`)
-    return 1
-  }
-  const rows = Object.keys(read.archive.changes).sort().map((name) => {
-    const entry = read.archive.changes[name]
-    return { name, phase: entry?.phase ?? '', archivedAt: entry?.archivedAt ?? '', actor: entry?.actor.name ?? '' }
-  })
+  if (outcome.kind !== 'finished') return 1
   if (opts.json === true) {
     deps.io.out(JSON.stringify({
-      changes: rows.map((row) => ({
-        name: row.name, phase: row.phase, archived_at: row.archivedAt, actor: row.actor,
-      })),
+      change: outcome.change,
+      result: outcome.archived.result,
+      archived_dir: outcome.archived.archivedDir,
+      ended_at: outcome.archived.endedAt,
     }))
     return 0
   }
-  if (rows.length === 0) {
-    deps.io.out('无已归档 change')
-    return 0
-  }
-  const table = renderTable(
-    ['NAME', 'PHASE', 'ARCHIVED_AT', 'BY'],
-    rows.map((row) => [row.name, row.phase, row.archivedAt, row.actor]),
-  )
-  for (const line of table) deps.io.out(line)
+  deps.io.err(`[FINISH] ${outcome.change} ${RESULT_TEXT[outcome.archived.result]} → ${outcome.archived.archivedDir}`)
   return 0
+}
+
+/** `task archive|unarchive`：「隐藏」已删除，结束任务只剩 finish 与 terminate。 */
+export function cmdTaskRetired(deps: CliDeps, sub: 'archive' | 'unarchive', name: string): number {
+  const target = name === '' ? '<任务>' : name
+  deps.io.err(
+    `ERROR: tenon task ${sub} 已退役：任务不再有「隐藏」，结束任务只有两条路——`
+    + `走完状态机后 tenon task finish ${target}，中途放弃用 tenon task terminate ${target}`,
+  )
+  return 1
 }

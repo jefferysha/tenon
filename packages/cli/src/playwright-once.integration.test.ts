@@ -12,7 +12,7 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, describe, expect, test } from 'vitest'
-import { DEFAULT_WORKFLOW_SOURCE, STANDARD_WORKFLOW_SOURCE, parseWorkflow } from '@tenon/kernel'
+import { DEFAULT_WORKFLOW_SOURCE, parseWorkflow } from '@tenon/kernel'
 import { freshHarness, rm, type Harness } from './integration-harness.js'
 import { commitAll, initGit, writeFiles } from './integration-harness-tests.js'
 
@@ -72,13 +72,11 @@ describe('Playwright 一次 verify 只执行一次（审计 F12）', () => {
     return log.split('\n').filter((line) => line === 'run').length
   }
 
-  test('结构：默认工作流与 standard 没有任何与目录套件种类重复的内联测试（只剩 code-size / design-system / diff-risk 这类探针）', () => {
+  test('结构：默认工作流（含 lite 轨道）没有任何与目录套件种类重复的内联测试（只剩 code-size / design-system / diff-risk 这类探针）', () => {
     const directions = new Set<string>()
-    for (const source of [DEFAULT_WORKFLOW_SOURCE, STANDARD_WORKFLOW_SOURCE]) {
-      const workflow = parseWorkflow(source)
-      const branches = [workflow.steps, ...Object.values(workflow.tracks ?? {}).map((track) => track.steps)]
-      for (const steps of branches) for (const step of steps) for (const test of step.tests ?? []) directions.add(test.direction)
-    }
+    const workflow = parseWorkflow(DEFAULT_WORKFLOW_SOURCE)
+    const branches = [workflow.steps, ...Object.values(workflow.tracks ?? {}).map((track) => track.steps)]
+    for (const steps of branches) for (const step of steps) for (const test of step.tests ?? []) directions.add(test.direction)
     expect([...directions].sort()).toEqual(['code-size', 'design-system', 'diff-risk'])
   })
 
@@ -96,6 +94,9 @@ describe('Playwright 一次 verify 只执行一次（审计 F12）', () => {
     expect(playwright, JSON.stringify(suites)).toBeDefined()
     expect(await tenon('test', 'catalog', 'set', playwright?.id ?? 'e2e', '--command', 'node fake-playwright.mjs'), text()).toBe(0)
     expect(await tenon('test', 'plan', CHANGE, '--seed'), text()).toBe(0)
+    // verify 是 full 档：端到端类只在本任务的改动碰到该套件时才跑。任务改了 Playwright 的测试文件（套件 files 认领它），
+    // 这样 verify 里它要跑，才有「只执行一次」可以验证；没碰到时它整个不在运行集里（那是另一条规则，不是这里要钉的）。
+    await writeFiles(harness.cwd, { 'e2e/home.spec.js': '// executed by the counting fake runner below\n// edited by this task\n' })
     await harness.seedPhase(CHANGE, 'verify')
 
     // 冻结计划：verify 的内联测试只有 code-size，没有 playwright / e2e。

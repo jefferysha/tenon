@@ -120,9 +120,15 @@ export const GUARD_TYPES = new Set([
   'full-direct-override',
   'build-head-unchanged',
   'spec-migration-applied',
+  // 通用离开条件（default 按 YAML 执行后的任务已勾选 / 未在 AFK 排队 / 依赖已结束）。
+  'tasks-through-step',
+  'not-afk-queued',
+  'dependencies-ended',
+  // 本步必须产出匹配路径模式的文件（观察到的产出账本判定）。
+  'required-output',
 ])
 export const GUARD_CAPABILITIES = new Set([
-  'readText', 'fileExists', 'gitHeadSha', 'workspaceFingerprint', 'specMigrationStatus',
+  'readText', 'fileExists', 'gitHeadSha', 'workspaceFingerprint', 'specMigrationStatus', 'requiredOutput',
 ])
 export const STEP_EXIT_SOURCES = new Set(['guard', 'document', 'skill', 'test', 'reviewer', 'revision', 'spec', 'tasks'])
 export const AGENT_BLOCKER_REASONS = new Set([
@@ -221,15 +227,17 @@ export function decodeTransitionReadinessBlocker(value: unknown): TransitionRead
   if (value.kind !== 'guard-failed'
     || !optionalString(value.field)
     || !optionalString(value.actual)
+    || !optionalString(value.path)
     || (value.expected !== undefined && !uniqueNonemptyStrings(value.expected))
     || !Object.keys(value).every((key) =>
-      key === 'kind' || key === 'guardType' || key === 'field' || key === 'actual' || key === 'expected')) return null
+      key === 'kind' || key === 'guardType' || key === 'field' || key === 'actual' || key === 'expected' || key === 'path')) return null
   return {
     kind: 'guard-failed',
     guardType: value.guardType,
     ...(value.field === undefined ? {} : { field: value.field }),
     ...(value.actual === undefined ? {} : { actual: value.actual }),
     ...(value.expected === undefined ? {} : { expected: [...value.expected] as string[] }),
+    ...(value.path === undefined ? {} : { path: value.path }),
   }
 }
 

@@ -1,11 +1,12 @@
 /**
  * 步骤测试策略的编译（定义层 → IR）：闭集键、种类闭集、组合约束与默认值。结构化输入（server 的
- * decodeWorkflowDef 直调）与 YAML 走同一条校验链；只在声明时产出 `test_policy`。
+ * decodeWorkflowDef 直调）与 YAML 走同一条校验链；只在声明时产出 `test_policy`（及档位键 `test`）。
  */
 import {
   BROWSER_PROJECT_RE, COVERAGE_METRICS, TEST_KINDS, isTestKind, type CoverageMetric, type TestKind,
 } from '../test-system/vocabulary.js'
 import type { StepTestPolicyIR } from './ir.js'
+import { TEST_LEVELS, isTestLevel, type TestLevel } from './test-level.js'
 
 const POLICY_KEYS: ReadonlySet<string> = new Set([
   'plan', 'kinds', 'run', 'run_if_registered', 'scope', 'files', 'scenarios', 'integrity', 'coverage', 'flaky', 'benchmark', 'browsers',
@@ -96,6 +97,19 @@ function browsers(value: unknown, path: string): string[] {
     out.push(item)
   }
   return out
+}
+
+/**
+ * 步骤的 `test` 档位：闭集校验，且与同一步的 `test_policy` 互斥。只在声明时返回档位名（含显式 `none`），
+ * 没写 `test` 的步骤编译结果与引入该键之前逐字相同。档位的具体含义在求值时读项目测试目录，不进 IR。
+ */
+export function compileStepTestLevel(raw: unknown, policy: unknown, path: string, stepId: string): TestLevel | undefined {
+  if (raw === undefined) return undefined
+  if (!isTestLevel(raw)) {
+    compileError(path, `step '${stepId}' 的 test 只支持 ${TEST_LEVELS.join(' | ')}（实际 ${JSON.stringify(raw)}）`)
+  }
+  if (policy !== undefined) compileError(path, `step '${stepId}' 的 test 与 test_policy 只能写一个`)
+  return raw
 }
 
 export function compileStepTestPolicy(raw: unknown, path: string): StepTestPolicyIR | undefined {

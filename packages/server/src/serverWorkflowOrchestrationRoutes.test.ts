@@ -6,10 +6,13 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { DEFAULT_WORKFLOW_SOURCE, parseWorkflow, serializeWorkflow, type WorkflowDef } from '@tenon/kernel'
+import { legacyDefaultInitialWorkflow } from '@tenon/kernel/workflow/test-support'
 import { createTestDashboardServer } from './test-server.js'
 import { resolveServerPaths } from './paths.js'
 import type { DashboardServer } from './types.js'
-import { initChange, makeProject, makeTempHome, newStore, recordWorkflowPhaseSkill, reqGet, testFlow } from './test-support.js'
+import {
+  initChange, makeProject, makeTempHome, newStore, recordWorkflowPhaseSkill, reqGet, seedGovernedDocumentEvidence, testFlow,
+} from './test-support.js'
 import { withRunStatus, type ChangeOrchestrationResponse, type DefinitionOrchestrationResponse } from './workflowOrchestration.js'
 
 const open: DashboardServer[] = []
@@ -76,8 +79,10 @@ describe('GET /api/workflows/:name/orchestration', () => {
     expect(skillsOf(body, 'explore')).toEqual([['openspec-explore', 1], ['brainstorming', 2], ['grilling', 3], ['domain-modeling', 4]])
     expect(body.stages.find((stage) => stage.id === 'verify')?.gate).toBe('review')
     expect(body.returns).toContainEqual({ from: 'verify', to: 'build', event: 'verify-fail' })
-    expect(body.flows.some((flow) => flow.id === 'proposal' && flow.from === 'open')).toBe(true)
-    expect(typeof body.overlay).toBe('object')
+    // 工作流定义不再声明文档契约：步骤之间没有预先规定的文档流向（带契约的旧快照任务的流向见任务端点的用例）。
+    expect(body.flows).toEqual([])
+    // 技能只来自工作流 YAML：响应里没有 manifest 叠加层这一项。
+    expect(body).not.toHaveProperty('overlay')
   })
 
   it('项目覆盖声明了依赖 → 画成波次', async () => {
@@ -92,9 +97,10 @@ describe('GET /api/workflows/:name/orchestration', () => {
 
   it('无轨道参数取第一条分支；错误用稳定 code', async () => {
     const h = await start()
-    const chat = await reqGet(h.port, `/api/workflows/default/orchestration?root=${encodeURIComponent(h.root)}`)
-    expect(chat.status).toBe(200)
-    expect(chat.json<DefinitionOrchestrationResponse>().track).toBeNull()
+    const first = await reqGet(h.port, `/api/workflows/default/orchestration?root=${encodeURIComponent(h.root)}`)
+    expect(first.status).toBe(200)
+    // default 有分支：没点名轨道时看第一条分支（具体 id 由随包 default.yaml 决定）。
+    expect(first.json<DefinitionOrchestrationResponse>().track).toEqual(expect.any(String))
     const cases: Array<[string, number, string]> = [
       [`/api/workflows/default/orchestration?root=${encodeURIComponent(h.root)}&track=nope`, 404, 'ORCHESTRATION_TRACK_NOT_FOUND'],
       [`/api/workflows/ghost/orchestration?root=${encodeURIComponent(h.root)}`, 404, 'ORCHESTRATION_WORKFLOW_NOT_FOUND'],
@@ -139,12 +145,17 @@ describe('技能页的引用来源：不带 root 读内建工作流', () => {
     expect(skillsOf(frontend, 'spec')?.map(([id]) => id)).toContain('writing-plans')
     expect([...used]).toEqual(expect.arrayContaining(['openspec-propose', 'brainstorming', 'writing-plans', 'test-driven-development']))
 
-    const simple = await reqGet(h.port, '/api/workflows/simple')
-    expect(simple.status).toBe(200)
-    expect(simple.json<{ tracks?: unknown }>().tracks).toBeUndefined()
-    const simpleBranch = await reqGet(h.port, '/api/workflows/simple/orchestration?root=')
-    expect(simpleBranch.status).toBe(200)
-    expect(skillsOf(simpleBranch.json<DefinitionOrchestrationResponse>(), 'verify')).toEqual([['verification-before-completion', 0]])
+    // 平铺工作流（没有 tracks:）：只有一条隐式轨道，编排不需要 ?track。
+    const flat = await reqGet(h.port, '/api/workflows/design-system')
+    expect(flat.status).toBe(200)
+    expect(flat.json<{ tracks?: unknown }>().tracks).toBeUndefined()
+    const flatBranch = await reqGet(h.port, '/api/workflows/design-system/orchestration?root=')
+    expect(flatBranch.status).toBe(200)
+    expect(skillsOf(flatBranch.json<DefinitionOrchestrationResponse>(), 'direction')).toEqual([['hue', 0]])
+    // 隐式轨道的 id 就是工作流名；别的轨道名不存在。
+    expect((await reqGet(h.port, '/api/workflows/design-system/orchestration?root=&track=design-system')).status).toBe(200)
+    const missing = await reqGet(h.port, '/api/workflows/design-system/orchestration?root=&track=free')
+    expect([missing.status, missing.json<{ code?: string }>().code]).toEqual([404, 'ORCHESTRATION_TRACK_NOT_FOUND'])
   })
 })
 
@@ -161,8 +172,31 @@ describe('GET /api/change/:name/orchestration', () => {
     const openStage = body.stages.find((stage) => stage.id === 'open')
     expect(openStage?.entries.map((entry) => [entry.id, entry.status])).toEqual([['openspec-propose', 'waiting']])
     expect(body.stages.find((stage) => stage.id === 'explore')?.entries.every((entry) => entry.status === 'waiting')).toBe(true)
-    expect(Object.keys(body.io)).toContain('explore')
-    expect(body.io.explore?.inputs.some((slot) => slot.id === 'proposal')).toBe(true)
+    // 每步的输入输出是 stepIo（真实产出，不是计划里预先规定的槽位）；旧的 io 已经没有了。
+    expect(body).not.toHaveProperty('io')
+    expect(Object.keys(body.stepIo)).toEqual(expect.arrayContaining(['open', 'explore', 'spec']))
+    expect(body.stepIo.explore).toEqual({ inputs: [], outputs: [], required: [{ path: 'docs/superpowers/specs/*.md', produced: false }] })
+  })
+
+  it('升级前创建的任务（冻结计划带文档契约）：编排带文档流向，stepIo 是账本记录，没有必须产出', async () => {
+    const store = newStore()
+    const root = await makeProject()
+    const changeDir = await initChange(store, root, 'old', { track: 'backend', initialWorkflow: legacyDefaultInitialWorkflow('backend', 'step-graph') })
+    await seedGovernedDocumentEvidence(root, changeDir, 'old')
+    const hostHome = await makeTempHome()
+    const srv = createTestDashboardServer({
+      version: '9.9.9', hostHome, paths: resolveServerPaths({ home: hostHome, env: {} }), token: 'secret-token-abc',
+      registry: () => [root], store, flow: testFlow(), clock: () => '2026-07-07T00:00:00Z', pollIntervalMs: 20,
+    })
+    open.push(srv)
+    const { port } = await srv.listen(0, '127.0.0.1')
+    const body = (await reqGet(port, `/api/change/old/orchestration?root=${encodeURIComponent(root)}`)).json<ChangeOrchestrationResponse>()
+    expect(body).not.toHaveProperty('io')
+    expect(body.flows.some((flow) => flow.id === 'proposal' && flow.from === 'open')).toBe(true)
+    expect(body.stepIo.open?.outputs.map((file) => file.path)).toEqual(expect.arrayContaining([
+      'openspec/changes/old/proposal.md', 'openspec/changes/old/design.md', 'openspec/changes/old/tasks.md',
+    ]))
+    expect(Object.values(body.stepIo).every((entry) => entry.required.length === 0)).toBe(true)
   })
 
   it('调用过的技能在调用之后变为运行中（本步文档未登记）或完成', async () => {
@@ -252,7 +286,7 @@ describe('withRunStatus', () => {
       ({ suite: id, origin: 'catalog' as const, kind, reason: 'run' as const, state })
     const report = {
       stepId: 'b', pass: false, chain: 'intact' as const, policy: null, blockers: [], notices: [], trace: [],
-      files: { checked: true, unregistered: [], orphans: [] },
+      files: { checked: true, claimed: [], orphans: [] },
       suites: [suite('a', 'unit', 'passed'), suite('b', 'unit', 'stale'), suite('c', 'typecheck', 'failed')],
     }
     const stages = withRunStatus(withPolicy, {
@@ -276,5 +310,23 @@ describe('withRunStatus', () => {
     expect(unitStatus('waived')).toBe('done')
     expect(unitStatus('waiver-pending')).toBe('waiting')
     expect(unitStatus('waived', 'failed')).toBe('failed')
+  })
+  it('档位的类节点（kind:unit）按类归并：旧种类名的套件（coverage 属于单测类）也算，别的类不算', () => {
+    const node = { kind: 'test' as const, id: 'kind:unit', label: 'unit', wave: 1, dependsOn: [], required: true, source: 'declared' as const, testKind: 'unit' }
+    const levelled = {
+      ...orchestration,
+      stages: orchestration.stages.map((stage) => (stage.id === 'b' ? { ...stage, entries: [...stage.entries, node] } : stage)),
+    }
+    const suite = (id: string, kind: string, state: 'passed' | 'failed') => ({ suite: id, origin: 'catalog' as const, kind, reason: 'run' as const, state })
+    const status = (...suites: ReturnType<typeof suite>[]) => withRunStatus(levelled, {
+      phase: 'b', archived: false, skills: new Map(), agents: [], tests: [],
+      policies: [{
+        stepId: 'b', pass: false, chain: 'intact' as const, policy: null, blockers: [], notices: [], trace: [],
+        files: { checked: true, claimed: [], orphans: [] }, notApplicable: [], suites,
+      }],
+    })[1]?.entries.find((entry) => entry.id === 'kind:unit')?.status
+    expect(status(suite('cov', 'coverage', 'passed'))).toBe('done')
+    expect(status(suite('cov', 'coverage', 'failed'), suite('u', 'unit', 'passed'))).toBe('failed')
+    expect(status(suite('lint', 'lint', 'failed'))).toBe('waiting')
   })
 })

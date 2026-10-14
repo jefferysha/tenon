@@ -1,8 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { parseWorkflow } from './parse.js'
-import { validateWorkflow, validateWorkflowForStorage } from './validate.js'
+import { validateWorkflowForStorage } from './validate.js'
 import type { WorkflowDef } from './types.js'
-import { builtinWorkflow } from './builtin-workflows.js'
 import { workflowFileCandidates } from './global-store.js'
 import { templateWorkflowSource } from './template-workflows.js'
 
@@ -17,14 +16,6 @@ import { templateWorkflowSource } from './template-workflows.js'
  *   fail-open（WARN + exit 0，绝不因为 workflow 文件本身写错就把 hook 判定挂死）。
  */
 export function loadWorkflow(repoRoot: string, name: string): WorkflowDef | null {
-  const builtin = builtinWorkflow(name)
-  if (builtin) {
-    const errors = validateWorkflow(builtin)
-    if (errors.length > 0) {
-      throw new Error(`ERROR: 内建 workflow '${name}' 校验失败：\n${errors.map((e) => `  - ${e}`).join('\n')}`)
-    }
-    return builtin
-  }
   // 解析顺序：项目文件（遗留兜底，仍可覆盖）→ 全局用户级文件 → 随插件发布的模板 → 无。
   const p = workflowFileCandidates(repoRoot, name).find((candidate) => existsSync(candidate))
   if (p === undefined) {

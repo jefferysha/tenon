@@ -28,12 +28,14 @@ import {
 } from '@tenon/kernel'
 import type { EffectiveSkillSlot, FieldName, PipelineState } from '@tenon/kernel'
 import { relative, resolve } from 'node:path'
-import { refuseArchived } from '../archivedGuard.js'
+import { refuseArchived } from '../endedTaskGuard.js'
 import { errMsg, type CliDeps } from '../deps.js'
 import { recordHistory } from './fields.js'
 import { changeDir, isValidChangeName, resolveChangeDir } from '../paths.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
+import { isLegacyExecution } from './execution-cli-seam.js'
 import { artifactNamespaceForChange } from '@tenon/automation'
+import { msg as message } from '../i18n/messages.js'
 
 /** 拒绝：stderr 记 ERROR + 返回 exit 1（统一口径，state 一律不写）。 */
 function reject(deps: CliDeps, msg: string): number {
@@ -65,15 +67,7 @@ export function effectiveArtifactProducers(deps: CliDeps, state: PipelineState):
   const stepId = scalar(state, 'phase')
   const track = scalar(state, 'track')
   if (!resolveStep(plan.workflow, stepId)) return []
-  const skillCapability = plan.capabilities.skills
-  const slots: readonly EffectiveSkillSlot[] = skillCapability.source === 'manifest-overlay'
-    ? resolveExplicitProfileSkillSlots(
-        deps.resolver,
-        skillCapability,
-        stepId,
-        skillCapability.trackOverlay.profile,
-      )
-    : resolveExplicitProfileSkillSlots(deps.resolver, skillCapability, stepId, track)
+  const slots = resolveExplicitProfileSkillSlots(deps.resolver, plan.capabilities.skills, stepId, track)
   return slots.flatMap((slot) => slot.alternatives)
 }
 
@@ -103,31 +97,29 @@ async function runRegister(
     return reject(deps, `step '${stepId}' 不在 workflow '${plan.id}' 里`)
   }
   const decl = step.artifacts.find((artifact) => artifact.field === field)
-  if (!decl) return reject(deps, `step '${stepId}' 未声明 artifact '${field}'（workflow '${plan.id}'）`)
+  if (!decl) {
+    // 新任务（观察模式）的工作流不再声明 artifact：产出由 Tenon 在离开步骤时自动记录，不是这个 step 漏声明了。
+    if (plan.capabilities.documents.mode === 'observed') {
+      return reject(deps, message(deps, 'document.observed.autoRecorded', { command: 'artifact register' }))
+    }
+    return reject(deps, `step '${stepId}' 未声明 artifact '${field}'（workflow '${plan.id}'）`)
+  }
   if (decl.requiredWhen && !matchesTrackPredicate(decl.requiredWhen, track)) {
     return reject(deps, `artifact '${field}' 对 track '${track}' 不适用（required_when 排除；step '${stepId}'）`)
   }
   const skillCapability = plan.capabilities.skills
-  const expectedPolicy = skillCapability.source === 'manifest-overlay'
-    ? 'effective-phase-skills'
-    : 'effective-step-skills'
-  if (decl.producerPolicy !== expectedPolicy) {
+  // 产出者策略只有一种含义：新任务（按 YAML 执行）的技能就是本步声明的那些（effective-step-skills），
+  // 不再按策略名分两套核对——default.yaml 里沿用的 effective-phase-skills 是同一件事的旧拼写。
+  // 只有快照记着旧执行模型的任务（技能策略 manifest-overlay）保持原策略：它的 artifact 必须是 effective-phase-skills。
+  if (isLegacyExecution(plan) && decl.producerPolicy !== 'effective-phase-skills') {
     return reject(
       deps,
-      `artifact '${field}' 的 producerPolicy '${decl.producerPolicy}' 与 workflow skill policy '${skillCapability.source}' 不相容（应 ${expectedPolicy}）`,
+      `artifact '${field}' 的 producerPolicy '${decl.producerPolicy}' 与 workflow skill policy '${skillCapability.source}' 不相容（应 effective-phase-skills）`,
     )
   }
-  // Artifact registration is an explicit named-profile projection. It retains the frozen phase
-  // slot even when matrix=false, while never making that profile an automatic Hook/transition
-  // requirement; custom workflows resolve to their frozen step declarations only.
-  const slots: readonly EffectiveSkillSlot[] = skillCapability.source === 'manifest-overlay'
-    ? resolveExplicitProfileSkillSlots(
-        deps.resolver,
-        skillCapability,
-        stepId,
-        skillCapability.trackOverlay.profile,
-      )
-    : resolveExplicitProfileSkillSlots(deps.resolver, skillCapability, stepId, track)
+  // Artifact registration resolves to the step's frozen skill declarations (no manifest matrix is
+  // overlaid), and never makes them an automatic Hook/transition requirement.
+  const slots: readonly EffectiveSkillSlot[] = resolveExplicitProfileSkillSlots(deps.resolver, skillCapability, stepId, track)
 
   // 空 effective skill 集必须拒绝（不退化成任意 producer 入口，D5）。
   if (slots.length === 0) {

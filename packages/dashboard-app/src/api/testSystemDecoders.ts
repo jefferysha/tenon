@@ -1,10 +1,10 @@
 /** 目录 / 基线 / 计划 / v2 运行记录响应的严格解码。 */
 import type {
-  BaselineHistoryEntry, BaselineMetric, CaseStatus, CatalogService, CatalogSuite, KnownFailure, KnownFailuresView,
+  BaselineHistoryEntry, BaselineMetric, CaseStatus, CatalogLevel, CatalogService, CatalogSuite, KnownFailure, KnownFailuresView,
   RecordDetail, RecordListResponse, RecordSummary, RunArtifact, RunCase, RunMetric, RunService, SuiteBaseline,
   SuiteBaselinesResponse, SuiteLatest, SuiteRun, TestCatalogResponse, TestCatalogView, TestMetricSpec, TestPlanView,
 } from './testSystemTypes'
-import { readCoverage, readTotals } from './testPolicyDecoders'
+import { readClasses, readCoverage, readLevelName, readTotals } from './testPolicyDecoders'
 import { arr, bool, guard, int, maybe, nnum, nstr, num, oneOf, opt, rec, str, strs } from './strictReader'
 
 function readMetricSpec(value: unknown): TestMetricSpec {
@@ -58,12 +58,29 @@ function readService(value: unknown): CatalogService {
   }
 }
 
+function readLevel(value: unknown): CatalogLevel {
+  const item = rec(value)
+  return {
+    name: readLevelName(item.name),
+    required: readClasses(item.required),
+    touched: readClasses(item.touched),
+    scenarios: oneOf(item.scenarios, ['off', 'required', 'passing']),
+    ...maybe('coverage', opt(item.coverage, readCoverage)),
+    ...maybe('flaky', opt(item.flaky, (raw) => {
+      const flaky = rec(raw)
+      return { max: int(flaky.max), failOnNew: bool(flaky.failOnNew) }
+    })),
+    requireBaseline: bool(item.requireBaseline),
+    source: oneOf(item.source, ['catalog', 'default']),
+  }
+}
+
 function readCatalog(value: unknown): TestCatalogView {
   const item = rec(value)
   const state = oneOf(item.state, ['missing', 'invalid', 'ok'])
   if (state === 'missing') return { state }
   if (state === 'invalid') return { state, issues: strs(item.issues) }
-  return { state, suites: arr(item.suites, readSuite), services: arr(item.services, readService) }
+  return { state, suites: arr(item.suites, readSuite), services: arr(item.services, readService), levels: arr(item.levels, readLevel) }
 }
 
 function readKnown(value: unknown): KnownFailure {

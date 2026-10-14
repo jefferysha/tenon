@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { createBenchFixture } from './fixture.mjs'
 import { percentile, readOptions, sample, writeReport } from './measure.mjs'
 import { TENON_CLI } from '../lib/isolated-tenon.mjs'
@@ -74,6 +74,28 @@ test('createBenchFixture builds projects in parallel and a kept fixture is reuse
     const again = await createBenchFixture({ projects: 2, changes: 2, fixtureDir: kept })
     assert.deepEqual(again.roots, first.roots)
     await assert.rejects(createBenchFixture({ projects: 3, changes: 2, fixtureDir: kept }), /2 × 2/)
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
+test('createBenchFixture ends one real task and copies it into archived ones; a kept fixture must match the count', { skip: !existsSync(TENON_CLI) && 'the CLI bundle is not built' }, async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'tenon-bench-archived-test-'))
+  try {
+    const kept = join(directory, 'kept')
+    const fixture = await createBenchFixture({ projects: 1, changes: 1, archived: 5, fixtureDir: kept })
+    const archive = join(fixture.roots[0], 'openspec', 'changes', 'archive')
+    const names = readdirSync(archive)
+    assert.equal(names.length, 5)
+    for (const name of names) assert.ok(existsSync(join(archive, name, '.pipeline-run', 'current.json')), name)
+    assert.ok(existsSync(join(fixture.roots[0], 'openspec', 'changes', 'change-1')), 'the active tasks stay where they were')
+    await assert.rejects(createBenchFixture({ projects: 1, changes: 1, archived: 0, fixtureDir: kept }), /5 个已结束任务/)
+    const plain = await createBenchFixture({ projects: 1, changes: 1 })
+    try {
+      assert.equal(existsSync(join(plain.roots[0], 'openspec', 'changes', 'archive')), false)
+    } finally {
+      plain.cleanup()
+    }
   } finally {
     await rm(directory, { recursive: true, force: true })
   }

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { emptyTestPlan, extractScenarios, extractTaskItems, parseTestCatalog, type StepTestPolicyIR, type TestCatalog } from '@tenon/kernel'
-import { seedPlan, splitUnmapped, withCase, withFiles, withSuite, withWaiver, withoutTarget } from './plan-edit.js'
+import {
+  emptyTestPlan, extractScenarios, extractTaskItems, parseTestCatalog, resolveStepTestPolicy, type StepTestPolicyIR, type TestCatalog,
+} from '@tenon/kernel'
+import { seedPlan, splitUnmapped, unclaimedRegistrations, withCase, withFiles, withSuite, withWaiver, withoutRegistrations, withoutTarget } from './plan-edit.js'
 
-const parsed = parseTestCatalog(`schema: tenon-test-catalog/v1
+const CATALOG_TEXT = `schema: tenon-test-catalog/v1
 suites:
   - id: web-unit
     kind: unit
@@ -24,7 +26,8 @@ suites:
     command: npx vitest run regression
     files: ["tests/regression/**/*.test.ts"]
     report: { format: vitest-json, path: test-results/r.json }
-`)
+`
+const parsed = parseTestCatalog(CATALOG_TEXT)
 if (!parsed.ok) throw new Error('fixture catalog')
 const CATALOG: TestCatalog = parsed.catalog
 
@@ -88,11 +91,61 @@ describe('计划编辑', () => {
   })
 })
 
+describe('unclaimedRegistrations / withoutRegistrations', () => {
+  const plan = withFiles(withCase(withSuite(emptyTestPlan('demo'), { suite: 'web-unit', scope: 'full' }), 'task:1', ['web/old/x.test.ts › y']), [
+    { path: 'web/src/ok.test.ts', suite: 'web-unit', kind: 'unit' },
+    { path: 'web/src/implicit.test.ts' },
+    { path: 'e2e/login.spec.ts', suite: 'web-e2e', kind: 'playwright' },
+    { path: 'web/old/x.test.ts', suite: 'web-unit', kind: 'unit' },
+    { path: 'e2e/login.spec.ts.bak', suite: 'web-e2e' },
+    { path: 'gone.test.ts', suite: 'ghost-suite' },
+    { path: 'notes/archive.report' },
+    { path: 'e2e/shots/home.png', kind: 'visual' },
+    { path: './web/src/dotted.test.ts', suite: 'web-unit' },
+  ])
+
+  it('目录认领的保留；套件不在目录、套件 glob 不再认领、没有任何套件认领的各带原因列出', () => {
+    expect(unclaimedRegistrations(plan, CATALOG)).toEqual([
+      { path: 'web/old/x.test.ts', suite: 'web-unit', reason: 'glob-mismatch' },
+      { path: 'e2e/login.spec.ts.bak', suite: 'web-e2e', reason: 'glob-mismatch' },
+      { path: 'gone.test.ts', suite: 'ghost-suite', reason: 'suite-missing' },
+      { path: 'notes/archive.report', reason: 'no-owner' },
+    ])
+  })
+
+  it('套件 glob 按套件 cwd 换算成仓库相对再比对：web-unit 的 src/** 只认 web/src/**', () => {
+    const wrongRoot = withFiles(emptyTestPlan('demo'), [{ path: 'src/ok.test.ts', suite: 'web-unit' }, { path: 'src/ok.test.ts.x' }])
+    expect(unclaimedRegistrations(wrongRoot, CATALOG).map((item) => item.path)).toEqual(['src/ok.test.ts', 'src/ok.test.ts.x'])
+  })
+
+  it('只有 kind、没有套件的登记是有意登记的不执行资源（视觉快照等），即使无人认领也不列出', () => {
+    const resources = withFiles(emptyTestPlan('demo'), [{ path: 'e2e/shots/home.png', kind: 'visual' }, { path: 'docs/a.png', kind: 'visual' }])
+    expect(unclaimedRegistrations(resources, CATALOG)).toEqual([])
+  })
+
+  it('空目录不认领任何文件：除资源文件外全部列出（调用方据此拒绝按空目录裁剪）', () => {
+    const empty: TestCatalog = { ...CATALOG, suites: [] }
+    expect(unclaimedRegistrations(plan, empty).map((item) => item.path)).toEqual([
+      'web/src/ok.test.ts', 'web/src/implicit.test.ts', 'e2e/login.spec.ts', 'web/old/x.test.ts', 'e2e/login.spec.ts.bak', 'gone.test.ts', 'notes/archive.report', './web/src/dotted.test.ts',
+    ])
+  })
+
+  it('withoutRegistrations 只动 files[]：套件、用例映射、豁免原样，不在列表里的登记保留', () => {
+    const gone = unclaimedRegistrations(plan, CATALOG)
+    const next = withoutRegistrations(plan, gone.map((item) => item.path))
+    expect(next.files.map((file) => file.path)).toEqual(['web/src/ok.test.ts', 'web/src/implicit.test.ts', 'e2e/login.spec.ts', 'e2e/shots/home.png', './web/src/dotted.test.ts'])
+    expect(next.suites).toBe(plan.suites)
+    expect(next.cases).toBe(plan.cases)
+    expect(next.waivers).toBe(plan.waivers)
+    expect(withoutRegistrations(plan, [])).toBe(plan)
+  })
+})
+
 describe('seedPlan', () => {
-  const scenarios = extractScenarios('auth', '## ADDED Requirements\n### Requirement: R\n#### Scenario: 登录成功\n#### Scenario: 密码错误\n')
+  const scenarios =extractScenarios('auth', '## ADDED Requirements\n### Requirement: R\n#### Scenario: 登录成功\n#### Scenario: 密码错误\n')
   const tasks = extractTaskItems('## 1. Build\n- [ ] 1.1 做登录\n')
 
-  it('diff 碰到的套件（改了测试文件或 covers 里的源码）→ changed；策略要求的种类补全量套件；未登记文件带上唯一认领的套件', () => {
+  it('旧策略：diff 碰到的套件（改了测试文件或 covers 里的源码）→ changed；策略要求的种类补全量套件；测试文件不再写进计划', () => {
     const result = seedPlan({
       catalog: CATALOG, plan: emptyTestPlan('demo'), policies: [policy(['unit'], ['regression'])],
       changedFiles: ['web/src/login.ts', 'web/src/login.test.ts', 'e2e/login.spec.ts', 'README.md', 'tools/x.spec.js'],
@@ -102,12 +155,22 @@ describe('seedPlan', () => {
       { suite: 'api-regression', scope: 'full' }, { suite: 'web-e2e', scope: 'changed' }, { suite: 'web-unit', scope: 'changed' },
     ])
     expect(result.addedSuites.sort()).toEqual(['api-regression', 'web-e2e', 'web-unit'])
-    expect(result.plan.files).toEqual([
-      { path: 'e2e/login.spec.ts', suite: 'web-e2e', kind: 'playwright' },
-      { path: 'web/src/login.test.ts', suite: 'web-unit', kind: 'unit' },
-    ])
+    // 认领在求值时现算：计划不再逐个登记被套件认领的测试文件。
+    expect(result.plan.files).toEqual([])
+    expect(result).not.toHaveProperty('addedFiles')
     expect(result.orphans).toEqual(['tools/x.spec.js'])
     expect(result.unmapped.map((item) => item.covers)).toEqual(['spec:auth/登录成功', 'spec:auth/密码错误', 'task:1.1'])
+  })
+
+  it('控制目录与非源码扩展名的改动既不碰到套件也不是孤儿；计划里按 kind 登记的资源文件不是孤儿', () => {
+    const plan = withFiles(emptyTestPlan('demo'), [{ path: 'snap/login.test.ts', kind: 'visual' }])
+    const result = seedPlan({
+      catalog: CATALOG, plan, policies: [policy(['unit'])],
+      changedFiles: ['openspec/changes/c/web/src/a.ts', 'openspec/changes/archive/x/a.spec.report', 'fixtures/d.spec.json', 'snap/login.test.ts'],
+      scenarios: [], tasks: [],
+    })
+    expect(result.orphans).toEqual([])
+    expect(result.plan.suites).toEqual([{ suite: 'web-unit', scope: 'full' }])
   })
 
   it('只增不减：已有计划里的套件、文件、映射、豁免原样保留，已映射的场景不再列为待映射', () => {
@@ -159,5 +222,58 @@ describe('seedPlan', () => {
     expect(result.missingKinds).toEqual(['benchmark'])
     expect(result.plan.suites).toEqual([{ suite: 'web-unit', scope: 'full' }])
     expect(result.plan.files).toEqual([])
+  })
+
+  describe('档位策略', () => {
+    const level = (test: 'plan' | 'changed' | 'full', catalog: TestCatalog = CATALOG): StepTestPolicyIR => {
+      const resolved = resolveStepTestPolicy({ test }, catalog)
+      if (resolved === undefined) throw new Error('policy')
+      return resolved
+    }
+
+    it('不加套件、不加文件：改了测试文件与源码也一样；孤儿照列', () => {
+      const result = seedPlan({
+        catalog: CATALOG, plan: emptyTestPlan('demo'), policies: [level('changed'), level('full')],
+        changedFiles: ['web/src/login.ts', 'web/src/login.test.ts', 'e2e/login.spec.ts', 'tools/x.spec.js'],
+        scenarios, tasks,
+      })
+      expect(result.plan).toEqual(emptyTestPlan('demo'))
+      expect(result.addedSuites).toEqual([])
+      expect(result.missingKinds).toEqual([])
+      expect(result.orphans).toEqual(['tools/x.spec.js'])
+    })
+
+    it('场景映射 off（缺省）：不列待映射的场景 / 任务；目录里档位要求 required / passing 时照列', () => {
+      const off = seedPlan({ catalog: CATALOG, plan: emptyTestPlan('demo'), policies: [level('changed')], changedFiles: [], scenarios, tasks })
+      expect(off.unmapped).toEqual([])
+      const required = parseTestCatalog(`${CATALOG_TEXT}levels:\n  full: { scenarios: required }\n`)
+      if (!required.ok) throw new Error('catalog')
+      const listed = seedPlan({ catalog: required.catalog, plan: emptyTestPlan('demo'), policies: [level('full', required.catalog)], changedFiles: [], scenarios, tasks })
+      expect(listed.unmapped.map((item) => item.covers)).toEqual(['spec:auth/登录成功', 'spec:auth/密码错误', 'task:1.1'])
+    })
+
+    it('必需类目录里没有套件 → missingKinds（按类名）；目录声明了不适用就不算缺', () => {
+      const noUnit: TestCatalog = { ...CATALOG, suites: CATALOG.suites.filter((suite) => suite.kind !== 'unit') }
+      const missing = seedPlan({ catalog: noUnit, plan: emptyTestPlan('demo'), policies: [level('changed', noUnit), level('full', noUnit)], changedFiles: [], scenarios: [], tasks: [] })
+      expect(missing.missingKinds).toEqual(['unit'])
+      expect(missing.plan.suites).toEqual([])
+      const declared: TestCatalog = { ...noUnit, not_applicable: [{ kind: 'unit', reason: '没有单测', approved_by: null }] }
+      expect(seedPlan({ catalog: declared, plan: emptyTestPlan('demo'), policies: [level('changed', declared)], changedFiles: [], scenarios: [], tasks: [] }).missingKinds).toEqual([])
+    })
+
+    it('已有计划原样保留（只增不减）；读不到 diff 也不报错', () => {
+      const plan = withSuite(emptyTestPlan('demo'), { suite: 'web-e2e', scope: 'grep', pattern: '@smoke' })
+      const result = seedPlan({ catalog: CATALOG, plan, policies: [level('full')], changedFiles: undefined, scenarios: [], tasks: [] })
+      expect(result.plan).toBe(plan)
+      expect(result.addedSuites).toEqual([])
+    })
+
+    it('旧策略与档位策略并存：旧策略的补齐照做，档位策略只报缺的类', () => {
+      const result = seedPlan({
+        catalog: CATALOG, plan: emptyTestPlan('demo'), policies: [policy(['unit']), level('changed')],
+        changedFiles: ['web/src/login.ts'], scenarios: [], tasks: [],
+      })
+      expect(result.plan.suites).toEqual([{ suite: 'web-unit', scope: 'changed' }])
+    })
   })
 })

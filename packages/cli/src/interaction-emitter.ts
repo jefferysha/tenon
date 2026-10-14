@@ -48,7 +48,8 @@ function workflowMode(workflow: string): 'default' | 'custom' {
 
 function trackKind(track: string): 'built-in' | 'free' | 'custom' {
   if (track === 'free') return 'free'
-  if (['chat', 'simple', 'standard', 'pm', 'frontend', 'backend'].includes(track)) return 'built-in'
+  // default 内建的四条轨道；chat / simple / standard 已退役，但升级前在途任务的状态里还记着它们。
+  if (['lite', 'chat', 'simple', 'standard', 'pm', 'frontend', 'backend'].includes(track)) return 'built-in'
   return 'custom'
 }
 

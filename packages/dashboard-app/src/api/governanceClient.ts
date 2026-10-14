@@ -1,17 +1,13 @@
 import type {
   ChangeHistoryEntry,
-  CreatedChange,
   WbHooksConfig,
-  WbRouterPreview,
   WbSkillEntry,
-  WbTrackDefinition, WbSkillFiles, WbSkillFile,
+  WbSkillFiles, WbSkillFile,
 } from './governanceTypes'
 import {
-  decodeCreatedChange,
   decodeHistory,
   decodeHooksConfig,
   decodeNames,
-  decodeRouterPreview,
   isPromptSkipKeyword,
 } from './governanceDecoders'
 import { decodeSkillFile, decodeSkillFiles, decodeSkillsRegistry, decodeWorkflowDefinition } from './governanceSchema'
@@ -135,10 +131,11 @@ export async function postPromptRoutingBypass(
   return (body as { prompt_skip_keyword: string }).prompt_skip_keyword
 }
 
-export async function getHistory(name: string, root: string): Promise<ChangeHistoryEntry[]> {
+/** `archived`：`name` 是已结束任务的归档目录名，server 只读读取归档里的那一份。 */
+export async function getHistory(name: string, root: string, archived = false): Promise<ChangeHistoryEntry[]> {
   let response: Response
   try {
-    response = await fetch(`/api/change/${encodeURIComponent(name)}/history?root=${encodeURIComponent(root)}`, {
+    response = await fetch(`/api/change/${encodeURIComponent(name)}/history?root=${encodeURIComponent(root)}${archived ? '&archived=1' : ''}`, {
       headers: { Accept: 'application/json' },
     })
   } catch (error) {
@@ -146,48 +143,6 @@ export async function getHistory(name: string, root: string): Promise<ChangeHist
   }
   if (!response.ok) await throwApiError(response, '历史获取失败')
   return readOrThrow(response, decodeHistory, '历史响应形状无效')
-}
-
-export async function postRouterPreview(
-  root: string,
-  prompt: string,
-  draftTrack?: WbTrackDefinition,
-): Promise<WbRouterPreview> {
-  let response: Response
-  try {
-    response = await fetch('/api/router/preview', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-      body: JSON.stringify({ root, prompt, ...(draftTrack === undefined ? {} : { draft_track: draftTrack }) }),
-    })
-  } catch (error) {
-    wrapNetwork(error)
-  }
-  if (!response.ok) await throwApiError(response, '路由预览失败')
-  return readOrThrow(response, decodeRouterPreview, '路由预览响应形状无效')
-}
-
-export async function postCreateChange(input: {
-  root: string
-  name: string
-  track: string
-  workflow: string
-  pipeline_id?: string
-  task_prompt?: string
-  activate_session?: boolean
-}): Promise<CreatedChange> {
-  let response: Response
-  try {
-    response = await fetch('/api/changes', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-      body: JSON.stringify(input),
-    })
-  } catch (error) {
-    wrapNetwork(error)
-  }
-  if (!response.ok) await throwApiError(response, 'Change 创建失败')
-  return readOrThrow(response, decodeCreatedChange, 'Change 创建响应形状无效')
 }
 
 export async function fetchSkillsRegistry(): Promise<WbSkillEntry[]> {
@@ -216,13 +171,9 @@ export async function fetchWorkflow(name: string, root: string): Promise<WbWorkf
   return body
 }
 
-export function fetchConfig(root: string): Promise<Response> {
-  return fetch(`/api/config?root=${encodeURIComponent(root)}`, { headers: { Accept: 'application/json' } })
-}
-
 export function postWorkflowDef(name: string, payload: Record<string, unknown>): Promise<Response> {
-  // source / effectiveIo / branches 是读接口附带的投影，不属于定义 DTO；server 的闭合解码器会拒绝未知键。
-  const { source: _source, effectiveIo: _effectiveIo, branches: _branches, ...definition } = payload
+  // source / branches 是读接口附带的投影，不属于定义 DTO；server 的闭合解码器会拒绝未知键。
+  const { source: _source, branches: _branches, ...definition } = payload
   return fetch(`/api/workflows/${encodeURIComponent(name)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
@@ -235,59 +186,6 @@ export function deleteWorkflowDef(name: string, root: string): Promise<Response>
     method: 'DELETE',
     headers: { Authorization: `Bearer ${getToken()}` },
   })
-}
-
-export function postMandatorySkills(input: {
-  phase: string
-  track: string
-  skills: string[]
-  root: string
-  /**
-   * 调用方读到这份 cell 时的 config revision（乐观并发用）。
-   * ⚠️ 现状：server 的 /api/config/mandatory-skills 只取 phase/track/skills，本字段被忽略
-   * ——真正的 CAS 拒写要等后端补 revision 比对（见 server/src/config.ts:validateMandatorySkillsBody）。
-   * 先发出去是为了让前端不再持有版本却不发；前端已按 409 分支准备好冲突反馈与重载路径。
-   */
-  revision?: string
-}): Promise<Response> {
-  return fetch('/api/config/mandatory-skills', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-    body: JSON.stringify(input),
-  })
-}
-
-export function postTrackDefinition(input: {
-  root: string
-  revision: string
-  track: WbTrackDefinition
-}): Promise<Response> {
-  const { builtin: _builtin, ...track } = input.track
-  return fetch('/api/tracks', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-    body: JSON.stringify({ root: input.root, revision: input.revision, track }),
-  })
-}
-
-export function patchTrackDefinition(
-  root: string,
-  revision: string,
-  id: string,
-  patch: Record<string, unknown>,
-): Promise<Response> {
-  return fetch(`/api/tracks/${encodeURIComponent(id)}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-    body: JSON.stringify({ root, revision, patch }),
-  })
-}
-
-export function deleteTrackDefinition(root: string, revision: string, id: string): Promise<Response> {
-  return fetch(
-    `/api/tracks/${encodeURIComponent(id)}?root=${encodeURIComponent(root)}&revision=${encodeURIComponent(revision)}`,
-    { method: 'DELETE', headers: { Authorization: `Bearer ${getToken()}` } },
-  )
 }
 
 /** 某技能目录的文件清单（GET /api/skills/:name/files）。 */

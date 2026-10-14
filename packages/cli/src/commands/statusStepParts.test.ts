@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'vitest'
 import {
-  builtinTrack, compileEffectiveWorkflowPlan, DEFAULT_WORKFLOW_SOURCE, parseWorkflow,
+  compileEffectiveWorkflowPlan, DEFAULT_WORKFLOW_SOURCE, parseWorkflow,
   type DocumentEvidenceItem, type DocumentGovernancePolicy, type StepIR, type WorkflowDef,
 } from '@tenon/kernel'
 import { mockState } from '../test-support.js'
-import { stepDocuments, stepFields, stepSkills } from './statusStepParts.js'
+import { emptyStepDocuments, stepDocuments, stepFields, stepSkills } from './statusStepParts.js'
 
 describe('stepSkills —— 与技能门、画布同一份排序（kernel skill-order）', () => {
   const slots = (tokens: readonly string[], done: readonly string[] = []) => tokens.map((token) => ({
@@ -13,7 +13,7 @@ describe('stepSkills —— 与技能门、画布同一份排序（kernel skill-
   const tokens = ['openspec-explore', 'brainstorming', 'grilling', 'domain-modeling']
 
   test('前端 explore 未声明依赖：串行 4 波，只有第一个 ready', () => {
-    const plan = compileEffectiveWorkflowPlan('default', parseWorkflow(DEFAULT_WORKFLOW_SOURCE), builtinTrack('frontend'))
+    const plan = compileEffectiveWorkflowPlan('default', parseWorkflow(DEFAULT_WORKFLOW_SOURCE), { track: 'frontend' })
     const views = stepSkills(plan, 'explore', slots(tokens))
     expect(views.map((view) => [view.id, view.wave, view.status])).toEqual([
       ['openspec-explore', 0, 'ready'], ['brainstorming', 1, 'waiting'], ['grilling', 2, 'waiting'], ['domain-modeling', 3, 'waiting'],
@@ -43,7 +43,7 @@ describe('stepSkills —— 与技能门、画布同一份排序（kernel skill-
         },
       },
     }
-    const plan = compileEffectiveWorkflowPlan('default', waved, builtinTrack('frontend'))
+    const plan = compileEffectiveWorkflowPlan('default', waved, { track: 'frontend' })
     const views = stepSkills(plan, 'explore', slots(tokens, ['openspec-explore']))
     expect(views.map((view) => [view.id, view.wave, view.status])).toEqual([
       ['openspec-explore', 0, 'done'], ['brainstorming', 1, 'ready'], ['grilling', 1, 'ready'], ['domain-modeling', 2, 'waiting'],
@@ -148,6 +148,40 @@ describe('stepFields —— 本步要填的槽', () => {
       [{ field: 'branch_status', required: ['handled'] }],
     )
     expect(fields[0]).toMatchObject({ status: 'set', value: 'handled' })
+  })
+
+  /**
+   * 新建的任务按 YAML 执行，build_mode / isolation / direct_override / branch_status 已不是任何一步的决定（设计 §1b Q1、Q2）。
+   * 它们的枚举与推荐值只属于旧执行模型（原生 guard 字段）；在 step 自己的 guards / outputs 里碰到同名字段
+   * （例如自定义工作流自己声明了 isolation）也不再附带，运行器不会被推荐去填一个已经没有意义的值。
+   */
+  test('按 YAML 执行的步骤：已删除的决定字段不带枚举与推荐值', () => {
+    const fields = stepFields(
+      mockState({ preset: 'full', track: 'backend', build_mode: '', isolation: '', branch_status: 'pending', direct_override: '' }),
+      step({
+        id: 'verify',
+        guards: [
+          { type: 'field-nonempty', field: 'build_mode' },
+          { type: 'field-nonempty', field: 'isolation' },
+          { type: 'field-equals', field: 'branch_status', value: 'handled' },
+          { type: 'field-nonempty', field: 'direct_override' },
+        ],
+      }),
+    )
+    expect(fields.map((f) => f.field)).toEqual(['build_mode', 'isolation', 'branch_status', 'direct_override'])
+    for (const field of fields) expect(field, field.field).toMatchObject({ allowed: null, recommended: null })
+    expect(fields.find((f) => f.field === 'branch_status')).toMatchObject({ required: ['handled'], status: 'missing' })
+  })
+
+  test('旧执行模型：原生 guard 点名的决定字段仍带枚举与推荐值（旧快照任务保持原规则）', () => {
+    const fields = stepFields(
+      mockState({ preset: 'full', track: 'backend', direct_override: '' }),
+      step({ id: 'build' }),
+      new Set(),
+      [{ field: 'direct_override', required: ['true'] }, { field: 'branch_status', required: ['handled'] }],
+    )
+    expect(fields.find((f) => f.field === 'direct_override')).toMatchObject({ allowed: ['true', 'false'], recommended: null })
+    expect(fields.find((f) => f.field === 'branch_status')).toMatchObject({ allowed: ['pending', 'pass', 'fail', 'handled', 'skipped'], recommended: 'handled' })
   })
 
   test('artifact 声明过的字段标成 artifact-register', () => {
@@ -301,5 +335,36 @@ describe('stepDocuments —— update 槽位读证据面的判定，不按缺省
       producers: ['hue'],
       status: 'recorded',
     }])
+  })
+})
+
+describe('step.documents 的 mode —— 契约模式保持原三表并标上 mode', () => {
+  const policy = {
+    id: 'openspec-v1',
+    steps: ['ship'],
+    outputsByStep: { ship: [] },
+    mutableByStep: { ship: [] },
+    readsByStep: {},
+    requiresByStep: {},
+  } as unknown as DocumentGovernancePolicy
+
+  test('有契约：{ mode: contract, reads, records, updates }', () => {
+    expect(stepDocuments('demo', policy, 'ship', [])).toEqual({ mode: 'contract', reads: [], records: [], updates: [] })
+  })
+
+  test('没有策略的步骤（契约未覆盖）：同样的空三表，仍标契约模式', () => {
+    expect(stepDocuments('demo', undefined, 'ship', [])).toEqual({ mode: 'contract', reads: [], records: [], updates: [] })
+  })
+})
+
+describe('emptyStepDocuments —— 已完结任务与降级时的空投影', () => {
+  test('契约模式：空三表', () => {
+    expect(emptyStepDocuments('contract')).toEqual({ mode: 'contract', reads: [], records: [], updates: [] })
+  })
+
+  test('观察模式：设计 §10 的形状，观察状态不可用，三张旧表为空', () => {
+    expect(emptyStepDocuments('observed')).toEqual({
+      mode: 'observed', observation: 'unavailable', inputs: [], outputs: [], required: [], reads: [], records: [], updates: [],
+    })
   })
 })

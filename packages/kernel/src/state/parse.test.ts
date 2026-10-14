@@ -103,7 +103,8 @@ describe('serializePipeline（严格 FIELD_ORDER 全量写回）', () => {
       .filter((l) => /^[a-z_]+:/.test(l))
       .map((l) => l.split(':')[0])
     expect(keys).toEqual(FIELD_ORDER.filter((field) =>
-      !REVIEW_GATE_FIELDS.includes(field as typeof REVIEW_GATE_FIELDS[number]) && field !== 'max_rounds' && field !== 'start_sha'))
+      !REVIEW_GATE_FIELDS.includes(field as typeof REVIEW_GATE_FIELDS[number])
+      && field !== 'max_rounds' && field !== 'task_result' && field !== 'domain' && field !== 'start_sha'))
     expect(out).toContain('automation: ""\n')
     for (const field of REVIEW_GATE_FIELDS) expect(out).not.toContain(`${field}:`)
   })
@@ -160,6 +161,46 @@ describe('serializePipeline（严格 FIELD_ORDER 全量写回）', () => {
     const state = parsePipeline(fixture('zz-container-e2e.pipeline.yaml'))
     state.fields.start_sha = sha
     expect(parsePipeline(serializePipeline(state)).fields.start_sha).toBe(sha)
+  })
+
+  it('task_result 为空时不写进 YAML 投影：没有结束的任务逐字节不变；有值时写在 max_rounds 之后、内部提交元数据之前，清空后又不写', () => {
+    const raw = fixture('zz-container-e2e.pipeline.yaml')
+    const state = parsePipeline(raw)
+    expect(state.fields.task_result).toBe('')
+    expect(serializePipeline(state)).not.toContain('task_result')
+    expect(serializePipeline(state)).toBe(withPreVerifyReviewDefault(raw))
+
+    state.runMetadata = { runId: 'run-r', transitionSequence: 3, transitionHead: 'rec-3' }
+    state.fields.max_rounds = '3'
+    state.fields.task_result = 'terminated'
+    const out = serializePipeline(state)
+    const lines = out.split('\n')
+    expect(lines.indexOf('task_result: terminated')).toBe(lines.indexOf('max_rounds: 3') + 1)
+    expect(lines[lines.indexOf('task_result: terminated') + 1]).toBe('pipeline_run_id: run-r')
+    expect(parsePipeline(out).fields.task_result).toBe('terminated')
+    const cleared = parsePipeline(out)
+    cleared.fields.task_result = ''
+    expect(serializePipeline(cleared)).not.toContain('task_result')
+  })
+
+  it('domain 为空时不写进 YAML 投影：没记领域的任务逐字节不变；有值时写在 task_result 之后、内部提交元数据之前，清空后又不写', () => {
+    const raw = fixture('zz-container-e2e.pipeline.yaml')
+    const state = parsePipeline(raw)
+    expect(state.fields.domain).toBe('')
+    expect(serializePipeline(state)).not.toContain('domain')
+    expect(serializePipeline(state)).toBe(withPreVerifyReviewDefault(raw))
+
+    state.runMetadata = { runId: 'run-r', transitionSequence: 3, transitionHead: 'rec-3' }
+    state.fields.task_result = 'escalated'
+    state.fields.domain = 'backend'
+    const out = serializePipeline(state)
+    const lines = out.split('\n')
+    expect(lines.indexOf('domain: backend')).toBe(lines.indexOf('task_result: escalated') + 1)
+    expect(lines[lines.indexOf('domain: backend') + 1]).toBe('pipeline_run_id: run-r')
+    expect(parsePipeline(out).fields.domain).toBe('backend')
+    const cleared = parsePipeline(out)
+    cleared.fields.domain = ''
+    expect(serializePipeline(cleared)).not.toContain('domain')
   })
 
   it('review receipt 只要有一个值便整组写出，解析后逐字段保持', () => {

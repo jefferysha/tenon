@@ -4,14 +4,14 @@
  * 判定读的是 `user` 的记录（调用方传负责人，见 testEvidenceUser.ts）；损坏的记录文件进 diagnostics，不冒充「未运行」之外的任何结论。
  */
 import {
-  corruptTestRunFiles, evaluateTestEvidence, userSlug,
+  corruptTestRunFiles, evaluateTestEvidence, loadCatalogInput, resolveStepTestPolicy, stepDeclaresTests, stepHasTestPolicy, userSlug,
   type ChangedFilesSource, type EffectiveWorkflowPlan, type IntegrityDiffSource, type ProtectedChange, type RecordChainCache,
 } from '@tenon/kernel'
 import type { TestItemSnapshot, TestStepSnapshot } from './types.js'
 import { policyReportDto } from './testPolicyDto.js'
 import type { EvidenceUser } from './testEvidenceUser.js'
 import type { PlanBriefDto, PolicyReportDto } from './testSystemDtoTypes.js'
-import { readPlanBrief } from './testSystemReads.js'
+import { catalogOf, readPlanBrief } from './testSystemReads.js'
 
 const MAX_DIAGNOSTICS = 20
 
@@ -24,7 +24,7 @@ export async function projectTestEvidence(input: {
   readonly user: EvidenceUser | undefined
   /** 缺省 = 宿主没有工作区指纹能力；返回 undefined = 能力在但这次取不到（判定按未知处理）。 */
   readonly candidate?: () => Promise<string | undefined>
-  /** 自任务起点以来的改动文件（与 CLI / 转换同源）；只在策略要求 `files: registered` 时才被调用，读不到时判定以 files-diff-unavailable 阻塞。 */
+  /** 自任务起点以来的改动文件（与 CLI / 转换同源）；只在策略要读改动列表时（旧 `files: registered`，或档位 changed / full）才被调用，读不到时判定以 files-diff-unavailable 阻塞。 */
   readonly changedFiles?: () => Promise<ChangedFilesSource>
   /** 自任务起点以来改动的受保护测试配置（评审门步骤的人工确认判定用；读不到时判定以 files-diff-unavailable 阻塞）。 */
   readonly protectedChanges?: () => Promise<readonly ProtectedChange[]>
@@ -39,8 +39,12 @@ export async function projectTestEvidence(input: {
   readonly testUser?: string
   readonly diagnostics?: string[]
 }> {
-  const declared = input.plan.workflow.steps.filter((step) => (step.tests ?? []).length > 0 || step.test_policy !== undefined)
+  const declared = input.plan.workflow.steps.filter(stepDeclaresTests)
   if (declared.length === 0) return {}
+  // 档位的含义在项目目录的 levels，所以有档位的步骤才读目录（目录缺失或无效 = 缺省档位，与求值同口径）。
+  const catalog = declared.some((step) => step.test_policy === undefined && stepHasTestPolicy(step))
+    ? catalogOf(await loadCatalogInput(input.root))
+    : undefined
   const user = input.user
   const readCandidate = input.candidate
   const context = user === undefined
@@ -91,9 +95,9 @@ export async function projectTestEvidence(input: {
       }),
     }))
     if (items.length > 0) tests.push({ stepId: step.id, items })
-    if (report.policy !== undefined) policies.push(policyReportDto(report.policy, step.test_policy))
+    if (report.policy !== undefined) policies.push(policyReportDto(report.policy, resolveStepTestPolicy(step, catalog)))
   }
-  const hasPolicy = declared.some((step) => step.test_policy !== undefined)
+  const hasPolicy = declared.some(stepHasTestPolicy)
   const corrupt = user === undefined
     ? []
     : await corruptTestRunFiles(input.root, input.changeName, userSlug(user.id))

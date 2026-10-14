@@ -24,7 +24,7 @@ describe('ensurePipelineGitignore', () => {
     const entries = content.split('\n').filter((line) => line !== '' && !line.startsWith('#'))
     expect(entries).toEqual(['cache/', 'terminal-sessions/', 'codex-skill-receipts.jsonl'])
     // Shared configuration must stay tracked.
-    for (const shared of ['workflows/', 'tracks.yaml', 'hooks.json', 'loops.yaml']) expect(entries).not.toContain(shared)
+    for (const shared of ['workflows/', 'hooks.json', 'loops.yaml']) expect(entries).not.toContain(shared)
   })
 
   test('never overwrites an existing project-edited file', async () => {

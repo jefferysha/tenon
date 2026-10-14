@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { decodeSessionLinks, decodeTraceTimeline } from './auditDecoders'
-import { decodeHooksConfig, decodeRouterPreview } from './governanceDecoders'
+import { decodeHooksConfig } from './governanceDecoders'
 import { decodeLoopsSnapshot } from './loopDecoder'
 import { decodeSnapshot } from './snapshotDecoder'
 import { planBrief, verifyReport } from './testSystemFixtures'
@@ -337,49 +337,57 @@ describe('API bounded-context response decoders', () => {
     })).toBeNull()
   })
 
-  it('accepts an optional archived list and 未提交删除 count, and rejects malformed ones', () => {
-    const withArchived = validSnapshot()
-    const project = withArchived.projects[0] as Record<string, unknown>
-    const archivedChange = structuredClone(withArchived.projects[0]!.changes[0]!) as Record<string, unknown>
-    archivedChange.name = 'hidden'
-    archivedChange.archive = {
-      archivedAt: '2026-09-15T12:00:00.000Z',
-      phase: 'build',
-      actor: { id: 'a@x.io', name: 'A', trust: 'declared' },
-    }
-    project.archived = [archivedChange]
-    project.uncommittedDeletions = 2
-    const decoded = decodeSnapshot(withArchived)
-    expect(decoded?.projects[0]?.archived?.map((row) => row.name)).toEqual(['hidden'])
-    expect(decoded?.projects[0]?.archived?.[0]?.archive).toEqual({
-      archivedAt: '2026-09-15T12:00:00.000Z',
-      phase: 'build',
-      actor: { id: 'a@x.io', name: 'A', trust: 'declared' },
-    })
-    expect(decoded?.projects[0]?.uncommittedDeletions).toBe(2)
+  it('accepts an optional 未提交删除 count and rejects malformed ones', () => {
+    const withCount = validSnapshot()
+    ;(withCount.projects[0] as Record<string, unknown>).uncommittedDeletions = 2
+    expect(decodeSnapshot(withCount)?.projects[0]?.uncommittedDeletions).toBe(2)
 
     // Absence keeps an older server readable.
-    const legacy = validSnapshot()
-    expect(decodeSnapshot(legacy)?.projects[0]?.archived).toBeUndefined()
-    expect(decodeSnapshot(legacy)?.projects[0]?.uncommittedDeletions).toBeUndefined()
+    expect(decodeSnapshot(validSnapshot())?.projects[0]?.uncommittedDeletions).toBeUndefined()
 
-    for (const broken of [
-      { archived: {} },
-      { archived: [{ name: 'hidden' }] },
-      { uncommittedDeletions: -1 },
-      { uncommittedDeletions: 1.5 },
-      { uncommittedDeletions: '2' },
-    ]) {
+    for (const broken of [{ uncommittedDeletions: -1 }, { uncommittedDeletions: 1.5 }, { uncommittedDeletions: '2' }]) {
       const bad = validSnapshot()
       Object.assign(bad.projects[0] as Record<string, unknown>, broken)
       expect(decodeSnapshot(bad)).toBeNull()
     }
+  })
 
-    const missingActor = validSnapshot()
-    const row = structuredClone(archivedChange) as Record<string, unknown>
-    row.archive = { archivedAt: 'now', phase: 'build', actor: { id: 'a@x.io', name: 'A' } }
-    Object.assign(missingActor.projects[0] as Record<string, unknown>, { archived: [row] })
-    expect(decodeSnapshot(missingActor)).toBeNull()
+  it('decodes the ended-task list and its truncation total, and fails closed on a malformed row', () => {
+    const row = {
+      name: 'fix-a', workflow: 'default', track: 'lite', result: 'terminated', endedAt: '2026-10-11T08:00:00Z',
+      archivedDir: 'openspec/changes/archive/2026-10-11-fix-a', prUrl: 'https://example.test/pr/1', owner: 'Ann',
+    }
+    const good = validSnapshot()
+    Object.assign(good.projects[0] as Record<string, unknown>, { ended: [row, { ...row, name: 'old', result: 'unknown' }], endedTotal: 1500 })
+    const project = decodeSnapshot(good)?.projects[0]
+    expect(project?.ended?.map((task) => [task.name, task.result])).toEqual([['fix-a', 'terminated'], ['old', 'unknown']])
+    expect(project?.ended?.[0]).toEqual(row)
+    expect(project?.endedTotal).toBe(1500)
+
+    const plain = decodeSnapshot(validSnapshot())?.projects[0]
+    expect(plain?.ended).toBeUndefined()
+    expect(plain?.endedTotal).toBeUndefined()
+
+    for (const broken of [
+      { ended: {} },
+      { ended: [{ ...row, result: 'archived' }] },
+      { ended: [{ ...row, endedAt: 3 }] },
+      { ended: [{ ...row, archivedDir: undefined }] },
+      { ended: [{ ...row, extra: true }] },
+      { ended: [row], endedTotal: 0 },
+      { ended: [row], endedTotal: 1.5 },
+      { endedTotal: 5 },
+    ]) {
+      const bad = validSnapshot()
+      Object.assign(bad.projects[0] as Record<string, unknown>, broken)
+      expect(decodeSnapshot(bad), JSON.stringify(broken)).toBeNull()
+    }
+  })
+
+  it('no longer reads the per-viewer archived list the server stopped sending', () => {
+    const snapshot = validSnapshot()
+    Object.assign(snapshot.projects[0] as Record<string, unknown>, { archived: [{ name: 'hidden' }] })
+    expect(decodeSnapshot(snapshot)?.projects[0]).not.toHaveProperty('archived')
   })
 
   it('preserves strict repository identity while accepting a legacy project without it', () => {
@@ -493,24 +501,6 @@ describe('API bounded-context response decoders', () => {
     expect(decoded?.rows[0]?.ledger?.settled_tokens_actual).toBe(10)
     expect(decoded?.rows[0]?.graduation?.recommended).toBe('L3')
     expect(decoded?.rows[0]?.template_id).toBe('daily')
-  })
-
-  it('rejects a router preview whose nested track policy is incomplete', () => {
-    expect(decodeRouterPreview({
-      ok: true,
-      revision: '1',
-      source: 'project-file',
-      winner: null,
-      candidates: [{
-        track: { id: 'backend', label: 'Backend', builtin: true, workflow: { default: 'default', allowed: '*' } },
-        order: 0,
-        priority: 1,
-        score: 1,
-        routable: true,
-        excluded: false,
-      }],
-      suppressed_reason: null,
-    })).toBeNull()
   })
 
   it('rejects malformed session-link rows instead of partially trusting the envelope', () => {

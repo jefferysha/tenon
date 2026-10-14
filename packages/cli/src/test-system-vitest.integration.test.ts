@@ -161,31 +161,33 @@ describe('测试体系 v2 · vitest 工程', () => {
     expect(await tenon('transition', 'demo', 'spec-done'), err()).toBe(0)
   }, 120_000)
 
-  test('A2：build 新增测试文件不登记 → 挡；登记并运行、报告里出现该文件的用例才放行', async () => {
+  test('A2：旧策略 files: registered，build 新增测试文件不用登记 → 被 unit 的 glob 认领；运行并在报告里出现该文件的用例才放行', async () => {
     await project()
     await tenon('test', 'discover', '--write')
     await tenon('test', 'plan', 'demo', '--seed')
     await tenon('transition', 'demo', 'spec-done')
+    const planFile = join(cwd(), 'openspec', 'changes', 'demo', 'test-plan.yaml')
+    const planBefore = await readFile(planFile, 'utf8')
     await writeFile(join(cwd(), 'src', 'extra.test.ts'), PASSING_TEST('extra works'), 'utf8')
 
-    expect(await tenon('test', 'sync', 'demo')).toBe(2)
-    expect(out()).toContain('未登记  src/extra.test.ts')
-    expect(out()).toContain('tenon test register demo --file src/extra.test.ts --suite unit')
-    expect(await tenon('test', 'run', 'demo', '--suite', 'unit')).toBe(0)
+    // 认领只是信息：sync 干净（exit 0），不再有「未登记」。
+    expect(await tenon('test', 'sync', 'demo'), out()).toBe(0)
+    expect(out()).toContain('已认领  src/extra.test.ts')
+    expect(out()).not.toContain('未登记')
     let current = await status('build')
-    expect(codes(current.json)).toEqual(['test-file-unregistered'])
-    expect(current.json.policy?.files.unregistered.map((item) => item.path)).toEqual(['src/extra.test.ts'])
+    expect(codes(current.json)).toEqual(['test-not-run'])
+    expect(current.json.policy?.files.unregistered).toEqual([])
+    expect(current.json.policy?.files).toMatchObject({ checked: true, claimed: [{ path: 'src/extra.test.ts', suites: ['unit'] }] })
     expect(await tenon('transition', 'demo', 'build-done')).not.toBe(0)
 
-    expect(await tenon('test', 'register', 'demo', '--file', 'src/extra.test.ts'), err()).toBe(0)
-    current = await status('build')
-    expect(codes(current.json)).toEqual(['test-stale'])
     expect(await tenon('test', 'run', 'demo', '--stage', '--changed'), err()).toBe(0)
     const record = await lastRecord()
     expect(record.suites[0]).toMatchObject({ suite: 'unit', scope: 'changed', result: 'pass', selection: ['src/extra.test.ts'] })
     expect(record.suites[0]?.cases.map((item) => item.file)).toEqual(['src/extra.test.ts'])
     expect((await status('build')).code).toBe(0)
     expect(await tenon('test', 'sync', 'demo')).toBe(0)
+    // 认领在求值时现算，不写进计划：新增测试文件、运行之后计划文件逐字节不变。
+    expect(await readFile(planFile, 'utf8')).toBe(planBefore)
     expect(await tenon('transition', 'demo', 'build-done'), err()).toBe(0)
   }, 180_000)
 

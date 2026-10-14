@@ -1,5 +1,5 @@
 /**
- * 「自任务起点以来改动的文件」：全量登记强制（test_policy.files: registered）与 changed 范围选择读它，
+ * 「自任务起点以来改动的文件」：测试文件认领与运行集（档位 changed / full、旧 test_policy.files: registered）与 changed 范围选择读它，
  * CLI 与 server 快照共用同一份口径。
  *
  * 起点（任务开始时代码所在的提交）：先按 start_sha（提交时间不得晚于 created_at + 60 秒）、基线分支上游的 merge-base、
