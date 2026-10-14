@@ -206,26 +206,6 @@
     },
     {
       "subjectRef": {
-        "subject_id": "subject:change-simplify-test-settings-4890ea6ea9f6:72f7b9962b9ee335cdc13ac451708474",
-        "namespace": "change-simplify-test-settings-4890ea6ea9f6",
-        "version": "sha256:e6069a38099f363b58f56b0c1badb3f7d1dd584adf104879ff7a98f13833585b",
-        "projection": "document",
-        "content_digest": "sha256:e6069a38099f363b58f56b0c1badb3f7d1dd584adf104879ff7a98f13833585b",
-        "source": {
-          "path": "tasks.md",
-          "document_kind": "tasks"
-        }
-      },
-      "logicalKey": "document:tasks",
-      "projection": "document",
-      "path": "tasks.md",
-      "documentKind": "tasks",
-      "status": "committed",
-      "receiptId": "submission:change-simplify-test-settings-4890ea6ea9f6:document:9fd98c78c1d6b051ab64938608074984",
-      "recordedAt": "2026-10-13T18:50:29Z"
-    },
-    {
-      "subjectRef": {
         "subject_id": "subject:change-simplify-test-settings-4890ea6ea9f6:518dfb855bfb6ab851c330cd2285f28f",
         "namespace": "change-simplify-test-settings-4890ea6ea9f6",
         "version": "sha256:e32825c413fe13dce527416fa57822b99a57e2fc7f299828a281e3c85b5e5de2",
@@ -243,6 +223,46 @@
       "status": "committed",
       "receiptId": "submission:change-simplify-test-settings-4890ea6ea9f6:document:81e88e6e6b98d0cfeff42ce5ca67d3cd",
       "recordedAt": "2026-10-13T19:17:45Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-simplify-test-settings-4890ea6ea9f6:a66e5187f4bfc8cc81753709021d349b",
+        "namespace": "change-simplify-test-settings-4890ea6ea9f6",
+        "version": "sha256:b1a5a5adb4e02b4c38bad02031ac035869316fa8ed444198248e29d77403989e",
+        "projection": "document",
+        "content_digest": "sha256:b1a5a5adb4e02b4c38bad02031ac035869316fa8ed444198248e29d77403989e",
+        "source": {
+          "path": "applied-spec.md",
+          "document_kind": "applied-spec"
+        }
+      },
+      "logicalKey": "document:applied-spec",
+      "projection": "document",
+      "path": "applied-spec.md",
+      "documentKind": "applied-spec",
+      "status": "committed",
+      "receiptId": "submission:change-simplify-test-settings-4890ea6ea9f6:document:acf25d032273140b286226dcc01aa056",
+      "recordedAt": "2026-10-14T01:51:11Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-simplify-test-settings-4890ea6ea9f6:72f7b9962b9ee335cdc13ac451708474",
+        "namespace": "change-simplify-test-settings-4890ea6ea9f6",
+        "version": "sha256:620d1ba58c3a518fff04203c758a775c8f811229a427bdcc9fc1527060334b2a",
+        "projection": "document",
+        "content_digest": "sha256:620d1ba58c3a518fff04203c758a775c8f811229a427bdcc9fc1527060334b2a",
+        "source": {
+          "path": "tasks.md",
+          "document_kind": "tasks"
+        }
+      },
+      "logicalKey": "document:tasks",
+      "projection": "document",
+      "path": "tasks.md",
+      "documentKind": "tasks",
+      "status": "committed",
+      "receiptId": "submission:change-simplify-test-settings-4890ea6ea9f6:document:9fd98c78c1d6b051ab64938608074984",
+      "recordedAt": "2026-10-14T01:51:13Z"
     }
   ]
 }

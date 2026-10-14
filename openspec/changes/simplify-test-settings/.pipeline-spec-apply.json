@@ -1,7 +1,7 @@
 {
   "schema": "tenon-spec-apply-v1",
   "change": "simplify-test-settings",
-  "mode": "dry-run",
+  "mode": "apply",
   "result": "pass",
   "openspec_version": "1.6.0",
   "deltas": [
@@ -45,8 +45,8 @@
     },
     {
       "path": "openspec/specs/context-bundle-handoff/spec.md",
-      "before_sha256": "a0b4a1ca7f0f49b83491e46f028defe51926f3b448d474c51fefc269e811f0da",
-      "after_sha256": "a0b4a1ca7f0f49b83491e46f028defe51926f3b448d474c51fefc269e811f0da",
+      "before_sha256": "04f2ae3a0835f483ed2f9f512ea2cf6e7123332be631fb87d3fe56821823391e",
+      "after_sha256": "04f2ae3a0835f483ed2f9f512ea2cf6e7123332be631fb87d3fe56821823391e",
       "change": "no-op"
     },
     {
@@ -75,26 +75,26 @@
     },
     {
       "path": "openspec/specs/declarative-document-governance/spec.md",
-      "before_sha256": "8bbd3f5c608ddb66f58df15b40ef4c88f56f0c71c1d2645fb59f89dde546a61c",
-      "after_sha256": "8bbd3f5c608ddb66f58df15b40ef4c88f56f0c71c1d2645fb59f89dde546a61c",
+      "before_sha256": "fe6094cd2abb542d92f0e9c1cc04683c18c3bab463810ab1992732ed198cd17a",
+      "after_sha256": "fe6094cd2abb542d92f0e9c1cc04683c18c3bab463810ab1992732ed198cd17a",
       "change": "no-op"
     },
     {
       "path": "openspec/specs/document-evidence-contract/spec.md",
-      "before_sha256": "8f2a0daddbe77c168daab6c21fd9dbfea22e498140c13ace5cdbf7c22cbadd51",
-      "after_sha256": "8f2a0daddbe77c168daab6c21fd9dbfea22e498140c13ace5cdbf7c22cbadd51",
+      "before_sha256": "07d398f1f05b40c1d92b7646603dfa64a71863b80dbb1d93f12a6aa8e1cbd69d",
+      "after_sha256": "07d398f1f05b40c1d92b7646603dfa64a71863b80dbb1d93f12a6aa8e1cbd69d",
       "change": "no-op"
     },
     {
       "path": "openspec/specs/document-evidence-timeline/spec.md",
-      "before_sha256": "18cc09a337140716a8eb09f441835a58309180e27270a3bf050fb334fc98fd02",
-      "after_sha256": "18cc09a337140716a8eb09f441835a58309180e27270a3bf050fb334fc98fd02",
+      "before_sha256": "d939ebdec3392df9aaef15eefbbc9b1f4034675c58d6ed9ce5aa9fee4c524183",
+      "after_sha256": "d939ebdec3392df9aaef15eefbbc9b1f4034675c58d6ed9ce5aa9fee4c524183",
       "change": "no-op"
     },
     {
       "path": "openspec/specs/effective-workflow-plan/spec.md",
-      "before_sha256": "2b8e2044d407ab642427eed1280c44d3fee209083514220e2213bf89c4f8bb85",
-      "after_sha256": "2b8e2044d407ab642427eed1280c44d3fee209083514220e2213bf89c4f8bb85",
+      "before_sha256": "927931d840f8183d804d89aa8528f3a9c6d0d58b41fb80345d81fc3ebb544060",
+      "after_sha256": "927931d840f8183d804d89aa8528f3a9c6d0d58b41fb80345d81fc3ebb544060",
       "change": "no-op"
     },
     {
@@ -212,6 +212,12 @@
       "change": "no-op"
     },
     {
+      "path": "openspec/specs/step-output-lineage/spec.md",
+      "before_sha256": "b6fbaa6c211252e1b45b17786807103a2943122de5d26ac357c901833a506c58",
+      "after_sha256": "b6fbaa6c211252e1b45b17786807103a2943122de5d26ac357c901833a506c58",
+      "change": "no-op"
+    },
+    {
       "path": "openspec/specs/step-test-waiver/spec.md",
       "before_sha256": "ee281775788cdd745ec03326966dc1a0e319805c77e6773000cd6baf62f8a635",
       "after_sha256": "b97158ea2f47756a0fc5ab27887f843fd89c7884a612c7e5af1feee806023985",
@@ -279,8 +285,8 @@
     },
     {
       "path": "openspec/specs/workflow-definition/spec.md",
-      "before_sha256": "bd73a9af0e67b9b73997aec3faa2298e369b3d783f032a73d10274d8b6df21d9",
-      "after_sha256": "bd73a9af0e67b9b73997aec3faa2298e369b3d783f032a73d10274d8b6df21d9",
+      "before_sha256": "8228cc08c2da7daa1301aa45f930b5bd2e460ba295199146414a1dc6396a2517",
+      "after_sha256": "8228cc08c2da7daa1301aa45f930b5bd2e460ba295199146414a1dc6396a2517",
       "change": "no-op"
     },
     {
@@ -291,8 +297,8 @@
     },
     {
       "path": "openspec/specs/workflow-tracks/spec.md",
-      "before_sha256": "a51103436c8c61446f35dab127c06f6f552db645b12281d9dacbb0daaf5050c0",
-      "after_sha256": "a51103436c8c61446f35dab127c06f6f552db645b12281d9dacbb0daaf5050c0",
+      "before_sha256": "4f8b1a2366dc921ed293bcd7a18b726fc641790080f48507dc65b457ede9e2eb",
+      "after_sha256": "4f8b1a2366dc921ed293bcd7a18b726fc641790080f48507dc65b457ede9e2eb",
       "change": "no-op"
     },
     {
@@ -302,5 +308,5 @@
       "change": "changed"
     }
   ],
-  "at": "2026-10-13T11:11:17Z"
+  "at": "2026-10-14T01:50:54Z"
 }

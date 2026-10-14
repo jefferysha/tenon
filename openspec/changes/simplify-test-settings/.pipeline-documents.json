@@ -45,7 +45,7 @@
         {
           "phase": "ship",
           "sha256": "a57003a3473e6bcaf082b112cd9c1a15bec982d37d28a7a1064a49ef0b82becf",
-          "readAt": "2026-10-14T00:31:39Z",
+          "readAt": "2026-10-14T01:51:23Z",
           "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",19]"
         }
       ],
@@ -114,7 +114,7 @@
         {
           "phase": "ship",
           "sha256": "dd4e49b4ce199587222a3cc67b674d0b37e72bb29bd7378be5330b153c37ec87",
-          "readAt": "2026-10-14T00:31:39Z",
+          "readAt": "2026-10-14T01:51:23Z",
           "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",19]"
         }
       ],
@@ -183,7 +183,7 @@
         {
           "phase": "ship",
           "sha256": "aa69d3d6e50cdaed10ff89c370900095e10aed49a011af36985536bc58d5907d",
-          "readAt": "2026-10-14T00:31:39Z",
+          "readAt": "2026-10-14T01:51:23Z",
           "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",19]"
         }
       ],
@@ -252,7 +252,7 @@
         {
           "phase": "ship",
           "sha256": "d1aede553533d3628004beab008e8fedf3cad9be7d9365f5185e2d741582e017",
-          "readAt": "2026-10-14T00:31:39Z",
+          "readAt": "2026-10-14T01:51:23Z",
           "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",19]"
         }
       ],
@@ -321,7 +321,7 @@
         {
           "phase": "ship",
           "sha256": "78abf34ad6912ddb49e3b82cc4d7fd7925813e0a2a8894d375ff5dba6f1efe4f",
-          "readAt": "2026-10-14T00:31:39Z",
+          "readAt": "2026-10-14T01:51:23Z",
           "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",19]"
         }
       ],
@@ -420,7 +420,7 @@
         {
           "phase": "ship",
           "sha256": "45fb9b7844240b7aa905808096b0303fd44273db667acebef1dc3b2d241f5b8e",
-          "readAt": "2026-10-14T00:31:39Z",
+          "readAt": "2026-10-14T01:51:23Z",
           "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",19]"
         }
       ],
@@ -483,7 +483,7 @@
         {
           "phase": "ship",
           "sha256": "5d1bf3104f3b3e246d06d0fd0e86f2b6ebfdef5571729b6493f14cde3db368de",
-          "readAt": "2026-10-14T00:31:39Z",
+          "readAt": "2026-10-14T01:51:23Z",
           "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",19]"
         }
       ],
@@ -546,7 +546,7 @@
         {
           "phase": "ship",
           "sha256": "5d1bf3104f3b3e246d06d0fd0e86f2b6ebfdef5571729b6493f14cde3db368de",
-          "readAt": "2026-10-14T00:31:39Z",
+          "readAt": "2026-10-14T01:51:23Z",
           "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",19]"
         }
       ],
@@ -609,7 +609,7 @@
         {
           "phase": "ship",
           "sha256": "da6874e003f44010a023a86da6ee890a2789d004d506ec729d9439c3791d9d25",
-          "readAt": "2026-10-14T00:31:39Z",
+          "readAt": "2026-10-14T01:51:23Z",
           "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",19]"
         }
       ],
@@ -622,57 +622,6 @@
         "source": {
           "path": "openspec/changes/simplify-test-settings/specs/test-settings/spec.md",
           "document_kind": "delta-spec"
-        }
-      },
-      "actor": {
-        "id": "710227704@qq.com",
-        "name": "jefferySha",
-        "trust": "declared"
-      }
-    },
-    {
-      "kind": "tasks",
-      "path": "openspec/changes/simplify-test-settings/tasks.md",
-      "sha256": "e6069a38099f363b58f56b0c1badb3f7d1dd584adf104879ff7a98f13833585b",
-      "producer": "tenon",
-      "recordedAt": "2026-10-13T18:50:29Z",
-      "producerInvocation": {
-        "confirmationInvocationId": "invocation-6ecb3d9088cf9a8b8344908dadd7e05eb78c8e125d36121ed1fdcc805530b8e6",
-        "evidenceScope": "build",
-        "stepVisit": {
-          "runId": "c6279f4b-c76a-441d-8407-28a39aef3839",
-          "transitionSequence": 17
-        }
-      },
-      "reads": [
-        {
-          "phase": "build",
-          "sha256": "e6069a38099f363b58f56b0c1badb3f7d1dd584adf104879ff7a98f13833585b",
-          "readAt": "2026-10-13T18:50:42Z",
-          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",17]"
-        },
-        {
-          "phase": "verify",
-          "sha256": "e6069a38099f363b58f56b0c1badb3f7d1dd584adf104879ff7a98f13833585b",
-          "readAt": "2026-10-13T19:04:06Z",
-          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",18]"
-        },
-        {
-          "phase": "ship",
-          "sha256": "e6069a38099f363b58f56b0c1badb3f7d1dd584adf104879ff7a98f13833585b",
-          "readAt": "2026-10-14T00:31:39Z",
-          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",19]"
-        }
-      ],
-      "subjectRef": {
-        "subject_id": "subject:change-simplify-test-settings-4890ea6ea9f6:72f7b9962b9ee335cdc13ac451708474",
-        "namespace": "change-simplify-test-settings-4890ea6ea9f6",
-        "version": "sha256:e6069a38099f363b58f56b0c1badb3f7d1dd584adf104879ff7a98f13833585b",
-        "projection": "document",
-        "content_digest": "sha256:e6069a38099f363b58f56b0c1badb3f7d1dd584adf104879ff7a98f13833585b",
-        "source": {
-          "path": "openspec/changes/simplify-test-settings/tasks.md",
-          "document_kind": "tasks"
         }
       },
       "actor": {
@@ -699,7 +648,7 @@
         {
           "phase": "ship",
           "sha256": "e32825c413fe13dce527416fa57822b99a57e2fc7f299828a281e3c85b5e5de2",
-          "readAt": "2026-10-14T00:31:39Z",
+          "readAt": "2026-10-14T01:51:23Z",
           "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",19]"
         }
       ],
@@ -712,6 +661,77 @@
         "source": {
           "path": "docs/superpowers/reports/simplify-test-settings-verify.md",
           "document_kind": "verification-report"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "applied-spec",
+      "path": "openspec/changes/simplify-test-settings/applied-spec.md",
+      "sha256": "b1a5a5adb4e02b4c38bad02031ac035869316fa8ed444198248e29d77403989e",
+      "producer": "tenon",
+      "recordedAt": "2026-10-14T01:51:11Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-dec1ea5f916baacff2d720837fb8a8f70f532a7f726a3d7019d2d9718b36c334",
+        "evidenceScope": "ship",
+        "stepVisit": {
+          "runId": "c6279f4b-c76a-441d-8407-28a39aef3839",
+          "transitionSequence": 19
+        }
+      },
+      "reads": [],
+      "subjectRef": {
+        "subject_id": "subject:change-simplify-test-settings-4890ea6ea9f6:a66e5187f4bfc8cc81753709021d349b",
+        "namespace": "change-simplify-test-settings-4890ea6ea9f6",
+        "version": "sha256:b1a5a5adb4e02b4c38bad02031ac035869316fa8ed444198248e29d77403989e",
+        "projection": "document",
+        "content_digest": "sha256:b1a5a5adb4e02b4c38bad02031ac035869316fa8ed444198248e29d77403989e",
+        "source": {
+          "path": "openspec/changes/simplify-test-settings/applied-spec.md",
+          "document_kind": "applied-spec"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "tasks",
+      "path": "openspec/changes/simplify-test-settings/tasks.md",
+      "sha256": "620d1ba58c3a518fff04203c758a775c8f811229a427bdcc9fc1527060334b2a",
+      "producer": "tenon",
+      "recordedAt": "2026-10-14T01:51:13Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-dec1ea5f916baacff2d720837fb8a8f70f532a7f726a3d7019d2d9718b36c334",
+        "evidenceScope": "ship",
+        "stepVisit": {
+          "runId": "c6279f4b-c76a-441d-8407-28a39aef3839",
+          "transitionSequence": 19
+        }
+      },
+      "reads": [
+        {
+          "phase": "ship",
+          "sha256": "620d1ba58c3a518fff04203c758a775c8f811229a427bdcc9fc1527060334b2a",
+          "readAt": "2026-10-14T01:51:23Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",19]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-simplify-test-settings-4890ea6ea9f6:72f7b9962b9ee335cdc13ac451708474",
+        "namespace": "change-simplify-test-settings-4890ea6ea9f6",
+        "version": "sha256:620d1ba58c3a518fff04203c758a775c8f811229a427bdcc9fc1527060334b2a",
+        "projection": "document",
+        "content_digest": "sha256:620d1ba58c3a518fff04203c758a775c8f811229a427bdcc9fc1527060334b2a",
+        "source": {
+          "path": "openspec/changes/simplify-test-settings/tasks.md",
+          "document_kind": "tasks"
         }
       },
       "actor": {

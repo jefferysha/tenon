@@ -59,7 +59,7 @@
 
 ## 交付
 
-- [ ] 提交交付物并开 PR，`gh pr checks` 全绿。 (ship)
+- [x] 提交交付物并开 PR，`gh pr checks` 全绿。 (ship)
 
 ## 完结
 
