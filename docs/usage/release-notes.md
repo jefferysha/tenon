@@ -198,8 +198,8 @@ before you upgrade a project.
 
 ### Development
 
-- Trellis is removed from Tenon's own repository: its project hooks used relative paths from a gitignored directory, so
-  they failed inside git worktrees and blocked prompts. Nothing changes for users.
+- An external task tool used only in Tenon's own repository is removed: its project hooks used relative paths from a
+  gitignored directory, so they failed inside git worktrees and blocked prompts. Nothing changes for users.
 - A test or script that runs `tenon init` in a temporary git repository and expects the task in that directory must
   export `TENON_INIT_IN_PLACE=1`, and a fixture that must not touch the host configuration must unset
   `CLAUDE_CONFIG_DIR` and `CODEX_HOME`: the user-level subagents and `AGENTS.md` resolve from them. The vitest global

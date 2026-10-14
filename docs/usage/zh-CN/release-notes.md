@@ -71,7 +71,7 @@ v0.3.4 让任务的 agent 更可靠，也让同一仓库里的多个任务可以
 
 ### 开发
 
-- Trellis 已从 Tenon 自己的仓库删除：它的项目 hook 用相对路径指向被 git 忽略的目录，在 git worktree 里会失败并拦住提示。对用户没有影响。
+- Tenon 自己的仓库删除了一个只在本仓库使用的外部任务工具：它的项目 hook 用相对路径指向被 git 忽略的目录，在 git worktree 里会失败并拦住提示。对用户没有影响。
 - 在临时 git 仓库里执行 `tenon init` 并期望任务建在该目录的测试或脚本，必须导出 `TENON_INIT_IN_PLACE=1`；不能碰宿主配置的夹具要去掉 `CLAUDE_CONFIG_DIR` 和 `CODEX_HOME`：用户级子代理与 `AGENTS.md` 都据它们解析。本仓库的 vitest 全局 setup 与 shell 测试脚本两件事都做了。
 - 本仓库的 `.tenon/tests/catalog.yaml` 声明了 `setup: npm ci && npm run build:packages`。
 
