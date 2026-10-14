@@ -205,9 +205,10 @@ const COMPANION_FIELD_SET: ReadonlySet<string> = new Set(COMPANION_BACKED_FIELDS
 /**
  * Canonical revision / TransitionRecord 的 wire effects 必须保持 N-1 字段闭包。
  *
- * `pre_verify_review_result` 与 `review_acknowledged_via` 是新版逻辑 canonical 状态，但物理值由
- * revision-bound companion record 承载；旧 runtime 不认识这两个字段。它们的变化由 companion
- * revision 链审计，不能再重复写入旧版会拒绝的 mutation/transition effects。
+ * `pre_verify_review_result`、`review_acknowledged_via` 与 `start_sha` 是新版逻辑 canonical 状态，
+ * 但物理值由 revision-bound companion record 承载；旧 runtime 不认识这些字段。它们的变化由
+ * companion revision 链审计，不能再重复写入旧版会拒绝的 mutation/transition effects。
+ * （旧 runtime 续写一个 revision 后 `start_sha` 读作空串，这一变化同样只是 companion 缺失，不是 effect。）
  */
 export function diffWireFieldsToEffects(
   before: Record<FieldName, string | string[]>,

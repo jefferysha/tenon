@@ -112,6 +112,11 @@ export interface TestCatalog {
   readonly profile?: MachineProfileMode
   /** 参与机器画像的环境变量名。 */
   readonly profiles_env: readonly string[]
+  /**
+   * 新 worktree 的工作区准备命令（如 `npm ci`）：`tenon init` 建好 worktree 后在其中执行，前提是目录在该 worktree 里受信任。
+   * 纳入可执行摘要；没有声明时省略（可执行摘要与引入该字段之前的旧目录逐字相同）。
+   */
+  readonly setup?: string
   readonly suites: readonly CatalogSuite[]
   readonly services: readonly CatalogService[]
   /** 项目级不适用声明；没有声明时省略（目录摘要与旧目录逐字相同）。 */

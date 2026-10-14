@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from 'vitest'
+import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -26,6 +27,8 @@ import type { RuntimeInstaller } from '../runtime/installer.js'
 import type { ReleasedDashboardStarter } from './dashboard.js'
 import type { TrustedExecutable } from './trusted-executable.js'
 import type { StableReleaseTarget } from './stable-release.js'
+
+const REPO_ROOT = join(import.meta.dirname, '..', '..', '..', '..')
 
 interface Calls {
   readonly exec: Array<readonly [string, readonly string[]]>
@@ -989,6 +992,8 @@ describe('tenon update', () => {
       ['git', '-C /new/tenon ls-files --others --exclude-standard'],
       ['codex', 'plugin list --json'],
       ['git', '-C /new/tenon remote get-url origin'],
+      // 宿主、runtime、Dashboard 零变更；唯一的后续动作是幂等的子代理安装（经稳定启动器）。
+      ['/home/update-test/.local/bin/tenon', 'agent install --host codex'],
     ])
     expect(runtime.calls.activations).toEqual([])
     expect(dashboard.calls.starts).toEqual([])
@@ -2183,4 +2188,221 @@ describe('upstream skills in native update', () => {
     expect(runtime.calls.reverts).toEqual([])
     expect(deps.errLines.join('\n')).toContain('skills/sources.yaml')
   })
+})
+
+describe('tenon update 成功后安装宿主子代理', () => {
+  const LAUNCHER = '/home/update-test/.local/bin/tenon'
+  const installCalls = (calls: Calls) => calls.exec.filter(([cmd]) => cmd === LAUNCHER)
+
+  /** 宿主、managed runtime、Dashboard 都已精确就绪：update 走「已是最新版」出口。 */
+  function exactCurrent() {
+    const activeRelease = `sha256-${'c'.repeat(64)}`
+    const { env, calls } = exactStableHostEnv()
+    const runtime = fakeRuntimeInstaller(false, activeRelease, activeRelease, STABLE_TARGET.version, STABLE_TARGET)
+    const dashboard = fakeDashboardStarter([], activeRelease)
+    const run = (opts: { codex?: boolean; auto?: boolean } = {}, deps = makeDeps()) => cmdUpdate(
+      deps,
+      { codex: true, ...opts },
+      env,
+      runtime.installer,
+      dashboard.starter,
+      STABLE_RESOLVER,
+      async () => ({ pluginVersion: STABLE_TARGET.version, payloadDigest: 'c'.repeat(64) }),
+    ).then((code) => ({ code, deps }))
+    return { env, calls, run }
+  }
+
+  test('已是最新版出口：经稳定启动器执行 agent install --host codex，输出子进程结果，exit 仍为 0', async () => {
+    const { env, calls, run } = exactCurrent()
+    const runCommand = env.runCommand
+    env.runCommand = (cmd, args, options) => cmd === LAUNCHER
+      ? (calls.exec.push([cmd, args]), { code: 0, stdout: '[AGENT] 已写入 /home/x/.codex/agents/tenon-builder.toml\n', stderr: '' })
+      : runCommand(cmd, args, options)
+
+    const { code, deps } = await run()
+
+    expect(code).toBe(0)
+    expect(deps.outLines.join('\n')).toContain('无需更新')
+    expect(installCalls(calls)).toEqual([[LAUNCHER, ['agent', 'install', '--host', 'codex']]])
+    expect(deps.outLines.join('\n')).toContain('已写入 /home/x/.codex/agents/tenon-builder.toml')
+  })
+
+  test('发布新版本出口（Claude）：激活后执行 agent install --host claude', async () => {
+    const deps = makeDeps()
+    const { env, calls } = updateEnv((cmd, args) => {
+      if (cmd === 'claude' && args.join(' ') === 'plugin list --json') {
+        return { code: 0, stdout: '[{"id":"tenon@tenon","version":"1.2.3","installPath":"/new/tenon"}]', stderr: '' }
+      }
+      return { code: 0, stdout: '', stderr: '' }
+    })
+    requireVersionedHostRebind(env, calls, 'claude')
+    const runtime = fakeRuntimeInstaller()
+
+    expect(await cmdUpdate(deps, { claude: true }, env, runtime.installer, fakeDashboardStarter().starter, STABLE_RESOLVER)).toBe(0)
+
+    expect(runtime.calls.activations).toHaveLength(1)
+    expect(installCalls(calls)).toEqual([[LAUNCHER, ['agent', 'install', '--host', 'claude']]])
+    // 在 runtime 激活（宿主命令都跑完）之后才装：启动器此时指向新版本
+    const installAt = calls.exec.findIndex(([cmd]) => cmd === LAUNCHER)
+    const lastHostCommand = calls.exec.map(([cmd, args]) => cmd === 'claude' && args[0] === 'plugin').lastIndexOf(true)
+    expect(installAt).toBeGreaterThan(lastHostCommand)
+  })
+
+  test('收敛恢复出口（等待新宿主会话，--auto）：同样安装，且 --auto 不打印子进程输出', async () => {
+    const deps = makeDeps()
+    const releaseId = `sha256-${'b'.repeat(64)}`
+    const paths = resolveRuntimePaths({ homeDir: '/home/update-test', env: {} })
+    const receiptPath = join(paths.migrationsRoot, 'host-plugin-convergence', 'codex.json')
+    const { env, calls } = updateEnv((cmd, args) => {
+      if (cmd === LAUNCHER) return { code: 0, stdout: '[AGENT] 未变化 /home/x/.codex/agents/tenon-builder.toml\n', stderr: '' }
+      return cmd === 'codex' && args.join(' ') === 'plugin list --json'
+        ? { code: 0, stdout: CODEX_INVENTORY, stderr: '' }
+        : { code: 0, stdout: '', stderr: '' }
+    })
+    const baseReadText = env.readText
+    env.readText = (path) => path === receiptPath
+      ? JSON.stringify({
+          version: 3,
+          transactionId: 'recovery-transaction',
+          state: 'cleanup-pending',
+          host: 'codex',
+          conflictPluginId: 'pipeline-lite@pipeline-lite',
+          conflictScopes: ['user'],
+          releaseId,
+          releaseRoot: `/runtime/releases/${releaseId}/payload`,
+          candidateRoot: '/new/tenon',
+          createdAtEpoch: 1_700_000_000,
+          updatedAt: '2026-07-26T00:00:00Z',
+        })
+      : baseReadText(path)
+
+    expect(await cmdUpdate(
+      deps,
+      { codex: true, auto: true },
+      env,
+      fakeRuntimeInstaller(false, null, releaseId, STABLE_TARGET.version).installer,
+      fakeDashboardStarter([], releaseId, STABLE_TARGET.version).starter,
+      STABLE_RESOLVER,
+      async () => ({ pluginVersion: STABLE_TARGET.version, payloadDigest: 'b'.repeat(64) }),
+    )).toBe(0)
+
+    expect(deps.outLines.join('\n')).toContain('等待新宿主会话')
+    expect(installCalls(calls)).toEqual([[LAUNCHER, ['agent', 'install', '--host', 'codex']]])
+    expect(deps.outLines.join('\n')).not.toContain('[AGENT]')
+  })
+
+  test('update 失败（候选未通过校验）：不执行 agent install', async () => {
+    const deps = makeDeps()
+    const { env, calls } = updateEnv((cmd, args) => {
+      if (cmd === 'codex' && args.join(' ') === 'plugin list --json') return { code: 0, stdout: CODEX_INVENTORY, stderr: '' }
+      if (cmd === 'bash') return { code: 1, stdout: '', stderr: 'missing packaged skill' }
+      return { code: 0, stdout: '', stderr: '' }
+    })
+
+    expect(await cmdUpdate(deps, { codex: true }, env, fakeRuntimeInstaller().installer, undefined, STABLE_RESOLVER)).toBe(1)
+    expect(installCalls(calls)).toEqual([])
+  })
+
+  test('--dry-run 与被拒绝的降级：不执行 agent install', async () => {
+    const dry = updateEnv(() => ({ code: 0, stdout: '', stderr: '' }))
+    expect(cmdUpdate(makeDeps(), { codex: true, dryRun: true }, dry.env)).toBe(0)
+    expect(installCalls(dry.calls)).toEqual([])
+
+    const newerInventory = JSON.stringify({
+      installed: [{ pluginId: 'tenon@tenon', name: 'tenon', marketplaceName: 'tenon', version: '2.0.0', source: { path: '/new/tenon' } }],
+    })
+    const downgrade = updateEnv((cmd, args) => cmd === 'codex' && args.join(' ') === 'plugin list --json'
+      ? { code: 0, stdout: newerInventory, stderr: '' }
+      : { code: 0, stdout: '', stderr: '' })
+    expect(await cmdUpdate(makeDeps(), { codex: true }, downgrade.env, fakeRuntimeInstaller().installer, fakeDashboardStarter().starter, STABLE_RESOLVER)).toBe(1)
+    expect(installCalls(downgrade.calls)).toEqual([])
+  })
+
+  test('安装失败只 WARN：update 退出码不变，并给出手动重试命令', async () => {
+    const { env, run } = exactCurrent()
+    const runCommand = env.runCommand
+    env.runCommand = (cmd, args, options) => cmd === LAUNCHER
+      ? { code: 1, stdout: '', stderr: 'tenon: command not found' }
+      : runCommand(cmd, args, options)
+
+    const { code, deps } = await run()
+
+    expect(code).toBe(0)
+    expect(deps.errLines.join('\n')).toContain('WARN: 宿主子代理安装失败')
+    expect(deps.errLines.join('\n')).toContain('tenon: command not found')
+    expect(deps.errLines.join('\n')).toContain('tenon agent install --host codex')
+  })
+
+  test('启动器调用抛错同样只 WARN', async () => {
+    const { env, run } = exactCurrent()
+    const runCommand = env.runCommand
+    env.runCommand = (cmd, args, options) => {
+      if (cmd === LAUNCHER) throw new Error('spawn EACCES')
+      return runCommand(cmd, args, options)
+    }
+
+    const { code, deps } = await run()
+
+    expect(code).toBe(0)
+    expect(deps.errLines.join('\n')).toContain('spawn EACCES')
+  })
+
+  test('集成：已是最新版 + 临时 HOME，真子进程执行 CLI 后 ~/.claude/agents/tenon-builder.md 存在', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'tenon-update-agents-'))
+    try {
+      const activeRelease = `sha256-${'c'.repeat(64)}`
+      const { env, calls } = updateEnv((cmd, args) => {
+        const text = `${cmd} ${args.join(' ')}`
+        if (text === 'claude plugin list --json') {
+          return { code: 0, stdout: '[{"id":"tenon@tenon","version":"1.2.3","installPath":"/new/tenon"}]', stderr: '' }
+        }
+        if (/^git -C \/new\/(?:marketplace|tenon) rev-parse HEAD$/.test(text)) {
+          return { code: 0, stdout: `${STABLE_TARGET.commit}\n`, stderr: '' }
+        }
+        return { code: 0, stdout: '', stderr: '' }
+      })
+      const runtime = fakeRuntimeInstaller(false, activeRelease, activeRelease, STABLE_TARGET.version, STABLE_TARGET)
+      const inspect = runtime.installer.inspect
+      runtime.installer.inspect = async (scope) => {
+        const state = await inspect(scope)
+        return state.active === null
+          ? state
+          : { ...state, active: { ...state.active, source: { ...state.active.source, host: 'claude' } } }
+      }
+      const runCommand = env.runCommand
+      let spawned: ReturnType<typeof spawnSync> | undefined
+      env.runCommand = (cmd, args, options) => {
+        if (cmd !== LAUNCHER) return runCommand(cmd, args, options)
+        calls.exec.push([cmd, args])
+        // 启动器 = 新版本 CLI；测试里用源码入口代替，HOME 与产品 home 都指向临时目录。
+        spawned = spawnSync(
+          join(REPO_ROOT, 'node_modules', '.bin', 'vite-node'),
+          ['--root', REPO_ROOT, join(REPO_ROOT, 'packages', 'cli', 'src', 'main.ts'), '--', ...args],
+          {
+            cwd: home,
+            encoding: 'utf8',
+            env: { PATH: process.env.PATH ?? '', HOME: home, TENON_RUNTIME_HOME: join(home, 'runtime'), TENON_LANG: 'zh' },
+          },
+        )
+        return { code: spawned.status ?? 1, stdout: String(spawned.stdout), stderr: String(spawned.stderr) }
+      }
+      const deps = makeDeps()
+
+      expect(await cmdUpdate(
+        deps,
+        { claude: true },
+        env,
+        runtime.installer,
+        fakeDashboardStarter([], activeRelease).starter,
+        STABLE_RESOLVER,
+        async () => ({ pluginVersion: STABLE_TARGET.version, payloadDigest: 'c'.repeat(64) }),
+      ), deps.errLines.join('\n')).toBe(0)
+
+      expect(deps.outLines.join('\n')).toContain('无需更新')
+      expect(spawned?.status, String(spawned?.stderr)).toBe(0)
+      expect(existsSync(join(home, '.claude', 'agents', 'tenon-builder.md'))).toBe(true)
+    } finally {
+      rmSync(home, { recursive: true, force: true })
+    }
+  }, 60_000)
 })

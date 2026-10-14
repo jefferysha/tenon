@@ -7,6 +7,7 @@ import type { AutomationPolicySnapshot } from './loops/automation-policy.js'
 import type { WorkflowPlanSnapshot } from './workflow/effective-plan.js'
 import { PRE_VERIFY_REVIEW_FIELD } from './review-gate-fields.js'
 import type { RecordActor } from './users/user.js'
+import type { InitStartOptions } from './workspace/change-start.js'
 export {
   COMPANION_BACKED_FIELDS,
   PRE_VERIFY_REVIEW_DEFAULT,
@@ -53,6 +54,7 @@ export const FIELD_ORDER = [
   'review_acknowledged_via',
   // 任务级验证轮次上限覆盖（1–20）。严格末尾追加；值为空时不进 wire 与 YAML 投影（state/omit-when-empty-fields.ts）。
   'max_rounds',
+  'start_sha', // 任务起点（建任务时的 HEAD）：末尾追加的逻辑字段，物理值在伴随文件（state/start-sha-store.ts），不进 wire 与 YAML 投影；tenon set|set-many|cas 拒写
 ] as const
 export type FieldName = (typeof FIELD_ORDER)[number]
 
@@ -199,7 +201,7 @@ export interface PipelineState {
   opaqueTail: string
 }
 
-export interface InitOptions {
+export interface InitOptions extends InitStartOptions {
   repoRoot: string
   name: string
   /** registry 已校验的 track id（合法性由调用方经 requireTrack 保证；store.init 只负责落盘，不再收窄闭集）。 */

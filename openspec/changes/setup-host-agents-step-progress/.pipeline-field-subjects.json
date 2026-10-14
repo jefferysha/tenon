@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "contract": "field-subjects-v1",
+  "createdAt": "2026-10-07T10:19:11Z",
+  "records": [
+    {
+      "field": "design_doc",
+      "valueDigest": "sha256:5db523f8b5cc3dec5a5dc474031d5a4ecc73c0f5fad3954fe9e6fd5cd7e5220b",
+      "subjectRef": {
+        "subject_id": "subject:change-setup-host-agents-step-progress-0e9cdb86801b:7add26d459a93c26d7789c5a98e01ad7",
+        "namespace": "change-setup-host-agents-step-progress-0e9cdb86801b",
+        "version": "sha256:5db523f8b5cc3dec5a5dc474031d5a4ecc73c0f5fad3954fe9e6fd5cd7e5220b",
+        "projection": "field",
+        "content_digest": "sha256:5db523f8b5cc3dec5a5dc474031d5a4ecc73c0f5fad3954fe9e6fd5cd7e5220b",
+        "source": {
+          "field": "design_doc",
+          "path": "docs/superpowers/specs/setup-host-agents-step-progress-design.md"
+        }
+      },
+      "recordedAt": "2026-10-07T10:19:11Z",
+      "producer": "brainstorming",
+      "sourcePath": "docs/superpowers/specs/setup-host-agents-step-progress-design.md",
+      "pathStatus": "resolved"
+    },
+    {
+      "field": "plan",
+      "valueDigest": "sha256:2626f4e1ac754eb0c92da7d8a2a85cf9beb38f2d96ce29c146c903fdc7d2ef95",
+      "subjectRef": {
+        "subject_id": "subject:change-setup-host-agents-step-progress-0e9cdb86801b:058b9b53ef8a135e862b4a13111b5f86",
+        "namespace": "change-setup-host-agents-step-progress-0e9cdb86801b",
+        "version": "sha256:2626f4e1ac754eb0c92da7d8a2a85cf9beb38f2d96ce29c146c903fdc7d2ef95",
+        "projection": "field",
+        "content_digest": "sha256:2626f4e1ac754eb0c92da7d8a2a85cf9beb38f2d96ce29c146c903fdc7d2ef95",
+        "source": {
+          "field": "plan",
+          "path": "docs/superpowers/plans/setup-host-agents-step-progress.md"
+        }
+      },
+      "recordedAt": "2026-10-07T10:26:00Z",
+      "producer": "writing-plans",
+      "sourcePath": "docs/superpowers/plans/setup-host-agents-step-progress.md",
+      "pathStatus": "resolved"
+    },
+    {
+      "field": "verification_report",
+      "valueDigest": "sha256:03b4ba74d48cbbcd9ccf369881b2aa4456edf7b3d5b3f2024d209c8527348d98",
+      "subjectRef": {
+        "subject_id": "subject:change-setup-host-agents-step-progress-0e9cdb86801b:762929075baef44daec04567a71404e5",
+        "namespace": "change-setup-host-agents-step-progress-0e9cdb86801b",
+        "version": "sha256:03b4ba74d48cbbcd9ccf369881b2aa4456edf7b3d5b3f2024d209c8527348d98",
+        "projection": "field",
+        "content_digest": "sha256:03b4ba74d48cbbcd9ccf369881b2aa4456edf7b3d5b3f2024d209c8527348d98",
+        "source": {
+          "field": "verification_report",
+          "path": "docs/superpowers/reports/setup-host-agents-step-progress-verify.md"
+        }
+      },
+      "recordedAt": "2026-10-11T08:32:47Z",
+      "producer": "verification-before-completion",
+      "sourcePath": "docs/superpowers/reports/setup-host-agents-step-progress-verify.md",
+      "pathStatus": "resolved"
+    }
+  ]
+}

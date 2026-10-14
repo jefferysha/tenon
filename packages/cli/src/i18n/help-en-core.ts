@@ -9,11 +9,13 @@ const ADAPTER_REDEPLOY = (name: string): string => `Redeploy the ${name} adapter
 export const HELP_EN_CORE: Readonly<Record<string, string>> = {
   tenon: 'Tenon state machine CLI (CONTRACT §3)',
   '--version': 'Print the Tenon version',
-  init: 'Initialize a change (stdout stays empty; path details go to stderr)',
+  init: 'Initialize a change (in the main checkout of a git repository it is created in its own worktree under .worktrees/<name>; stdout stays empty; path details go to stderr)',
   'init --track': 'chat | simple | pm | frontend | backend | free | custom',
   'init --preset': 'full | hotfix | tweak (required for the default workflow; may be omitted with an explicit --workflow)',
   'init --workflow': 'custom workflow name (.pipeline/workflows/<name>.yaml); default when omitted',
   'init --document-locale': 'governed document language: zh-CN (default) | en',
+  'init --in-place': 'initialize in place without creating a task worktree (only when the user explicitly asks)',
+  'init --json': 'print one JSON line on stdout: change, path, worktree (absolute path or null), worktree_reason',
 
   setup: 'Install the full Tenon: you must pick one host (for example --codex); Codex and Claude are never modified together',
   'setup --codex': 'Install/verify the Codex native plugin',

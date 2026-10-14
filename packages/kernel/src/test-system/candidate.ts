@@ -120,8 +120,9 @@ export async function declaredTestOutputs(repoRoot: string): Promise<readonly st
 }
 
 /**
- * 同一棵树的两个指纹（`WorkspaceFingerprints`）的对照表：完整指纹 → 可移植指纹。完整指纹相同 = 内容相同；可移植指纹还取决于
- * git 是否跟踪宿主本地路径（`git add` 不改内容、只改它），所以每次 `candidateFingerprint` 重算都会刷新对应的表项，
+ * 同一棵树的两个指纹（`WorkspaceFingerprints`）的对照表：完整指纹 → 可移植指纹。完整指纹相同 = 它计入的内容相同（未被 git 跟踪的
+ * `.claude/worktrees/` 两个指纹都不计）；两个指纹都还取决于 git 是否跟踪宿主本地路径（`git add` 不改内容、却能改它们），
+ * 所以每次 `candidateFingerprint` 重算都会刷新对应的表项，
  * 表项最长的陈旧窗口就是宿主缓存候选的时间（Dashboard 的 TTL）。只是缓存，缺了就按需重算。进程内、有界、先进先出。
  */
 const TWINS = new Map<string, string>()
@@ -143,8 +144,9 @@ async function candidateTwins(repoRoot: string): Promise<WorkspaceFingerprints> 
 }
 
 /**
- * 候选代码指纹（生产口径，完整版）：只忽略项目声明的测试产物路径，宿主本地文件照算——评审结论、构建基线冻结的是它，
- * 0.3.0 及更早版本写进测试记录的也是它。测试记录与 `tenon verify --ci` 改用可移植版（`portableCandidate`）。
+ * 候选代码指纹（生产口径，完整版）：只忽略项目声明的测试产物路径与未被 git 跟踪的 `.claude/worktrees/`（同仓库其它会话的检出），
+ * 宿主本地文件照算——评审结论、构建基线冻结的是它，0.3.0 及更早版本写进测试记录的也是它（树里没有那个目录时逐位相同）。
+ * 测试记录与 `tenon verify --ci` 改用可移植版（`portableCandidate`）。
  */
 export async function candidateFingerprint(repoRoot: string): Promise<string> {
   return (await candidateTwins(repoRoot)).full

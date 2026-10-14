@@ -158,7 +158,7 @@ export async function cmdCheck(deps: CliDeps, name: string, opts: CheckOpts = {}
     documents = await governedDocumentEvidence(deps, dir, state, plan.capabilities.documents.policy)
     tests = await stepTestBlockers(deps, name, dir, state, plan, { releasePendingWaivers: opts.releasePendingWaivers === true })
     agents = await stepAgentLines(deps, name, dir, state, plan, opts.event, { releaseFailedReviewers: opts.releaseFailedReviewers })
-    skills = await stepSkillLines(deps, dir, state, plan)
+    skills = await stepSkillLines(deps, dir, state, plan, opts.event)
   } catch (e) {
     deps.io.err(`ERROR: ${errMsg(e)}`)
     return 1
@@ -269,7 +269,7 @@ async function checkGraphWorkflow(
     documents = await governedDocumentEvidence(deps, dir, state, plan.capabilities.documents.policy)
     tests = await stepTestBlockers(deps, name, dir, state, plan, { releasePendingWaivers })
     agents = await stepAgentLines(deps, name, dir, state, plan, event, { releaseFailedReviewers: opts.releaseFailedReviewers })
-    skills = await stepSkillLines(deps, dir, state, plan)
+    skills = await stepSkillLines(deps, dir, state, plan, event)
   } catch (e) {
     deps.io.err(`ERROR: ${errMsg(e)}`)
     return 1

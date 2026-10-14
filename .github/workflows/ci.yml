@@ -262,7 +262,8 @@ jobs:
         run: |
           set -euo pipefail
           tenon() { node packages/cli/dist/tenon.mjs "$@"; }
-          tenon init ci-bench --track backend --preset full
+          # 后续命令都在这个 checkout 的根目录执行：任务原地建立，不另建任务 worktree。
+          tenon init ci-bench --track backend --preset full --in-place
           tenon test register ci-bench --suite bench-status
           tenon test register ci-bench --suite bench-snapshot
           tenon test register ci-bench --suite bench-snapshot-large

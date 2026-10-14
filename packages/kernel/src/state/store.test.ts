@@ -444,6 +444,42 @@ pre_verify_review_result: pending
     expect(await store.get(dir, 'base_branch')).toBe('main')
   })
 
+  it('startSha / baseBranch / isolation 随 init 一次写入；baseBranch 覆盖 .git/HEAD 的探测', async () => {
+    await mkdir(path.join(repoRoot, '.git'), { recursive: true })
+    await writeFile(path.join(repoRoot, '.git', 'HEAD'), 'ref: refs/heads/tenon/demo\n')
+    const sha = '0123456789abcdef0123456789abcdef01234567'
+    const dir = await store.init({
+      repoRoot, name: 'sp1', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock: CLOCK,
+      startSha: sha, baseBranch: 'main', isolation: 'worktree',
+    })
+    expect(await store.get(dir, 'start_sha')).toBe(sha)
+    expect(await store.get(dir, 'base_branch')).toBe('main')
+    expect(await store.get(dir, 'isolation')).toBe('worktree')
+    // 物理值在伴随文件里；YAML 投影与 wire 保持上一正式版认得的字段闭集。
+    expect(await readFile(path.join(dir, '.pipeline.yaml'), 'utf8')).not.toContain('start_sha')
+    expect(await readdir(path.join(dir, '.pipeline-run', 'start-sha'))).toHaveLength(1)
+  })
+
+  it('不传 startSha / baseBranch / isolation：start_sha 不出现在投影里，base_branch 仍探测，isolation 仍是 null', async () => {
+    await mkdir(path.join(repoRoot, '.git'), { recursive: true })
+    await writeFile(path.join(repoRoot, '.git', 'HEAD'), 'ref: refs/heads/feat/wave1\n')
+    const dir = await store.init({ repoRoot, name: 'sp2', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock: CLOCK })
+    expect(await readFile(path.join(dir, '.pipeline.yaml'), 'utf8')).not.toContain('start_sha')
+    expect(await store.get(dir, 'start_sha')).toBe('')
+    expect(await store.get(dir, 'base_branch')).toBe('feat/wave1')
+    expect(await store.get(dir, 'isolation')).toBe('null')
+  })
+
+  it.each(['HEAD', 'main', '--all', 'abc123', 'A'.repeat(40), `${'a'.repeat(40)}\n`])(
+    'startSha %j 不是合法提交 id → init 拒绝且不留下 change（start_sha 只接受 sha）',
+    async (startSha) => {
+      await expect(store.init({
+        repoRoot, name: 'sp3', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock: CLOCK, startSha,
+      })).rejects.toThrow(/startSha/)
+      await expect(readdir(path.join(repoRoot, 'openspec', 'changes', 'sp3'))).rejects.toThrow()
+    },
+  )
+
   it('非法 change 名（空/怪字符/..）→ 拒绝', async () => {
     await expect(store.init({ repoRoot, name: '', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock: CLOCK })).rejects.toThrow()
     await expect(store.init({ repoRoot, name: 'a/b', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock: CLOCK })).rejects.toThrow()

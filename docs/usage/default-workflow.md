@@ -214,6 +214,66 @@ The limit is the `max_rounds` key of a workflow step, written beside `gate`:
 
 The key is valid only on a step that has `gate: review` and at least one return edge, an edge back to an earlier step such as `verify-fail`. Declared anywhere else (Build has no review gate, so it is never limited and its `requirements-changed` is always available), it makes the workflow fail to parse, and the error names the step and the reason. The value is an integer from 1 to 20; `0`, `21`, `two` and `1.5` are rejected the same way. A limited step that does not declare the key, such as a step of a custom workflow or of a task frozen before the key existed, is limited to 2. The limit is frozen with the workflow plan, so editing the workflow file later does not change a task in flight; `tenon set <change> max_rounds <N>` overrides it for one task. The Dashboard workflow page keeps the key when it reads and writes a definition but has no control to edit it.
 
+## Task start point
+
+"Changed since the task started" has one answer in Tenon: the registration and
+sync of test files, the changed-files list, the approval of protected test
+configuration, the test-integrity report, the `diff-risk` probe, reviewers
+scoped by `attach_on`, changed-line coverage, evidence export, the transition
+gates (CLI and HTTP), the Dashboard snapshot and `tenon verify --ci` all compare
+against the same start commit. Tenon records it when the task is created and
+lets it follow upstream.
+
+- `tenon init` writes the `HEAD` of the checkout as the task field `start_sha`
+  (Dashboard task creation and AFK triage do the same). It is left out when the
+  repository has no commit or is not a Git repository. The value is kept in a
+  small record next to the task state (`.pipeline-run/start-sha/`), not in
+  `.pipeline.yaml`, so the release before this field existed still reads and
+  continues the task.
+- The start is the newest of these candidates:
+  1. `start_sha`, when it is an ancestor of `HEAD` and its committer time is not
+     later than the task's `created_at` plus 60 seconds (the real value is the
+     `HEAD` at creation, so it cannot be later; a value that fails the check,
+     whose time cannot be read, or when `created_at` is unusable, is dropped);
+  2. the merge-base of `HEAD` and the upstream of `base_branch`
+     (`<base_branch>@{upstream}`), when that upstream resolves;
+  3. the merge-base of `HEAD` and `base_branch`, when it is not `HEAD` itself
+     (a task branch or worktree branch with commits of its own: the fork point).
+
+  Candidates are compared two at a time: if one is an ancestor of the other the
+  descendant wins; if they do not form a chain the merge-base of the two wins.
+  The list may therefore show too much but never too little. With no candidate
+  at all the earlier rule still applies: the last commit before `created_at`.
+- No commit message and no author is ever read. The start can only move to the
+  `HEAD` Tenon recorded or to a commit reachable from a local upstream
+  reference, so rewording a commit hides nothing.
+- `start_sha`, `base_branch` and `created_at` decide the start, so only
+  `tenon init` writes them. `tenon set`, `set-many` and `cas` refuse them (exit
+  `1`, nothing changes); `base_branch` and `created_at` used to be writable.
+  The small record under `.pipeline-run/start-sha/` is not covered by the state
+  digest, which is why the time check above exists: if that record is rewritten to
+  a later commit or deleted, the start only moves earlier and the list shows more
+  files, never fewer.
+- What you see: commits that others merged into the base branch and that you
+  then fetched or pulled stop counting as this task's changes, instead of
+  appearing as inherited test files and a changed catalog.
+- Limits. The upstream is a local reference, so without a `git fetch` it can be
+  stale; that only counts more files. An in-place task that commits on the base
+  branch and pushes to its upstream moves its start past those commits, and they
+  stop counting as its changes. A worktree task is not affected: its
+  `base_branch` is the branch it came from, and its commits are not in that
+  branch's upstream until they are merged.
+- Compatibility. A task without `start_sha` and without an upstream behaves as
+  before. A runtime released before this field existed reads a task that has one
+  without trouble. If that older runtime then writes to the task (for example
+  after a rollback), the newer runtime reads an empty `start_sha` afterwards and
+  the start falls back to the upstream and base-branch candidates, exactly as for
+  a task created before the field existed (see [CONTRACT](../CONTRACT.md)).
+
+New tasks are created in their own worktree, which is also what keeps two tasks
+in one repository from sharing a start; see
+[Where the task lives](quickstart.md#where-the-task-lives-the-task-worktree).
+
 ## Phase operation
 
 ### 1. Inspect current truth
@@ -289,6 +349,15 @@ Fix in Build, freeze a new baseline, and verify again. A `verify-pass` receipt
 cannot approve `verify-fail`, or vice versa. Verify is limited to two rounds; once they
 are used up this edge is refused (see [Verification round limit](#verification-round-limit)).
 
+A return edge does not ask for the skills of the step's agents. Those skills (for
+example `test-driven-development`, which belongs to `builder`) can only be
+loaded while the agent runs, so requiring them would force you to start a
+builder just to go back: `requirements-changed` from Build works before any
+builder has run in that visit. Skills the main thread loads are still required on
+a return edge, and forward edges require all of them. `tenon status`,
+`tenon check` and the Dashboard transition agree on this; see
+[Agents](agents.md#use-agents-in-a-workflow).
+
 ## Expected result
 
 Every transition has the correct Workflow edge, guard evidence, current
@@ -309,6 +378,20 @@ never backfills them. A missing, malformed, stale, or unproven token blocks
 Verify with `verify-build-revision-untrusted` and remediation
 `return-to-build-and-capture-current-revision`. The same closed blocker is
 used by readiness, HTTP/SSE projections, and AFK settlement.
+
+What the token binds depends on the task's `isolation`. `branch` binds a Git
+object. `worktree` and `in-place` bind a content fingerprint of the workspace
+(without `.git`, dependencies, OpenSpec and document evidence, pipeline control
+files and test caches), because the implementation in a task worktree is
+usually not committed when Build ends and Build never requires a commit. The
+identity stays bound to the physical repository and the physical worktree, so
+verifying a worktree task from another checkout gives `worktree-mismatch`. A
+token of the wrong kind for the task's `isolation` (for example a Git-object
+token on a `worktree` task, left by an older task whose `isolation` was set to
+`worktree` by hand) gives `isolation-mismatch`. Both mean: return to Build and
+capture again. The CLI, the Dashboard transition and the Dashboard snapshot take
+the kind from the same function (`expectedBuildRevisionKind`), so they cannot
+disagree. See [CONTRACT](../CONTRACT.md).
 
 ## Common failures
 
@@ -337,7 +420,17 @@ the remaining reviewer blockers and the ways out from the
 
 Return to Build and run `build-complete` to capture a fresh `build:v1` token.
 Do not set or backfill `build_sha` by hand; the transition record is part of
-the provenance proof.
+the provenance proof. For a task in a worktree, run the verification from that
+worktree: another checkout gives `worktree-mismatch`.
+
+### Files from other people's merges show up as this task's changes
+
+The start is the newest of `tenon get <change> start_sha` and
+`git merge-base HEAD <base_branch>@{upstream}` (see the candidates above), and
+`tenon test sync <change>` lists the files that start leaves in. Run `git fetch`
+so the upstream reference is current. Do not try to edit `start_sha`,
+`base_branch` or `created_at`: they are read-only after `tenon init`. See
+[Task start point](#task-start-point).
 
 ## Next action
 

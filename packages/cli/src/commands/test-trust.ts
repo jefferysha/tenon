@@ -37,6 +37,8 @@ export function catalogTrustTarget(catalog: TestCatalog): TrustTarget {
     kind: 'catalog',
     digest: catalogExecDigest(catalog),
     lines: [
+      // 新 worktree 的准备命令同样来自仓库、同样随目录摘要一起得到信任：列出来，用户才知道自己信任了它。
+      ...(catalog.setup === undefined ? [] : [`准备命令 setup  $ ${catalog.setup}`]),
       ...catalog.suites.map((suite) => `套件 ${suite.id}（${suite.kind}）  $ ${suite.command}${suite.cwd === '.' ? '' : `  [cwd=${suite.cwd}]`}`),
       ...catalog.suites.flatMap((suite) => [
         ...(suite.select?.files === undefined ? [] : [`套件 ${suite.id} 按文件运行  $ ${suite.select.files}`]),
@@ -106,8 +108,10 @@ export async function cmdTestTrust(
   const targets: TrustTarget[] = []
   const catalogFile = await readCatalogFile(deps.cwd)
   if (catalogFile.state === 'invalid') return fail(deps, `catalog.yaml 无效：${catalogFile.issues.slice(0, 3).join('；')}`)
-  if (catalogFile.state === 'ok' && (catalogFile.catalog.suites.length > 0 || catalogFile.catalog.services.length > 0)) {
-    targets.push(catalogTrustTarget(catalogFile.catalog))
+  if (catalogFile.state === 'ok') {
+    // 套件、服务或 setup 任一有命令才需要信任；什么命令都没有的目录没有可确认的东西。
+    const catalogTarget = catalogTrustTarget(catalogFile.catalog)
+    if (catalogTarget.lines.length > 0) targets.push(catalogTarget)
   }
   if (change !== undefined) {
     const context = await resolveTestCommand(deps, change, { requireOwner: false })

@@ -1,110 +1,287 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import {
+  existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
-import { renderHostAgent } from '../agents/host-native.js'
+import { hostAgentPath, renderHostAgent, type HostAgentHost } from '../agents/host-native.js'
 import type { AgentDefinition } from '../agents/types.js'
 import { computeContentHash, parseOwnedManifest } from '../state/ownership-manifest.js'
-import { ensureHostAgentFiles, ownedHostAgentNames, pruneHostAgentFiles } from './host-agent-files.js'
+import type { AgentLibrary } from './agent-store.js'
+import { cleanupLegacyHostAgents, renderCurrentFromLibrary } from './host-agent-files.js'
 
 const definition = (name: string, description = `${name} 说明`): AgentDefinition => ({
   name, description, role: 'reviewer', skills: [], tools: ['Read', 'Grep'], model: 'sonnet', body: '\n正文\n',
 })
 
+let sandbox: string
 let repo: string
-const manifest = (): Record<string, string> => parseOwnedManifest(readFileSync(join(repo, '.pipeline-owned.json'), 'utf8'))
-const read = (rel: string): string => readFileSync(join(repo, rel), 'utf8')
+
+const manifestPath = (base = repo): string => join(base, '.pipeline-owned.json')
+const manifest = (base = repo): Record<string, string> => parseOwnedManifest(readFileSync(manifestPath(base), 'utf8'))
+const read = (rel: string, base = repo): string => readFileSync(join(base, rel), 'utf8')
+const has = (rel: string, base = repo): boolean => existsSync(join(base, rel))
+/** 当前库对 `a`、`b`、`c` 的渲染（`renderCurrent` 的测试实现）。 */
+const renderCurrent = (host: HostAgentHost, name: string): string | undefined =>
+  ['a', 'b', 'c'].includes(name) ? renderHostAgent(host, definition(name)) : undefined
+
+function put(rel: string, text: string, base = repo): void {
+  mkdirSync(dirname(join(base, rel)), { recursive: true })
+  writeFileSync(join(base, rel), text, 'utf8')
+}
+
+/** 旧版本留下的状态：文件内容为渲染结果（可指定别的内容），清单按 `listed` 决定是否记账。 */
+function legacy(host: HostAgentHost, name: string, opts: { listed?: boolean; text?: string; base?: string } = {}): string {
+  const base = opts.base ?? repo
+  const rel = hostAgentPath(host, name)
+  const text = opts.text ?? renderHostAgent(host, definition(name))
+  put(rel, text, base)
+  if (opts.listed !== false) {
+    const current = existsSync(manifestPath(base)) ? manifest(base) : {}
+    // 记录的是旧版本写入时的内容摘要，与现在盘上的内容（可能已被改过）无关。
+    current[rel] = computeContentHash(renderHostAgent(host, definition(name)))
+    writeFileSync(manifestPath(base), `${JSON.stringify(current, null, 2)}\n`)
+  }
+  return rel
+}
+
+function git(cwd: string, args: string[]): void {
+  execFileSync('git', ['-c', 'user.email=t@t.test', '-c', 'user.name=t', '-c', 'commit.gpgsign=false', ...args], {
+    cwd, encoding: 'utf8', env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' },
+  })
+}
 
 beforeEach(() => {
-  repo = mkdtempSync(join(tmpdir(), 'tenon-host-agents-'))
+  sandbox = mkdtempSync(join(tmpdir(), 'tenon-legacy-host-agents-'))
+  repo = join(sandbox, 'repo')
+  mkdirSync(repo, { recursive: true })
 })
 
 afterEach(() => {
-  rmSync(repo, { recursive: true, force: true })
+  rmSync(sandbox, { recursive: true, force: true })
 })
 
-describe('ensureHostAgentFiles', () => {
-  test('Claude：写文件并记所有权；再跑一遍不变', async () => {
-    const first = await ensureHostAgentFiles({ repoRoot: repo, host: 'claude', agents: [{ name: 'a', definition: definition('a') }] })
-    expect(first).toEqual([{
-      agent: 'a', host: 'claude', path: '.claude/agents/tenon-a.md', subagentType: 'tenon-a', native: true, state: 'written',
-    }])
-    expect(read('.claude/agents/tenon-a.md')).toBe(renderHostAgent('claude', definition('a')))
-    expect(manifest()).toEqual({ '.claude/agents/tenon-a.md': computeContentHash(read('.claude/agents/tenon-a.md')) })
-    const second = await ensureHostAgentFiles({ repoRoot: repo, host: 'claude', agents: [{ name: 'a', definition: definition('a') }] })
-    expect(second[0]?.state).toBe('unchanged')
+describe('cleanupLegacyHostAgents：清单与当前渲染两条删除依据', () => {
+  test('清单记着且没改过 → 删除并移除清单项；清单空了删清单，空目录一并移除', async () => {
+    const rel = legacy('claude', 'a')
+    const result = await cleanupLegacyHostAgents({ repoRoot: repo })
+    expect(result).toEqual({ removed: [rel], preserved: [] })
+    expect(has(rel)).toBe(false)
+    expect(has('.pipeline-owned.json')).toBe(false)
+    expect(has('.claude')).toBe(false)
   })
 
-  test('Codex：写到 .codex/agents，保留清单里已有的其它条目', async () => {
-    writeFileSync(join(repo, '.pipeline-owned.json'), '{\n  "AGENTS.md": "abc"\n}\n')
-    await ensureHostAgentFiles({ repoRoot: repo, host: 'codex', agents: [{ name: 'a', definition: definition('a') }] })
-    expect(read('.codex/agents/tenon-a.toml')).toContain('name = "tenon-a"')
-    expect(Object.keys(manifest()).sort()).toEqual(['.codex/agents/tenon-a.toml', 'AGENTS.md'])
+  test('不在清单但内容等于当前渲染 → 删除（清单条目已被 sync --migrate 剪掉的情况）', async () => {
+    const rel = legacy('claude', 'b', { listed: false })
+    const result = await cleanupLegacyHostAgents({ repoRoot: repo, renderCurrent })
+    expect(result).toEqual({ removed: [rel], preserved: [] })
+    expect(has(rel)).toBe(false)
   })
 
-  test('定义变了、文件没被改过 → 按新内容覆盖', async () => {
-    await ensureHostAgentFiles({ repoRoot: repo, host: 'claude', agents: [{ name: 'a', definition: definition('a') }] })
-    const next = await ensureHostAgentFiles({ repoRoot: repo, host: 'claude', agents: [{ name: 'a', definition: definition('a', '新说明') }] })
-    expect(next[0]?.state).toBe('written')
-    expect(read('.claude/agents/tenon-a.md')).toContain('新说明')
+  test('清单记着但已被改过 → 保留进 preserved，清单项原样留着', async () => {
+    const rel = legacy('claude', 'a', { text: '用户改过\n' })
+    const result = await cleanupLegacyHostAgents({ repoRoot: repo, renderCurrent })
+    expect(result).toEqual({ removed: [], preserved: [rel] })
+    expect(read(rel)).toBe('用户改过\n')
+    expect(Object.keys(manifest())).toEqual([rel])
   })
 
-  test('同名文件不归 Tenon 或被用户改过 → 不碰，退回通用子代理并写明原因', async () => {
-    mkdirSync(join(repo, '.claude', 'agents'), { recursive: true })
-    writeFileSync(join(repo, '.claude', 'agents', 'tenon-a.md'), '用户自己的\n')
-    const foreign = await ensureHostAgentFiles({ repoRoot: repo, host: 'claude', agents: [{ name: 'a', definition: definition('a') }] })
-    expect(foreign[0]).toMatchObject({ native: false, state: 'foreign', subagentType: 'general-purpose' })
-    expect(read('.claude/agents/tenon-a.md')).toBe('用户自己的\n')
-
-    await ensureHostAgentFiles({ repoRoot: repo, host: 'claude', agents: [{ name: 'b', definition: definition('b') }] })
-    writeFileSync(join(repo, '.claude', 'agents', 'tenon-b.md'), '改过\n')
-    const modified = await ensureHostAgentFiles({ repoRoot: repo, host: 'claude', agents: [{ name: 'b', definition: definition('b') }] })
-    expect(modified[0]).toMatchObject({ native: false, state: 'modified' })
-    expect(read('.claude/agents/tenon-b.md')).toBe('改过\n')
+  test('清单记着、已被改过，但内容恰好等于当前渲染 → 删除（两条依据取其一）', async () => {
+    const rel = hostAgentPath('claude', 'a')
+    put(rel, renderHostAgent('claude', definition('a')))
+    writeFileSync(manifestPath(), `${JSON.stringify({ [rel]: computeContentHash('旧版本的内容\n') })}\n`)
+    const result = await cleanupLegacyHostAgents({ repoRoot: repo, renderCurrent })
+    expect(result).toEqual({ removed: [rel], preserved: [] })
+    expect(has(rel)).toBe(false)
   })
 
-  test('路径里有符号链接 → 拒绝写入', async () => {
-    const outside = mkdtempSync(join(tmpdir(), 'tenon-host-agents-outside-'))
-    try {
-      symlinkSync(outside, join(repo, '.claude'))
-      const result = await ensureHostAgentFiles({ repoRoot: repo, host: 'claude', agents: [{ name: 'a', definition: definition('a') }] })
-      expect(result[0]).toMatchObject({ native: false, state: 'failed' })
-      expect(existsSync(join(outside, 'agents'))).toBe(false)
-    } finally {
-      rmSync(outside, { recursive: true, force: true })
-    }
-  })
-})
-
-describe('pruneHostAgentFiles', () => {
-  test('只删不再被引用且没改过的；改过的保留；清单删空即删除清单', async () => {
-    await ensureHostAgentFiles({
-      repoRoot: repo,
-      host: 'claude',
-      agents: [{ name: 'a', definition: definition('a') }, { name: 'b', definition: definition('b') }, { name: 'c', definition: definition('c') }],
-    })
-    writeFileSync(join(repo, '.claude', 'agents', 'tenon-c.md'), '改过\n')
-    expect(await ownedHostAgentNames(repo)).toEqual(['a', 'b', 'c'])
-    const result = await pruneHostAgentFiles({ repoRoot: repo, keep: new Set(['b']) })
-    expect(result).toEqual({ removed: ['.claude/agents/tenon-a.md'], preserved: ['.claude/agents/tenon-c.md'] })
-    expect(existsSync(join(repo, '.claude', 'agents', 'tenon-a.md'))).toBe(false)
-    expect(existsSync(join(repo, '.claude', 'agents', 'tenon-b.md'))).toBe(true)
-    expect(read('.claude/agents/tenon-c.md')).toBe('改过\n')
-
-    rmSync(join(repo, '.claude', 'agents', 'tenon-c.md'))
-    await pruneHostAgentFiles({ repoRoot: repo, keep: new Set() })
-    expect(existsSync(join(repo, '.claude', 'agents'))).toBe(false)
-    expect(existsSync(join(repo, '.pipeline-owned.json'))).toBe(false)
+  test('不在清单且内容与当前渲染不同 → 保留进 preserved', async () => {
+    const rel = legacy('claude', 'a', { listed: false, text: '用户自己写的\n' })
+    const result = await cleanupLegacyHostAgents({ repoRoot: repo, renderCurrent })
+    expect(result).toEqual({ removed: [], preserved: [rel] })
+    expect(read(rel)).toBe('用户自己写的\n')
+    expect(has('.pipeline-owned.json')).toBe(false)
   })
 
-  test('清单里别的条目与用户自己的 agent 文件原样不动', async () => {
-    writeFileSync(join(repo, '.pipeline-owned.json'), '{\n  "AGENTS.md": "abc"\n}\n')
-    mkdirSync(join(repo, '.claude', 'agents'), { recursive: true })
-    writeFileSync(join(repo, '.claude', 'agents', 'mine.md'), '用户\n')
-    await ensureHostAgentFiles({ repoRoot: repo, host: 'codex', agents: [{ name: 'a', definition: definition('a') }] })
-    await pruneHostAgentFiles({ repoRoot: repo, keep: new Set() })
+  test('当前库里没有这个 agent（renderCurrent 返回 undefined）→ 不在清单的文件保留', async () => {
+    const rel = legacy('claude', 'gone', { listed: false })
+    const result = await cleanupLegacyHostAgents({ repoRoot: repo, renderCurrent })
+    expect(result).toEqual({ removed: [], preserved: [rel] })
+    expect(has(rel)).toBe(true)
+  })
+
+  test('renderCurrent 缺省（没装配库或读库失败）→ 只按清单删：清单外的文件不扫描、不报告、不动', async () => {
+    const listed = legacy('claude', 'a')
+    const unlisted = legacy('claude', 'b', { listed: false })
+    const result = await cleanupLegacyHostAgents({ repoRoot: repo })
+    expect(result).toEqual({ removed: [listed], preserved: [] })
+    expect(has(unlisted)).toBe(true)
+  })
+
+  test('Codex 的 .toml 同样处理；两个宿主的目录各自删空', async () => {
+    const claude = legacy('claude', 'a')
+    const codex = legacy('codex', 'a')
+    const result = await cleanupLegacyHostAgents({ repoRoot: repo })
+    expect(result.removed).toEqual([claude, codex])
+    expect(has('.claude')).toBe(false)
+    expect(has('.codex')).toBe(false)
+    expect(has('.pipeline-owned.json')).toBe(false)
+  })
+
+  test('清单里别的条目、用户自己的 agent 文件、仍有内容的目录原样不动', async () => {
+    writeFileSync(manifestPath(), '{\n  "AGENTS.md": "abc"\n}\n')
+    put('.claude/agents/mine.md', '用户\n')
+    const rel = legacy('claude', 'a')
+    const result = await cleanupLegacyHostAgents({ repoRoot: repo, renderCurrent })
+    expect(result).toEqual({ removed: [rel], preserved: [] })
     expect(manifest()).toEqual({ 'AGENTS.md': 'abc' })
     expect(read('.claude/agents/mine.md')).toBe('用户\n')
-    expect(existsSync(join(repo, '.codex', 'agents'))).toBe(false)
+  })
+
+  test('清单项还在、文件已经不在 → 只去掉清单项，不算删除也不算保留', async () => {
+    const rel = hostAgentPath('claude', 'a')
+    writeFileSync(manifestPath(), `${JSON.stringify({ [rel]: 'abc', 'AGENTS.md': 'def' })}\n`)
+    const result = await cleanupLegacyHostAgents({ repoRoot: repo })
+    expect(result).toEqual({ removed: [], preserved: [] })
+    expect(manifest()).toEqual({ 'AGENTS.md': 'def' })
+  })
+
+  test('清单损坏（不是合法 JSON）→ 清单一字不改；仍能按当前渲染删内容一致的文件', async () => {
+    writeFileSync(manifestPath(), '{不是 JSON')
+    const rel = legacy('claude', 'a', { listed: false })
+    const result = await cleanupLegacyHostAgents({ repoRoot: repo, renderCurrent })
+    expect(result).toEqual({ removed: [rel], preserved: [] })
+    expect(readFileSync(manifestPath(), 'utf8')).toBe('{不是 JSON')
+  })
+
+  test('没有任何旧文件 → 什么都不做，也不创建锁目录 .tenon', async () => {
+    expect(await cleanupLegacyHostAgents({ repoRoot: repo, renderCurrent })).toEqual({ removed: [], preserved: [] })
+    expect(await cleanupLegacyHostAgents({ repoRoot: repo })).toEqual({ removed: [], preserved: [] })
+    expect(has('.tenon')).toBe(false)
+  })
+
+  test('重复执行：第二次什么都没有', async () => {
+    legacy('claude', 'a')
+    await cleanupLegacyHostAgents({ repoRoot: repo, renderCurrent })
+    expect(await cleanupLegacyHostAgents({ repoRoot: repo, renderCurrent })).toEqual({ removed: [], preserved: [] })
+  })
+})
+
+describe('renderCurrentFromLibrary：把 agent 库变成清理用的 renderCurrent（CLI 与 Dashboard 共用）', () => {
+  const libraryOf = (...definitions: readonly AgentDefinition[]): AgentLibrary => ({
+    entries: definitions.map((def) => ({ name: def.name, source: 'custom' as const, digest: 'sha256:x', content: '', definition: def })),
+    sync: { id: 'agents', state: 'unchanged' },
+  })
+
+  test('库里有该 agent 且适用于该宿主 → 返回它在该宿主的渲染结果', () => {
+    const render = renderCurrentFromLibrary(libraryOf(definition('a')))
+    expect(render('claude', 'a')).toBe(renderHostAgent('claude', definition('a')))
+    expect(render('codex', 'a')).toBe(renderHostAgent('codex', definition('a')))
+  })
+
+  test('库里没有该 agent → undefined', () => {
+    expect(renderCurrentFromLibrary(libraryOf(definition('a')))('claude', 'gone')).toBeUndefined()
+  })
+
+  test('definition.hosts 不含该宿主 → undefined；含则照渲染', () => {
+    const render = renderCurrentFromLibrary(libraryOf({ ...definition('a'), hosts: ['claude'] }))
+    expect(render('codex', 'a')).toBeUndefined()
+    expect(render('claude', 'a')).toBe(renderHostAgent('claude', { ...definition('a'), hosts: ['claude'] }))
+  })
+
+  test('条目解析失败（没有 definition）→ undefined', () => {
+    const broken: AgentLibrary = {
+      entries: [{ name: 'a', source: 'custom', digest: 'sha256:x', content: '坏', error: '解析失败' }],
+      sync: { id: 'agents', state: 'unchanged' },
+    }
+    expect(renderCurrentFromLibrary(broken)('claude', 'a')).toBeUndefined()
+  })
+})
+
+describe('cleanupLegacyHostAgents：符号链接一律不跟随', () => {
+  test('目标文件本身是符号链接 → 保留，链接目标不被删', async () => {
+    const outside = join(sandbox, 'outside.md')
+    const rel = hostAgentPath('claude', 'a')
+    const text = renderHostAgent('claude', definition('a'))
+    writeFileSync(outside, text)
+    mkdirSync(join(repo, '.claude', 'agents'), { recursive: true })
+    symlinkSync(outside, join(repo, rel))
+    writeFileSync(manifestPath(), `${JSON.stringify({ [rel]: computeContentHash(text) })}\n`)
+    const result = await cleanupLegacyHostAgents({ repoRoot: repo, renderCurrent })
+    expect(result).toEqual({ removed: [], preserved: [rel] })
+    expect(lstatSync(join(repo, rel)).isSymbolicLink()).toBe(true)
+    expect(readFileSync(outside, 'utf8')).toBe(text)
+  })
+
+  test('父目录是符号链接 → 保留，链接指向的目录里的文件不被删', async () => {
+    const outside = join(sandbox, 'outside')
+    const rel = hostAgentPath('claude', 'a')
+    const text = renderHostAgent('claude', definition('a'))
+    put('agents/tenon-a.md', text, outside)
+    symlinkSync(outside, join(repo, '.claude'))
+    writeFileSync(manifestPath(), `${JSON.stringify({ [rel]: computeContentHash(text) })}\n`)
+    const result = await cleanupLegacyHostAgents({ repoRoot: repo, renderCurrent })
+    expect(result).toEqual({ removed: [], preserved: [rel] })
+    expect(read('agents/tenon-a.md', outside)).toBe(text)
+  })
+
+  test('目标位置是目录而不是文件 → 保留，不抛错', async () => {
+    const rel = hostAgentPath('claude', 'a')
+    mkdirSync(join(repo, rel), { recursive: true })
+    writeFileSync(manifestPath(), `${JSON.stringify({ [rel]: 'abc' })}\n`)
+    const result = await cleanupLegacyHostAgents({ repoRoot: repo, renderCurrent })
+    expect(result).toEqual({ removed: [], preserved: [rel] })
+    expect(has(rel)).toBe(true)
+  })
+})
+
+describe('cleanupLegacyHostAgents：在 linked worktree 里调用清理的是主检出', () => {
+  function repoWithWorktree(): { main: string; linked: string } {
+    const main = join(sandbox, 'main')
+    const linked = join(sandbox, 'wt')
+    mkdirSync(main, { recursive: true })
+    git(main, ['init', '-q', '-b', 'main'])
+    writeFileSync(join(main, 'README.md'), 'x\n', 'utf8')
+    git(main, ['add', '-A'])
+    git(main, ['commit', '-q', '-m', 'init'])
+    git(main, ['worktree', 'add', '-q', '-b', 'tenon/demo', linked])
+    return { main, linked }
+  }
+
+  test('repoRoot 是 worktree → 删的是主检出的旧文件与清单项；worktree 自己的同名文件不动', async () => {
+    const { main, linked } = repoWithWorktree()
+    const rel = legacy('claude', 'a', { base: main })
+    put(rel, 'worktree 里的文件\n', linked)
+    const result = await cleanupLegacyHostAgents({ repoRoot: linked, renderCurrent })
+    expect(result).toEqual({ removed: [rel], preserved: [] })
+    expect(has(rel, main)).toBe(false)
+    expect(has('.pipeline-owned.json', main)).toBe(false)
+    expect(read(rel, linked)).toBe('worktree 里的文件\n')
+  })
+
+  test('主检出里被保留的文件也在 worktree 调用的结果里列出', async () => {
+    const { main, linked } = repoWithWorktree()
+    const rel = legacy('claude', 'a', { base: main, text: '用户改过\n' })
+    const result = await cleanupLegacyHostAgents({ repoRoot: linked, renderCurrent })
+    expect(result).toEqual({ removed: [], preserved: [rel] })
+    expect(read(rel, main)).toBe('用户改过\n')
+  })
+
+  test('在主检出里调用 → 仍清理自己', async () => {
+    const { main } = repoWithWorktree()
+    const rel = legacy('claude', 'a', { base: main })
+    expect(await cleanupLegacyHostAgents({ repoRoot: main })).toEqual({ removed: [rel], preserved: [] })
+  })
+
+  test('项目根是主检出的子目录（monorepo 里的包）→ 清理的是这个子目录，不是 git 根', async () => {
+    const { main } = repoWithWorktree()
+    const pkg = join(main, 'packages', 'app')
+    mkdirSync(pkg, { recursive: true })
+    const rel = legacy('claude', 'a', { base: pkg })
+    const rootFile = legacy('claude', 'b', { base: main })
+    expect(await cleanupLegacyHostAgents({ repoRoot: pkg })).toEqual({ removed: [rel], preserved: [] })
+    expect(has(rel, pkg)).toBe(false)
+    expect(has(rootFile, main)).toBe(true)
   })
 })

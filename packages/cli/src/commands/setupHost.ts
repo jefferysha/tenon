@@ -11,6 +11,7 @@ import {
   type ReleasedDashboardStarter,
 } from './dashboard.js'
 import { REAL_RELEASED_DASHBOARD_STARTER } from './released-dashboard-starter.js'
+import { installHostAgentsAfterSuccess } from './host-agent-install-step.js'
 import {
   hostFlag,
   isNativePipelineHost,
@@ -78,6 +79,27 @@ export function cmdSetupHost(
   dashboardStarter?: ReleasedDashboardStarter,
   openDashboard = true,
   candidateInspector: (root: string) => Promise<CandidatePayloadIdentity> = inspectCandidatePayload,
+): number | Promise<number> {
+  const result = runSetupHost(deps, host, opts, env, installer, dashboardStarter, openDashboard, candidateInspector)
+  // 同步返回的只有参数错误与 --dry-run（都不是「已安装」）；真正执行的路径一律返回 Promise。
+  if (typeof result === 'number') return result
+  return result.then((code) => {
+    // 唯一的成功出口：源码开发安装、收敛恢复、原生宿主主流程与 adapter 部署的每条返回 0 的路径都经过这里；
+    // adapter 宿主没有宿主原生子代理目录，步骤内部会跳过。tenon update 的 adapter 分支也走这条。
+    if (code === 0) installHostAgentsAfterSuccess(deps, env, host)
+    return code
+  })
+}
+
+function runSetupHost(
+  deps: CliDeps,
+  host: PipelineHost,
+  opts: SetupOpts,
+  env: SetupEnv,
+  installer: RuntimeInstaller,
+  dashboardStarter: ReleasedDashboardStarter | undefined,
+  openDashboard: boolean,
+  candidateInspector: (root: string) => Promise<CandidatePayloadIdentity>,
 ): number | Promise<number> {
   const invalidSource = validateFromSourceOptions(host, opts)
   if (invalidSource !== null) {

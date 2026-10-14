@@ -7,6 +7,10 @@ export const COMMON_MESSAGES = {
     zh: 'change 不存在: {name}',
     en: 'change not found: {name}',
   },
+  'change.inWorktree': {
+    zh: 'change 不存在: {name}（它建在 worktree {path} 里；切到该目录再执行）',
+    en: 'change not found: {name} (it lives in the worktree {path}; switch to that directory and run again)',
+  },
   'change.nameInvalid': {
     zh: "change-name 非法: '{name}' (仅允许 a-z A-Z 0-9 - _)",
     en: "invalid change name '{name}' (allowed: a-z A-Z 0-9 - _)",
@@ -54,6 +58,10 @@ export const COMMON_MESSAGES = {
   'field.buildShaFrozen': {
     zh: "字段 'build_sha' 由 build 出口的 transition 冻结（freeze-build-sha 副作用），禁止通过 set/set-many/cas 写入；先把实现与测试做完，再执行该 transition 捕获当前修订",
     en: "field 'build_sha' is frozen by the transition that leaves build (the freeze-build-sha effect) and cannot be written with set/set-many/cas; finish the implementation and tests first, then run that transition to capture the current revision",
+  },
+  'field.managedByInit': {
+    zh: "字段 '{field}' 只在 tenon init 建任务时写入（它们决定任务起点：哪些改动算本任务的），禁止通过 set/set-many/cas 改写",
+    en: "field '{field}' is written only by tenon init when the task is created (these fields decide the task start point, i.e. which changes count as this task's) and cannot be changed with set/set-many/cas",
   },
   'field.managedBy': {
     zh: "字段 '{field}' 由 {owner} 管理，禁止通过 set/set-many/cas 写入",

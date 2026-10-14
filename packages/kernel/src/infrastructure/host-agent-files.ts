@@ -1,210 +1,183 @@
 /**
- * 宿主原生 agent 文件的落盘与回收：`.claude/agents/tenon-<name>.md`、`.codex/agents/tenon-<name>.toml`。
+ * 旧版本写进项目里的宿主 agent 文件的清理：`.claude/agents/tenon-<name>.md`、`.codex/agents/tenon-<name>.toml`。
  *
- * 所有权记在项目根的 `.pipeline-owned.json`（path → 内容 hash，与 `tenon uninstall` 同一份清单）：
- *   · 只写三种情况：文件不存在、内容已经相同（补记所有权）、清单里记着且用户没改过；
- *   · 同名文件不归 Tenon（清单里没有）或被用户改过 → 不碰，该 agent 退回通用子代理；
- *   · 回收只删清单里记着且没被改过的文件，改过的保留（卸载同样保留）。
- * 同一项目的多个任务共用这些文件：生成按冻结内容覆盖，回收只删没有任何在途任务引用的名字。
- * 这些文件与清单都不属于实现候选（workspace fingerprint 排除），生成与回收不会让在途任务的评审过期。
+ * 新版本不再往项目里写这些文件（专属子代理只来自 `tenon agent install` 写的用户级文件），但升级前的项目里还留着旧文件，
+ * 它们优先级高于用户级文件，会把新装的子代理遮住。清理只做「删」：
+ *   · 所有权记在项目根的 `.pipeline-owned.json`（path → 内容 hash，与 `tenon uninstall` 同一份清单）；
+ *   · 删除依据取其一：清单记着且内容仍与记录摘要一致（没被改过）；或内容与当前库对应 agent 的渲染结果一致
+ *     （覆盖清单条目已被 `sync --migrate` 剪掉的情况）。不再按「在途任务是否引用」区分——文件不再是任务产物；
+ *   · 其余文件（被改过、不在清单且与当前渲染不同、读不了）一律保留，由调用方警告；
+ *   · 路径上任何一段（父目录或文件本身）是符号链接就保留：删除不会落到仓库外；
+ *   · 项目根是 linked worktree 时，按 git common dir 找到主检出再清理——旧文件与清单都在主检出。
+ * 这些文件与清单都不属于实现候选（workspace fingerprint 排除），清理不会让在途任务的评审过期。
  */
-import { lstat, mkdir, readFile, rename, rmdir, unlink, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, readdir, readFile, rmdir, unlink } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import {
-  HOST_AGENT_FALLBACK, hostAgentName, hostAgentPath, parseHostAgentPath, renderHostAgent, type HostAgentHost,
+  HOST_AGENT_HOSTS, hostAgentPath, parseHostAgentPath, renderHostAgent, type HostAgentHost,
 } from '../agents/host-native.js'
-import type { AgentDefinition } from '../agents/types.js'
 import { withLock } from '../state/lock.js'
 import {
-  OWNED_MANIFEST, computeContentHash, isOwnedModified, parseOwnedManifest, serializeOwnedManifest,
+  OWNED_MANIFEST, isOwnedModified, parseOwnedManifest, serializeOwnedManifest,
 } from '../state/ownership-manifest.js'
+import { mainCheckoutOf } from '../workspace/main-checkout.js'
+import { effectiveAgent, type AgentLibrary } from './agent-store.js'
+import { inspectFile, writeAtomic } from './host-agent-fs.js'
 
-export const HOST_AGENT_OWNED_MANIFEST = OWNED_MANIFEST
-
-export interface HostAgentFileOutcome {
-  readonly agent: string
-  readonly host: HostAgentHost
-  /** 仓库相对路径（POSIX）。 */
-  readonly path: string
-  /** 宿主派发时用的子代理类型：生成成功 = `tenon-<name>`，否则通用子代理。 */
-  readonly subagentType: string
-  readonly native: boolean
-  readonly state: 'written' | 'unchanged' | 'foreign' | 'modified' | 'failed'
-  readonly detail?: string
-}
-
-export interface HostAgentPruneResult {
+export interface LegacyHostAgentCleanup {
+  /** 已删除的文件（主检出相对路径，POSIX），按路径排序。 */
   readonly removed: readonly string[]
-  /** 用户改过、按规则保留的文件。 */
+  /** 按规则保留的文件（被改过、与当前渲染不同、含符号链接或读不了），调用方负责警告。 */
   readonly preserved: readonly string[]
 }
 
-const lockDirOf = (repoRoot: string): string => join(repoRoot, '.tenon')
-const manifestPath = (repoRoot: string): string => join(repoRoot, OWNED_MANIFEST)
-const abs = (repoRoot: string, rel: string): string => join(repoRoot, ...rel.split('/'))
-
-async function readText(path: string): Promise<string | undefined> {
-  try {
-    return await readFile(path, 'utf8')
-  } catch {
-    return undefined
+/**
+ * 把读到的 agent 库变成清理用的 `renderCurrent`：库里生效的那个 agent 适用于该宿主时返回它的渲染结果，
+ * 没有 / 解析失败 / `hosts` 不含该宿主一律 undefined。CLI 与 Dashboard 服务端共用这一份，两边的删除依据不会分叉。
+ */
+export function renderCurrentFromLibrary(library: AgentLibrary): (host: HostAgentHost, name: string) => string | undefined {
+  return (host, name) => {
+    const definition = effectiveAgent(library, name)?.definition
+    if (definition === undefined) return undefined
+    return definition.hosts === undefined || definition.hosts.includes(host) ? renderHostAgent(host, definition) : undefined
   }
 }
 
-async function isSymlink(path: string): Promise<boolean> {
+const lockDirOf = (root: string): string => join(root, '.tenon')
+const manifestPath = (root: string): string => join(root, OWNED_MANIFEST)
+const abs = (root: string, rel: string): string => join(root, ...rel.split('/'))
+/** 宿主的 agents 目录（仓库相对，POSIX）：`.claude/agents`、`.codex/agents`。 */
+const agentsDirOf = (host: HostAgentHost): string => dirname(hostAgentPath(host, 'x'))
+
+/**
+ * 要清理的项目根：项目根本身是 linked worktree 的顶层（顶层的 `.git` 是指针文件，主检出与普通仓库里它是目录）时指向主检出，
+ * 其余一律清理项目根自己——包括主检出的子目录（monorepo 里的包），那里旧版本写的文件就在子目录下。
+ * 先看 `.git` 再决定要不要调 git：绝大多数命令不在 worktree 里，也就不必起 git 进程。
+ */
+async function legacyRootOf(repoRoot: string): Promise<string> {
+  const dotGit = await lstat(join(repoRoot, '.git')).catch(() => undefined)
+  if (dotGit?.isFile() !== true) return repoRoot
+  return (await mainCheckoutOf(repoRoot)) ?? repoRoot
+}
+
+async function readManifest(root: string): Promise<Record<string, string>> {
   try {
-    return (await lstat(path)).isSymbolicLink()
+    return parseOwnedManifest(await readFile(manifestPath(root), 'utf8'))
   } catch {
-    return false
+    return {}
   }
 }
 
-/** 路径上任何一段（相对仓库根）是符号链接就拒绝：写穿链接会落到仓库外。 */
-async function unsafePath(repoRoot: string, rel: string): Promise<boolean> {
-  const parts = rel.split('/')
+/**
+ * 候选文件：清单里记着的宿主 agent 路径；给了 `renderCurrent` 时再加上两个 agents 目录里的 `tenon-*` 文件
+ * （没有当前渲染可比时，清单外的文件无从判断，既不删也不报告）。
+ */
+async function candidatesOf(root: string, manifest: Record<string, string>, scanDirs: boolean): Promise<readonly string[]> {
+  const found = new Set(Object.keys(manifest).filter((key) => parseHostAgentPath(key) !== null))
+  if (scanDirs) {
+    for (const host of HOST_AGENT_HOSTS) {
+      const dir = agentsDirOf(host)
+      const names = await readdir(abs(root, dir)).catch(() => [] as string[])
+      for (const name of names) if (parseHostAgentPath(`${dir}/${name}`) !== null) found.add(`${dir}/${name}`)
+    }
+  }
+  return [...found].sort()
+}
+
+/** 文件所在的任何一级父目录（相对仓库根）是符号链接 → 删除会落到仓库外，不碰。 */
+async function hasLinkedParent(root: string, rel: string): Promise<boolean> {
+  const parts = rel.split('/').slice(0, -1)
   for (let index = 1; index <= parts.length; index++) {
-    if (await isSymlink(abs(repoRoot, parts.slice(0, index).join('/')))) return true
+    try {
+      if ((await lstat(abs(root, parts.slice(0, index).join('/')))).isSymbolicLink()) return true
+    } catch {
+      return false
+    }
   }
   return false
 }
 
-async function writeAtomic(path: string, content: string): Promise<void> {
-  await mkdir(dirname(path), { recursive: true })
-  const tmp = `${path}.tmp.${process.pid}`
-  await writeFile(tmp, content, 'utf8')
-  await rename(tmp, path)
-}
-
-async function saveManifest(repoRoot: string, map: Record<string, string>): Promise<void> {
+async function saveManifest(root: string, map: Record<string, string>): Promise<void> {
   if (Object.keys(map).length === 0) {
-    await unlink(manifestPath(repoRoot)).catch(() => {})
+    await unlink(manifestPath(root)).catch(() => {})
     return
   }
-  await writeAtomic(manifestPath(repoRoot), serializeOwnedManifest(map))
+  await writeAtomic(manifestPath(root), serializeOwnedManifest(map))
 }
 
+/** 清单的读改写在 `.tenon` 锁里完成；内容有变化才写回。清单损坏时读出来是空的，不会有变化，也就不会被覆盖。 */
 async function withManifest<T>(
-  repoRoot: string,
+  root: string,
   fn: (manifest: Record<string, string>) => Promise<{ readonly next: Record<string, string>; readonly result: T }>,
 ): Promise<T> {
-  await mkdir(lockDirOf(repoRoot), { recursive: true })
-  return withLock(lockDirOf(repoRoot), async () => {
-    const text = await readText(manifestPath(repoRoot))
-    const before = text === undefined ? {} : parseOwnedManifest(text)
+  await mkdir(lockDirOf(root), { recursive: true })
+  return withLock(lockDirOf(root), async () => {
+    const before = await readManifest(root)
     const { next, result } = await fn({ ...before })
-    if (serializeOwnedManifest(next) !== serializeOwnedManifest(before)) await saveManifest(repoRoot, next)
+    if (serializeOwnedManifest(next) !== serializeOwnedManifest(before)) await saveManifest(root, next)
     return result
   })
 }
 
-const fallback = (
-  agent: string, host: HostAgentHost, path: string, state: HostAgentFileOutcome['state'], detail: string,
-): HostAgentFileOutcome => ({ agent, host, path, subagentType: HOST_AGENT_FALLBACK[host], native: false, state, detail })
-
-/**
- * 为一个宿主生成这些 agent 的原生文件（幂等）。每个 agent 各自成败：失败的退回通用子代理，
- * 结果里写明原因；清单在同一把锁里一次写回。
- */
-export async function ensureHostAgentFiles(input: {
-  readonly repoRoot: string
-  readonly host: HostAgentHost
-  readonly agents: readonly { readonly name: string; readonly definition: AgentDefinition }[]
-}): Promise<readonly HostAgentFileOutcome[]> {
-  const { repoRoot, host } = input
-  return withManifest(repoRoot, async (manifest) => {
-    const outcomes: HostAgentFileOutcome[] = []
-    for (const { name, definition } of input.agents) {
-      const path = hostAgentPath(host, name)
-      const content = renderHostAgent(host, definition)
-      const native: HostAgentFileOutcome = { agent: name, host, path, subagentType: hostAgentName(name), native: true, state: 'written' }
-      try {
-        if (await unsafePath(repoRoot, path)) {
-          outcomes.push(fallback(name, host, path, 'failed', '路径含符号链接，拒绝写入'))
-          continue
-        }
-        const current = await readText(abs(repoRoot, path))
-        const stored = manifest[path]
-        if (current === content) {
-          manifest[path] = computeContentHash(content)
-          outcomes.push({ ...native, state: 'unchanged' })
-          continue
-        }
-        if (current !== undefined && stored === undefined) {
-          outcomes.push(fallback(name, host, path, 'foreign', '同名文件不是 Tenon 生成的，未覆盖'))
-          continue
-        }
-        if (current !== undefined && isOwnedModified(current, stored)) {
-          outcomes.push(fallback(name, host, path, 'modified', '文件被改过，未覆盖'))
-          continue
-        }
-        await writeAtomic(abs(repoRoot, path), content)
-        manifest[path] = computeContentHash(content)
-        outcomes.push(native)
-      } catch (error) {
-        outcomes.push(fallback(name, host, path, 'failed', error instanceof Error ? error.message : String(error)))
-      }
-    }
-    return { next: manifest, result: outcomes }
-  })
-}
-
-/** 清单里记着的 Tenon 宿主 agent 名（任一宿主）。 */
-export async function ownedHostAgentNames(repoRoot: string): Promise<readonly string[]> {
-  const text = await readText(manifestPath(repoRoot))
-  const manifest = text === undefined ? {} : parseOwnedManifest(text)
-  const names = new Set<string>()
-  for (const key of Object.keys(manifest)) {
-    const parsed = parseHostAgentPath(key)
-    if (parsed !== null) names.add(parsed.name)
+/** agents 目录删空了就移除；它的父目录（`.claude`、`.codex`）多半是 Tenon 为第一个文件建出来的，空了一并移除。 */
+async function removeEmptyDirs(root: string, dirs: ReadonlySet<string>): Promise<void> {
+  for (const dir of dirs) {
+    await rmdir(abs(root, dir)).catch(() => {})
+    // 里面还有用户自己的东西时 rmdir 失败，原样保留。
+    const parent = dirname(dir)
+    if (parent !== '.' && !parent.includes('/')) await rmdir(abs(root, parent)).catch(() => {})
   }
-  return [...names].sort()
-}
-
-async function removeEmptyDir(path: string): Promise<void> {
-  await rmdir(path).catch(() => {})
 }
 
 /**
- * 回收不再被任何在途任务引用的宿主 agent 文件：清单里记着、名字不在 keep 里的逐个处理。
- * 没改过 → 删文件、去掉清单项；改过 → 保留；文件已不在 → 只去掉清单项。删空的 agents 目录顺手移除。
+ * 清理项目主检出里旧版本写入的宿主 agent 文件（幂等）。没有任何候选时不加锁、不创建任何目录。
+ * 每个文件各自成败：处理不了的（含读写错误）列进 `preserved`，不影响其余文件；整体失败（如锁目录建不出）才抛出，
+ * 调用方应当只警告、不让所在命令失败。
  */
-export async function pruneHostAgentFiles(input: {
+export async function cleanupLegacyHostAgents(input: {
   readonly repoRoot: string
-  readonly keep: ReadonlySet<string>
-}): Promise<HostAgentPruneResult> {
-  const { repoRoot } = input
-  return withManifest(repoRoot, async (manifest) => {
+  /** 当前库对 `(host, name)` 的渲染结果（`renderCurrentFromLibrary`）；缺省（没装配库或读库失败）= 只按清单删。 */
+  readonly renderCurrent?: (host: HostAgentHost, name: string) => string | undefined
+}): Promise<LegacyHostAgentCleanup> {
+  const root = await legacyRootOf(input.repoRoot)
+  const scanDirs = input.renderCurrent !== undefined
+  if ((await candidatesOf(root, await readManifest(root), scanDirs)).length === 0) return { removed: [], preserved: [] }
+  return withManifest(root, async (manifest) => {
     const removed: string[] = []
     const preserved: string[] = []
     const touchedDirs = new Set<string>()
-    for (const [key, hash] of Object.entries(manifest)) {
-      const parsed = parseHostAgentPath(key)
-      if (parsed === null || input.keep.has(parsed.name)) continue
-      if (await unsafePath(repoRoot, key)) {
-        preserved.push(key)
-        continue
+    for (const rel of await candidatesOf(root, manifest, scanDirs)) {
+      const parsed = parseHostAgentPath(rel)
+      if (parsed === null) continue
+      try {
+        if (await hasLinkedParent(root, rel)) {
+          preserved.push(rel)
+          continue
+        }
+        const target = await inspectFile(abs(root, rel))
+        if (target.kind === 'missing') {
+          delete manifest[rel]
+          continue
+        }
+        if (target.kind === 'link') {
+          preserved.push(rel)
+          continue
+        }
+        const stored = manifest[rel]
+        const untouched = stored !== undefined && !isOwnedModified(target.text, stored)
+        if (!untouched && input.renderCurrent?.(parsed.host, parsed.name) !== target.text) {
+          preserved.push(rel)
+          continue
+        }
+        await unlink(abs(root, rel))
+        delete manifest[rel]
+        removed.push(rel)
+        touchedDirs.add(dirname(rel))
+      } catch {
+        preserved.push(rel)
       }
-      const current = await readText(abs(repoRoot, key))
-      if (current === undefined) {
-        delete manifest[key]
-        continue
-      }
-      if (isOwnedModified(current, hash)) {
-        preserved.push(key)
-        continue
-      }
-      await unlink(abs(repoRoot, key))
-      delete manifest[key]
-      removed.push(key)
-      touchedDirs.add(dirname(key))
     }
-    for (const dir of touchedDirs) {
-      await removeEmptyDir(abs(repoRoot, dir))
-      // `.claude/agents` 的父目录 `.claude`（`.codex` 同理）多半是 Tenon 为第一个文件建出来的；空了就一并移除，
-      // 里面还有用户自己的东西时 rmdir 失败，原样保留。
-      const parent = dirname(dir)
-      if (parent !== '.' && !parent.includes('/')) await removeEmptyDir(abs(repoRoot, parent))
-    }
+    await removeEmptyDirs(root, touchedDirs)
     return { next: manifest, result: { removed, preserved } }
   })
 }

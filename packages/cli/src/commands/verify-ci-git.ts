@@ -39,10 +39,13 @@ async function resolves(cwd: string, ref: string): Promise<boolean> {
   return (await git(cwd, ['rev-parse', '--verify', '-q', `${ref}^{commit}`])) !== undefined
 }
 
-/** CI 检出里通常只有 `origin/<分支>`，没有本地分支：状态里的 base_branch 解析不到时退回 origin/ 前缀。 */
+/**
+ * CI 检出里通常只有 `origin/<分支>`；即便有同名本地分支，它也常常就是被校验的 PR 分支本身，其上游指向自己（HEAD），
+ * 拿它当基线会让任务起点前移到 HEAD、把整次交付当成「已推送」而漏掉受保护配置的改动。所以先取 `origin/<base>`
+ * （远端跟踪分支没有上游，起点由 start_sha 与分叉点决定），没有才退回本地分支。
+ */
 export async function resolveBaseRef(cwd: string, base: string): Promise<string> {
   if (base === '' || base === 'null' || base.startsWith('-')) return base
-  if (await resolves(cwd, base)) return base
   return (await resolves(cwd, `origin/${base}`)) ? `origin/${base}` : base
 }
 

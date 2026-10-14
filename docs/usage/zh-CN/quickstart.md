@@ -42,6 +42,9 @@ tenon status <change> --json
 
 `tasks.md` 的一级结构来自真实 workflow。default 展示七阶段；custom 只展示自己的 DAG，不会被硬套 PM、前端或后端步骤。
 
+在 Git 仓库的主检出里，新 Change 建在它自己的 worktree 里，而不是你启动命令的目录。`tenon list` 会告诉你它在哪（`WORKTREE` 列，
+`--json` 里的 `worktree`），见[任务在哪里](#任务在哪里任务-worktree)。
+
 ### 3. 完成三个前置阶段
 
 - Open：明确问题、范围、非目标和验收信号；
@@ -82,6 +85,84 @@ tenon document status <change>
 
 归档前，任务清单应没有当前及更早阶段的未完成项；applied spec 应对应已经验证的 delta；Archive 应重读验证报告和已应用规格。
 
+## 任务在哪里：任务 worktree
+
+在 Git 仓库的主检出里，`tenon init` 给每个新 Change 建一个自己的 worktree。同一个仓库里的多个任务就能并行：谁也看不到别的任务改了哪些文件、
+登记了哪些测试，构建指纹也互不相干。
+
+| 项 | 值 |
+| --- | --- |
+| worktree | `<项目>/.worktrees/<change>` |
+| 分支 | `tenon/<change>`，从当前 `HEAD` 分出，不跟踪任何上游 |
+| 任务字段 | `base_branch` 是你出发时所在的分支，`start_sha` 是那个 `HEAD`，`isolation` 已经是 `worktree` |
+
+没有任何忽略规则覆盖 `.worktrees/` 时，它会被追加进仓库的 `.git/info/exclude`，所以不改任何受版本控制的文件，主检出的 `git status` 也不变。
+创建要么全成要么全不成：`init` 失败时 worktree 与分支会被撤掉；同名路径或分支已存在时 `init` 退出 `1`，两者都不动。
+
+**改为原地建立的情形。** 此时 `isolation` 没有预设，`tenon init` 会在 stderr 说明原因（`[INIT] 原地建立任务，不建 worktree：<原因>`）：
+
+- 当前目录不是 Git 仓库（或不是仓库根目录）；
+- 仓库还没有任何提交；
+- `HEAD` 处于分离状态；
+- 当前目录本身已经是一个 linked worktree；
+- 你传了 `--in-place`（确实要原地时才用；用户不要求时 `tenon` 技能不会传），或设置了 `TENON_INIT_IN_PLACE=1`（Tenon 自己的测试工装用它，不打印原因）。
+
+从 Dashboard 或 AFK 分诊建的 Change 一律原地建立。
+
+**切进去。** 文本输出时 stdout 为空，stderr 的最后两行是 `worktree: <绝对路径>` 和切进去的做法。加 `--json` 时 stdout 只有一行：
+
+```json
+{"change":"<名字>","path":"<change 目录>","worktree":"<绝对路径或 null>","worktree_reason":"<原因或 null>"}
+```
+
+建了 worktree 时 `worktree_reason` 是 `null`，否则是 `not-git`、`no-commits`、`detached-head`、`linked-worktree`、`requested` 之一。
+Claude Code 里 `tenon` 技能用 `EnterWorktree`（`path` 就是该 worktree）切进去，再执行 `tenon session activate`；此后的命令、评审确认与 hook 都以该
+worktree 为项目根。Codex 没有对应能力：技能请你在该目录开新会话，并结束本轮。恢复一个建在 worktree 里的任务时同理：dispatch 带着
+`worktree_path`，先切换。
+
+**准备 worktree（`setup`）。** 新 worktree 里没有装好的依赖，也没有构建产物。测试目录可以声明顶层的 `setup` 命令，目录在新 worktree 里受信任时，
+`tenon init` 会在其中执行它（输出转到 stderr）：
+
+- 信任按命令摘要生效。`init` 把你在主检出本机封存里信任过的摘要带进 worktree 的封存，所以已提交（摘要相同）的目录立即受信任。如果主检出的目录有未提交的
+  改动，worktree 里是已提交的版本，它的摘要不在你的信任记录里：`setup` **不会**执行，`init` 打印该命令，并请你自己在 worktree 里运行 `tenon test trust`
+  确认（agent 不能替你确认），再手动执行 setup。之后在 worktree 里改了命令同样要重新确认。评审批准和测试记录链头不会被复制。
+- 信任绑定的是命令文本（目录的命令摘要），不绑定命令执行时读取的仓库文件，例如 `package.json` 的生命周期脚本、它调用的脚本；这与测试套件的信任方式相同。
+  所以 `setup` 一旦被信任，之后的提交改了这些文件，`init` 会在新 worktree 里直接执行改过的版本，不再询问。不想自动执行 `setup`，
+  用 `tenon init --in-place` 建任务，或从目录里去掉 `setup`。
+- `setup` 失败只给 WARN，并给出重跑的命令（`WARN: [SETUP] …`），`init` 的退出码仍是 `0`。没有目录、目录无效或没有 `setup` 键，都会说明并跳过。
+- 本仓库的 `.tenon/tests/catalog.yaml` 声明了 `setup: npm ci && npm run build:packages`；改这条命令之后要重新 `tenon test trust`。
+- `setup` 可能要几分钟。执行 init 的 shell 调用要给足超时（技能用 600000 ms）；超时只会中断 `setup`，任务已经建好，用 `tenon status <change>` 确认。
+
+**再次找到任务。** `tenon list` 有 `WORKTREE` 列（`--json` 里是 `worktree`）：绝对路径；当前根自己的任务显示 `-` / `null`。在主检出里执行时，它还会列出
+`.worktrees/` 下未归档的任务。按名字读取任务的命令（`status`、`get` 等）仍然要在任务自己的根里执行：在主检出里会报
+`change 不存在: <名字>（它建在 worktree <路径> 里；切到该目录再执行）`（`TENON_LANG=en` 时是英文 `change not found: <name> (it lives in the worktree <path>; …)`）。`tenon workflow progress`
+是例外，在主检出里也能找到任务。主检出里只剩 worktree 任务可继续时，泛泛说一句“继续”，会把这些任务连同路径列出来，请你点名其中一个。
+
+**完结。** 交付与完结都在 `tenon/<change>` 分支上进行。任务归档后，Tenon 把 worktree 与分支留在原处，只报告清理命令（出现在 `finish-change` 动作和
+`finished` 的 `stop` 里，字段是 `cleanup`）：
+
+```bash
+git worktree remove '<路径>' && git branch -d 'tenon/<change>'
+```
+
+要自己在主检出里执行（不能在要删的 worktree 里执行），时间由你定。`git branch -d` 会拒绝还没合并的分支，所以不会丢提交。Dashboard 把每个 worktree 登记为
+单独的项目，没有跨 worktree 的统一视图。
+
+## 终端里的步骤清单
+
+`tenon init`、`tenon session activate`、`tenon transition` 或 `tenon step run <change>` 成功后，一个 PostToolUse hook 会在终端打印一行，数据来自这个
+Change 冻结的计划：已过的步骤是 `✓`，当前是 `●`，没到的是 `○`，Change 归档后全是 `✓`：
+
+```text
+Tenon · <change>
+立项 ✓ → 调研 ● → 规格 ○ → 实现 ○ → 验证 ○ → 交付 ○ → 完结 ○
+```
+
+标签就是工作流声明的标签。同一行也可以用 `tenon workflow progress <change>` 得到。遇到回退边（例如 `verify-fail` 回到实现）时，后面的步骤会重新显示为
+`○`，这是预期行为。清单不依赖宿主的 Todo 工具（较新的 Claude Code 模型默认不提供）；宿主有 Todo 工具时，技能还会按
+`tenon workflow plan <change> --json` 建 Todo。hook 只在宿主报告命令成功之后运行，所以失败的命令不会打印；hook 出任何问题都只是不打印而不是报错，
+想看这一行时自己执行 `tenon workflow progress <change>`。
+
 ## 预期结果
 
 - Todo 一级项与实际 workflow 步骤一致；
@@ -107,6 +188,8 @@ tenon document status <change> --json
 - Todo 不是 workflow 步骤：检查 `tasks.md` 是否由真实 effective workflow 生成；
 - 文档存在但 guard 仍失败：检查 producer、digest 和当前 phase read receipt；
 - UI 显示等待：查看是否真的存在 pending review，还是 AFK 仍在 queued；
+- 刚建的 Change 报 `change not found`：在 Git 仓库的主检出里，新 Change 建在 `.worktrees/<change>`。报错里有 worktree 路径，切到该目录再执行
+  （Claude Code 用 `EnterWorktree`，Codex 在该目录开新会话）；`tenon list` 列出每个任务及其路径，见[任务在哪里](#任务在哪里任务-worktree)；
 - Verify 报 workspace drift：回到 Build 重新冻结，不删除证据文件绕过；
 - Pages 或 push 未成功：如实保留为未验证项，不能仅因本地构建通过就声称上线。
 

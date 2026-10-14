@@ -69,7 +69,7 @@ import { missingStepSkills } from '../stepSkillGate.js'
 import { testEvidenceContextFor } from '../testEvidenceContext.js'
 import { resolveBuildRevisionAssessor } from './buildRevisionAssessor.js'
 import { phaseExitGuardContext } from './phaseExitGuard.js'
-import { pruneHostAgents } from './agent-host.js'
+import { cleanupLegacyHostAgentFiles } from './agent-host.js'
 import { msg } from '../i18n/messages.js'
 import { reportLegalEvents } from './transition-legal-events.js'
 
@@ -167,9 +167,10 @@ export async function cmdTransition(deps: CliDeps, name: string, event: string):
     stepAgentBlockers: async ({ changeDir: targetDir, stepId, plan, state }) =>
       stepAgentBlockersFor({ deps, name, dir: targetDir, stepId, plan, state }),
     // 与 check / status 的出边投影同一个判定；这里持锁，所以顺带把宿主回执落成 history 证据。
-    missingStepSkills: async ({ changeDir: targetDir, stepId, capability, plan }) => missingStepSkills({
+    missingStepSkills: async ({ changeDir: targetDir, stepId, capability, plan, exclude }) => missingStepSkills({
       deps, changeDir: targetDir, stepId, capability, recordEvidence: true,
       documentPolicy: plan.capabilities.documents.policy,
+      ...(exclude === undefined ? {} : { exclude }),
     }),
     resolveConstraintContext: async ({ policy }) => {
       const registry = loadRegistry(deps.cwd, nodeLoopIoStrict)
@@ -226,13 +227,8 @@ export async function cmdTransition(deps: CliDeps, name: string, event: string):
           }
         }
         deps.io.err(`[TRANSITION] ${name}: ${result.from} -> ${result.to}`)
-        // 任务完结：回收不再被任何在途任务引用的宿主 agent 文件（tenon-<name>）。
-        if (await runArchived(deps, dir)) {
-          const pruned = await pruneHostAgents(deps, name)
-          if (pruned !== undefined && pruned.removed.length > 0) {
-            deps.io.err(`[AGENT] 已回收宿主 agent 文件：${pruned.removed.join(', ')}`)
-          }
-        }
+        // 任务完结：清理升级前的版本留在项目里的宿主 agent 文件（失败只 WARN，不影响这次转换）。
+        if (await runArchived(deps, dir)) await cleanupLegacyHostAgentFiles(deps)
         // TransitionApplication 已完成 canonical commit 后才进入 AFK 后置编排。它严格只认
         // spec-complete/spec→build，且在同一 change lock 内复核仍为 build；因此队列故障绝不
         // 回滚已经真实成功的 workflow transition，也不会劫持普通 frontend/backend Build。

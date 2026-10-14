@@ -189,24 +189,24 @@ describe('status —— 人读渲染（对齐宽度）', () => {
 })
 
 describe('list —— 活跃 change 表；--json schema 稳定', () => {
-  test('人读：紧凑表 NAME/TRACK/PHASE/STATUS/OWNER（负责人名字，无负责人为 -）', async () => {
+  test('人读：紧凑表 NAME/TRACK/PHASE/STATUS/OWNER/WORKTREE（负责人名字，无负责人与不在 worktree 里为 -）', async () => {
     const deps = makeDeps({ states: { 'demo-a': stateA, 'demo-b': stateB } })
     const code = await cmdList(deps, {})
     expect(code).toBe(0)
     expect(deps.outLines).toEqual([
-      'NAME    TRACK    PHASE    STATUS       OWNER',
-      'demo-a  backend  build    in_progress  Jeff Sha',
-      'demo-b  pm       explore  pending      -',
+      'NAME    TRACK    PHASE    STATUS       OWNER     WORKTREE',
+      'demo-a  backend  build    in_progress  Jeff Sha  -',
+      'demo-b  pm       explore  pending      -         -',
     ])
   })
 
-  test('--json：{"changes":[...]} 键序稳定，排除 archived', async () => {
+  test('--json：{"changes":[...]} 键序稳定（worktree 在每行末尾），排除 archived', async () => {
     const deps = makeDeps({ states: { 'demo-a': stateA, 'old-x': stateArchived } })
     const code = await cmdList(deps, { json: true })
     expect(code).toBe(0)
     expect(deps.outLines).toEqual([
       '{"changes":[{"name":"demo-a","track":"backend","phase":"build",'
-      + '"phase_status":"in_progress","owner":{"id":"jeff@x.io","name":"Jeff Sha"}}]}',
+      + '"phase_status":"in_progress","owner":{"id":"jeff@x.io","name":"Jeff Sha"},"worktree":null}]}',
     ])
   })
 
@@ -238,6 +238,90 @@ describe('list —— 活跃 change 表；--json schema 稳定', () => {
   })
 })
 
+/**
+ * 新任务建在 `.worktrees/<c>` 里，主检出的 `openspec/changes` 看不到它：主检出的 list 要同时列出 worktree 里的未归档任务，
+ * 标出所在路径；按名读取找不到、但任务在某个 worktree 里时，报错给出该路径。worktree 清单经 deps.taskWorktrees 注入。
+ */
+describe('主检出里看得到建在 worktree 里的任务', () => {
+  const WT = '/repo/.worktrees/demo'
+  const inWorktree = (...changes: string[]) => async () => [{ path: WT, branch: 'tenon/demo', changes }]
+
+  test('list --json：worktree 任务带绝对路径，主检出自己的任务 worktree 为 null，按名排序', async () => {
+    const deps = makeDeps({ states: { 'main-task': stateA, demo: stateB }, changes: ['main-task'] })
+    deps.taskWorktrees = inWorktree('demo')
+    expect(await cmdList(deps, { json: true })).toBe(0)
+    expect(JSON.parse(deps.outLines[0]!)).toEqual({
+      changes: [
+        { name: 'demo', track: 'pm', phase: 'explore', phase_status: 'pending', owner: null, worktree: WT },
+        {
+          name: 'main-task', track: 'backend', phase: 'build', phase_status: 'in_progress',
+          owner: { id: 'jeff@x.io', name: 'Jeff Sha' }, worktree: null,
+        },
+      ],
+    })
+  })
+
+  test('主检出没有在途任务时，list --json 也包含 worktree 里的任务', async () => {
+    const deps = makeDeps({ states: { demo: stateB }, changes: [] })
+    deps.taskWorktrees = inWorktree('demo')
+    expect(await cmdList(deps, { json: true })).toBe(0)
+    expect(JSON.parse(deps.outLines[0]!)).toMatchObject({ changes: [{ name: 'demo', worktree: WT }] })
+  })
+
+  test('人读：WORKTREE 列写路径，主检出自己的任务写 -', async () => {
+    const deps = makeDeps({ states: { 'main-task': stateA, demo: stateB }, changes: ['main-task'] })
+    deps.taskWorktrees = inWorktree('demo')
+    expect(await cmdList(deps, {})).toBe(0)
+    expect(deps.outLines).toEqual([
+      'NAME       TRACK    PHASE    STATUS       OWNER     WORKTREE',
+      `demo       pm       explore  pending      -         ${WT}`,
+      'main-task  backend  build    in_progress  Jeff Sha  -',
+    ])
+  })
+
+  test('worktree 里 archived=true 的任务不算活跃；读不出状态的跳过并 WARN', async () => {
+    const deps = makeDeps({ states: { old: stateArchived, demo: stateB }, changes: [] })
+    deps.taskWorktrees = inWorktree('old', 'demo', 'broken')
+    expect(await cmdList(deps, { json: true })).toBe(0)
+    const parsed = JSON.parse(deps.outLines[0]!) as { changes: readonly { name: string }[] }
+    expect(parsed.changes.map((row) => row.name)).toEqual(['demo'])
+    expect(deps.errLines.join('\n')).toContain('broken')
+  })
+
+  test('读 worktree 清单失败：当作没有，列表照常', async () => {
+    const deps = makeDeps({ states: { 'main-task': stateA }, changes: ['main-task'] })
+    deps.taskWorktrees = async () => { throw new Error('git 不可用') }
+    expect(await cmdList(deps, { json: true })).toBe(0)
+    expect(JSON.parse(deps.outLines[0]!)).toMatchObject({ changes: [{ name: 'main-task', worktree: null }] })
+  })
+
+  test('status <name>：找不到任务但它在 worktree 里 → exit 1，报错给出该路径', async () => {
+    const deps = makeDeps({ states: { 'main-task': stateA } })
+    deps.store.read = spy(async (dir: string) => {
+      const error: NodeJS.ErrnoException = new Error(`ENOENT: no such file or directory, open '${dir}/.pipeline.yaml'`)
+      error.code = 'ENOENT'
+      throw error
+    })
+    deps.taskWorktrees = inWorktree('demo')
+    expect(await cmdStatus(deps, 'demo', {})).toBe(1)
+    expect(deps.errLines).toHaveLength(1)
+    expect(deps.errLines[0]).toContain('ERROR: change 不存在: demo')
+    expect(deps.errLines[0]).toContain(WT)
+  })
+
+  test('status <name>：任务既不在主检出也不在任何 worktree → 仍是原来那一句', async () => {
+    const deps = makeDeps({ states: { 'main-task': stateA } })
+    deps.store.read = spy(async () => {
+      const error: NodeJS.ErrnoException = new Error('ENOENT')
+      error.code = 'ENOENT'
+      throw error
+    })
+    deps.taskWorktrees = inWorktree('demo')
+    expect(await cmdStatus(deps, 'ghost', {})).toBe(1)
+    expect(deps.errLines).toEqual(['ERROR: change 不存在: ghost'])
+  })
+})
+
 describe('已归档（当前用户）在列表中隐藏', () => {
   test('status / list 跳过当前用户已归档的 change，键序不变', async () => {
     const cwd = await repoWithArchived('demo-a')
@@ -249,7 +333,7 @@ describe('已归档（当前用户）在列表中隐藏', () => {
     const list = makeDeps({ states: { 'demo-a': stateA, 'demo-b': stateB }, cwd })
     expect(await cmdList(list, { json: true })).toBe(0)
     expect(list.outLines[0]).toBe(
-      '{"changes":[{"name":"demo-b","track":"pm","phase":"explore","phase_status":"pending","owner":null}]}',
+      '{"changes":[{"name":"demo-b","track":"pm","phase":"explore","phase_status":"pending","owner":null,"worktree":null}]}',
     )
   })
 

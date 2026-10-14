@@ -1,16 +1,27 @@
 /**
- * 宿主原生 agent 文件的 CLI 编排：任务冻结 agent 时为当前宿主生成 `tenon-<name>` 子代理文件，
- * 任务完结时回收不再被任何在途任务引用的文件。文件落盘与所有权清单由 kernel 负责。
- *
- * 生成失败从不让命令失败：宿主退回通用子代理，结果写进运行记录（`subagent.native: false`）。
+ * 宿主原生 agent 文件的 CLI 编排。会话内的命令不写宿主子代理文件（专属子代理只来自 `tenon agent install` 写的用户级文件），
+ * 这里只剩三件事：
+ *   · `hostAgentHostOf`：`--host` / 进程环境 → 宿主；
+ *   · `agentsDirOf`：宿主读用户级子代理的目录（跟随 `CLAUDE_CONFIG_DIR` / `CODEX_HOME`），安装、卸载与派发判定共用；
+ *   · `cleanupLegacyHostAgentFiles`：清理升级前的版本留在项目里的旧文件（`tenon init`、任务归档与删除时）。
+ * 落盘、所有权清单与主检出定位由 kernel 负责。
  */
 import {
-  HOST_AGENT_FALLBACK, HOST_AGENT_HOSTS, ensureHostAgentFiles, pruneUnusedHostAgentFiles,
-  type FrozenAgent, type HostAgentFileOutcome, type HostAgentHost, type HostAgentPruneResult,
+  HOST_AGENT_HOSTS, cleanupLegacyHostAgents, hostAgentsDir, renderCurrentFromLibrary,
+  type HostAgentHost,
 } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
-import { ensureLocalExcludes, HOST_AGENT_EXCLUDES } from '../localExcludes.js'
-import { str } from '../render.js'
+
+/**
+ * 宿主读用户级子代理的目录：安装、卸载与派发判定统一经这里取，保证三者落在同一个目录。
+ * 环境只取自 `agentPaths().hostEnv`（生产是进程环境；测试桩不传就是空环境），不直接读 `process.env`。
+ */
+export function agentsDirOf(
+  paths: { readonly homeDir: string; readonly hostEnv?: Readonly<Record<string, string | undefined>> },
+  host: HostAgentHost,
+): string {
+  return hostAgentsDir(host, { homeDir: paths.homeDir, env: paths.hostEnv ?? {}, platform: process.platform })
+}
 
 /** `--host` 优先；没给时按进程环境判定的当前宿主（终端 = 无宿主，不生成）。 */
 export function hostAgentHostOf(deps: CliDeps, host?: string): HostAgentHost | undefined {
@@ -21,60 +32,37 @@ export function hostAgentHostOf(deps: CliDeps, host?: string): HostAgentHost | u
   return undefined
 }
 
-/** 为一个任务冻结的全部 agent 生成宿主文件（一次全部生成，之后的运行不再改动工作区）。 */
-export async function ensureChangeHostAgents(
-  deps: CliDeps,
-  host: HostAgentHost,
-  frozen: ReadonlyMap<string, FrozenAgent>,
-): Promise<ReadonlyMap<string, HostAgentFileOutcome>> {
-  const agents = [...frozen.values()]
-    .filter((agent) => agent.definition.hosts === undefined || agent.definition.hosts.includes(host))
-    .map((agent) => ({ name: agent.name, definition: agent.definition }))
-  if (agents.length === 0) return new Map()
+type RenderCurrent = (host: HostAgentHost, name: string) => string | undefined
+
+/**
+ * 当前库里 `(host, name)` 的渲染结果，作为「内容一致就是旧版本写的」的依据。
+ * 库没装配或读不出来时返回 undefined，清理退回只按所有权清单删——读库失败不该让旧文件清不掉，也不该阻止命令。
+ */
+async function currentRenderer(deps: CliDeps): Promise<RenderCurrent | undefined> {
+  if (deps.agentLibrary === undefined) return undefined
   try {
-    // 生成的文件是本机的、完结时回收：加进本机忽略，版本库状态里不显示为未跟踪（真机验收 F14）。
-    await ensureLocalExcludes(deps.cwd, HOST_AGENT_EXCLUDES)
-    const outcomes = await ensureHostAgentFiles({ repoRoot: deps.cwd, host, agents })
-    for (const outcome of outcomes) {
-      if (!outcome.native) deps.io.err(`WARN: 宿主 agent ${outcome.path} 未生成（${outcome.detail ?? outcome.state}），改用通用子代理`)
-    }
-    return new Map(outcomes.map((outcome) => [outcome.agent, outcome]))
+    return renderCurrentFromLibrary(await deps.agentLibrary())
   } catch (e) {
-    deps.io.err(`WARN: 宿主 agent 文件生成失败（${errMsg(e)}），改用通用子代理`)
-    return new Map()
-  }
-}
-
-/** 宿主文件缺席时的退回结果。 */
-export function fallbackOutcome(host: HostAgentHost): Pick<HostAgentFileOutcome, 'subagentType' | 'native'> {
-  return { subagentType: HOST_AGENT_FALLBACK[host], native: false }
-}
-
-/** 一个任务是否已完结（状态读不到按在途处理：宁可多留文件，不误删别人还在用的）。 */
-async function finished(deps: CliDeps, dir: string): Promise<boolean> {
-  try {
-    return str((await deps.store.read(dir)).fields.archived) === 'true'
-  } catch {
-    return false
+    deps.io.err(`WARN: 读不到 agent 库（${errMsg(e)}），旧版本写进项目的宿主 agent 文件只按所有权清单清理`)
+    return undefined
   }
 }
 
 /**
- * 回收宿主 agent 文件：保留每个在途任务（`openspec/changes/*`，不含 archive/、已完结的与 except）
- * 冻结的 agent 名，其余 Tenon 生成且未被改过的文件删除。判定在 kernel（Dashboard 完结任务时共用）；
- * 任何一个在途任务的冻结锁读不懂就整次放弃。尽力而为：失败只 WARN。
+ * 清理旧版本写进项目的宿主 agent 文件（在 linked worktree 里执行时清理主检出的）。尽力而为：失败只 WARN，
+ * 所在命令的结果与退出码不受影响；保留下来的文件逐个 WARN。
  */
-export async function pruneHostAgents(deps: CliDeps, except?: string): Promise<HostAgentPruneResult | undefined> {
+export async function cleanupLegacyHostAgentFiles(deps: CliDeps): Promise<void> {
   try {
-    const result = await pruneUnusedHostAgentFiles({
-      repoRoot: deps.cwd,
-      ...(except === undefined ? {} : { except }),
-      isFinished: (dir) => finished(deps, dir),
-    })
-    for (const path of result.preserved) deps.io.err(`WARN: 宿主 agent ${path} 被改过，保留`)
-    return result
+    const renderCurrent = await currentRenderer(deps)
+    const result = await cleanupLegacyHostAgents({ repoRoot: deps.cwd, ...(renderCurrent === undefined ? {} : { renderCurrent }) })
+    for (const path of result.preserved) {
+      deps.io.err(`WARN: 旧版本写进项目的宿主 agent 文件 ${path} 未清理（被改过或与当前定义不一致），保留；确认不需要后可手动删除`)
+    }
+    if (result.removed.length > 0) {
+      deps.io.err(`[AGENT] 已清理旧版本写进项目的宿主 agent 文件：${result.removed.join(', ')}`)
+    }
   } catch (e) {
-    deps.io.err(`WARN: 宿主 agent 文件回收失败：${errMsg(e)}`)
-    return undefined
+    deps.io.err(`WARN: 旧版本写进项目的宿主 agent 文件清理失败：${errMsg(e)}`)
   }
 }

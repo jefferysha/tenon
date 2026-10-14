@@ -79,7 +79,7 @@ export interface GuardInput {
   readonly readText?: (changeRelativePath: string) => string | undefined
   /** `git rev-parse HEAD` stdout（trim 前）；缺省 = SHA 面降级跳过。 */
   readonly gitHeadSha?: () => Promise<string>
-  /** in-place build 的内容寻址工作区基线；缺省 = workspace baseline guard 降级跳过。 */
+  /** worktree / in-place build 的内容寻址工作区基线；缺省 = workspace baseline guard 降级跳过。 */
   readonly workspaceFingerprint?: () => Promise<string>
   /** 当前 Change 的主规格迁移机器证据；Ship 门禁缺少能力时必须失败关闭。 */
   readonly specMigrationStatus?: () => Promise<SpecMigrationGuardStatus>
@@ -128,7 +128,7 @@ export interface ActionInput {
   readonly fields: Readonly<Record<FieldName, string | string[]>>
   readonly clock: () => string
   readonly gitHeadSha?: () => Promise<string>
-  /** in-place build 的内容寻址工作区基线；此能力缺失时 freeze 必须拒绝，不能降级为假 SHA。 */
+  /** worktree / in-place build 的内容寻址工作区基线；此能力缺失时 freeze 必须拒绝，不能降级为假 SHA。 */
   readonly workspaceFingerprint?: () => Promise<string>
   /** Trusted Build revision capture; receives the current isolation value. */
   readonly captureBuildRevision?: (isolation: string) => Promise<string>

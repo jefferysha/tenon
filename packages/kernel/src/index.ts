@@ -40,11 +40,16 @@ export {
 export type { AgentEntry, AgentLibrary, AgentScope, AgentStoreOptions } from './infrastructure/agent-store.js'
 export { agentWorkflowReferences, workflowAgentNames } from './infrastructure/agent-references.js'
 export type { AgentWorkflowReference } from './infrastructure/agent-references.js'
-export {
-  HOST_AGENT_OWNED_MANIFEST, ensureHostAgentFiles, ownedHostAgentNames, pruneHostAgentFiles,
-} from './infrastructure/host-agent-files.js'
-export type { HostAgentFileOutcome, HostAgentPruneResult } from './infrastructure/host-agent-files.js'
-export { pruneUnusedHostAgentFiles } from './infrastructure/host-agent-prune.js'
+// 旧版本写进项目里的宿主 agent 文件：init、归档、删除时清理（CLI 与 Dashboard 共用），会话内不再生成。
+export { cleanupLegacyHostAgents, renderCurrentFromLibrary } from './infrastructure/host-agent-files.js'
+export type { LegacyHostAgentCleanup } from './infrastructure/host-agent-files.js'
+// 宿主子代理用户级安装：终端 `tenon agent install|uninstall` 写 <配置目录>/agents（目录跟随 CLAUDE_CONFIG_DIR / CODEX_HOME，默认
+// ~/.claude、~/.codex），清单在 <configRoot>/agents/host-owned.json，按子代理目录分组。
+export { hostAgentsDir, installHostAgents, uninstallHostAgents, userHostAgentPath } from './infrastructure/host-agent-install.js'
+export type { HostInstallOutcome, HostInstallState } from './infrastructure/host-agent-install.js'
+// 派发判定（只读）：用户级已装文件与冻结定义一致才下发专属子代理，否则退回通用子代理并给出原因。
+export { resolveHostSubagent } from './infrastructure/host-subagent-resolve.js'
+export type { HostSubagentChoice } from './infrastructure/host-subagent-resolve.js'
 // 每步测试登记：测试方向、运行记录、基准与门禁判定。
 export * from './test-evidence/index.js'
 // 测试体系 v2：项目测试目录、任务测试计划、步骤测试策略、运行记录 v2 哈希链与策略判定。
@@ -82,6 +87,16 @@ export {
   changedFilesForState, changedFilesResultForState, changedFilesSinceChangeStart, changedLinesSinceChangeStart,
   createChangedFilesSession, fileAtChangeStart, parseAddedLines, pathChangesSinceChangeStart, resolveChangeStart,
 } from './workspace/changed-files.js'
+// 任务起点 start_sha：建任务时读 HEAD（isGitCommitId 校验后才写进状态）。
+export { isGitCommitId, readHeadCommit } from './workspace/change-start.js'
+// 新任务建在自己的 git worktree：判定 / 创建 / 回滚；git 执行器由调用方传入。
+export {
+  TaskWorktreeConflictError, createTaskWorktree, planTaskWorktree, rollbackTaskWorktree,
+} from './workspace/task-worktree.js'
+export type { GitRunner, TaskWorktreeInPlaceReason, TaskWorktreePlan } from './workspace/task-worktree.js'
+// 从主检出找到建在 worktree 里的任务（tenon list / 按名读取的报错 / workflow progress 共用）。
+export { listTaskWorktrees } from './workspace/task-worktree-list.js'
+export type { TaskWorktreeEntry } from './workspace/task-worktree-list.js'
 export type {
   ChangedFilesResult, ChangedFilesSession, ChangedFilesSessionOptions, ChangeStartInput, FileDiffEntry, FileDiffsResult,
   PathChange, PathChangeStatus,
@@ -165,6 +180,7 @@ export {
 export {
   agentWaves, attachedReviewers, evaluateStepAgents, isForwardExit, nextAgentWave, projectStepAgents, renderAgentBlocker,
 } from './workflow/agent-verdict.js'
+export { agentOwnedSkills, readAgentOwnedSkills, skillsExemptOnExit } from './workflow/agent-owned-skills.js'
 export {
   currentRound, DEFAULT_MAX_ROUNDS, effectiveMaxRounds, isRoundsLimited, isValidMaxRounds, MAX_ROUNDS_MAX, MAX_ROUNDS_MIN,
   parseMaxRoundsText, resolveMaxRounds, stepBackTargets,
@@ -322,7 +338,7 @@ export { phaseExitGuardContext, unfinishedTaskItems } from './workflow/phase-exi
 export { makeGuardFileContext, readBoundedRegularFileSync } from './infrastructure/guard-file-context.js'
 export type { BoundedFileRead, PhaseExitFileContext, PhaseExitGuardContext } from './workflow/phase-exit-context.js'
 export {
-  assessBuildRevisionTrust, createBuildRevisionToken, hashBuildRevisionIdentity,
+  assessBuildRevisionTrust, createBuildRevisionToken, expectedBuildRevisionKind, hashBuildRevisionIdentity,
   isBuildRevisionBlocker, makeBuildRevisionBlocker, parseBuildRevisionToken, safeRevisionHash,
   BUILD_REVISION_CODE, BUILD_REVISION_REASONS, BUILD_REVISION_REMEDIATION, BUILD_REVISION_TOKEN_PREFIX,
   BuildRevisionCaptureError,
@@ -352,6 +368,8 @@ export {
 export type {
   PipelineTodoItem, PipelineTodoProjection, PipelineTodoStage, PipelineTodoStageDefinition, PipelineTodoStageStatus,
 } from './workflow/todo-projection.js'
+// 终端步骤清单：冻结计划的步骤顺序 → 一行 ✓/●/○（`tenon workflow progress` 与 step-progress hook 共用）。
+export { stepProgressLine } from './workflow/step-progress.js'
 // SkillBundleResolver（H10 任务 2，G2 适配层）：把 workflow kind/step/profile ID 翻译成对
 // EffectiveSkillResolver 的一次具体调用，产出现有 EffectiveSkillSlot 集与 resolution source
 // （default/custom）；H10 任务 5 的 prepareSkillBundle、任务 4 的 snapshot manifest 消费本接口。

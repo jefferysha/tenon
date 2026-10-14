@@ -219,7 +219,7 @@ describe('tenon verify --ci', () => {
   test('受保护的目录改动：没有评审批准行 CI 失败；批准过则通过；批准之后再改又失败', async () => {
     const unapproved = await setup({ catalogEdit: 'unapproved' })
     const missing = await verify(unapproved.ci)
-    expect(missing.code).toBe(2)
+    expect(missing.code, `${missing.out}\n${missing.err}`).toBe(2)
     expect(codes(missing)).toContain('protected-unapproved')
 
     const approved = await setup({ catalogEdit: 'approved' })

@@ -20,12 +20,38 @@
   _Avoid_：原生 agent 文件、生成的 agent
 - **专属子代理 / 通用子代理**：派发时使用 `tenon-<name>` 类型即专属子代理，工具白名单与模型随定义生效；宿主默认的子代理类型
   （Claude `general-purpose`、Codex `default`）即通用子代理，只靠提示词约束。
-- **退回原因**：派发返回通用子代理时记录的原因，取值为 `not-installed`、`definition-mismatch`、`shadowed`、`project-agent`
-  之一。
+- **退回原因**：派发返回通用子代理时记录的原因，由 `tenon agent prompt` 判定，取值为 `not-installed`、`definition-mismatch`、
+  `shadowed`、`project-agent` 之一。台账的 `subagent.reason` 另有第五个值 `not-dispatched`，它不是退回原因：只在登记时由
+  `tenon agent record --subagent none` 如实写下（运行开始后根本没有派发子代理），`prompt` 永远不会返回它。
 - **用户级所有权清单**：记录 Tenon 写入用户级宿主子代理文件的路径与内容摘要；安装、卸载只动其中记着且未被用户改动的文件。
-- **步骤清单**：按任务冻结的工作流步骤顺序，标出已过（✓）、当前（●）、未到（○）的一行终端提示；由 hook 在关键 Tenon 命令
-  成功后打印，不依赖宿主的 Todo 工具。
+- **旧项目级文件**：升级前的版本写进项目 `.claude/agents/tenon-*.md`、`.codex/agents/tenon-*.toml` 的宿主子代理文件。它们优先级高于用户级
+  文件，会把新装的专属子代理遮住（`shadowed`），所以 `tenon init` 与任务归档、删除时按项目级所有权清单或与当前库渲染一致的规则清理，其余保留并警告。
+  _Avoid_：生成的 agent 文件
+- **步骤清单**：按任务冻结的工作流步骤顺序，标出已过（✓）、当前（●）、未到（○）的一行终端提示（`tenon workflow progress`）；由 hook 在关键
+  Tenon 命令成功后打印，不依赖宿主的 Todo 工具。
   _Avoid_：进度条、Todo 列表
+
+## Change start point
+
+- **任务起点**：“自任务开始以来改动了哪些文件”的比对基准提交，登记与同步、改动清单、测试完整性、风险探针、评审者挂载、流转门和 CI 校验共用。取
+  `start_sha`（建任务时记下的 HEAD，是当前 HEAD 的祖先时）、与基线分支上游的 merge-base、与基线分支的 merge-base（不等于 HEAD 时）中最新的一个；
+  互为祖先取后代，不成链取共同祖先（宁可多算、不许漏算）；一个候选都没有才退回 `created_at` 之前的最后一个提交。不读提交信息与作者。
+  _Avoid_：基线提交（`build_sha` 才是构建基线）、创建时间推算（只是兜底）
+- **起点字段**：`start_sha`、`base_branch`、`created_at` 三个决定任务起点的字段，只由 `tenon init` 写入，`tenon set|set-many|cas` 拒写。
+  `start_sha` 是逻辑字段，物理值在按 revision 绑定的伴随文件里（`.pipeline-run/start-sha/`），不进 wire 与 `.pipeline.yaml`，上一正式版读得了；
+  仓库没有提交时没有记录，没有记录读作空串。
+
+## Task worktree
+
+- **任务 worktree**：新任务在 Git 仓库主检出里默认获得的独立检出 `<主检出>/.worktrees/<change>`，分支 `tenon/<change>` 从建任务时的 HEAD 分出，
+  任务的 `isolation` 已设为 `worktree`。同仓多个任务各在自己的检出里并行，改动文件、测试登记与构建指纹互不污染；完结后 worktree 与分支留给用户用
+  `cleanup` 命令清理，Tenon 不自己删。
+  _Avoid_：隔离分支、沙箱（AFK 的 Docker worktree 是另一回事）
+- **原地建立**：任务不建 worktree、直接建在当前检出里。原因是非 Git 仓库、没有提交、HEAD 分离、当前目录已是 linked worktree，或用户指定
+  `--in-place`；原地任务的 `isolation` 没有预设，由 build 步骤再填 `in-place`。Dashboard 建任务与 AFK 分诊物化的任务一律原地。
+- **准备命令（`setup`）**：测试目录的可选顶层字段，`tenon init` 在新 worktree 里受信任时执行它（如 `npm ci`）。信任按命令摘要继承自主检出的
+  本机封存；未受信任时跳过并提示，失败只警告。
+  _Avoid_：post-create hook
 
 ## Sessions and review gates
 

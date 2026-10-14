@@ -19,7 +19,7 @@ import {
   BUILTIN_TRACK_DEFINITIONS, createEffectiveSkillResolver, createFlowEngine, createHistoryWriter, createStateStore,
   createInteractionEventRecorder, createTransitionRecordStore, createWorkflowRunRepository, loadManifest, loadTrackRegistry, loadWorkflow,
   candidateFingerprint, designSystemPrecondition, loadAgentLibrary, loadResourceCatalog, mutateTrackRegistry, readSecrets, registerProjectRoot,
-  createBuildRevisionToken, probeBuildRevisionIdentity, createOrchestrationLedger,
+  createBuildRevisionToken, expectedBuildRevisionKind, probeBuildRevisionIdentity, createOrchestrationLedger, listTaskWorktrees,
   type BoardCommandV2, type BoardSnapshotV2, type WorkflowPipelinePlanV2,
   withTrackRegistryLock, resolveTenonUser, type TenonUserResolution, actorOf, isTenonUser, USER_MISSING_HINT,
 } from '@tenon/kernel'
@@ -44,6 +44,7 @@ import { makeDoctorProbes } from './commands/doctor-probes.js'
 import { exitQuietlyOnEpipe } from './stdio-epipe.js'
 import { gitRemoteNames } from './gitRemotes.js'
 import { probeGitFinish } from './gitWorkspace.js'
+import { execGit } from './commands/init-worktree.js'
 import { detectHostEnvironment } from './hostKind.js'
 import { pluginSkillIds } from './pluginSkillIds.js'
 import { loadTestDirections } from './test-system/directions.js'
@@ -229,7 +230,7 @@ async function main(): Promise<void> {
     userConfigPath: () => runtimePaths().userConfigPath,
     resourceCatalog: () => loadResourceCatalog({ payloadRoot: pluginRoot(), configRoot: runtimePaths().configRoot }),
     agentLibrary: () => loadAgentLibrary({ payloadRoot: pluginRoot(), configRoot: runtimePaths().configRoot, projectRoot: process.cwd() }),
-    agentPaths: () => ({ payloadRoot: pluginRoot(), configRoot: runtimePaths().configRoot }),
+    agentPaths: () => ({ payloadRoot: pluginRoot(), configRoot: runtimePaths().configRoot, homeDir: homedir(), hostEnv: process.env }),
     hostKind: () => detectHostEnvironment(process.env).kind,
     knownSkillIds: () => pluginSkillIds(pluginRoot()),
     testDirections: () => loadTestDirections([
@@ -286,11 +287,12 @@ async function main(): Promise<void> {
     gitHeadSha: () => gitHeadSha(process.cwd()),
     gitRemotes: () => gitRemoteNames(process.cwd()),
     gitFinishProbe: (change) => probeGitFinish(process.cwd(), change),
+    taskWorktrees: () => listTaskWorktrees({ repoRoot: process.cwd(), git: execGit }),
     workspaceFingerprint: () => candidateFingerprint(process.cwd()),
     captureBuildRevision: async (isolation) => {
       const identity = await probeBuildRevisionIdentity(process.cwd())
       if (!identity) throw new Error('build revision identity unavailable')
-      const kind = isolation === 'in-place' ? 'workspace' as const : 'git' as const
+      const kind = expectedBuildRevisionKind(isolation)
       const revision = kind === 'workspace'
         ? await candidateFingerprint(process.cwd())
         : await gitHeadSha(process.cwd())

@@ -185,6 +185,46 @@ test('allows fixed trace-timeline research and governance paths but rejects sour
   }
 })
 
+test('allows the product identity only in the setup-host-agents research report bound by ledger digest', async () => {
+  const root = await fixture()
+  const firstIdentity = String.fromCharCode(116, 114, 101, 108, 108, 105, 115)
+  const secondIdentity = String.fromCharCode(99, 111, 109, 101, 116)
+  const thirdIdentity = String.fromCharCode(
+    97, 119, 101, 115, 111, 109, 101, 45, 100, 101, 115, 105, 103, 110, 45, 109, 100,
+  )
+  const report = '.pipeline-agent-reports/10167049-5af1-4624-bd94-53b2548a9153.md'
+  const allowed = [
+    `openspec/changes/setup-host-agents-step-progress/${report}`,
+    `openspec/changes/archive/2026-10-12-setup-host-agents-step-progress/${report}`,
+  ]
+  const rejected = [
+    'openspec/changes/setup-host-agents-step-progress/proposal.md',
+    'openspec/changes/setup-host-agents-step-progress/.pipeline-agent-reports/other.md',
+    'openspec/changes/archive/2026-10-12-setup-host-agents-step-progress/proposal.md',
+    'openspec/changes/archive/2026-10-12-setup-host-agents-step-progress/.pipeline-agent-reports/other.md',
+    `openspec/changes/other-change/${report}`,
+    `openspec/changes/archive/2026-10-12-other-change/${report}`,
+  ]
+  for (const path of [...allowed, ...rejected]) {
+    await mkdir(join(root, path, '..'), { recursive: true })
+    await writeFile(join(root, path), `Local file source: ${firstIdentity}.\n`)
+  }
+  try {
+    assert.deepEqual(checkReferenceIdentities(root, allowed), [])
+    const rejectedFailures = checkReferenceIdentities(root, rejected)
+    assert.equal(rejectedFailures.length, rejected.length)
+    assert.ok(rejectedFailures.every((failure) => /受管理文本/.test(failure)))
+    for (const path of allowed) {
+      for (const identity of [secondIdentity, thirdIdentity]) {
+        await writeFile(join(root, path), `Mentions ${firstIdentity} and ${identity}.\n`)
+        assert.equal(checkReferenceIdentities(root, [path]).length, 1)
+      }
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 test('allows review-handshake upstream identities only in its fixed research and design evidence', async () => {
   const root = await fixture()
   const firstIdentity = String.fromCharCode(116, 114, 101, 108, 108, 105, 115)

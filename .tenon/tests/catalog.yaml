@@ -14,6 +14,12 @@ schema: tenon-test-catalog/v1
 profile: coarse
 profiles_env:
   - CI
+# 新任务 worktree 的工作区准备（tenon init 建好 worktree、目录在其中受信任时执行）：npm ci 装依赖，
+# npm run build:packages 构建 packages/*/dist（vitest 经 dist 解析工作区包，oracle-unit 这类直接 npx vitest run 的套件没有它跑不起来）。
+# 不用完整的 npm run build：它还会重写已提交的 CLI / server bundle 与 dashboard 产物，新 worktree 一建好就可能带着改动；
+# build:packages 只写被 git 忽略的 dist/，e2e 用的是已提交的 bundle 与 dashboard 产物。
+# 这条命令属于目录的可执行摘要：改它之后要本人在终端重新 tenon test trust。
+setup: npm ci && npm run build:packages
 suites:
   # ── 单测 ────────────────────────────────────────────────────────────
   - id: unit

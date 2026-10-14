@@ -1,7 +1,9 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
-  catalogDigest, catalogSuitesDigest, formatCatalogIssues, parseTestCatalog, serializeTestCatalog, suiteFileGlobs,
+  catalogDigest, catalogExecDigest, catalogSuitesDigest, formatCatalogIssues, parseTestCatalog, serializeTestCatalog, suiteFileGlobs,
 } from './catalog.js'
+import { withoutNotApplicable, withNotApplicable } from './catalog-na.js'
 import type { TestCatalog } from './catalog-types.js'
 import { DESIGN_CATALOG } from './test-support.js'
 
@@ -165,5 +167,70 @@ describe('目录摘要', () => {
     expect(catalogSuitesDigest(serviceChanged, ['web-e2e'])).not.toBe(catalogSuitesDigest(catalog, ['web-e2e']))
     expect(catalogSuitesDigest(catalog, ['api-bench', 'api-bench'])).toBe(base)
     expect(catalogSuitesDigest(catalog, ['gone'])).not.toBe(catalogSuitesDigest(catalog, []))
+  })
+})
+
+describe('目录 setup（新 worktree 的工作区准备命令）', () => {
+  const WITH_SETUP = DESIGN_CATALOG.replace('profiles_env: [CI]\n', 'profiles_env: [CI]\nsetup: npm ci\n')
+  /** 引入 setup 之前，DESIGN_CATALOG 的可执行摘要（在改动前的实现上算出并写死）。 */
+  const EXEC_DIGEST_BEFORE_SETUP = 'sha256:1562304b4533b77273e0e7666dbbddb38ef087772f8b1128a3d573abecb76e30'
+
+  it('没有 setup 的目录：可执行摘要与引入该字段之前逐字相同，已有信任不失效', () => {
+    const catalog = ok(DESIGN_CATALOG)
+    expect(catalog).not.toHaveProperty('setup')
+    expect(catalogExecDigest(catalog)).toBe(EXEC_DIGEST_BEFORE_SETUP)
+  })
+
+  it('解析 setup；写出后读回同一份目录，setup 排在 profiles_env 之后、suites 之前', () => {
+    const catalog = ok(WITH_SETUP)
+    expect(catalog.setup).toBe('npm ci')
+    const text = serializeTestCatalog(catalog)
+    expect(text).toMatch(/\nprofiles_env:\n(?:  - [^\n]*\n)+setup: npm ci\nsuites:/u)
+    expect(ok(text)).toEqual(catalog)
+    expect(serializeTestCatalog(ok(DESIGN_CATALOG))).not.toContain('setup')
+    // 组合命令（&& 与引号）经规范化写出后仍读回原文。
+    const combined = ok(WITH_SETUP.replace('setup: npm ci', 'setup: npm ci && node -e "process.exit(0)"'))
+    expect(combined.setup).toBe('npm ci && node -e "process.exit(0)"')
+    expect(ok(serializeTestCatalog(combined))).toEqual(combined)
+  })
+
+  it('setup 纳入可执行摘要：加上或改写命令摘要都变化，目录整份摘要也变化', () => {
+    const plain = ok(DESIGN_CATALOG)
+    const withSetup = ok(WITH_SETUP)
+    expect(catalogExecDigest(withSetup)).toMatch(/^sha256:[a-f0-9]{64}$/)
+    expect(catalogExecDigest(withSetup)).not.toBe(catalogExecDigest(plain))
+    expect(catalogExecDigest(ok(WITH_SETUP.replace('npm ci', 'npm ci && npm run build')))).not.toBe(catalogExecDigest(withSetup))
+    expect(catalogDigest(withSetup)).not.toBe(catalogDigest(plain))
+  })
+
+  it('setup 不影响套件摘要：已有运行记录不因加 setup 过期', () => {
+    expect(catalogSuitesDigest(ok(WITH_SETUP), ['api-bench'])).toBe(catalogSuitesDigest(ok(DESIGN_CATALOG), ['api-bench']))
+  })
+
+  it('不适用声明的增删不丢 setup', () => {
+    const catalog = ok(WITH_SETUP)
+    const declared = withNotApplicable(catalog, 'lint', '纯脚本项目')
+    expect(declared.setup).toBe('npm ci')
+    const removed = withoutNotApplicable(declared, 'lint')
+    expect(removed.removed).toBe(true)
+    expect(removed.catalog.setup).toBe('npm ci')
+  })
+
+  it('本仓自己的测试目录有效，并声明了新 worktree 的准备：装依赖、构建被忽略的 packages/*/dist', () => {
+    // 新 worktree 里 vitest 经 packages/*/dist 解析工作区包，没有构建产物就跑不起来（只有 npm test 的 pretest 会自己构建）；
+    // 不用完整 build：它会重写已提交的 bundle 与 dashboard 产物。
+    const text = readFileSync(new URL('../../../../.tenon/tests/catalog.yaml', import.meta.url), 'utf8')
+    expect(ok(text).setup).toBe('npm ci && npm run build:packages')
+  })
+
+  it.each([
+    ['空字符串', 'setup: ""', /catalog\.yaml:2: setup 必须是非空字符串/],
+    ['缺值', 'setup:', /catalog\.yaml:2: setup 必须是非空字符串/],
+    ['数字', 'setup: 42', /catalog\.yaml:2: setup 必须是非空字符串/],
+    ['布尔', 'setup: true', /catalog\.yaml:2: setup 必须是非空字符串/],
+    ['列表', 'setup: [npm ci]', /catalog\.yaml:2: setup 必须是非空字符串/],
+    ['多行', 'setup: "npm ci\\nnpm run build"', /catalog\.yaml:2: setup 必须是单行/],
+  ])('setup 不是非空单行字符串（%s）→ 拒绝', (_name, line, pattern) => {
+    expect(issues(`schema: tenon-test-catalog/v1\n${line}\nsuites: []\n`).join('\n')).toMatch(pattern)
   })
 })

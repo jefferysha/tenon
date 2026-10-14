@@ -90,7 +90,7 @@ tr '|' '\t' > "$target/.oracle-plan" <<'PLAN'
 1|transition|t6-ge|build-complete
 0|seed|t6-ge|isolation|bogus
 1|transition|t6-ge|build-complete
-0|set|t6-ge|isolation|worktree
+0|set|t6-ge|isolation|branch
 1|transition|t6-ge|build-complete
 0|set|t6-ge|direct_override|true
 0|transition|t6-ge|build-complete

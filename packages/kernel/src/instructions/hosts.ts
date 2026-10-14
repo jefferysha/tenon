@@ -66,7 +66,11 @@ export function projectTargetsFor(hostIds: readonly string[]): ProjectInstructio
   return targets
 }
 
-function absoluteDirectory(value: string | undefined, platform: NodeJS.Platform): string | null {
+/**
+ * 环境变量里的目录：去掉首尾空白后必须是绝对路径才采用（否则 null），并去掉末尾分隔符。
+ * 用户级指令文件与宿主用户级子代理目录共用这一判定。
+ */
+export function absoluteDirectory(value: string | undefined, platform: NodeJS.Platform): string | null {
   const trimmed = value?.trim() ?? ''
   const absolute = platform === 'win32' ? /^(?:[A-Za-z]:[\\/]|\\\\)/.test(trimmed) : trimmed.startsWith('/')
   if (!absolute) return null

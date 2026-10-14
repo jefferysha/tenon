@@ -32,6 +32,11 @@ tenon dashboard --open
 它不会执行 setup/update，也不接受自定义宿主 ID。原生宿主计划面向用户级安装；适配器宿主
 计划固定使用 `--target .`，复制或运行前必须先进入目标项目目录。
 
+对原生宿主（`--claude`、`--codex`），`tenon setup` 或 `tenon update` 成功后（`update` 发现已是最新版时也一样），会经稳定启动器执行
+`tenon agent install --host <host>` 收尾，并打印写了哪些文件；之后请开新会话。这一步失败只给 `WARN`，不改变 `setup` / `update` 的退出码。
+`--dry-run` 不安装，适配器宿主没有子代理目录因而跳过，后台的 `--auto` 更新只打印失败。见
+[智能体](./agents.md#宿主子代理与安装命令)。
+
 ## Change 与状态
 
 ### Interaction observability
@@ -48,11 +53,12 @@ projection 写失败只在 canonical 成功后 warning，不改变 canonical sta
 拒绝 prompt、token、credential 与 artifact 字段。
 
 ```bash
-tenon init <name> --track <track> --preset <preset>
+tenon init <name> --track <track> --preset <preset> [--in-place] [--json]
 tenon init <name> --track frontend --preset full --document-locale zh-CN
 tenon list --json
 tenon status <name> --json
 tenon workflow plan <name> --json
+tenon workflow progress <name>
 tenon get <name> <field>
 tenon set <name> <field> <value>
 tenon transition <name> <event>
@@ -60,6 +66,30 @@ tenon check <name>
 ```
 
 不要用 `set phase` 绕过 workflow event。canonical state 和 YAML projection 只能由 CLI 写。
+
+在 Git 仓库的主检出里，`tenon init` 把 Change 建在它自己的 worktree `.worktrees/<name>`、分支 `tenon/<name>` 上，并把 `base_branch`（你出发时所在的
+分支）、`start_sha`（分出时的 `HEAD`）和 `isolation=worktree` 写进新任务。包括 `setup`、信任与清理在内的细节见
+[任务在哪里](./quickstart.md#任务在哪里任务-worktree)。
+
+- `--in-place`：在当前检出里初始化，不建 worktree，只在用户要求时使用。目录不是 Git 仓库（或不是仓库根）、仓库还没有提交、`HEAD` 分离、
+  当前目录本身是 linked worktree 时，即使不带该标志也是原地建立，`tenon init` 会在 stderr 说明原因。原地建立时 `isolation` 不预设。
+- 文本输出：stdout 为空（`[INIT] <change 目录>` 等都走 stderr）。建了 worktree 时，stderr 最后两行是 `worktree: <绝对路径>` 和切进去的做法
+  （Claude Code 用 `EnterWorktree`，Codex 在该目录开新会话）。
+- `--json`：stdout 只有一行
+  `{"change":"<名字>","path":"<change 目录>","worktree":"<绝对路径>|null","worktree_reason":"<原因>|null"}`。建了 worktree 时
+  `worktree_reason` 为 `null`，否则是 `not-git`、`no-commits`、`detached-head`、`linked-worktree`、`requested` 之一。
+- 路径或分支已存在时退出码 `1` 且什么都不改；其他失败会把刚建的 worktree 与分支撤掉。
+- 环境变量 `TENON_INIT_IN_PLACE=1` 与 `--in-place` 等效，但不打印原因；它是给 Tenon 自己的测试和脚本用的，不是日常用法。
+- `start_sha`、`base_branch`、`created_at` 只由 `init` 写入；`set`、`set-many`、`cas` 以退出码 `1` 拒写。
+
+在主检出里执行 `tenon list` 时，还会列出 `.worktrees/` 下未归档的任务。表格末尾有 `WORKTREE` 列（当前根自己的任务是 `-`），`--json` 的每一行都带
+`worktree`：worktree 的绝对路径，当前根自己的任务为 `null`。在主检出里按名字读取住在 worktree 里的任务的命令（`status`、`get`、`check`、
+`workflow plan`）以退出码 `1` 失败，报错点出 worktree 路径。
+
+`tenon workflow progress <name>` 打印一行步骤清单，取自 Change 冻结的计划：当前步骤之前是 `✓`，当前步骤是 `●`，之后是 `○`，Change 归档后每一步都是
+`✓`，步骤之间用 ` → ` 连接，标签就是工作流声明的标签（`立项 ✓ → 调研 ● → 规格 ○ → …`）。在主检出里它也能找到住在 worktree 里的任务。
+任何读不了的情形（名字非法、状态读不了、没有计划、没有步骤）都以退出码 `1` 退出且 stdout 为空。PostToolUse hook `step-progress` 在
+`tenon init`、`tenon session activate`、`tenon transition` 或 `tenon step run <name>` 成功之后执行它，并把这一行作为宿主的系统消息显示。
 
 `tenon workflow plan <name> --json` 是 Agent 编排在途 Change 的单一读取入口。它优先返回
 WorkflowRun 初始化时冻结的完整计划，包括步骤、Skill、门禁、守卫、产物和转换。后来修改或删除
@@ -70,6 +100,8 @@ WorkflowRun 初始化时冻结的完整计划，包括步骤、Skill、门禁、
 `next` 动作表，按序执行即可。`run-tests` 与 `run-test` 在将要执行的命令还没有得到用户信任时带一个 `trust` 对象
 （先请用户在自己的终端运行 `trust.command`）。带 `escalate` 的 `transition` 表示任务已经超出了它的通道：
 standard 通道的风险探针没通过，`escalate.reasons` 点名被突破的阈值，`escalate.then` 说明转换之后另开一个 `default` 任务。
+住在 worktree 里的任务，`finish-change` 动作和 `code: finished` 的 `stop` 带 `cleanup`，即移除 worktree 与分支的命令
+（`git worktree remove '<路径>' && git branch -d 'tenon/<change>'`）；原地建立的任务为 `null`。Tenon 只报告它，要你自己在主检出里执行。
 
 ```text
 tenon step run <change> [--json]
@@ -213,8 +245,13 @@ tenon agent record <change> <run-id> [--subagent <type>] [--host <id>] [--json]
 
 工作流在步骤里声明执行者与评审者；Tenon 只排顺序、渲染交接内容、记录结论与校验候选版本，
 模型一律由宿主跑。`next` 给出本波要跑的 agent，`prompt` 开始或续跑一个 agent 并打印交接内容，
-`--host claude|codex` 时为宿主生成 `tenon-<name>` 专属子代理文件并返回 `subagent_type`；
-`record` 读报告末尾的 ```tenon-result``` 块登记结论，`--subagent` 记下实际用的子代理。评审结论由
+它不写任何宿主文件；`--json` 时返回 `subagent_type`、`native`、`reason`、`hint`：只有 `tenon agent install` 装好的文件与任务冻结的定义一致时才给
+专属的 `tenon-<name>` 子代理，否则给宿主的通用子代理并写明原因；`record` 读报告末尾的 ```tenon-result``` 块登记结论，`--subagent <type>` 记下实际用的子代理，
+`--subagent none` 记下运行开始后没有派发任何子代理，读回来是 `subagent: { type: "none", native: false, reason: "not-dispatched" }`。
+`tenon agent install` 把适用于该宿主的官方与自定义智能体写成用户级子代理文件（`~/.claude/agents/tenon-<name>.md`、
+`~/.codex/agents/tenon-<name>.toml`；`CLAUDE_CONFIG_DIR` 或 `CODEX_HOME` 设为绝对路径时改写到它下面的 `agents` 目录，输出首行给出目标目录），开新会话后生效；`--host` 缺省取进程环境判出的宿主，普通终端里是 `claude`。完成时退出码 `0`（必须原样不动的文件是
+`WARN` 行，也算完成），用法错误、智能体库未装配或有文件写失败时退出码 `1`。`tenon agent uninstall` 删除 Tenon 写入且没被改过的文件，其余列出。
+`tenon setup` 与 `tenon update` 成功后会执行这一步安装。评审结论由
 Tenon 从问题级别与 `block_at` 计算，评审者不自报结论。同一候选（同一份代码）上评审者的每一次运行都保留，结论取最严的一次，
 所以重跑翻不掉一条发现：评审者在当前候选上已有结论后，`agent prompt` 拒绝再开一次（exit `2`），除非改了代码，或用
 `--rerun-reason <原因>` 写明为什么重跑——带原因的那次以它为准，原因留痕。`agent next`、`status --json`（`step.reviewers[]`）
@@ -255,6 +292,8 @@ tenon agent validate <file|name>
 tenon agent copy <from> <to> [--scope user|project]
 tenon agent rm <name> [--scope user|project]
 tenon agent export <name> --host claude|codex
+tenon agent install [--host claude|codex]
+tenon agent uninstall [--host claude|codex]
 ```
 
 `document record --all` 一次登记当前步骤所有「文件已经写好」的文档，每份都走 `document record` 自己的全部校验（占位符、producer 的技能回执、
@@ -328,7 +367,9 @@ tenon test diff-risk [<change>] [--json]
 
 测试分三层登记。项目**目录**（`.tenon/tests/catalog.yaml`，进 git，人可直接改）说明项目有哪些套件、怎么跑：
 `kind`、`runner`、`command`、`cwd`、报告格式与路径、可选的覆盖率、产物路径、`select` 模板（`{files}` / `{pattern}`）、
-`services`、`retries`、`parallel`，基准套件还有 `benchmark` 段。报告、覆盖率与产物路径必须在 `test-results/`、
+`services`、`retries`、`parallel`，基准套件还有 `benchmark` 段。目录还可以声明一个顶层的 `setup` 字符串，即为全新的任务 worktree 做准备的命令（例如 `npm ci`）：
+目录在新 worktree 里受信任时 `tenon init` 会在其中执行它，失败只给警告，它属于被信任的命令摘要的一部分（见下面的*首次信任*和
+[任务在哪里](./quickstart.md#任务在哪里任务-worktree)）。报告、覆盖率与产物路径必须在 `test-results/`、
 `playwright-report/` 或 `coverage/` 之下（声明不可能借此藏起源码）。把运行记录绑到代码上的工作区指纹，只忽略目录声明的路径
 （报告、覆盖率与 `artifacts`，按套件 `cwd` 换算）和在途任务冻结工作流里内联测试的 `outputs`：任意层级里没有声明的
 `coverage/`、`test-results/` 目录都算候选的一部分。任务**计划**
@@ -386,8 +427,9 @@ vitest 工程里的 `*.bench.*` 文件会识别成 `vitest-bench` 基准套件�
 辅助文件和 `*.bench.*` 不会自动认领），再生成计划初稿并登记这些文件；只增不减，可重复运行。`test sync` 拿本任务相对起点的
 diff 对账：未登记的测试文件、没有套件认领的文件、登记了但文件已不存在的项，与门禁是同一份计算（有待处理 exit `2`）。
 
-任务的起点是与基线分支的 merge-base；直接在基线分支上做时取任务创建之前的最后一个提交；diff 包含暂存、未暂存与
-未跟踪文件。读不到 diff 时门禁以 `files-diff-unavailable` 阻塞（失败关闭，不降级成提示）。
+任务的起点取三个候选里最新的一个：`tenon init` 记下的 `start_sha`（当它是 `HEAD` 的祖先、且提交时间不晚于任务 `created_at` 加 60 秒时）、`HEAD` 与基线分支上游的 merge-base、`HEAD` 与基线分支的
+merge-base（不等于 `HEAD` 本身时）；候选不成链时退到它们的共同祖先。三个都没有时才取任务创建之前的最后一个提交。不读提交信息与作者。规则与限制见
+[任务起点](./default-workflow.md#任务起点)。diff 包含暂存、未暂存与未跟踪文件。读不到 diff 时门禁以 `files-diff-unavailable` 阻塞（失败关闭，不降级成提示）。
 
 `test run` 每次调用写一份 v2 记录（`.tenon/users/<slug>/tests/<change>/<run-id>.json`），按 `prev_digest` 串成链；
 手改记录就断链，该任务的全部 v2 记录视为未运行，直到重跑另起新链。记录按设计入库（它们是别人和 CI 读的证据），所以数量可以设上限：
@@ -398,8 +440,8 @@ diff 对账：未登记的测试文件、没有套件认领的文件、登记了
 `chain-base` 标记，写明被删的最后一条的摘要，剩下的链仍可校验；中间缺记录、标记对不上或标记损坏，照旧是断链。测试进程的 `PATH`
 最前是正在运行的 `tenon`（启动器所在目录；直接 `node …/tenon.mjs` 跑时是一个转发脚本），所以没有启动器在 `PATH` 上的环境里
 `tenon test code-size --json` 也能跑；宿主自己的 Bash 解析不到 `tenon` 时 `tenon doctor` 的 `env:path-tenon` 会提示。交付提交从不包含
-`.pipeline-owned.json`、`test-results/`、`playwright-report/` 和仓库根的 `coverage/`；生成的 `tenon-<name>` 宿主 agent 文件与这些输出目录
-会加进本克隆的 `.git/info/exclude`（不改项目的 `.gitignore`）。选择：`--suite`、`--kind`、`--all`（计划里的全部
+`.pipeline-owned.json`、`test-results/`、`playwright-report/`、仓库根的 `coverage/`，以及旧版本留在项目里的 `tenon-<name>` 宿主 agent 文件；
+`test-results/` 与 `playwright-report/` 会加进本克隆的 `.git/info/exclude`（不改项目的 `.gitignore`；Tenon 不再往项目里写宿主 agent 文件）。选择：`--suite`、`--kind`、`--all`（计划里的全部
 套件，全量）、`--changed`（套件有 `select.files` 模板且只改了它的测试文件时只跑这些，否则整套跑）、
 `--stage [<step>]`（该步骤策略的 `run` 种类，加上计划登记了的 `run_if_registered` 种类；策略要求 `scope: full` 时一律
 全量）。没有任何选择参数时缺省就是 `--stage`。`--stage` 只跑目录套件：内联的 `tests[]`（套件 id 以 `step:` 开头）仍走
@@ -460,7 +502,11 @@ OS、架构、核数、运行时主版本加 `profiles_env` 的取值（形如 `
   `tenon review acknowledge`（或 Dashboard 的「通过」）把这些摘要的批准封存下来，待确认时 `--delegated` 被拒，之后再改一个字节就要重新
   确认。与 Tenon 上次写出的内容对不上的基线或 `known-failures.yaml` 判 `protected-file-tampered`，并标注「台账外改动」。
 - *首次信任*：`tenon test run` 拒绝执行你在本机还没信任过的目录（内联步骤测试则是冻结工作流里的测试命令）：套件 `command`、`select`
-  模板、`cwd`、声明的环境变量名和服务的 start / ready / stop，按摘要记（改标签、`covers` 不会再问，改任何一条命令会）。
+  模板、`cwd`、声明的环境变量名、服务的 start / ready / stop 和顶层的 `setup`，按摘要记（改标签、`covers` 不会再问，改任何一条命令会）。
+  `tenon init` 会把你在主检出里信任过的摘要带进新的任务 worktree，所以已提交的目录在那里立即受信任、`setup` 照常执行；那里的目录与主检出不同则视为未信任，
+  `setup` 被跳过，直到你在 worktree 里运行 `tenon test trust`。信任绑定的是命令文本（目录的命令摘要），不绑定命令执行时读取的仓库文件，
+  例如 `package.json` 的生命周期脚本、它调用的脚本，与测试套件相同：已信任的 `setup` 在之后的提交改了这些文件时，会在新 worktree 里直接执行。
+  不想自动执行可以 `tenon init --in-place`，或从目录里去掉 `setup`。
   `tenon test trust [<change>]` 列出将执行的命令，交互终端里问 `[y/N]`（`--yes` 给你自己的脚本，`--status` 只看是否已信任、
   未信任 exit `2`，`--json`）。CI 由运行器显式设置 `TENON_TEST_TRUST=1`，之后每次运行都会打一行说明信任来自环境。Tenon 的 hook
   会拒绝 agent 的 shell 调用里出现 `tenon test trust` 或 `TENON_TEST_TRUST=` 赋值，所以这个决定只留给你。

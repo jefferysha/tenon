@@ -14,7 +14,7 @@
 import { FIELD_ORDER, LIST_FIELDS } from '@tenon/kernel'
 import type { FieldName, HistoryEntry } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
-import { readChangeForDisplay, resolveChangeDir } from '../paths.js'
+import { changeNotFoundMessage, readChangeForDisplay, resolveChangeDir } from '../paths.js'
 import {
   checkName, runComboWrite, runGuardedCas, runGuardedWrite, writePreflight,
 } from './field-writes.js'
@@ -74,6 +74,11 @@ function rejectProtectedField(deps: CliDeps, field: FieldName): boolean {
     deps.io.err(`ERROR: ${msg(deps, 'field.buildShaFrozen')}`)
     return true
   }
+  // 任务起点由建任务时记下：不是转换的副作用，也没有别的命令能写，所以点名 tenon init。
+  if (field === 'start_sha' || field === 'base_branch' || field === 'created_at') {
+    deps.io.err(`ERROR: ${msg(deps, 'field.managedByInit', { field })}`)
+    return true
+  }
   // phase_status / verified_at / updated_at 由转换本身落值（flow engine 与 verify-pass 副作用）；
   // 手写 phase_status=done 会让 `list` 显示一个没走过任何出口的「已完成」相位。
   const owner = field === 'created_by' || field === 'assignee' ? 'tenon owner' : 'tenon transition'
@@ -110,7 +115,7 @@ export async function cmdGet(deps: CliDeps, name: string, field: string): Promis
     return 0
   } catch (e) {
     const code = typeof e === 'object' && e !== null ? Reflect.get(e, 'code') : undefined
-    deps.io.err(code === 'ENOENT' ? `ERROR: ${msg(deps, 'change.notFound', { name })}` : `ERROR: ${errMsg(e)}`)
+    deps.io.err(code === 'ENOENT' ? `ERROR: ${await changeNotFoundMessage(deps, name)}` : `ERROR: ${errMsg(e)}`)
     return 1
   }
 }

@@ -14,9 +14,11 @@
  *   archived           archived=true + archived_at + phase_status=done（L212-218）
  * 校验失败 = exit 1 + ERROR 走 stderr + canonical/YAML 均不变（老仓 case 校验先于任何写）。
  */
+import { execFileSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
+import { candidateFingerprint } from '@tenon/kernel'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import {
   FIXED_CLOCK,
@@ -96,7 +98,11 @@ async function approveReviewExit(name: string, event: string): Promise<void> {
 }
 
 /** 按老仓 case 块前置，把 change 从 open 推进到目标相位（步骤对齐 oracle backend-full fixture） */
-async function advanceTo(name: string, phase: 'explore' | 'spec' | 'build' | 'verify' | 'ship'): Promise<void> {
+async function advanceTo(
+  name: string,
+  phase: 'explore' | 'spec' | 'build' | 'verify' | 'ship',
+  isolation: 'branch' | 'worktree' = 'branch',
+): Promise<void> {
   expect(await h.run(['transition', name, 'open-complete'])).toBe(0)
   if (phase === 'explore') return
   // Reuse the governed OpenSpec design seeded with the complete coverage block. Review request
@@ -111,7 +117,7 @@ async function advanceTo(name: string, phase: 'explore' | 'spec' | 'build' | 've
   expect(await h.run(['transition', name, 'spec-complete'])).toBe(0)
   if (phase === 'build') return
   await h.run(['set', name, 'build_mode', 'direct'])
-  await h.run(['set', name, 'isolation', 'worktree'])
+  await h.run(['set', name, 'isolation', isolation])
   await h.run(['set', name, 'direct_override', 'true'])
   await h.satisfyStepTests(name, 'build')
   await h.satisfyStepAgents(name)
@@ -213,7 +219,7 @@ describe('真实 e2e —— build-complete 校验 + build_sha 冻结（老仓 L1
     await initGoverned('demo')
     await advanceTo('demo', 'build')
     await h.run(['set', 'demo', 'build_mode', 'direct'])
-    await h.run(['set', 'demo', 'isolation', 'worktree'])
+    await h.run(['set', 'demo', 'isolation', 'branch'])
     await h.satisfyStepTests('demo', 'build')
     expect(await h.run(['transition', 'demo', 'build-complete'])).toBe(1)
     expect(h.err).toContain('ERROR: full workflow 使用 build_mode=direct 必须显式设 direct_override=true')
@@ -259,6 +265,30 @@ describe('真实 e2e —— build-complete 校验 + build_sha 冻结（老仓 L1
     // in-place 没有不可变 Git checkout；必须冻结排除 pipeline 元数据后的工作区内容基线，
     // 不能把同一个 HEAD 错当成仍未漂移的实现目标。
     expect(yaml).toMatch(/^build_sha: build:v1:workspace:[a-f0-9]{64}:[a-f0-9]{64}:[a-f0-9]{64}$/m)
+  })
+
+  test('isolation=worktree：实现尚未提交也冻结 workspace 令牌，verify-pass 在同一工作区复核通过', async () => {
+    await initGoverned('demo')
+    await seed('src/app.js', 'export const version = 1\n')
+    await advanceTo('demo', 'ship', 'worktree')
+    const yaml = await h.read('demo')
+    expect(yaml).toMatch(/^phase: ship$/m)
+    expect(yaml).toMatch(/^build_sha: build:v1:workspace:[a-f0-9]{64}:[a-f0-9]{64}:[a-f0-9]{64}$/m)
+  })
+
+  test('isolation=worktree：构建之后实现又变了，verify 出口以 revision-stale 拒绝', async () => {
+    await initGoverned('demo')
+    await advanceTo('demo', 'verify', 'worktree')
+    expect(await h.read('demo')).toMatch(/^build_sha: build:v1:workspace:/m)
+    await seed('src/app.js', 'export const version = 2\n')
+    await seed('docs/verify.md')
+    await h.seedArtifact('demo', 'verification_report', 'docs/verify.md')
+    await h.run(['set', 'demo', 'branch_status', 'handled'])
+    await h.satisfyStepTests('demo', 'verify')
+    await h.satisfyStepAgents('demo')
+    expect(await h.run(['review', 'request', 'demo', '--event', 'verify-pass'])).not.toBe(0)
+    expect([...h.err, ...h.out].join('\n')).toContain('revision-stale')
+    expect(await h.read('demo')).toMatch(/^phase: verify$/m)
   })
 })
 
@@ -329,6 +359,92 @@ describe('真实 e2e —— verify-pass 校验 + 副作用（老仓 L163-205）'
     await approveReviewExit('demo', 'verify-pass')
 
     await seed('src/app.js', 'export const version = 2\n')
+    const before = await h.read('demo')
+    await h.satisfyStepTests('demo', 'verify')
+    await h.satisfyStepAgents('demo')
+    expect(await h.run(['transition', 'demo', 'verify-pass'])).toBe(1)
+    expect(h.err.join('\n')).toContain(
+      'ERROR: verify-build-revision-untrusted reason=revision-stale remediation=return-to-build-and-capture-current-revision',
+    )
+    expect(await h.read('demo')).toBe(before)
+  })
+
+  /**
+   * 临时 git 仓里的 in-place 任务，推进到 build-complete 已完成（phase=verify，build_sha 冻结了 workspace 令牌）。
+   * `tracked` 是此时已 `git add` 的文件（含内容）；其余文件只是写在工作区里、没被 git 跟踪。
+   */
+  async function completeInPlaceBuildInGitRepo(tracked: Readonly<Record<string, string>>): Promise<void> {
+    await initGoverned('demo')
+    await advanceTo('demo', 'build')
+    execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: h.cwd })
+    for (const [rel, content] of Object.entries(tracked)) await seed(rel, content)
+    execFileSync('git', ['add', '-f', '--', ...Object.keys(tracked)], { cwd: h.cwd })
+    await h.run(['set', 'demo', 'build_mode', 'direct'])
+    await h.run(['set', 'demo', 'isolation', 'in-place'])
+    await h.run(['set', 'demo', 'direct_override', 'true'])
+    await h.satisfyStepTests('demo', 'build')
+    await h.satisfyStepAgents('demo')
+    expect(await h.run(['set', 'demo', 'pre_verify_review_result', 'pass']), h.err.join('\n')).toBe(0)
+    expect(await h.run(['transition', 'demo', 'build-complete']), [...h.err, ...h.out].join('\n')).toBe(0)
+    expect(await h.read('demo')).toMatch(/^build_sha: build:v1:workspace:[a-f0-9]{64}:[a-f0-9]{64}:[a-f0-9]{64}$/m)
+  }
+
+  /** verify 出口的前置：验证报告、branch_status、本步测试与 agent（评审确认由用例按需自己请求）。 */
+  async function prepareVerifyExit(): Promise<void> {
+    await seed('docs/verify.md')
+    await h.seedArtifact('demo', 'verification_report', 'docs/verify.md')
+    await h.run(['set', 'demo', 'branch_status', 'handled'])
+  }
+
+  test('in-place barrier：另一个会话在未被跟踪的 .claude/worktrees/ 下新建、修改文件 → 构建版本复核仍可信，verify-pass 照常通过', async () => {
+    await completeInPlaceBuildInGitRepo({ 'src/app.js': 'export const version = 1\n' })
+    const captured = await candidateFingerprint(h.cwd)
+
+    // 同仓库另一个 Claude Code 会话或子代理在自己的检出里持续改文件（未被 git 跟踪）。
+    await seed('.claude/worktrees/agent-x/src/app.js', 'export const version = 1\n')
+    await seed('.claude/worktrees/agent-x/package.json', '{ "name": "agent-x" }\n')
+    expect(await candidateFingerprint(h.cwd), '候选（完整指纹）不因此变化').toBe(captured)
+
+    await prepareVerifyExit()
+    await approveReviewExit('demo', 'verify-pass')
+    await seed('.claude/worktrees/agent-x/src/app.js', 'export const version = 2\n')
+    await seed('.claude/worktrees/agent-y/new.js', 'export const another = true\n')
+    expect(await candidateFingerprint(h.cwd), '评审确认之后它们再变，候选仍不变').toBe(captured)
+
+    await h.satisfyStepTests('demo', 'verify')
+    await h.satisfyStepAgents('demo')
+    expect(await h.run(['transition', 'demo', 'verify-pass']), [...h.err, ...h.out].join('\n')).toBe(0)
+    expect(await h.read('demo')).toMatch(/^phase: ship$/m)
+  })
+
+  test('in-place barrier：同一个仓里改被跟踪的 src/ 文件 → revision-stale（.claude/worktrees/ 不让它放行）', async () => {
+    await completeInPlaceBuildInGitRepo({ 'src/app.js': 'export const version = 1\n' })
+    await seed('.claude/worktrees/agent-x/src/app.js', 'export const version = 1\n')
+    await prepareVerifyExit()
+    await approveReviewExit('demo', 'verify-pass')
+
+    await seed('src/app.js', 'export const version = 2\n')
+    const before = await h.read('demo')
+    await h.satisfyStepTests('demo', 'verify')
+    await h.satisfyStepAgents('demo')
+    expect(await h.run(['transition', 'demo', 'verify-pass'])).toBe(1)
+    expect(h.err.join('\n')).toContain(
+      'ERROR: verify-build-revision-untrusted reason=revision-stale remediation=return-to-build-and-capture-current-revision',
+    )
+    expect(await h.read('demo')).toBe(before)
+  })
+
+  test('in-place barrier：被 git 跟踪的 .claude/worktrees/ 文件照算 → 构建后改它，revision-stale（不能把代码藏进这个目录）', async () => {
+    await completeInPlaceBuildInGitRepo({
+      'src/app.js': 'export const version = 1\n',
+      '.claude/worktrees/vendored.js': 'export const vendored = 1\n',
+    })
+    // 同目录里没被跟踪的文件不算。
+    await seed('.claude/worktrees/agent-x/src/app.js', 'export const version = 1\n')
+    await prepareVerifyExit()
+    await approveReviewExit('demo', 'verify-pass')
+
+    await seed('.claude/worktrees/vendored.js', 'export const vendored = 2\n')
     const before = await h.read('demo')
     await h.satisfyStepTests('demo', 'verify')
     await h.satisfyStepAgents('demo')

@@ -34,11 +34,7 @@ export function stepAgentsOf(plan: EffectiveWorkflowPlan, stepId: string): StepA
 export async function resolveAgentCommand(
   deps: CliDeps,
   name: string,
-  options: {
-    readonly requireOwner: boolean
-    /** 读完冻结内容、算候选之前的一步（生成宿主 agent 文件放在这里，候选不会因它而变）。 */
-    readonly prepare?: (frozen: ReadonlyMap<string, FrozenAgent>) => Promise<void>
-  },
+  options: { readonly requireOwner: boolean },
 ): Promise<AgentContext | number> {
   const base = await resolveChangeCommand(deps, name, options)
   if (typeof base === 'number') return base
@@ -53,7 +49,6 @@ export async function resolveAgentCommand(
     const frozen = step.executors.length === 0 && step.reviewers.length === 0
       ? new Map<string, FrozenAgent>()
       : await readFrozenAgents({ changeDir: base.dir, runId, workflowFingerprint: base.plan.workflowFingerprint })
-    await options.prepare?.(frozen)
     const tests = await testsReadyFor(deps, base, stepId)
     return {
       ...base,

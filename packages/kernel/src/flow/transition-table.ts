@@ -54,7 +54,7 @@ export interface TransitionContext {
   fileExists?: (relPath: string) => boolean
   /** `git rev-parse HEAD` stdout（trim 前；已绑定 cwd），仅供 legacy capture/观察适配器。 */
   gitHeadSha?: () => Promise<string>
-  /** `isolation=in-place` 的内容寻址工作区基线；实际 Verify 信任由 assessor 裁决。 */
+  /** `isolation=worktree|in-place` 的内容寻址工作区基线；实际 Verify 信任由 assessor 裁决。 */
   workspaceFingerprint?: () => Promise<string>
   /** Trusted Build revision token capture. Missing capability fails the Build transition closed. */
   captureBuildRevision?: (isolation: string) => Promise<string>

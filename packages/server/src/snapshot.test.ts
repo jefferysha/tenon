@@ -2,17 +2,21 @@
 import { describe, expect, it } from 'vitest'
 import { execFile } from 'node:child_process'
 import { appendFileSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
-import { mkdir, readFile, readdir, realpath, rename, rm, symlink, unlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, realpath, rename, rm, symlink, unlink, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { promisify } from 'node:util'
 import {
   builtinTrack,
+  changedFilesForState,
+  changeStartOfFields,
   compileEffectiveWorkflowPlan,
   effectiveWorkflowPlanFromSnapshot,
   effectiveWorkflowPlanBinding,
   ensureDocumentLedger,
   isCurrentTaskPlanProjectionForChange,
   loadEffectiveWorkflowPlan,
+  protectedChangesSinceChangeStart,
   publishTaskPlanRevision,
   TERMINAL_ACTIVITY_TTL_MS,
   type TaskPlanRevisionV1,
@@ -22,6 +26,7 @@ import {
 } from '@tenon/kernel'
 import { ArtifactScopeMigrationError } from '@tenon/automation'
 import { buildSnapshot, computeFingerprint } from './snapshot.js'
+import { createProjectScanContext } from './snapshotChangeScan.js'
 import { countProjectDeletions } from './serverTaskLifecycleRoutes.js'
 import { ensureUserLocalDir, isProcessLocalFdPath, serializeTaskArchive, type TenonUserResolution } from '@tenon/kernel'
 import { snapshotWorkflowRules } from './workflowSnapshot.js'
@@ -33,7 +38,7 @@ import {
 } from './changeSnapshot.js'
 import { captureChangePathAnchor } from './contextBundlePreviewSupport.js'
 import { readRegistry } from './registry.js'
-import { initChange, makeProject, makeTempHome, newStore, sleep } from './test-support.js'
+import { initChange, makeProject, makeTempHome, newStore, sleep, testFlow } from './test-support.js'
 import { captureWorkflowRootAnchor, closeWorkflowRootAnchor } from './workflows.js'
 import type { WorkflowRootAnchor } from './workflowRootAnchor.js'
 
@@ -2447,6 +2452,74 @@ describe('子进程探测只收到真实路径（anchor fd 句柄绝不外泄）
       expect(JSON.stringify(blockers)).not.toContain('evaluation-error')
     } finally {
       closeWorkflowRootAnchor(anchor)
+    }
+  })
+})
+
+/**
+ * 任务起点跟随上游：快照扫描上下文里 step-exit 就绪判定读的「改动文件」与「待批准的受保护测试配置」，
+ * 与 CLI 经 changedFilesForState / protectedChangesSinceChangeStart 读到的是同一份——都经 changeStartOfFields，
+ * 所以快进拉取进来的他人提交（含 catalog.yaml）两边都不算本任务的。
+ */
+describe('快照与 CLI 的任务起点同一口径（快进拉取）', () => {
+  const GIT_ENV = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' }
+  const gitIn = (cwd: string, ...args: string[]): Promise<{ stdout: string }> => execFileAsync('git', [
+    '-c', 'user.email=t@t.test', '-c', 'user.name=t', '-c', 'commit.gpgsign=false', ...args,
+  ], { cwd, env: GIT_ENV })
+
+  it('改动文件与待批准的受保护配置与 CLI 一致：只含本任务自己的改动，拉进来的 catalog.yaml 不出现', async () => {
+    const store = newStore()
+    const root = await realpath(await makeProject())
+    const origin = await mkdtemp(join(tmpdir(), 'tenon-snap-origin-'))
+    const other = await mkdtemp(join(tmpdir(), 'tenon-snap-other-'))
+    try {
+      await gitIn(origin, 'init', '-q', '--bare', '-b', 'main')
+      await gitIn(root, 'init', '-q', '-b', 'main')
+      await gitIn(root, 'remote', 'add', 'origin', origin)
+      await writeFile(join(root, '.gitignore'), 'openspec\n.pipeline*\n', 'utf8')
+      await gitIn(root, 'add', '-A')
+      await gitIn(root, 'commit', '-q', '-m', 'seed')
+      await gitIn(root, 'push', '-q', '-u', 'origin', 'main')
+      const startSha = (await gitIn(root, 'rev-parse', 'HEAD')).stdout.trim()
+      const dir = await store.init({
+        repoRoot: root, name: 'ff', track: 'backend', reviewSeed: 'pending', preset: 'full',
+        creator: TEST_CREATOR, clock: () => '2000-01-01T00:00:00Z', startSha,
+      })
+      await mkdir(join(root, 'src'), { recursive: true })
+      await writeFile(join(root, 'src', 'mine.ts'), 'export const mine = 1\n', 'utf8')
+
+      // 另一个克隆推送「别人的任务」：测试文件 + 测试目录。
+      await gitIn(other, 'clone', '-q', origin, '.')
+      await mkdir(join(other, 'src'), { recursive: true })
+      await mkdir(join(other, '.tenon', 'tests'), { recursive: true })
+      await writeFile(join(other, 'src', 'theirs.test.ts'), 'it("x", () => {})\n', 'utf8')
+      await writeFile(join(other, '.tenon', 'tests', 'catalog.yaml'), 'schema: 1\n', 'utf8')
+      await gitIn(other, 'add', '-A')
+      await gitIn(other, 'commit', '-q', '-m', 'merged by another task')
+      await gitIn(other, 'push', '-q', 'origin', 'main')
+      await gitIn(root, 'pull', '-q', '--ff-only')
+
+      const state = await store.read(dir)
+      const anchor = captureWorkflowRootAnchor(root)
+      try {
+        const context = createProjectScanContext(
+          { registry: () => [root], store, version: '1', clock: () => 't', flow: testFlow() }, root, root, anchor, Date.now(),
+        )
+        const exits = context.stepExitsFor?.('ff')
+        expect(exits).toBeDefined()
+        const snapshotFiles = await exits?.changedFiles?.(state)
+        const snapshotProtected = await exits?.protectedChanges?.(state)
+        const files = Array.isArray(snapshotFiles) ? snapshotFiles : snapshotFiles?.files
+        expect(files).toEqual(await changedFilesForState(root, state))
+        expect(files).toEqual(['src/mine.ts'])
+        expect(snapshotProtected).toEqual(await protectedChangesSinceChangeStart(root, changeStartOfFields(state.fields)))
+        expect(snapshotProtected).toEqual([])
+      } finally {
+        closeWorkflowRootAnchor(anchor)
+      }
+    } finally {
+      await rm(origin, { recursive: true, force: true })
+      await rm(other, { recursive: true, force: true })
     }
   })
 })

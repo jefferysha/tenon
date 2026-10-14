@@ -818,6 +818,8 @@ describe('照着 next 做事的运行器：simple 工作流', { timeout: 120_000
               change: SIMPLE,
               command: null,
               commit: { paths: WORKSPACE_PATHS, untrack: [], message: `chore(tenon): finish ${SIMPLE}` },
+              // 原地建立的任务没有 worktree 要清理。
+              cleanup: null,
             })
             commitAsInstructed(action.commit as FinishCommit)
             break

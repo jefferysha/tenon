@@ -1,0 +1,39 @@
+schema: tenon-test-plan/v1
+change: fix-pr80-repository-hygiene
+suites:
+  - suite: adapters
+    scope: full
+  - suite: dashboard-app-unit
+    scope: full
+  - suite: docs-site-unit
+    scope: full
+  - suite: docs-smoke
+    scope: changed
+  - suite: hooks
+    scope: full
+  - suite: lint-docs
+    scope: changed
+  - suite: lint-openspec
+    scope: changed
+  - suite: migration-cas
+    scope: full
+  - suite: oracle
+    scope: full
+  - suite: oracle-unit
+    scope: full
+  - suite: tools-node
+    scope: full
+  - suite: typecheck-e2e
+    scope: full
+  - suite: typecheck-packages
+    scope: full
+  - suite: typecheck-web
+    scope: full
+  - suite: unit
+    scope: full
+files:
+  - path: tools/check-repository-hygiene.node-test.mjs
+    suite: tools-node
+    kind: unit
+cases: []
+waivers: []

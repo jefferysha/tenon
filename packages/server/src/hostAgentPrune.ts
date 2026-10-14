@@ -1,10 +1,35 @@
 /**
- * Dashboard 触发的转换把任务完结（archived=true）之后，回收宿主 agent 文件（`tenon-<name>`）。
- * 判定与 CLI 共用 kernel 的 pruneUnusedHostAgentFiles；转换已经提交，这里尽力而为，失败只 WARN。
+ * Dashboard 触发的任务完结、归档、删除之后，清理升级前的版本留在项目里的宿主 agent 文件（`tenon-<name>`）。
+ * 清理与 CLI 共用 kernel 的 cleanupLegacyHostAgents，两条删除依据也与 CLI 同口径：所有权清单记着且没改过，
+ * 或内容与当前库对应 agent 的渲染结果一致（renderCurrentFromLibrary）。服务端装配了库读取才有第二条；
+ * 没装配，或读库失败（WARN 一行）时退回只按所有权清单删——读库失败不该让旧文件清不掉，也不该让任务操作失败。
+ * 操作本身已经提交，这里尽力而为，失败只 WARN。
  */
-import { pruneUnusedHostAgentFiles } from '@tenon/kernel'
-import type { StateStore } from '@tenon/kernel'
+import { cleanupLegacyHostAgents, loadAgentLibrary, renderCurrentFromLibrary } from '@tenon/kernel'
+import type { AgentLibrary, HostAgentHost, StateStore } from '@tenon/kernel'
+import { repoRootForSkills } from './serverSupport.js'
 import { errText } from './transitionResult.js'
+import type { ServerPaths } from './types.js'
+
+/** 读 `root` 项目可见的 agent 库（官方 + 自定义 + 该项目层）；清理据此判断「内容是否仍是旧版本写的」。 */
+export type HostAgentLibraryReader = (root: string) => Promise<AgentLibrary>
+
+/** 服务端的库读取：与 agent 库路由同一份产品配置根和插件根。 */
+export function hostAgentLibraryReaderOf(paths: ServerPaths): HostAgentLibraryReader {
+  return (root) => loadAgentLibrary({ payloadRoot: repoRootForSkills(), configRoot: paths.configRoot, projectRoot: root })
+}
+
+type RenderCurrent = (host: HostAgentHost, name: string) => string | undefined
+
+async function currentRenderer(root: string, readLibrary: HostAgentLibraryReader | undefined): Promise<RenderCurrent | undefined> {
+  if (readLibrary === undefined) return undefined
+  try {
+    return renderCurrentFromLibrary(await readLibrary(root))
+  } catch (error) {
+    process.stderr.write(`WARN: 读不到 agent 库（${errText(error)}），旧版本写进项目的宿主 agent 文件只按所有权清单清理\n`)
+    return undefined
+  }
+}
 
 async function isArchived(store: StateStore, changeDir: string): Promise<boolean> {
   try {
@@ -15,35 +40,28 @@ async function isArchived(store: StateStore, changeDir: string): Promise<boolean
   }
 }
 
-/**
- * 任务被删除或归档（Dashboard 的 task lifecycle）之后回收宿主 agent 文件：这个任务自己不再算在途，
- * 其余在途任务还用的名字保留。与 CLI `task delete|archive` 同一份判定；尽力而为，失败只 WARN。
- */
-export async function pruneHostAgentsForRemovedTask(
-  store: StateStore, root: string, name: string,
-): Promise<void> {
+/** 清理并把结果写到 stderr：保留下来的逐个 WARN，删掉的汇总一行；整体失败只 WARN。 */
+export async function cleanupLegacyHostAgentsBestEffort(root: string, readLibrary?: HostAgentLibraryReader): Promise<void> {
   try {
-    const pruned = await pruneUnusedHostAgentFiles({
-      repoRoot: root, except: name, isFinished: (dir) => isArchived(store, dir),
-    })
-    for (const path of pruned.preserved) process.stderr.write(`WARN: 宿主 agent ${path} 被改过，保留\n`)
-    if (pruned.removed.length > 0) process.stderr.write(`[AGENT] 已回收宿主 agent 文件：${pruned.removed.join(', ')}\n`)
+    const renderCurrent = await currentRenderer(root, readLibrary)
+    const result = await cleanupLegacyHostAgents({ repoRoot: root, ...(renderCurrent === undefined ? {} : { renderCurrent }) })
+    for (const path of result.preserved) {
+      process.stderr.write(`WARN: 旧版本写进项目的宿主 agent 文件 ${path} 未清理（被改过或无法确认），保留；确认不需要后可手动删除\n`)
+    }
+    if (result.removed.length > 0) {
+      process.stderr.write(`[AGENT] 已清理旧版本写进项目的宿主 agent 文件：${result.removed.join(', ')}\n`)
+    }
   } catch (error) {
-    process.stderr.write(`WARN: 宿主 agent 文件回收失败（任务已处理）: ${errText(error)}\n`)
+    process.stderr.write(`WARN: 旧版本写进项目的宿主 agent 文件清理失败（任务已处理）: ${errText(error)}\n`)
   }
 }
 
-export async function pruneHostAgentsAfterArchive(
-  store: StateStore, root: string, changeDir: string, name: string,
+/** 转换把任务完结（archived=true）之后清理；还没完结的转换什么都不做。 */
+export async function cleanupLegacyHostAgentsAfterArchive(
+  store: StateStore,
+  root: string,
+  changeDir: string,
+  readLibrary?: HostAgentLibraryReader,
 ): Promise<void> {
-  if (!await isArchived(store, changeDir)) return
-  try {
-    const pruned = await pruneUnusedHostAgentFiles({
-      repoRoot: root, except: name, isFinished: (dir) => isArchived(store, dir),
-    })
-    for (const path of pruned.preserved) process.stderr.write(`WARN: 宿主 agent ${path} 被改过，保留\n`)
-    if (pruned.removed.length > 0) process.stderr.write(`[AGENT] 已回收宿主 agent 文件：${pruned.removed.join(', ')}\n`)
-  } catch (error) {
-    process.stderr.write(`WARN: 宿主 agent 文件回收失败（transition 已成功）: ${errText(error)}\n`)
-  }
+  if (await isArchived(store, changeDir)) await cleanupLegacyHostAgentsBestEffort(root, readLibrary)
 }

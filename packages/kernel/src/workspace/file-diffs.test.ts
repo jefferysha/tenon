@@ -136,7 +136,8 @@ describe('createChangedFilesSession().fileDiffs —— 真实版本库', () => {
         calls.push(args.join(' '))
         const { stdout } = await new Promise<{ stdout: string }>((resolve, reject) => {
           try {
-            resolve({ stdout: execFileSync('git', [...args], { cwd: options.cwd, encoding: 'utf8', maxBuffer: options.maxBuffer }) })
+            // stderr 收进管道：没有上游的分支解析 `@{upstream}` 会让 git 打 fatal，那是预期内的失败，不该漏到测试输出里。
+            resolve({ stdout: execFileSync('git', [...args], { cwd: options.cwd, encoding: 'utf8', maxBuffer: options.maxBuffer, stdio: ['ignore', 'pipe', 'pipe'] }) })
           } catch (error) {
             reject(error)
           }

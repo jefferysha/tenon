@@ -18,10 +18,12 @@ import { repoGlob } from './globs.js'
 import { MACHINE_PROFILE_MODES, isMachineProfileMode, type MachineProfileMode } from './machine-profile.js'
 import { ENV_NAME_RE } from './vocabulary.js'
 import { emitYaml, type YamlValue } from './yaml-emit.js'
-import { IssueSink, asMap, asSeq, checkKeys, field, formatIssue, oneOf, str, strList, type DecodeIssue } from './yaml-read.js'
+import { IssueSink, asMap, asSeq, checkKeys, field, formatIssue, oneOf, optionalStr, str, strList, type DecodeIssue } from './yaml-read.js'
 import { YamlSubsetError, parseYamlSubset } from './yaml-subset.js'
 
 export const TEST_CATALOG_FILE_LABEL = 'catalog.yaml'
+/** 与套件 command、服务 start 同一口径：单行、最长 2000 字节。 */
+const SETUP_RULE = { maxBytes: 2000 } as const
 
 export type CatalogParseResult =
   | { readonly ok: true; readonly catalog: TestCatalog }
@@ -38,13 +40,14 @@ export function parseTestCatalog(text: string): CatalogParseResult {
   const sink = new IssueSink()
   const map = asMap(root, sink, '目录')
   if (map === undefined) return { ok: false, issues: sink.issues }
-  checkKeys(map, ['schema', 'profile', 'profiles_env', 'suites', 'services', 'not_applicable'], sink, '目录')
+  checkKeys(map, ['schema', 'profile', 'profiles_env', 'setup', 'suites', 'services', 'not_applicable'], sink, '目录')
   const schema = str(field(map, 'schema'), sink, 'schema', map.line)
   if (schema !== undefined && schema !== TEST_CATALOG_SCHEMA) {
     sink.add(field(map, 'schema')?.line ?? map.line, `schema 必须是 ${TEST_CATALOG_SCHEMA}（实际 '${schema}'）`)
   }
   const profileMode = oneOf<MachineProfileMode>(field(map, 'profile'), sink, 'profile', isMachineProfileMode, MACHINE_PROFILE_MODES)
   const profilesEnv = strList(field(map, 'profiles_env'), sink, 'profiles_env', { pattern: ENV_NAME_RE, hint: '环境变量名' })
+  const setup = optionalStr(field(map, 'setup'), sink, 'setup', SETUP_RULE)
   const suites: CatalogSuite[] = []
   const suiteLines = new Map<string, number>()
   for (const node of asSeq(field(map, 'suites'), sink, 'suites') ?? []) {
@@ -81,7 +84,9 @@ export function parseTestCatalog(text: string): CatalogParseResult {
     catalog: {
       schema: TEST_CATALOG_SCHEMA,
       ...(profileMode === 'coarse' ? { profile: profileMode } : {}),
-      profiles_env: profilesEnv, suites, services,
+      profiles_env: profilesEnv,
+      ...(setup === undefined ? {} : { setup }),
+      suites, services,
       ...(notApplicable.length === 0 ? {} : { not_applicable: notApplicable }),
     },
   }
@@ -129,6 +134,8 @@ export function catalogExecDigest(catalog: TestCatalog): string {
     services: [...catalog.services].sort(byId).map((service) => ({
       id: service.id, start: service.start, cwd: service.cwd, ready: service.ready, stop: service.stop, env: [...service.env].sort(),
     })),
+    // 准备命令同样是会被执行的文字；没有声明时整个键省略，旧目录的摘要逐字不变、已有信任不失效。
+    ...(catalog.setup === undefined ? {} : { setup: catalog.setup }),
   })
 }
 
@@ -203,6 +210,7 @@ export function serializeTestCatalog(catalog: TestCatalog): string {
     schema: catalog.schema,
     profile: catalog.profile === 'coarse' ? 'coarse' : undefined,
     profiles_env: catalog.profiles_env.length === 0 ? undefined : catalog.profiles_env,
+    setup: catalog.setup,
     suites: catalog.suites.map(suiteValue),
     services: catalog.services.length === 0 ? undefined : catalog.services.map(serviceValue),
     not_applicable: notApplicableValue(catalog.not_applicable),

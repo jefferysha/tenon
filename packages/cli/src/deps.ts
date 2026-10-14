@@ -271,12 +271,20 @@ export interface CliDeps {
   agentFreeze?: (input: import('@tenon/kernel').AgentFreezeInput) => Promise<unknown>
   /**
    * agent 库的写入面（`tenon agent new|add|copy|rm`）：payload 根与全局 config 根；项目级写到
-   * `<cwd>/.tenon/agents`。缺省 undefined = 未装配，这些子命令 exit 1。
+   * `<cwd>/.tenon/agents`。`homeDir` 是用户目录根（宿主配置目录的默认位置 `~/.claude`、`~/.codex` 的根；测试注入临时目录）。
+   * `hostEnv` 是解析宿主配置目录用的环境（`CLAUDE_CONFIG_DIR` / `CODEX_HOME`，`tenon agent install|uninstall|prompt` 据此
+   * 解析用户级子代理目录）：生产传 `process.env`；缺省按空环境，不读任何环境变量（测试桩不传它，天然不碰开发机的变量）。
+   * 缺省 undefined = 未装配，这些子命令 exit 1。
    */
-  agentPaths?: () => { readonly payloadRoot: string; readonly configRoot: string }
+  agentPaths?: () => {
+    readonly payloadRoot: string
+    readonly configRoot: string
+    readonly homeDir: string
+    readonly hostEnv?: Readonly<Record<string, string | undefined>>
+  }
   /**
-   * 正在跑这条命令的宿主（进程环境判定，同 doctor 与 test run 的口径）。任务冻结 agent 时据此为
-   * 当前宿主生成 `tenon-<name>` 子代理文件；缺省 undefined = 终端，不生成。
+   * 正在跑这条命令的宿主（进程环境判定，同 doctor 与 test run 的口径）。`tenon agent prompt|install` 在没给
+   * `--host` 时据此判定宿主；会话内的命令不写宿主子代理文件。缺省 undefined = 终端。
    */
   hostKind?: () => 'claude-code' | 'codex' | 'terminal'
   /** 插件里存在的技能 id（上游来源 + 自带技能）；`tenon agent validate` 据此核对 agent 的技能。 */
@@ -313,6 +321,12 @@ export interface CliDeps {
     readonly firstStep: string
     readonly policy?: import('@tenon/kernel').DocumentGovernancePolicy
   }) => Promise<string | null>
+  /**
+   * 执行测试目录的 `setup`（`tenon init` 建好 worktree 后的工作区准备）：在 `cwd` 里经 shell 执行 `command`，
+   * 子进程的输出逐行交给 `log`（调用方转到 stderr，stdout 留给 `--json`），返回退出码。
+   * 缺省 undefined = 真起子进程（commands/init-setup.ts spawnSetup）；用例注入假执行器，永不真的 spawn。
+   */
+  setupRunner?: (input: { readonly command: string; readonly cwd: string; readonly log: (line: string) => void }) => Promise<number>
   io: CliIO
   /**
    * 输出语言（`TENON_LANG` → `LC_ALL` → `LC_MESSAGES` → `LANG`，main.ts 解析一次）。缺省 = 历史的中文输出，
@@ -375,6 +389,11 @@ export interface CliDeps {
   gitRemotes?: () => Promise<readonly string[] | null>
   /** 完结提交动作要的 git 事实（gitWorkspace.ts probeGitFinish）；不是 git 仓或 git 跑不起来 → null。 */
   gitFinishProbe?: (change: string) => Promise<GitFinishProbe | null>
+  /**
+   * 建在 `.worktrees/` 下、带未归档任务的 worktree（kernel listTaskWorktrees，以当前根为主检出）：`tenon list` 的 worktree 列、
+   * 按名读取找不到任务时报错里的路径、`tenon workflow progress` 的回退查找共用。缺省 undefined = 未装配，视为没有（单测不碰 git）。
+   */
+  taskWorktrees?: () => Promise<readonly import('@tenon/kernel').TaskWorktreeEntry[]>
   /**
    * in-place build 的内容寻址工作区基线。按 change 名保留调用上下文，防未来基线策略需要排除
    * 当前 change 的控制面；production 由 kernel fingerprintWorkspace 落地。

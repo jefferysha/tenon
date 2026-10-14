@@ -30,9 +30,14 @@ export const REVIEW_ACKNOWLEDGED_VIA_FIELD = 'review_acknowledged_via' as const
 export const REVIEW_ACKNOWLEDGED_VIA_DEFAULT = 'unknown'
 /** Entry route of an acknowledgement. This is provenance, not operator identity. */
 export const REVIEW_ACKNOWLEDGED_VIA_VALUES = ['terminal', 'dashboard', 'automation', 'delegated', 'unknown'] as const
+/** Task start point (the HEAD recorded when the task was created). Empty = no record, never a review-gate field. */
+export const START_SHA_FIELD = 'start_sha' as const
+export const START_SHA_DEFAULT = ''
 /**
  * Logical canonical fields that the schemaVersion=1 wire, mutation/TransitionRecord effects and the
  * YAML projection omit so earlier runtimes keep reading their closed field set. Each value is
  * restored from its own revision-bound companion record.
  */
-export const COMPANION_BACKED_FIELDS = [PRE_VERIFY_REVIEW_FIELD, REVIEW_ACKNOWLEDGED_VIA_FIELD] as const
+export const COMPANION_BACKED_FIELDS = [
+  PRE_VERIFY_REVIEW_FIELD, REVIEW_ACKNOWLEDGED_VIA_FIELD, START_SHA_FIELD,
+] as const

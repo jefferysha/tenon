@@ -1,7 +1,12 @@
 /**
  * init <name> --track --preset [--workflow] —— 初始化 change（creator/负责人 = 当前声明身份，缺失 exit 1）（CONTRACT §3，
  * 2026-07-06 oracle 实测回写：老内核 init stdout 为空，创建路径改走 stderr 信息行）。
- * stdout：无；exit 0/1。
+ * stdout：无（`--json` 时一行 JSON）；exit 0/1。
+ *
+ * 落点：在 git 仓库的主检出里默认先建 worktree `.worktrees/<name>`（分支 `tenon/<name>`），任务状态、文档与实现都在其中；
+ * 工作流与 track 注册表仍按主检出解析（项目自定义工作流所在的 `.pipeline/` 被 git 忽略，不在新 worktree 里）。
+ * 非 git 仓库、无提交、HEAD 分离、已在 linked worktree、`--in-place` 或 `TENON_INIT_IN_PLACE=1` 时原地建立。判定/创建/回滚见 init-worktree.ts。
+ * 建好 worktree 后继承本用户在主检出里的信任，测试目录受信任时执行它声明的 `setup`（输出走 stderr，失败只 WARN）：见 init-setup.ts。
  *
  * --workflow（GOAL E，whole-branch review 补：此前没有任何支持的命令能把一个 change 摆到
  * 自定义 workflow 的首个 step 上，除非该 step 恰好叫 open——`tenon set phase <custom-id>`
@@ -27,7 +32,7 @@ import {
   isDefaultWorkflowName,
   loadEffectiveWorkflowPlan,
   prepareAgentFreeze,
-  readFrozenAgents,
+  readHeadCommit,
   requireTrackForRoot,
   retiredSkillReferences,
   retiredSkillsWorkflowMessage,
@@ -40,19 +45,10 @@ import { recordHistory } from './fields.js'
 import { isValidChangeName } from '../paths.js'
 import { autoDiscoverCatalog } from '../test-system/auto-discover.js'
 import { requireActor } from '../userIdentity.js'
-import { ensureChangeHostAgents, hostAgentHostOf } from './agent-host.js'
+import { cleanupLegacyHostAgentFiles } from './agent-host.js'
+import { prepareInitWorktree } from './init-setup.js'
+import { placeInitTask, reportInitPlacement, rollbackInitPlacement, type InitPlacement } from './init-worktree.js'
 import { msg } from '../i18n/messages.js'
-
-/** 冻结 agent 后为当前宿主生成 `tenon-<name>` 子代理文件；终端里不生成，失败只 WARN。 */
-async function generateHostAgents(deps: CliDeps, changeDir: string, runId: string, workflowFingerprint: string): Promise<void> {
-  const host = hostAgentHostOf(deps)
-  if (host === undefined) return
-  try {
-    await ensureChangeHostAgents(deps, host, await readFrozenAgents({ changeDir, runId, workflowFingerprint }))
-  } catch (e) {
-    deps.io.err(`WARN: 宿主 agent 文件未生成（${errMsg(e)}），运行时改用通用子代理`)
-  }
-}
 
 /**
  * 工作流声明了测试策略而项目还没有测试目录时，立项后自动识别并写入 `.tenon/tests/catalog.yaml`，并明说做了什么、
@@ -84,6 +80,10 @@ export interface InitCmdOpts {
   preset?: string
   workflow?: string
   documentLocale?: string
+  /** 原地建立，不建任务 worktree（用户明确要求时才传）。 */
+  inPlace?: boolean
+  /** stdout 输出一行 JSON：change、path、worktree、worktree_reason。 */
+  json?: boolean
 }
 
 // ── 交互向导的注入面（真实现 = REAL_INIT_WIZARD_ENV；测试注入 fake，命名避开 loops 的 InitEnv/Prompter）──
@@ -208,7 +208,7 @@ export async function cmdInit(
   // 做权威校验、再创建 change，堵住「锁外读 registry、之后才写 change」与 tracks delete 竞争的跨锁
   // TOCTOU（delete 扫描期 init 同轨必等待）。坏 tracks.yaml 在锁内 load 处 fail-loud（外层 catch →
   // exit 1）。requireTrack/assertWorkflowAllowed 全部先于落盘（不留引用坏 workflow 的半成品 change）。
-  const wants = { catalog: false }
+  const wants: { catalog: boolean; landed?: { placement: InitPlacement; root: string; dir: string } } = { catalog: false }
   try {
     const code = await deps.withRegistryLock(async ({ registry }) => {
       // track 合法性改走锁内 fresh registry（requireTrack）：未注册即拒（缺 tracks.yaml 时等价旧四轨枚举）。
@@ -300,11 +300,18 @@ export async function cmdInit(
         ...(plan.capabilities.documents.policy?.id === 'document-v1' ? { documentContract: true } : {}),
       }
 
+      // 上面的校验与计划解析都按主检出（项目自定义工作流所在的 .pipeline/ 被 git 忽略，不在新 worktree 里）；
+      // 全部通过后才建 worktree，之后的建任务、自动发现、项目登记都以任务所在的根为准。
+      let placement: InitPlacement | undefined
       try {
+        placement = await placeInitTask(deps, name, opts.inPlace === true)
+        const root = placement.kind === 'worktree' ? placement.plan.path : deps.cwd
+        // 任务起点：建任务时检出的 HEAD；仓库还没有提交（或不是仓库）时不记，start_sha 键不出现。
+        const startSha = placement.kind === 'worktree' ? placement.plan.head : await readHeadCommit(deps.cwd)
         // 身份随 init 独占创建一次性写入（W1 第五轮 codex review）；custom workflow 首态随
         // initialWorkflow 进同一次原子发布（第 7 轮 codex review，见 store.ts init() 注释）。
         const { changeDir: created, run } = await deps.runRepo.initChange({
-          repoRoot: deps.cwd,
+          repoRoot: root,
           name,
           track: track.id,
           reviewSeed: track.policyProfile.reviewSeed,
@@ -313,6 +320,8 @@ export async function cmdInit(
           clock: deps.clock,
           documentLocale: (opts.documentLocale ?? 'zh-CN') as DocumentLocale,
           initialWorkflow,
+          ...(startSha === undefined ? {} : { startSha }),
+          ...(placement.kind === 'worktree' ? { baseBranch: placement.plan.sourceBranch, isolation: 'worktree' as const } : {}),
         })
         if (freezeAgent !== undefined) {
           await (deps.agentFreeze ?? ensureAgentFreeze)({
@@ -322,7 +331,6 @@ export async function cmdInit(
             workflow: plan.workflow,
             resolve: freezeAgent,
           })
-          await generateHostAgents(deps, created, run.id, plan.workflowFingerprint)
         }
         await recordHistory(deps, created, {
           ts: deps.clock(),
@@ -333,21 +341,32 @@ export async function cmdInit(
         // 故障（损坏/目录不可写）只 WARN，绝不让已成功的 init 失败。
         if (deps.registerProject) {
           try {
-            await deps.registerProject(deps.cwd)
+            await deps.registerProject(root)
           } catch (e) {
             deps.io.err(`WARN: 项目注册表登记失败: ${errMsg(e)}`)
           }
         }
         deps.io.err(`[INIT] ${created}`)
         wants.catalog = plan.workflow.steps.some((step) => step.test_policy !== undefined)
+        wants.landed = { placement, root, dir: created }
         return 0
       } catch (e) {
+        // 初始化失败：清掉刚建的 worktree 与分支（路径/分支冲突时还没建，placement 为空，不会动别人的目录），错误原样报出。
+        await rollbackInitPlacement(deps, placement)
         deps.io.err(`ERROR: ${errMsg(e)}`)
         return 1
       }
     })
-    // 识别要扫目录树，放在仓级 registry 锁之外。
-    if (code === 0 && wants.catalog) await announceAutoDiscover(deps)
+    // 识别要扫目录树，放在仓级 registry 锁之外；测试目录写进任务所在的检出，主检出的工作区不变。
+    if (code === 0 && wants.landed !== undefined) {
+      // 会话内不再生成宿主 agent 文件；升级前的版本留在项目里的旧文件会遮住用户级的专属子代理，立项时顺手清掉。
+      // 放在建任务（含失败回滚的那一段）全部成功之后：回滚 worktree 时清理不该已经发生；清理失败只 WARN。
+      await cleanupLegacyHostAgentFiles(deps)
+      if (wants.catalog) await announceAutoDiscover({ ...deps, cwd: wants.landed.root })
+      // 新 worktree 的工作区准备：继承本用户在主检出里的信任，目录受信任才执行 setup（失败只提示，不影响退出码）；原地建立没有新工作区。
+      if (wants.landed.placement.kind === 'worktree') await prepareInitWorktree(deps, wants.landed.placement.plan)
+      reportInitPlacement(deps, wants.landed.placement, { change: name, dir: wants.landed.dir, json: opts.json === true })
+    }
     return code
   } catch (e) {
     deps.io.err(`ERROR: ${errMsg(e)}`)

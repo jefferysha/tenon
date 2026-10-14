@@ -132,6 +132,8 @@ export function buildFixture({ cli, out, tamper = false, exclude = [] }) {
       HOME: join(scratch, 'home'),
       TENON_RUNTIME_HOME: join(scratch, 'runtime'),
       TENON_TEST_REAL_DIFF: '1',
+      // 夹具已提交过 base：任务要建在夹具根（后续命令与提交都在这里），不另建任务 worktree。
+      TENON_INIT_IN_PLACE: '1',
     })
     mkdirSync(env.HOME, { recursive: true })
     mkdirSync(env.TENON_RUNTIME_HOME, { recursive: true })

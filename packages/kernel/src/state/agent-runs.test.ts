@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { AGENT_RUN_META_FILE } from './agent-run-meta.js'
+import { HOST_SUBAGENT_REASONS } from '../agents/host-native.js'
 import {
   AGENT_RUNS_FILE, AgentRunError,
   appendAgentRunRow, parseAgentReport, readAgentRuns, severityRank, type AgentRunRow,
@@ -71,6 +72,79 @@ describe('readAgentRuns', () => {
     const runs = await readAgentRuns(changeDir)
     expect(runs[0]?.subagent).toBeUndefined()
     expect(runs[1]?.subagent).toEqual({ host: 'claude', type: 'tenon-security', native: true })
+  })
+
+  it('subagent.reason 走旁注：台账行里的 subagent 保持旧三键形状，旁注记 subagent_reason，读回叠加成 subagent.reason', async () => {
+    expect(HOST_SUBAGENT_REASONS).toEqual(expect.arrayContaining([
+      'not-installed', 'definition-mismatch', 'shadowed', 'project-agent', 'not-dispatched',
+    ]))
+    for (const reason of HOST_SUBAGENT_REASONS) {
+      await appendAgentRunRow(changeDir, row({ run_id: reason, subagent: { host: 'claude', type: 'general-purpose', native: false, reason } }))
+    }
+    // 台账原文：不出现 reason，subagent 的键集合是 v0.2.1 读得了的 host,native,type（键序也与以前一致）。
+    const raw = await readFile(runsPath(), 'utf8')
+    expect(raw).not.toContain('reason')
+    for (const line of raw.trim().split('\n')) {
+      expect(Object.keys((JSON.parse(line) as { subagent: object }).subagent), line).toEqual(['host', 'type', 'native'])
+    }
+    // 旁注：每个原因各一行 subagent_reason。
+    const meta = (await readFile(metaPath(), 'utf8')).trim().split('\n').map((line) => JSON.parse(line) as Record<string, unknown>)
+    expect(meta).toEqual(HOST_SUBAGENT_REASONS.map((reason) => ({ schema: 'agent-run-meta/v1', run_id: reason, subagent_reason: reason })))
+    // 读回：叠加成 subagent.reason。
+    expect((await readAgentRuns(changeDir)).map((item) => item.subagent)).toEqual(HOST_SUBAGENT_REASONS.map((reason) =>
+      ({ host: 'claude', type: 'general-purpose', native: false, reason })))
+  })
+
+  it('subagent_reason 取闭集之外的值、空串、非字符串 → 旁注损坏并点名行号（失败关闭）', async () => {
+    await appendAgentRunRow(changeDir, row({ run_id: 'a', subagent: { host: 'claude', type: 'general-purpose', native: false } }))
+    const good = JSON.stringify({ schema: 'agent-run-meta/v1', run_id: 'a', subagent_reason: 'shadowed' })
+    for (const bad of ['whatever', '', 'Not-Installed', 7, null, ['shadowed']]) {
+      await writeFile(metaPath(), `${good}\n${JSON.stringify({ schema: 'agent-run-meta/v1', run_id: 'a', subagent_reason: bad })}\n`)
+      await expect(readAgentRuns(changeDir), JSON.stringify(bad)).rejects.toMatchObject({
+        code: 'runs-corrupt', message: expect.stringContaining('第 2 行'),
+      })
+    }
+    await writeFile(metaPath(), `${good}\n`)
+    expect((await readAgentRuns(changeDir))[0]?.subagent).toEqual({ host: 'claude', type: 'general-purpose', native: false, reason: 'shadowed' })
+  })
+
+  it('subagent_reason 只贴在通用子代理上：改写成专属类型后旁注里遗留的原因不再叠加；行里没有 subagent 时忽略；行自带的 reason 优先', async () => {
+    // prompt 时记下 not-installed；record --subagent 改写成专属类型，新行的 subagent 没有 reason，旁注里的旧原因不能贴到它身上。
+    await appendAgentRunRow(changeDir, row({ run_id: 'r1', subagent: { host: 'claude', type: 'general-purpose', native: false, reason: 'not-installed' } }))
+    await appendAgentRunRow(changeDir, row({ run_id: 'r1', status: 'finished', result: 'pass', subagent: { host: 'claude', type: 'tenon-security', native: true } }))
+    expect((await readAgentRuns(changeDir))[0]?.subagent).toEqual({ host: 'claude', type: 'tenon-security', native: true })
+    // 台账行没有 subagent（终端里开始的运行）：旁注里的原因无处可贴，也不凭空造出 subagent。
+    await appendAgentRunRow(changeDir, row({ run_id: 'r2' }))
+    await writeFile(metaPath(), `${JSON.stringify({ schema: 'agent-run-meta/v1', run_id: 'r2', subagent_reason: 'shadowed' })}\n`)
+    expect((await readAgentRuns(changeDir))[1]).not.toHaveProperty('subagent')
+    // 本地构建写过的四键行（subagent 里自带 reason）仍读得了，且自带的优先于旁注。
+    await writeFile(runsPath(), `${JSON.stringify({ ...row({ run_id: 'r3' }), subagent: { host: 'claude', type: 'general-purpose', native: false, reason: 'shadowed' } })}\n`)
+    await writeFile(metaPath(), `${JSON.stringify({ schema: 'agent-run-meta/v1', run_id: 'r3', subagent_reason: 'not-installed' })}\n`)
+    expect((await readAgentRuns(changeDir))[0]?.subagent).toEqual({ host: 'claude', type: 'general-purpose', native: false, reason: 'shadowed' })
+  })
+
+  it('台账行自带四键 subagent（本地构建写过）时 reason 仍只取闭集；键集合其余部分仍是闭集；台账行不认顶层 subagent_reason', async () => {
+    const good = { host: 'claude', type: 'general-purpose', native: false }
+    for (const reason of ['whatever', '', 'Not-Installed', 7, null, ['shadowed']]) {
+      await writeFile(runsPath(), `${JSON.stringify({ ...row(), subagent: { ...good, reason } })}\n`)
+      await expect(readAgentRuns(changeDir), JSON.stringify(reason)).rejects.toMatchObject({ code: 'runs-corrupt' })
+    }
+    await writeFile(runsPath(), `${JSON.stringify({ ...row(), subagent: { ...good, reason: 'shadowed', extra: 1 } })}\n`)
+    await expect(readAgentRuns(changeDir)).rejects.toMatchObject({ code: 'runs-corrupt' })
+    // subagent_reason 只活在旁注里：出现在台账行顶层，上一个发行版不认，这里同样判损坏。
+    await writeFile(runsPath(), `${JSON.stringify({ ...row(), subagent: good, subagent_reason: 'shadowed' })}\n`)
+    await expect(readAgentRuns(changeDir)).rejects.toMatchObject({ code: 'runs-corrupt' })
+  })
+
+  it('不带 reason 的 subagent 逐字不变：台账行与以前一致，不产生旁注文件，旧行照常读回', async () => {
+    const subagent = { host: 'claude', type: 'tenon-security', native: true } as const
+    await appendAgentRunRow(changeDir, row({ run_id: 'native', subagent }))
+    const line = (await readFile(runsPath(), 'utf8')).trim()
+    expect(line).toContain('"subagent":{"host":"claude","type":"tenon-security","native":true}')
+    expect(line).not.toContain('reason')
+    await expect(readFile(metaPath(), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+    await writeFile(runsPath(), `${JSON.stringify({ ...row({ run_id: 'old' }), subagent: { host: 'claude', native: false, type: 'general-purpose' } })}\n`)
+    expect((await readAgentRuns(changeDir))[0]?.subagent).toEqual({ host: 'claude', type: 'general-purpose', native: false })
   })
 
   it('rerun_reason 可选：旧行没有，新行记下原因（与 subagent 可同时出现）；空、多行、超长 → 损坏', async () => {

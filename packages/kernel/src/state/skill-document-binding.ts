@@ -104,11 +104,26 @@ export function judgeStepSkillSlots(input: {
 }
 
 /**
+ * 槽位是否整体被 `exclude` 点名：槽位的每个备选（`a|b` 拆开，`tenon:` 前缀与裸名等价）都在 exclude 里才算。
+ * 只有一部分备选在里面时，主线仍可用另一个备选完成它，槽位照旧要求。
+ */
+export function slotExcluded(token: string, exclude: ReadonlySet<string> | undefined): boolean {
+  if (exclude === undefined || exclude.size === 0) return false
+  const excluded = new Set([...exclude].map(canonicalSkillId))
+  return token.split('|').every((alternative) => excluded.has(canonicalSkillId(alternative.trim())))
+}
+
+/**
  * 未完成槽的逐条文案：token 打头，绑定了文档的点名那些文档——「调用了还差什么」必须说得出口，
  * 否则执行者只会再调用一次同一个技能。
+ *
+ * `exclude` 在生成文案之前按槽位的技能 id 剔除（退回边不要求归属 agent 的技能）；缺省 = 不剔除。
  */
-export function missingStepSkillMessages(slots: readonly StepSkillSlotProgress[]): readonly string[] {
-  return slots.filter((slot) => !slot.done).map((slot) => {
+export function missingStepSkillMessages(
+  slots: readonly StepSkillSlotProgress[],
+  exclude?: ReadonlySet<string>,
+): readonly string[] {
+  return slots.filter((slot) => !slot.done && !slotExcluded(slot.token, exclude)).map((slot) => {
     const kinds = slot.pendingDocuments.join(', ')
     if (kinds === '') return slot.token
     return slot.invoked

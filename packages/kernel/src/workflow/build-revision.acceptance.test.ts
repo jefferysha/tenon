@@ -1,11 +1,20 @@
-import { describe, expect, it } from 'vitest'
+import { execFile } from 'node:child_process'
+import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { promisify } from 'node:util'
+import { afterEach, describe, expect, it } from 'vitest'
 import { emptyFields } from '../state/parse.js'
 import type { PipelineState } from '../types.js'
 import { allFields } from './test-support.js'
 import { checkDefaultEventPreconditions } from '../flow/default-event-policy.js'
+import { candidateFingerprint } from '../test-system/candidate.js'
+import { probeBuildRevisionIdentity } from '../workspace/build-revision-identity.js'
+import { createTaskWorktree, planTaskWorktree, type GitRunner } from '../workspace/task-worktree.js'
 import {
   assessBuildRevisionTrust,
   createBuildRevisionToken,
+  expectedBuildRevisionKind,
   makeBuildRevisionBlocker,
   safeRevisionHash,
 } from './build-revision.js'
@@ -248,4 +257,103 @@ describe('issue #42 kernel acceptance seams', () => {
     }
     expect(calls).toBe(1)
   })
+})
+
+const execFileAsync = promisify(execFile)
+const GIT_ENV = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' }
+const runGit: GitRunner = async (args, cwd) => {
+  try {
+    const { stdout, stderr } = await execFileAsync('git', [...args], { cwd, env: GIT_ENV })
+    return { code: 0, stdout: String(stdout), stderr: String(stderr) }
+  } catch (error) {
+    const failed = error as { code?: unknown; stdout?: unknown; stderr?: unknown }
+    return {
+      code: typeof failed.code === 'number' ? failed.code : 1,
+      stdout: String(failed.stdout ?? ''),
+      stderr: String(failed.stderr ?? ''),
+    }
+  }
+}
+
+describe('worktree 任务的构建版本往返（真实 git，临时目录）', () => {
+  const roots: string[] = []
+  afterEach(async () => {
+    await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
+  })
+
+  /** 主检出 + 一个按任务 worktree 规则建好的 `.worktrees/demo`，实现尚未提交。 */
+  async function mainWithTaskWorktree(): Promise<{ main: string; worktree: string }> {
+    const main = await realpath(await mkdtemp(join(tmpdir(), 'tenon-build-revision-roundtrip-')))
+    roots.push(main)
+    const git = async (...args: string[]): Promise<void> => {
+      const result = await runGit(['-c', 'user.email=t@t.test', '-c', 'user.name=t', '-c', 'commit.gpgsign=false', ...args], main)
+      if (result.code !== 0) throw new Error(`git ${args.join(' ')} 失败：${result.stderr}`)
+    }
+    await git('init', '-q', '-b', 'main')
+    await writeFile(join(main, 'README.md'), 'x\n', 'utf8')
+    await git('add', '-A')
+    await git('commit', '-q', '-m', 'init')
+    const plan = await planTaskWorktree({ repoRoot: main, change: 'demo', inPlace: false, git: runGit })
+    if (plan.kind !== 'create') throw new Error(`期望 create，实际 ${plan.reason}`)
+    await createTaskWorktree(plan, runGit)
+    await writeFile(join(plan.path, 'impl.ts'), 'export const answer = 42\n', 'utf8')
+    return { main, worktree: plan.path }
+  }
+
+  /** 与生产同口径：类别取 `expectedBuildRevisionKind`，workspace 取内容指纹，git 取 HEAD。 */
+  async function observeIn(cwd: string, kind: 'git' | 'workspace') {
+    const identity = await probeBuildRevisionIdentity(cwd)
+    if (!identity) throw new Error('测试仓读不出构建版本身份')
+    const revision = kind === 'workspace'
+      ? await candidateFingerprint(cwd)
+      : (await runGit(['rev-parse', 'HEAD'], cwd)).stdout.trim()
+    return { kind, revision, identity }
+  }
+
+  async function captureIn(cwd: string, isolation: string): Promise<string> {
+    const observed = await observeIn(cwd, expectedBuildRevisionKind(isolation))
+    return createBuildRevisionToken(observed.kind, observed.revision, observed.identity).value
+  }
+
+  function verifyIn(cwd: string, buildSha: string) {
+    return assessBuildRevisionTrust({
+      buildSha,
+      isolation: 'worktree',
+      expectedStep: 'verify',
+      observe: () => observeIn(cwd, 'workspace'),
+      provenance: async () => ({
+        currentStep: 'verify', stateBuildSha: buildSha, recordTo: 'verify', buildShaEffects: [buildSha],
+      }),
+    })
+  }
+
+  it('未提交的实现：build-complete 捕获 workspace 令牌，同一 worktree 复核可信', async () => {
+    const { worktree } = await mainWithTaskWorktree()
+    const fields = allFields({ isolation: 'worktree' })
+    const out = await ACTION_HANDLERS['freeze-build-sha']({ type: 'freeze-build-sha' }, {
+      fields,
+      clock: () => '2026-10-11T00:00:00Z',
+      captureBuildRevision: (isolation) => captureIn(worktree, isolation),
+    })
+    const buildSha = String(out.patch?.build_sha)
+    expect(buildSha).toMatch(/^build:v1:workspace:[a-f0-9]{64}:[a-f0-9]{64}:[a-f0-9]{64}$/)
+    await expect(verifyIn(worktree, buildSha)).resolves.toMatchObject({ trusted: true })
+  }, 30_000)
+
+  it('同一任务在主检出里复核：worktree-mismatch（即使两边内容一致）', async () => {
+    const { main, worktree } = await mainWithTaskWorktree()
+    const buildSha = await captureIn(worktree, 'worktree')
+    await expect(verifyIn(main, buildSha)).resolves.toMatchObject({
+      trusted: false, blocker: { reason: 'worktree-mismatch' },
+    })
+  }, 30_000)
+
+  it('捕获之后 worktree 里的实现又变了：revision-stale', async () => {
+    const { worktree } = await mainWithTaskWorktree()
+    const buildSha = await captureIn(worktree, 'worktree')
+    await writeFile(join(worktree, 'impl.ts'), 'export const answer = 43\n', 'utf8')
+    await expect(verifyIn(worktree, buildSha)).resolves.toMatchObject({
+      trusted: false, blocker: { reason: 'revision-stale' },
+    })
+  }, 30_000)
 })

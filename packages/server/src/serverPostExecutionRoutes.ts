@@ -46,6 +46,7 @@ import {
   writeChangeTaskPrompt,
 } from './changeLaunch.js'
 import { validateMandatorySkillsBody, writeMandatorySkills } from './config.js'
+import { hostAgentLibraryReaderOf } from './hostAgentPrune.js'
 import { validateHookToggleBody, writeHookToggle } from './hooksConfig.js'
 import { applyLoopsUpdate, type LoopActivationValidator } from './loops.js'
 import { parsePipelineCliJson, type PipelineCliRunner } from './operations.js'
@@ -336,6 +337,7 @@ export async function handlePostExecutionRoutes(
         history,
         breadcrumb,
         resolveUser: deps.resolveUser,
+        hostAgentLibrary: hostAgentLibraryReaderOf(paths),
         // 这里用的正是 Dashboard 当前 root 的 effective Track Registry，而不是靠 track id
         // 写死 PM。自定义 track 也可通过 auto_enqueue_on_spec_complete 显式接入同一条后置编排。
         resolveTrackPolicy: (trackId) => requireTrackForRoot(loadEffectiveTrackRegistry(), trackId, root).policyProfile,

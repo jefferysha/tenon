@@ -11,7 +11,7 @@
  * workflow 获得改 phase/workflow 等系统字段的通用脚本能力。
  */
 import type { ActionConfig, ActionInput, ActionOutcome } from './ir.js'
-import { BuildRevisionCaptureError, safeRevisionHash } from './build-revision.js'
+import { BuildRevisionCaptureError, expectedBuildRevisionKind, safeRevisionHash } from './build-revision.js'
 
 function fieldString(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value.join(',') : (value ?? '')
@@ -29,7 +29,8 @@ export type ActionHandlerRegistry = {
 export const ACTION_HANDLERS: ActionHandlerRegistry = Object.freeze({
   /** build-complete 的不可变验证靶：
    *  · 所有 isolation 都必须由可信 capture capability 生成 canonical build:v1 token。
-   *  · in-place 绑定内容寻址的 workspace baseline；branch/worktree 绑定物理 Git identity 与 object ID。
+   *  · branch 绑定物理 Git identity 与 object ID；worktree / in-place 绑定内容寻址的 workspace baseline
+   *    （worktree 的身份里带该 worktree，换检出复核得 worktree-mismatch）。类别由 expectedBuildRevisionKind 判定。
    *    能力缺失、返回非法 token 或求值异常一律 fail-closed，绝不写一个无法复验的假 SHA。
    */
   'freeze-build-sha': async (_config, input) => {
@@ -45,7 +46,7 @@ export const ACTION_HANDLERS: ActionHandlerRegistry = Object.freeze({
       // surrounding whitespace would make a non-canonical value appear valid at the action seam,
       // while the Verify assessor (and token parser) correctly rejects it.
       const token = await input.captureBuildRevision(isolation)
-      const expectedKind = isolation === 'in-place' ? 'workspace' : 'git'
+      const expectedKind = expectedBuildRevisionKind(isolation)
       if (!new RegExp(`^build:v1:${expectedKind}:[a-f0-9]{64}:[a-f0-9]{64}:[a-f0-9]{64}$`).test(token)) {
         throw new BuildRevisionCaptureError('malformed', safeRevisionHash(input.fields))
       }

@@ -103,7 +103,7 @@ describe('serializePipeline（严格 FIELD_ORDER 全量写回）', () => {
       .filter((l) => /^[a-z_]+:/.test(l))
       .map((l) => l.split(':')[0])
     expect(keys).toEqual(FIELD_ORDER.filter((field) =>
-      !REVIEW_GATE_FIELDS.includes(field as typeof REVIEW_GATE_FIELDS[number]) && field !== 'max_rounds'))
+      !REVIEW_GATE_FIELDS.includes(field as typeof REVIEW_GATE_FIELDS[number]) && field !== 'max_rounds' && field !== 'start_sha'))
     expect(out).toContain('automation: ""\n')
     for (const field of REVIEW_GATE_FIELDS) expect(out).not.toContain(`${field}:`)
   })
@@ -129,6 +129,37 @@ describe('serializePipeline（严格 FIELD_ORDER 全量写回）', () => {
     const cleared = parsePipeline(out)
     cleared.fields.max_rounds = ''
     expect(serializePipeline(cleared)).not.toContain('max_rounds')
+  })
+
+  it('start_sha 为空时逻辑序列化不写这一行：升级前的任务逐字节不变（评审绑定摘要依赖这一点）', () => {
+    const raw = fixture('zz-container-e2e.pipeline.yaml')
+    const state = parsePipeline(raw)
+    expect(state.fields.start_sha).toBe('')
+    expect(serializePipeline(state)).not.toContain('start_sha')
+    expect(serializePipeline(state)).toBe(withPreVerifyReviewDefault(raw))
+  })
+
+  it('start_sha 有值时逻辑序列化写在整个 FIELD_ORDER 最末尾（max_rounds 之后、内部提交元数据之前），解析后还原；清空后又不写（N-1 投影经伴随文件省略它，见 start-sha-store.test.ts）', () => {
+    const sha = '0123456789abcdef0123456789abcdef01234567'
+    const state = parsePipeline(fixture('zz-container-e2e.pipeline.yaml'))
+    state.runMetadata = { runId: 'run-r', transitionSequence: 3, transitionHead: 'rec-3' }
+    state.fields.max_rounds = '3'
+    state.fields.start_sha = sha
+    const out = serializePipeline(state)
+    const lines = out.split('\n')
+    expect(lines.indexOf(`start_sha: ${sha}`)).toBe(lines.indexOf('max_rounds: 3') + 1)
+    expect(lines[lines.indexOf(`start_sha: ${sha}`) + 1]).toBe('pipeline_run_id: run-r')
+    expect(parsePipeline(out).fields.start_sha).toBe(sha)
+    const cleared = parsePipeline(out)
+    cleared.fields.start_sha = ''
+    expect(serializePipeline(cleared)).not.toContain('start_sha')
+  })
+
+  it('start_sha 全是数字的 sha 也按字符串读回，不被当成数字吞掉前导零', () => {
+    const sha = `0${'1'.repeat(39)}`
+    const state = parsePipeline(fixture('zz-container-e2e.pipeline.yaml'))
+    state.fields.start_sha = sha
+    expect(parsePipeline(serializePipeline(state)).fields.start_sha).toBe(sha)
   })
 
   it('review receipt 只要有一个值便整组写出，解析后逐字段保持', () => {

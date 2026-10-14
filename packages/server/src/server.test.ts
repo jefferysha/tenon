@@ -5579,6 +5579,43 @@ describe('POST /api/changes —— tenon init 的 HTTP 化（G18）', () => {
     expect(JSON.stringify(snap.json())).toContain('demo-a')
   })
 
+  describe('任务起点 start_sha', () => {
+    const gitIn = (cwd: string, args: string[]): string => execFileSync('git', [
+      '-c', 'user.email=t@t.test', '-c', 'user.name=t', '-c', 'commit.gpgsign=false', ...args,
+    ], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' } })
+
+    it('项目是有提交的仓库：记下建任务时的 HEAD，仍在原目录建立（不建 worktree）', async () => {
+      const h = await startWithHome()
+      const proj = await withRegisteredProject(h)
+      gitIn(proj, ['init', '-q', '-b', 'main'])
+      await writeFile(join(proj, 'a.txt'), 'a\n', 'utf8')
+      gitIn(proj, ['add', '-A'])
+      gitIn(proj, ['commit', '-q', '-m', 'base'])
+      const head = gitIn(proj, ['rev-parse', 'HEAD']).trim()
+      const r = await reqPost(h.port, '/api/changes', { root: proj, name: 'sp-a' }, { headers: { Authorization: `Bearer ${h.token}` } })
+      expect(r.status).toBe(200)
+      const dir = join(proj, 'openspec', 'changes', 'sp-a')
+      expect(await h.store.get(dir, 'start_sha')).toBe(head)
+      // 物理值在伴随文件里；投影与 wire 保持上一正式版认得的闭集。
+      expect(await readFile(join(dir, '.pipeline.yaml'), 'utf8')).not.toContain('start_sha')
+      expect(await readFile(join(dir, '.pipeline-run', 'current.json'), 'utf8')).not.toContain('start_sha')
+      expect(existsSync(join(dir, '.pipeline-run', 'start-sha'))).toBe(true)
+      expect(existsSync(join(proj, '.worktrees'))).toBe(false)
+    })
+
+    it('仓库还没有提交，或根本不是仓库：不写 start_sha，建任务照常成功', async () => {
+      const h = await startWithHome()
+      const proj = await withRegisteredProject(h)
+      const notRepo = await reqPost(h.port, '/api/changes', { root: proj, name: 'sp-b' }, { headers: { Authorization: `Bearer ${h.token}` } })
+      expect(notRepo.status).toBe(200)
+      expect(await readFile(join(proj, 'openspec', 'changes', 'sp-b', '.pipeline.yaml'), 'utf8')).not.toContain('start_sha')
+      gitIn(proj, ['init', '-q', '-b', 'main'])
+      const unborn = await reqPost(h.port, '/api/changes', { root: proj, name: 'sp-c' }, { headers: { Authorization: `Bearer ${h.token}` } })
+      expect(unborn.status).toBe(200)
+      expect(await readFile(join(proj, 'openspec', 'changes', 'sp-c', '.pipeline.yaml'), 'utf8')).not.toContain('start_sha')
+    })
+  })
+
   it('动态路由确认：提示词原子落盘 + 真 CLI 激活当前会话，并以真实指针复核', async () => {
     const calls: Array<{ root: string; args: readonly string[] }> = []
     const h = await startWithHome({

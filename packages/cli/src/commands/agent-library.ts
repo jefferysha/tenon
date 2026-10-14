@@ -15,6 +15,7 @@ import {
   type HostAgentHost,
 } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
+import { hintAgentInstall } from './agent-install.js'
 
 export const ROLE_WORD: Readonly<Record<AgentRole, string>> = { executor: '执行者', reviewer: '评审者' }
 export const SOURCE_WORD: Readonly<Record<AgentSource, string>> = { builtin: '官方', custom: '自定义', project: '项目' }
@@ -304,6 +305,7 @@ export async function cmdAgentAdd(
   const entry = await registerAgent(deps, scope, parsed.name, text, opts.replace === true)
   if (typeof entry === 'number') return entry
   deps.io.out(`[AGENT] 已登记 ${entry.name}（${SOURCE_WORD[entry.source]}）${entry.path ?? ''}`)
+  hintAgentInstall(deps, entry.source === 'project' ? 'project' : 'user')
   return 0
 }
 
@@ -328,6 +330,7 @@ export async function cmdAgentCopy(
     const effectiveScope = source.source === 'builtin' ? source.definition.attachOn : undefined
     const entry = await writeAgent(scope, to, effectiveScope === undefined ? renamed : withAttachOnLine(renamed, effectiveScope), { create: true })
     deps.io.out(`[AGENT] 已复制 ${from} → ${entry.name}（${SOURCE_WORD[entry.source]}）${entry.path ?? ''}`)
+    hintAgentInstall(deps, entry.source === 'project' ? 'project' : 'user')
     return 0
   } catch (e) {
     return storeFailure(deps, e)
@@ -372,6 +375,7 @@ export async function cmdAgentRm(deps: CliDeps, name: string, opts: { readonly s
   try {
     await deleteAgent(scope, name)
     deps.io.out(`[AGENT] 已删除 ${name}（${SOURCE_WORD[entry.source]}）`)
+    hintAgentInstall(deps, entry.source === 'project' ? 'project' : 'user')
     return 0
   } catch (e) {
     return storeFailure(deps, e)

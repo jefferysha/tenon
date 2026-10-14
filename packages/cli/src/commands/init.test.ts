@@ -4,30 +4,8 @@ import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
 import type { InitOptions } from '@tenon/kernel'
 import { cmdInit, type InitPrompter, type InitWizardEnv } from './init.js'
+import { TWO_STEP_WF } from './init-worktree-test-support.js'
 import { makeDeps, spy } from '../test-support.js'
-
-/** 与 init-workflow.integration.test.ts 同一份两步 workflow 定义（intake -> done，event=complete）。 */
-const TWO_STEP_WF = `name: onboarding
-steps:
-  - id: intake
-    label: intake
-    gate: null
-    skills: []
-    inputs: []
-    outputs: []
-    guards: []
-    transitions:
-      - event: complete
-        to: done
-  - id: done
-    label: done
-    gate: null
-    skills: []
-    inputs: []
-    outputs: []
-    guards: []
-    transitions: []
-`
 
 /** 脚本化 Prompter：按注入顺序弹出应答（'' = 回车收默认）。 */
 function scriptedPrompter(answers: string[]): InitPrompter {

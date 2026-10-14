@@ -75,6 +75,14 @@ setup or update, and it rejects custom host IDs. Native-host previews target
 their user-scoped installation. Adapter-host previews use `--target .`; enter
 the intended project directory before copying or running that command.
 
+For the native hosts (`--claude`, `--codex`), a successful `tenon setup` or `tenon update`
+(also when `update` finds the release already current) finishes by running
+`tenon agent install --host <host>` through the stable launcher and printing what it wrote;
+open a new session afterwards. A failure there is a `WARN` and does not change the exit code
+of `setup` / `update`. `--dry-run` installs nothing, adapter hosts have no subagent directory
+and skip the step, and the background `--auto` update prints only a failure. See
+[Agents](agents.md#host-subagents-and-the-install-command).
+
 Host flags:
 
 ```text
@@ -99,10 +107,11 @@ success and never change canonical state. Prompt, token, credential, and artifac
 are rejected by the closed codec.
 
 ```text
-tenon init <name> --track <track> --preset <preset> [--workflow <name>]
+tenon init <name> --track <track> --preset <preset> [--workflow <name>] [--in-place] [--json]
 tenon list [--json]
 tenon status [name] [--json]
 tenon workflow plan <name> [--json]
+tenon workflow progress <name>
 tenon get <name> <field>
 tenon set <name> <field> <value>
 tenon set-many <name> <key=value...>
@@ -117,6 +126,47 @@ tenon session activate <name> [--continuous] [--host-session <id>]
 tenon session route-context <name> [--json]
 tenon state status|repair-projection|import-legacy <name> [--json]
 ```
+
+`tenon init` in the main checkout of a Git repository creates the Change in its own
+worktree `.worktrees/<name>` on the branch `tenon/<name>`, and writes `base_branch` (the
+branch you were on), `start_sha` (the `HEAD` it was cut from) and `isolation=worktree` into
+the new task. Details, including `setup`, trust and cleanup, are in
+[Where the task lives](quickstart.md#where-the-task-lives-the-task-worktree).
+
+- `--in-place` initializes in the current checkout without a worktree. Use it only when the
+  user asks for it. The same happens without the flag when the directory is not a Git
+  repository (or not its root), the repository has no commit, `HEAD` is detached, or the
+  directory is itself a linked worktree; `tenon init` says why on stderr. In place,
+  `isolation` is left unset.
+- Text output: stdout stays empty (`[INIT] <change dir>` and the rest go to stderr). For a
+  worktree, the last two stderr lines are `worktree: <absolute path>` and how to switch in
+  (Claude Code `EnterWorktree`, Codex a new session in that directory).
+- `--json`: stdout is one line,
+  `{"change":"<name>","path":"<change dir>","worktree":"<absolute path>|null","worktree_reason":"<reason>|null"}`.
+  `worktree_reason` is `null` when a worktree was created, else `not-git`, `no-commits`,
+  `detached-head`, `linked-worktree` or `requested`.
+- A path or branch that already exists exits `1` and changes nothing; any other failure
+  removes the worktree and the branch again.
+- The environment variable `TENON_INIT_IN_PLACE=1` has the same effect as `--in-place`
+  without printing a reason. It exists for Tenon's own tests and scripts, not for daily use.
+- `start_sha`, `base_branch` and `created_at` are written only by `init`; `set`, `set-many`
+  and `cas` refuse them with exit `1`.
+
+`tenon list` also lists the unarchived tasks under `.worktrees/` when run in the main
+checkout. The table has a final `WORKTREE` column (`-` for a task of the current root) and
+`--json` carries `worktree` in every row: the absolute path of the worktree, or `null` for
+a task of the current root. A command that reads a task by name in the main checkout
+(`status`, `get`, `check`, `workflow plan`) fails with exit `1` for a task that lives in a
+worktree, and the error names the worktree path.
+
+`tenon workflow progress <name>` prints one line, the step progress taken from the Change's
+frozen plan: `✓` before the current step, `●` the current one, `○` after it, every step `✓`
+once the Change is archived, steps joined by ` → ` and labelled as the workflow declares
+them (`立项 ✓ → 调研 ● → 规格 ○ → …`). It finds a task that lives in a worktree from the
+main checkout too. Anything it cannot read (invalid name, unreadable state, no plan, no
+steps) exits `1` with an empty stdout. The PostToolUse hook `step-progress` runs it after
+a successful `tenon init`, `tenon session activate`, `tenon transition` or
+`tenon step run <name>` and shows the line as the host's system message.
 
 `get` returns an empty line with exit `0` for a missing/unknown field. CAS
 mismatch exits `3`; failed guard check exits `2`; invalid transitions exit `1`.
@@ -233,7 +283,11 @@ Tests are registered on three levels. The project **catalog**
 (`.tenon/tests/catalog.yaml`, tracked, human-editable) says which suites exist and how
 to run them: `kind`, `runner`, `command`, `cwd`, the report format and path, optional
 coverage, artifact paths, `select` templates (`{files}` / `{pattern}`), `services`,
-`retries`, `parallel`, and a `benchmark` block for benchmark suites. Report, coverage
+`retries`, `parallel`, and a `benchmark` block for benchmark suites. The catalog may also
+declare one top-level `setup` string, the command that prepares a fresh task worktree (for
+example `npm ci`): `tenon init` runs it in a new worktree when the catalog is trusted there,
+a failure only warns, and it is part of the trusted command digest (see *First-run trust*
+below and [Where the task lives](quickstart.md#where-the-task-lives-the-task-worktree)). Report, coverage
 and artifact paths must sit under `test-results/`, `playwright-report/` or `coverage/`
 (a declaration can never hide source). The workspace fingerprint that binds a run record to
 the code ignores exactly the paths the catalog declares (report, coverage and `artifacts`,
@@ -337,10 +391,15 @@ adds, so it is safe to repeat. `test sync` diffs the change against its start
 and lists unregistered test files, files no suite claims, and registrations whose file is
 gone; it uses the same computation as the gate (exit `2` when something is pending).
 
-The start of a change is the merge-base with its base branch, or the last commit before
-the change was created when working on the base branch itself; the diff includes staged,
-unstaged and untracked files. When that diff cannot be read the gate blocks with
-`files-diff-unavailable` (it fails closed, it does not degrade to a notice).
+The start of a change is the newest of three candidates: the `start_sha` that `tenon init`
+recorded (when it is an ancestor of `HEAD` and not committed later than the task's `created_at` plus
+60 seconds), the merge-base of `HEAD` and the upstream of the
+base branch, and the merge-base of `HEAD` and the base branch (when that is not `HEAD`
+itself); candidates that are not in a chain fall back to their common ancestor. Only when none
+exists is it the last commit before the change was created. No commit message or author is
+read. The rule and its limits are in [Task start point](default-workflow.md#task-start-point).
+The diff includes staged, unstaged and untracked files. When that diff cannot be read the
+gate blocks with `files-diff-unavailable` (it fails closed, it does not degrade to a notice).
 
 `test run` writes one v2 record per invocation (`.tenon/users/<slug>/tests/<change>/<run-id>.json`)
 chained by `prev_digest`; editing a record breaks the chain and every v2 record of that
@@ -356,9 +415,10 @@ does not match, or a damaged marker is still a broken chain. Test processes run 
 `tenon` first on `PATH` (the launcher's directory, or a forwarding script for a direct
 `node …/tenon.mjs`), so `tenon test code-size --json` also works where no launcher is on `PATH`;
 `tenon doctor` reports `env:path-tenon` when the agent's own shell cannot resolve `tenon`. The
-delivery commit never includes `.pipeline-owned.json`, `test-results/`, `playwright-report/` or a
-root `coverage/`, and the generated `tenon-<name>` host agent files plus those output directories are
-added to the clone's `.git/info/exclude` (the project `.gitignore` is not touched). Selection: `--suite`,
+delivery commit never includes `.pipeline-owned.json`, `test-results/`, `playwright-report/`, a
+root `coverage/` or a `tenon-<name>` host agent file left in the project by an older version, and
+`test-results/` and `playwright-report/` are added to the clone's `.git/info/exclude` (the project
+`.gitignore` is not touched; Tenon no longer writes host agent files into the project). Selection: `--suite`,
 `--kind`, `--all` (every plan suite, full), `--changed` (narrow to changed test files when
 the suite has a `select.files` template, otherwise the whole suite), `--stage [<step>]`
 (the step policy's `run` kinds, plus `run_if_registered` kinds that the plan registered;
@@ -471,8 +531,16 @@ from getting one:
 - *First-run trust.* `tenon test run` refuses to execute a catalog (and, for inline step tests,
   the frozen workflow's test commands) whose executable text you have not trusted on this
   machine: suite `command`, `select` templates, `cwd`, declared env names and service start,
-  ready and stop settings, keyed by digest (a label or `covers` edit does not ask again; any
-  command edit does). `tenon test trust [<change>]` lists the commands and asks `[y/N]` in an
+  ready and stop settings, and the top-level `setup`, keyed by digest (a label or `covers`
+  edit does not ask again; any command edit does). `tenon init` copies your trusted digests
+  from the main checkout into a new task worktree, so a committed catalog is trusted there
+  at once and `setup` runs; a catalog that differs there is untrusted and `setup` is skipped
+  until you run `tenon test trust` in the worktree. Trust binds the command text (the catalog's
+  command digest), not the repository files the command reads when it runs, such as the
+  `package.json` lifecycle scripts or the scripts they call, the same as for test suites: a
+  trusted `setup` runs as-is in a new worktree even if a later commit changed those files. To avoid
+  that, create the task with `tenon init --in-place` or remove `setup` from the catalog.
+  `tenon test trust [<change>]` lists the commands and asks `[y/N]` in an
   interactive terminal (`--yes` for your own scripts, `--status` to only check, exit `2` if
   untrusted, `--json`). CI sets `TENON_TEST_TRUST=1` explicitly; every run then prints a line
   saying trust came from the environment. The Tenon hook refuses an agent's shell call that
@@ -564,7 +632,11 @@ closed `next` action list to execute in order. `run-tests` and `run-test` carry 
 (ask the user to run `trust.command` in their own terminal first). A `transition`
 carrying `escalate` means the task has outgrown its lane: the standard lane's risk probe
 failed, `escalate.reasons` names the breached limits, and `escalate.then` says to open a
-`default` task after the transition.
+`default` task after the transition. For a task that lives in a worktree, the
+`finish-change` action and the `stop` with `code: finished` carry `cleanup`, the command
+that removes the worktree and the branch,
+`git worktree remove '<path>' && git branch -d 'tenon/<change>'`; it is `null` for a task
+created in place. Tenon only reports it: run it yourself, in the main checkout.
 
 ```text
 tenon step run <change> [--json]
@@ -648,6 +720,8 @@ tenon agent validate <file|name>
 tenon agent copy <from> <to> [--scope user|project]
 tenon agent rm <name> [--scope user|project]
 tenon agent export <name> --host claude|codex
+tenon agent install [--host claude|codex]
+tenon agent uninstall [--host claude|codex]
 ```
 
 `document record --all` records every document of the current step whose file is already
@@ -666,11 +740,24 @@ not list an unattached reviewer and `agent prompt` refuses it with exit `2`.
 `tenon agent` drives the executors and reviewers a step declares. Tenon only
 orders them, renders the handoff, records the verdict, and binds it to the
 candidate; the host runs every model. `next` returns the current wave, `prompt`
-starts or resumes one agent and prints its handoff (with `--host claude|codex`
-it generates the host's `tenon-<name>` subagent file and returns
-`subagent_type`), and `record` reads the trailing ```tenon-result``` block of
-the report (`--subagent` records the subagent that actually ran). The library
-commands register agents in the terminal; see [Agents](agents.md). A reviewer never reports its own
+starts or resumes one agent and prints its handoff (it writes no host file; with `--json`
+it returns `subagent_type`, `native`, `reason` and `hint`: the dedicated `tenon-<name>`
+subagent only when the file installed by `tenon agent install` matches the task's frozen
+definition, otherwise the host's generic subagent with the reason it was used), and
+`record` reads the trailing ```tenon-result``` block of the report (`--subagent <type>`
+records the subagent that actually ran; `--subagent none` records that no subagent was
+dispatched after the run started, which reads back as `subagent: { type: "none", native:
+false, reason: "not-dispatched" }`). `tenon agent install` writes the official and custom agents that
+apply to the host as user-level subagent files (`~/.claude/agents/tenon-<name>.md`,
+`~/.codex/agents/tenon-<name>.toml`; when `CLAUDE_CONFIG_DIR` or `CODEX_HOME` is set to an
+absolute path, the `agents` directory under it instead, and the first output line names the
+target directory) and takes effect in a new session; `--host` defaults to
+the host detected from the process environment and to `claude` in a plain terminal. It exits
+`0` when done (files it must leave alone are `WARN` lines and count as done) and `1` for a
+usage error, an unassembled library or a failed write. `tenon agent uninstall` deletes the
+files Tenon wrote that are unedited and lists the rest. `tenon setup` and `tenon update` run the
+install after they succeed. The library commands register agents in the terminal; see
+[Agents](agents.md). A reviewer never reports its own
 verdict: Tenon derives pass or fail from the finding severities and the step's
 `block_at`. Every run of a reviewer on the same candidate (the same code) is kept and the most
 severe verdict wins, so a rerun cannot flip a finding away: once a reviewer has a verdict on the

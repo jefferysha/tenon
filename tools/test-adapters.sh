@@ -28,6 +28,10 @@ set -u
 # TENON_RUNTIME_HOME 与用例显式设置的 CLAUDE_PLUGIN_ROOT，带着它们跑会读写真实状态、用到已装插件。需要的夹具各自显式设置。
 unset TENON_RUNTIME_ROOTS TENON_RUNTIME_DATA_ROOT TENON_RUNTIME_STATE_ROOT TENON_RUNTIME_CONFIG_ROOT
 unset PLUGIN_ROOT CLAUDE_PLUGIN_ROOT TENON_HOST_PLUGIN_ROOT TENON_CODEX_PLUGIN_ROOT
+# 在本机 Claude / Codex 会话里执行时会继承真实的宿主配置目录；用户级子代理与 AGENTS.md 都据它解析，夹具不得读写它。
+unset CLAUDE_CONFIG_DIR CODEX_HOME
+# 新任务默认建在自己的 git worktree 里；本脚本在临时项目里执行 tenon init 并断言原地的路径，统一要求原地。
+export TENON_INIT_IN_PLACE=1
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 

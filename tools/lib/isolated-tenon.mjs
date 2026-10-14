@@ -136,6 +136,8 @@ export function isolatedEnv({ home, runtime, node }) {
     TENON_USER,
     TENON_USER_NAME: 'E2E',
     CODEX_HOME: join(home, '.codex'),
+    // 夹具项目已提交过 base：不让 tenon init 另建任务 worktree，任务就建在项目根（e2e 种子与基准都按项目根读取）。
+    TENON_INIT_IN_PLACE: '1',
   })
   delete env.TENON_DASHBOARD_PORT
   delete env.CLAUDE_PLUGIN_ROOT

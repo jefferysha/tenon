@@ -34,7 +34,7 @@ import {
   type StepAction, type StepCommit, type StepFinishFacts, type StepMode, type StepNextInput, type StepTestView,
 } from './statusStepNext.js'
 import { PLAN_DOCUMENT_KINDS, testConfigGaps } from './statusStepTestConfig.js'
-import { deliveryCommit, finishedStop } from './statusStepFinish.js'
+import { deliveryCommit, finishedStop, taskWorktreeFacts } from './statusStepFinish.js'
 import { buildStepTestFlow } from './statusStepTestFlow.js'
 import { stepEscalation } from './statusStepEscalation.js'
 import { stepRounds, type StepRounds } from './statusStepRounds.js'
@@ -151,7 +151,9 @@ async function finishFacts(deps: CliDeps, name: string, state: PipelineState): P
   const verified = str(state.fields.verify_result) === 'pass'
   const designSystem = str(state.fields.workflow) === 'design-system'
   if (str(state.fields.archived) !== 'true') return { git: null, verified, designSystem }
-  return { git: await (deps.gitFinishProbe?.(name) ?? Promise.resolve(null)), verified, designSystem }
+  const git = await (deps.gitFinishProbe?.(name) ?? Promise.resolve(null))
+  const worktree = taskWorktreeFacts(str(state.fields.isolation), deps.cwd, name)
+  return worktree === undefined ? { git, verified, designSystem } : { git, verified, designSystem, worktree }
 }
 
 /** 交付值：记录「这次交付」的自由文本字段。声明了它的步骤就是交付步。 */
@@ -333,7 +335,7 @@ export async function finishedStatusStep(
     review: { status: 'none', event: null },
     exits: [],
     rounds: null,
-    next: finishedStop(name),
+    next: finishedStop(name, taskWorktreeFacts(str(state.fields.isolation), deps.cwd, name)),
   }
 }
 

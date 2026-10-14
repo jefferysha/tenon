@@ -73,3 +73,35 @@ describe('judgeStepSkillSlots：必需技能 = 调用 + 本步绑定的产物', 
     expect(slots[0]?.done).toBe(true)
   })
 })
+
+describe('missingStepSkillMessages 的 exclude：生成文案前按槽位技能 id 剔除', () => {
+  const pending = (token: string) => ({ token, invoked: false, pendingDocuments: [], done: false }) as const
+
+  it('exclude 里的槽位不出文案，其余槽位逐字不变', () => {
+    const slots = [pending('test-driven-development'), pending('verification-before-completion')]
+    expect(missingStepSkillMessages(slots, new Set(['test-driven-development']))).toEqual(['verification-before-completion'])
+    expect(missingStepSkillMessages(slots, new Set(['unrelated']))).toEqual(missingStepSkillMessages(slots))
+  })
+
+  it('exclude 缺省或为空：与不传完全相同', () => {
+    const slots = [pending('a'), pending('b')]
+    expect(missingStepSkillMessages(slots, undefined)).toEqual(['a', 'b'])
+    expect(missingStepSkillMessages(slots, new Set())).toEqual(['a', 'b'])
+  })
+
+  it('`a|b` 备选：每个备选都被剔除才剔除整槽；只剔除一部分时槽位仍要求', () => {
+    const slots = [pending('brainstorming|grilling')]
+    expect(missingStepSkillMessages(slots, new Set(['brainstorming']))).toEqual(['brainstorming|grilling'])
+    expect(missingStepSkillMessages(slots, new Set(['brainstorming', 'grilling']))).toEqual([])
+  })
+
+  it('`tenon:` 前缀与裸名等价（双向）', () => {
+    expect(missingStepSkillMessages([pending('tenon:test-driven-development')], new Set(['test-driven-development']))).toEqual([])
+    expect(missingStepSkillMessages([pending('test-driven-development')], new Set(['tenon:test-driven-development']))).toEqual([])
+  })
+
+  it('已完成的槽位本来就不出文案；exclude 只剔除自己点名的槽位，不连带别的未完成槽位', () => {
+    const done = { token: 'a', invoked: true, pendingDocuments: [], done: true } as const
+    expect(missingStepSkillMessages([done, pending('b')], new Set(['a']))).toEqual(['b'])
+  })
+})

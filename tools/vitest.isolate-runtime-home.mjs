@@ -18,6 +18,11 @@ const ISOLATED_ENV = [
   'TENON_BASE_BRANCH',
   'TENON_CHANGE_NAME',
   'TENON_LANG',
+  'TENON_INIT_IN_PLACE',
+  // 宿主配置目录：在本机 Claude / Codex 会话里跑 `npm test` 会继承真实的 CLAUDE_CONFIG_DIR / CODEX_HOME，
+  // 用户级子代理目录与用户级 AGENTS.md 都据它解析，带着它跑用例会读写真实的宿主配置目录。用例要用时经参数注入。
+  'CLAUDE_CONFIG_DIR',
+  'CODEX_HOME',
 ]
 
 const saved = new Map(ISOLATED_ENV.map((name) => [name, process.env[name]]))
@@ -31,6 +36,9 @@ process.env.TENON_USER = 'tester@tenon.test'
 process.env.TENON_USER_NAME = 'Tester'
 // CLI 输出语言钉成 zh：断言按中文文案写，不随开发机的 LANG 漂移；英文用例自己覆盖 TENON_LANG。
 process.env.TENON_LANG = 'zh'
+// 新任务默认建在自己的 git worktree 里；既有用例都在临时 git 仓里原地建任务并断言原地的路径，统一在这里要求原地
+// （宿主进程里已有的同名变量同样被覆盖，文件结束后还原）。专测 worktree 的用例在用例内删掉这个变量、用完恢复。
+process.env.TENON_INIT_IN_PLACE = '1'
 
 afterAll(() => {
   for (const [name, value] of saved) {

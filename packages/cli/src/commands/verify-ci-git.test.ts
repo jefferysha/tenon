@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, test } from 'vitest'
 import { commitAll, git } from '../integration-harness-tests.js'
-import { candidateClues } from './verify-ci-git.js'
+import { candidateClues, resolveBaseRef } from './verify-ci-git.js'
 
 const dirs: string[] = []
 
@@ -100,5 +100,24 @@ describe('candidateClues', () => {
     const clues = await candidateClues(dir, { gitHead: c1, finishedAt: '2026-01-15T00:00:00Z', declared: [] })
     expect(clues.trackedHostLocal).toEqual(['.claude/worktrees/x.js'])
     expect(clues.extraHere, '没被跟踪的 settings.local.json 不算多出来的文件').toEqual([])
+  })
+})
+
+describe('resolveBaseRef', () => {
+  test('有 origin/<base> 就用它，即便存在同名本地分支：本地分支常常就是被校验的分支本身，其上游指向 HEAD', async () => {
+    const { dir } = await history()
+    git(dir, ['update-ref', 'refs/remotes/origin/main', 'HEAD'])
+    expect(await resolveBaseRef(dir, 'main')).toBe('origin/main')
+  })
+
+  test('只有本地分支时仍用本地分支；两者都没有时原样返回（调用方按解析不到处理）', async () => {
+    const { dir } = await history()
+    expect(await resolveBaseRef(dir, 'main')).toBe('main')
+    expect(await resolveBaseRef(dir, 'ghost')).toBe('ghost')
+  })
+
+  test('未记录的基线（空串、null）与以 - 开头的值不当成引用，原样返回', async () => {
+    const { dir } = await history()
+    for (const base of ['', 'null', '--all']) expect(await resolveBaseRef(dir, base), base).toBe(base)
   })
 })

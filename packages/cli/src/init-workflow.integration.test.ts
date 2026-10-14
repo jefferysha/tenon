@@ -330,7 +330,7 @@ describe('真实 e2e —— init --workflow 落地自定义 workflow 的首个 s
     await h.satisfyStepAgents(name)
     expect(await h.run([
       'set-many', name,
-      'build_mode=direct', 'isolation=worktree', 'direct_override=true',
+      'build_mode=direct', 'isolation=branch', 'direct_override=true',
       'pre_verify_review_result=pass',
     ]), h.err.join('\n')).toBe(0)
     await recordSkills('test-driven-development')

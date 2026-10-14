@@ -21,10 +21,14 @@ export const REVIEW_GATE_FIELDS = new Set<FieldName>([
  * 一处声明两处消费——fields.ts 据它拒写，`status --json` 的 step 投影据它不把这些槽当成「运行器
  * 要填的字段」。两边分开维护时，投影会发出一条 CLI 当场拒绝的 set-field（`archived` 就是这样被
  * 当成「完结要填的值」写成了 archived=true / archived_at=null 的半盖章终态）。
+ *
+ * `start_sha`、`base_branch`、`created_at` 决定任务起点（哪些改动算本任务的），只由 `tenon init` 写入；
+ * 允许改写就等于允许把起点挪到改动之后，把改动藏出评审与测试登记的视野。
  */
 export const TRANSITION_MANAGED_FIELDS: ReadonlySet<string> = new Set<string>([
   'phase', 'phase_status', 'updated_at', 'verified_at',
   'created_by', 'assignee', 'archived', 'archived_at', 'build_sha', ...REVIEW_GATE_FIELDS,
+  'start_sha', 'base_branch', 'created_at',
 ])
 
 const STATIC_ENUMS: Partial<Record<FieldName, readonly string[]>> = {

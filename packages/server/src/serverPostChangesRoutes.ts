@@ -18,6 +18,7 @@ import {
   loadTrackRegistry,
   loadWorkflow,
   prepareAgentFreeze,
+  readHeadCommit,
   requireTrackForRoot,
   stateStorageExistsSync,
   validateWorkflow,
@@ -230,11 +231,14 @@ export async function handlePostChangesRoutes(
             }
 
             try {
+              // 任务起点：建任务时检出的 HEAD；仓库还没有提交（或不是仓库）时不记。仍在原目录建立。
+              const startSha = await readHeadCommit(root)
               // project registry 锁保持到 state 独占发布完成；DELETE 持同锁扫描，二者不再有
               // “workflow 已校验但引用尚未落盘”的窗口。
               const initResult = await runRepo.initChange({
                 repoRoot: root, name, track: track.id, reviewSeed: track.policyProfile.reviewSeed,
                 preset: 'full', clock, initialWorkflow, creator,
+                ...(startSha === undefined ? {} : { startSha }),
                 initialFiles: [{
                   relativePath: '.pipeline-selection.json',
                   content: `${JSON.stringify({

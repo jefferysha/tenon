@@ -38,6 +38,7 @@ import {
   projectionContent,
 } from './state-projection-codec.js'
 import {
+  assertValidStartSha,
   defaultStateClock,
   detectBaseBranch,
   initialFields,
@@ -411,6 +412,7 @@ class FsStateStore implements StateStore {
   async init(opts: InitOptions): Promise<string> {
     const { name } = opts
     assertValidChangeName(name)
+    assertValidStartSha(opts.startSha)
     const clock = opts.clock ?? defaultStateClock
     const publication = await prepareInitialChangePublication(opts.repoRoot, name)
     const { candidateChangeDir: changeDir, finalChangeDir } = publication
@@ -419,7 +421,7 @@ class FsStateStore implements StateStore {
       const requestedDocumentLocale = opts.documentLocale ?? 'zh-CN'
 
       const ts = clock()
-      const baseBranch = await detectBaseBranch(opts.repoRoot)
+      const baseBranch = opts.baseBranch ?? await detectBaseBranch(opts.repoRoot)
       // Creator and first owner are the declared identity, published with the exclusive create; a ref that
       // fails the quote gate rejects the init before anything is written.
       const createdBy = formatUserRef(opts.creator)

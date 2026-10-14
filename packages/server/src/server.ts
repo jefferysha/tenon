@@ -60,6 +60,7 @@ import { createHostTargetPlanRuntime } from './serverGetHostTargetPlanRoutes.js'
 import { handleDeleteRoute, handlePatchRoute, handlePutRoute } from './serverMutationRoutes.js'
 import { handlePostRoute } from './serverPostRoutes.js'
 import { countProjectDeletions, createTaskLifecycleRouteDeps } from './serverTaskLifecycleRoutes.js'
+import { hostAgentLibraryReaderOf } from './hostAgentPrune.js'
 import {
   assertDashboardTransactionId,
   errMsg,
@@ -191,7 +192,9 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
     return guarded
   })
 
-  const taskLifecycle = createTaskLifecycleRouteDeps({ store, clock, viewer: resolveUser, artifactServices })
+  const taskLifecycle = createTaskLifecycleRouteDeps({
+    store, clock, viewer: resolveUser, artifactServices, hostAgentLibrary: hostAgentLibraryReaderOf(paths),
+  })
   const snapshotDeps = snapshotDepsFactory({
     registry, store, version, clock, capabilities, gitHeadSha, workspaceFingerprint,
     rootAnchor: (root) => snapshotRootAnchor?.(root),
