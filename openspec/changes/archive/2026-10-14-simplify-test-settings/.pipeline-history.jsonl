@@ -445,3 +445,8 @@
 {"ts":"2026-10-14T00:31:45Z","kind":"tool","raw":"Skill: tenon:finishing-a-development-branch"}
 {"ts":"2026-10-14T00:31:45Z","kind":"tool","raw":"NativeSkillReadBinding: finishing-a-development-branch c6279f4b-c76a-441d-8407-28a39aef3839 19 native-post-tool-use-970c94aec1d637449e1e0c371b79d017cbce4e4d1fadd9e156580f19dea9db0f"}
 {"ts":"2026-10-14T01:51:47Z","kind":"set","field":"pr_url","to":"https://github.com/jefferysha/tenon/pull/84","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-14T01:52:10Z","kind":"transition","from":"ship","to":"archive","raw":"ship-complete","transitionRecordId":"632a3bd8-7a42-423e-9170-2b8414023348","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}
+{"ts":"2026-10-14T01:52:13Z","kind":"tool-start","raw":"Skill: tenon:tenon"}
+{"ts":"2026-10-14T01:52:13Z","kind":"tool","raw":"Skill: tenon:tenon"}
+{"ts":"2026-10-14T01:52:13Z","kind":"tool","raw":"NativeSkillReadBinding: tenon c6279f4b-c76a-441d-8407-28a39aef3839 20 native-post-tool-use-d94ee2bc7079164736bd566ced38405973bf23e0257a2c89a17ab7b4c0fb9bde"}
+{"ts":"2026-10-14T01:52:54Z","kind":"transition","from":"archive","to":"archive","raw":"archived","transitionRecordId":"c9811b6b-d033-41f7-9712-0f024e15f93e","actor":{"id":"710227704@qq.com","name":"jefferySha","trust":"declared"}}

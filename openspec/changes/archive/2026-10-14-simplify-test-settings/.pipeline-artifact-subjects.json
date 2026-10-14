@@ -248,9 +248,9 @@
       "subjectRef": {
         "subject_id": "subject:change-simplify-test-settings-4890ea6ea9f6:72f7b9962b9ee335cdc13ac451708474",
         "namespace": "change-simplify-test-settings-4890ea6ea9f6",
-        "version": "sha256:620d1ba58c3a518fff04203c758a775c8f811229a427bdcc9fc1527060334b2a",
+        "version": "sha256:04d20c5f2e40f4d270f7f103a682b318b24822a47a4753d016aa578012b194fb",
         "projection": "document",
-        "content_digest": "sha256:620d1ba58c3a518fff04203c758a775c8f811229a427bdcc9fc1527060334b2a",
+        "content_digest": "sha256:04d20c5f2e40f4d270f7f103a682b318b24822a47a4753d016aa578012b194fb",
         "source": {
           "path": "tasks.md",
           "document_kind": "tasks"
@@ -262,7 +262,7 @@
       "documentKind": "tasks",
       "status": "committed",
       "receiptId": "submission:change-simplify-test-settings-4890ea6ea9f6:document:9fd98c78c1d6b051ab64938608074984",
-      "recordedAt": "2026-10-14T01:51:13Z"
+      "recordedAt": "2026-10-14T01:52:44Z"
     }
   ]
 }
