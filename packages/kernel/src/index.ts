@@ -205,6 +205,7 @@ export type {
   MaxRoundsSource, PlanMaxRounds, PlanMaxRoundsSource, ResolvedMaxRounds, RoundsPlan, RoundTransition,
 } from './workflow/step-rounds.js'
 export { readStepRounds, roundsExhausted } from './workflow/step-rounds-read.js'
+export { backEdgeSkipsReview } from './workflow/transition-rounds-gate.js'
 export type { StepRounds, StepRoundsReadDeps } from './workflow/step-rounds-read.js'
 export { unattachedReviewers } from './workflow/agent-scope.js'
 export type {

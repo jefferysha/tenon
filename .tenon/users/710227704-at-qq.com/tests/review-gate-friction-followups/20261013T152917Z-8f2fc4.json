@@ -1,0 +1,116 @@
+{
+  "schema": "tenon-test-run-v1",
+  "run_id": "20261013T152917Z-8f2fc4",
+  "change": "review-gate-friction-followups",
+  "workflow_run_id": "f6849a65-678e-48ce-9351-29167d80b23a",
+  "workflow": "standard",
+  "workflow_fingerprint": "6c66146c7475ec8d6b196cdf4c21a7f79246c5ac896e2d7dcf3174e8b9600f63",
+  "track": "standard",
+  "step": "build",
+  "step_visit": {
+    "run_id": "f6849a65-678e-48ce-9351-29167d80b23a",
+    "transition_sequence": 1
+  },
+  "test_id": "diff-risk",
+  "test_digest": "sha256:3bdb67dd206f34ee2a4787f450bad7e6d207834ebc75ca95c99dfff9327474e0",
+  "direction": "diff-risk",
+  "label": "改动风险",
+  "command": "tenon test diff-risk --json",
+  "cwd": ".",
+  "timeout_s": 60,
+  "required": true,
+  "actor": {
+    "id": "710227704@qq.com",
+    "name": "jefferySha",
+    "trust": "declared"
+  },
+  "host": {
+    "kind": "claude-code",
+    "sandbox": null
+  },
+  "candidate_before": "workspace:sha256:0b4f8c4fd76a9f8ecc05af49fd2360c05229f3ad8aa492786cc377b0118011f7",
+  "candidate": "workspace:sha256:0b4f8c4fd76a9f8ecc05af49fd2360c05229f3ad8aa492786cc377b0118011f7",
+  "git_head": "8e4504d33e286a15922474ed0aa23e341564ba34",
+  "build_sha": null,
+  "started_at": "2026-10-13T15:29:18.279Z",
+  "finished_at": "2026-10-13T15:29:18.712Z",
+  "duration_ms": 433,
+  "exit_code": 0,
+  "signal": null,
+  "result": "pass",
+  "reasons": [],
+  "inputs": [],
+  "outputs": [],
+  "metrics": [
+    {
+      "name": "files_changed",
+      "value": 8,
+      "baseline": null,
+      "delta_pct": null,
+      "max": 8,
+      "better": "lower",
+      "ok": true
+    },
+    {
+      "name": "contract_files",
+      "value": 0,
+      "baseline": null,
+      "delta_pct": null,
+      "max": 0,
+      "better": "lower",
+      "ok": true
+    },
+    {
+      "name": "auth_files",
+      "value": 0,
+      "baseline": null,
+      "delta_pct": null,
+      "max": 0,
+      "better": "lower",
+      "ok": true
+    },
+    {
+      "name": "dependency_files",
+      "value": 0,
+      "baseline": null,
+      "delta_pct": null,
+      "max": 0,
+      "better": "lower",
+      "ok": true
+    },
+    {
+      "name": "migration_files",
+      "value": 0,
+      "baseline": null,
+      "delta_pct": null,
+      "max": 0,
+      "better": "lower",
+      "ok": true
+    },
+    {
+      "name": "deleted_tests",
+      "value": 0,
+      "baseline": null,
+      "delta_pct": null,
+      "max": 0,
+      "better": "lower",
+      "ok": true
+    },
+    {
+      "name": "protected_test_files",
+      "value": 0,
+      "baseline": null,
+      "delta_pct": null,
+      "max": 0,
+      "better": "lower",
+      "ok": true
+    }
+  ],
+  "log": {
+    "artifact": "output.log",
+    "bytes_total": 138,
+    "bytes_kept": 138,
+    "truncated": false,
+    "digest": "sha256:ee77e1792c63c550bfb215cdbeb4a05b0130dfc0417c59dd146522e0bbc11f22"
+  }
+}

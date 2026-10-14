@@ -1,10 +1,11 @@
 /**
- * `next` 的出口动作（statusStepNext.ts 的顺序表走到最后才到这里）：回退边也要过本步的人工确认门，评审门上
- * 先 request → await → transition，非评审门直接 transition / complete，没有就绪出口时给 fix。
+ * `next` 的出口动作（statusStepNext.ts 的顺序表走到最后才到这里）：评审门上前进边先 request → await → transition；
+ * 回退边在受轮次上限约束的评审步上、轮次未用完时直接 transition（不需要评审回执），没给轮次时才同样走 request 链；
+ * 非评审门直接 transition / complete，没有就绪出口时给 fix。
  *
  * 纯函数；证据（必需测试 / 必需评审者）是否已经不通过由 `requiredEvidenceFailed` 判，顺序表里决定要不要填结果字段也用它。
  */
-import { isAbandonEvent } from '@tenon/kernel'
+import { backEdgeSkipsReview, isAbandonEvent } from '@tenon/kernel'
 import type { StepAction } from './statusStepAction.js'
 import {
   hasFailedReviewer, releaseFailedReviewers, requestReviewAction, roundsVerdict,
@@ -28,25 +29,31 @@ export function requiredEvidenceFailed(input: {
 }
 
 /**
- * 回退边也要过本步的人工确认门。
+ * 回退边。受轮次上限约束的评审步上，轮次还没用完时唯一的回退边直接 transition：回退不越过任何质量门，代价由上限封顶，
+ * 不需要评审回执（与内核转换用例共用 `backEdgeSkipsReview` 这一个判定）；升级前遗留的 pending / approved 回退边请求同样直接转换，
+ * 转换会清掉回执与标记。没给轮次（宿主没接线）时失败关闭，照旧走 request → await → transition。多条回退边交给人选。
  *
- * 真机实测：评审者打回后 `next` 直接给 `choose-exit: [verify-fail]`，照做却得到
- * 「phase 'verify' 的 event 'verify-fail' 尚未取得人工确认；先运行 tenon review request …
- * --event verify-fail」——`review request` 的事件绑定是逐边的（一次「回到实现」的决定不能顺便
- * 授权 verify-pass），所以回退边和前进边一样要走 request → await → transition 这条链。
+ * 放弃边（`scope-expanded`）不在此列：内核对它照旧要求回执（人工确认语义不变）。
  */
 export function gatedBackActions(
-  input: { readonly gate: string | null; readonly review: { readonly status: string; readonly event: string | null } },
+  input: {
+    readonly gate: string | null
+    readonly review: { readonly status: string; readonly event: string | null }
+    readonly rounds?: StepRounds | null
+  },
   back: readonly StepExit[],
 ): readonly StepAction[] {
   const choose: StepAction = { action: 'choose-exit', exits: back.map((exit) => exit.event) }
   if (input.gate !== 'review') return [choose]
+  const only = back.length === 1 ? back[0] : undefined
+  if (only !== undefined && backEdgeSkipsReview({ event: only.event, back: only.direction === 'back', rounds: input.rounds })) {
+    return [{ action: 'transition', event: only.event }]
+  }
   const bound = back.find((exit) => exit.event === input.review.event)
   if (bound !== undefined) {
     if (input.review.status === 'pending') return [{ action: 'await-review', event: bound.event }]
     if (input.review.status === 'approved') return [{ action: 'transition', event: bound.event }]
   }
-  const only = back.length === 1 ? back[0] : undefined
   return only === undefined ? [choose] : [{ action: 'request-review', event: only.event }]
 }
 
@@ -117,6 +124,11 @@ export function exitActions(input: {
     if (review.status === 'pending') {
       // 请求之后才加进计划的豁免不在冻结清单里，这次确认批准不了它们：先重新发起（幂等）再等人。
       const pendingExit = input.exits.find((candidate) => candidate.event === review.event)
+      // 升级前遗留的回退边请求：轮次内转换不再要回执（并会清掉回执与标记），不必等一次用不上的确认。
+      if (pendingExit !== undefined
+        && backEdgeSkipsReview({ event: pendingExit.event, back: pendingExit.direction === 'back', rounds: input.rounds })) {
+        return [{ action: 'transition', event: pendingExit.event }]
+      }
       if (flow?.refreshRequest === true && review.event !== null && pendingExit?.direction !== 'back') {
         return [requestReviewAction(review.event, flow.waivers.map((waiver) => waiver.subject), offer)]
       }

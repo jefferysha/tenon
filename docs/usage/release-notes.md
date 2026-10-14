@@ -103,6 +103,28 @@ step can only require a file by path. Read "Retired and migration" before you up
   tasks after the running ones. The workflow page edits a Track's spec and routing keywords and lists each step's leave
   conditions read-only; `GET /api/change/:dir/snapshot?archived=1` reads an ended task.
 
+### Back edges within the round limit no longer need a review receipt; the gate allows read-only command chains
+
+- Back edges within the round limit. On a step limited by verification rounds (a review gate with a back edge, such as
+  Verify with `verify-fail`), taking the back edge while rounds remain needs no review receipt: run `tenon transition`
+  directly. `step.next` now hands you `transition` for the only back edge instead of `request-review`, and the Dashboard
+  transition endpoint behaves the same. Forward edges, residual blockers and test waivers still need a human
+  confirmation, and once the rounds are used up the back edge is refused as before. Every successful transition now also
+  deletes the review marker (`.pipeline-pending-review`) bound to that task, so a review request that was open before the
+  upgrade, or a forward review that was waiting when the user asked to go back, no longer leaves a stale marker that
+  blocks writes for up to 30 minutes. A failed delete only prints a warning.
+- Read-only command chains. While a review, interaction or confirmation is pending, the write gate lets through commands
+  joined by `|`, `&&`, `||` or `;` when every segment is read-only (`git status --short | grep x`, `cd sub && ls`).
+  Redirections other than `>/dev/null`, `2>/dev/null`, `&>/dev/null` and `2>&1`, a background `&`, command substitution or variable expansion (including `$IFS`),
+  unclosed quotes and commands over 2048 characters are never read-only. Some read-only commands are now refused in their
+  writing or program-running forms: `git diff|log|show --output`, `--ext-diff` and `--textconv`, `rg --pre`, `-z` and
+  `--search-zip`, `sed -n` with anything but a line-range print, and `file -C`.
+- Per-kind hints and `tenon transition` under a pending review. While a review waits, the gate lets exactly
+  `tenon transition <change> <event>` for the task that owns the marker through and leaves the decision to the CLI, so an agent can take a back edge when
+  the user asks to go back (the CLI still refuses a forward edge without its approved receipt). The block message now
+  depends on the marker kind: a review block names the task and the event, lists the approval phrases and the Dashboard
+  confirmation, and no longer mentions AskUserQuestion; confirm and interaction blocks keep their AskUserQuestion wording.
+
 ### What you need to do
 
 1. Replace `--workflow standard` / `--workflow simple` in scripts and notes with `--workflow default --track lite`, and drop
@@ -122,6 +144,9 @@ step can only require a file by path. Read "Retired and migration" before you up
    keys; write `required-output` for a file a step must produce and `field-nonempty` or `field-equals` for a field. A
    `gate: auto` step that relied on its `outputs` now needs those checks written as guards. Scripts that read
    `effectiveIo` from the Workflow API or `io` from `GET /api/change/:name/orchestration` read `stepIo` instead.
+7. Scripts and notes that ask for a review of the back edge before taking it can drop that step while rounds remain:
+   `tenon transition <name> verify-fail` succeeds on its own, and a request that already exists is still accepted.
+   Nothing changes for forward edges.
 
 ### Simplified test settings
 

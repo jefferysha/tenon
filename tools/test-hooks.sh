@@ -7,7 +7,7 @@
 #   3. 红线自证：breadcrumb.sh / session-start.sh / statusline.sh 内 grep -c "node" 为 0；gate.sh
 #      例外，反向断言它**必须**仍引用 node（Task 9 非 default workflow 的 skill DAG 委托分支，
 #      见下方 section 3 注释）。python 红线全覆盖（含 gate.sh 与它按需加载的 lib/protected-writes.sh、lib/ack-command.sh、
-#      lib/trust-command.sh）；jq 红线覆盖 gate/三个 lib/bc/sl
+#      lib/read-only-command.sh、lib/trust-command.sh）；jq 红线覆盖 gate/四个 lib/bc/sl
 #   4. breadcrumb.sh：只在明确恢复时注入唯一/显式候选；新任务绝不泄漏旧任务
 #   5. verify-skills.sh：真实清单全绿；人为埋悬空引用（缺失脚本/不可执行/缺 SKILL.md/未声明外部 skill）抓红且逐条列出
 #   6. 插件清单 JSON 语法校验（plugin.json / hooks.json，经 node —— 测试脚本非 hook，允许）
@@ -36,6 +36,7 @@ export TENON_NODE_PATH
 GATE="$ROOT/hooks/gate.sh"
 GATE_LIB="$ROOT/hooks/lib/protected-writes.sh" # gate.sh 在原始输入名了受保护路径 / 解释器时才加载的写入识别
 ACK_LIB="$ROOT/hooks/lib/ack-command.sh" # gate.sh 的预筛命中（命令里可能有手动 acknowledge）时才加载的命令文本还原与判定
+RO_LIB="$ROOT/hooks/lib/read-only-command.sh" # gate.sh 在待处理标记拦住命令类工具时才加载的只读命令判定
 TRUST_LIB="$ROOT/hooks/lib/trust-command.sh" # protected-writes.sh 在命令段里出现信任 / 状态目录字样时才加载的识别（tenon test trust、TENON_TEST_TRUST=、改写状态目录）
 BC="$ROOT/hooks/breadcrumb.sh"
 SS="$ROOT/hooks/session-start.sh"
@@ -189,11 +190,24 @@ for m in confirm review interaction; do
   else
     touch "$proj/.pipeline-pending-$m"
   fi
+  # 评审标记带上事件，提示才有得写；其余两种不需要。
+  if [ "$m" = review ]; then printf 'event=explore-complete\n' >> "$proj/.pipeline-pending-review"; fi
   run_gate "{\"cwd\":\"$proj\",\"tool_name\":\"Write\"}"
   assert_exit "gate: 新鲜 .pipeline-pending-$m → exit 2" 2 "$RC"
   [ -n "$ERR" ] && ok "gate: 新鲜 $m 时 stderr 有中文指引" || bad "gate: 新鲜 $m 时 stderr 有中文指引" "stderr 为空"
-  assert_contains "gate: 指引提到 AskUserQuestion（${m}）" "$ERR" "AskUserQuestion"
-  assert_contains "gate: 指引说明先用 ToolSearch 载入提问工具（${m}）" "$ERR" 'ToolSearch 查询 "select:AskUserQuestion"'
+  assert_contains "gate: 指引说明只读组合命令不受拦截（${m}）" "$ERR" "只读组合"
+  if [ "$m" = review ]; then
+    # 评审标记的解封方式是用户的放行语或 Dashboard 确认，AskUserQuestion 完成不会解封它：提示不能把人往那边引。
+    assert_contains "gate: 评审提示写明评审待确认（${m}）" "$ERR" "评审待确认"
+    assert_contains "gate: 评审提示写明任务名（${m}）" "$ERR" "review-demo"
+    assert_contains "gate: 评审提示写明事件（${m}）" "$ERR" "explore-complete"
+    assert_contains "gate: 评审提示给出 Dashboard 确认（${m}）" "$ERR" "Dashboard"
+    assert_contains "gate: 评审提示写明 agent 不能自己确认（${m}）" "$ERR" "agent 不能自己确认"
+    assert_not_contains "gate: 评审提示不提 AskUserQuestion（${m}）" "$ERR" "AskUserQuestion"
+  else
+    assert_contains "gate: 指引提到 AskUserQuestion（${m}）" "$ERR" "AskUserQuestion"
+    assert_contains "gate: 指引说明先用 ToolSearch 载入提问工具（${m}）" "$ERR" 'ToolSearch 查询 "select:AskUserQuestion"'
+  fi
 done
 
 # 人类交互工具不是产出工具：marker 必须继续挡住写入，但不能挡住它自己向用户提问，
@@ -288,7 +302,9 @@ for payload_desc in \
   "--delegated 与 --event 同用|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"tenon review acknowledge unlock-demo --event spec-complete --delegated\"}" \
   "review request|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"$REQ_CMD\"}" \
   "cd 定位后 review request|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"cd $proj && $REQ_CMD\"}" \
-  "dashboard --open|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"tenon dashboard --open\"}" ; do
+  "dashboard --open|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"tenon dashboard --open\"}" \
+  "transition（gate 只放行形态，有没有回执由 CLI 判定）|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"tenon transition unlock-demo build-complete\"}" \
+  "cd 定位后 transition|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"cd $proj && tenon transition unlock-demo build-complete\"}" ; do
   desc="${payload_desc%%|*}"
   payload="${payload_desc#*|}"
   write_v2_review_marker "$proj" unlock-demo explore
@@ -304,7 +320,9 @@ for command_desc in \
   "重定向|$DEL_CMD > receipt.txt" \
   "管道|$DEL_CMD | tee receipt.txt" \
   "命令替换|$DEL_CMD \$(touch smuggled)" \
-  "其它状态写|tenon transition unlock-demo build-complete" ; do
+  "其它状态写|tenon set unlock-demo pr_url https://example.test/pr/1" \
+  "transition 夹带第三个参数|tenon transition unlock-demo build-complete extra" \
+  "transition 后接写|tenon transition unlock-demo build-complete; touch smuggled" ; do
   desc="${command_desc%%|*}"
   command="${command_desc#*|}"
   write_v2_review_marker "$proj" unlock-demo explore
@@ -835,6 +853,16 @@ run_gate_self_approval "{\"cwd\":\"$proj\",\"tool_name\":\"Read\",\"tool_input\"
 assert_exit "self-approval: HITL pending review 下读取 token 仍拦截" 2 "$RC"
 assert_contains "self-approval: HITL 拦截保留原提示" "$ERR" "禁止读取 dashboard token"
 assert_contains "self-approval: HITL 拦截前已调用记录器" "$(cat "$SA_LOG" 2>/dev/null || true)" "internal-self-approval"
+# 只读组合放行之后，嵌在组合里的控制面候选仍要被拦：自审批拦截排在只读放行之前。
+run_gate_self_approval "{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"cat ~/s/dashboard-token.json | head -1\"}" 0
+assert_exit "self-approval: HITL pending review 下读 token 的只读组合仍拦截" 2 "$RC"
+assert_contains "self-approval: 只读组合读 token 仍给出原提示" "$ERR" "禁止读取 dashboard token"
+run_gate_self_approval "{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"grep -n 127.0.0.1:18765 notes.md | head -1\"}" 0
+assert_exit "self-approval: HITL pending review 下触达控制面地址的只读组合仍拦截" 2 "$RC"
+assert_contains "self-approval: 触达控制面的只读组合给出控制面提示" "$ERR" "禁止访问本机 Dashboard 控制面"
+assert_contains "self-approval: 触达控制面的只读组合拦截前已调用记录器" "$(cat "$SA_LOG" 2>/dev/null || true)" "internal-self-approval"
+run_gate_self_approval "{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"grep -n 127.0.0.1:18765 notes.md | head -1\"}" 1
+assert_exit "self-approval: AFK 下同一只读组合不拦截" 0 "$RC"
 run_gate_self_approval "{\"cwd\":\"$proj\",\"tool_name\":\"Read\",\"tool_input\":{\"file_path\":\"$SA_TOKEN\"}}" 1
 assert_exit "self-approval: AFK 下 pending review 读取 token 不拦截" 0 "$RC"
 # 新机制：未登录的请求在 server 拿不到任何东西，hook 只保证「任意程序/脚本」在 pending review 期间 fail-closed，
@@ -1109,8 +1137,9 @@ else
   bad "gate.sh 合法引用 node（统一 workflow skill DAG 委托分支，Task 9）" "实得 0 行——是否误删了 Task 9 分支？"
 fi
 [ -r "$ACK_LIB" ] && ok "红线: 手动 acknowledge 判定库 ack-command.sh 存在且可读" || bad "红线: 手动 acknowledge 判定库 ack-command.sh 存在且可读" "缺 $ACK_LIB"
+[ -r "$RO_LIB" ] && ok "红线: 只读命令判定库 read-only-command.sh 存在且可读" || bad "红线: 只读命令判定库 read-only-command.sh 存在且可读" "缺 $RO_LIB"
 [ -r "$TRUST_LIB" ] && ok "红线: 信任与状态目录识别库 trust-command.sh 存在且可读" || bad "红线: 信任与状态目录识别库 trust-command.sh 存在且可读" "缺 $TRUST_LIB"
-for f in "$GATE" "$GATE_LIB" "$ACK_LIB" "$TRUST_LIB" "$BC" "$SS" "$SL"; do
+for f in "$GATE" "$GATE_LIB" "$ACK_LIB" "$RO_LIB" "$TRUST_LIB" "$BC" "$SS" "$SL"; do
   base="$(basename "$f")"
   n="$(grep -c "python" "$f" || true)"
   [ "$n" = "0" ] && ok "红线: $base 内无 python" || bad "红线: $base 内无 python" "实得 ${n} 行"
@@ -1119,7 +1148,7 @@ for tool in node python jq find xargs; do
   n="$(grep -c "$tool" "$ROOT/hooks/source-drift.sh" || true)"
   [ "$n" = "0" ] && ok "红线: source-drift.sh 内无 ${tool}" || bad "红线: source-drift.sh 内无 ${tool}" "实得 ${n} 行"
 done
-for f in "$GATE" "$GATE_LIB" "$ACK_LIB" "$TRUST_LIB" "$BC" "$SL"; do
+for f in "$GATE" "$GATE_LIB" "$ACK_LIB" "$RO_LIB" "$TRUST_LIB" "$BC" "$SL"; do
   base="$(basename "$f")"
   n="$(grep -c "jq" "$f" || true)"
   [ "$n" = "0" ] && ok "红线: $base 不依赖 jq" || bad "红线: $base 不依赖 jq" "实得 ${n} 行"
@@ -1296,6 +1325,7 @@ assert_contains "verify-skills: 列出缺失脚本 missing.sh" "$out" "missing.s
 assert_contains "verify-skills: 列出缺失 canonical state helper" "$out" "canonical-state.sh"
 assert_contains "verify-skills: 列出缺失共享 JSON helper" "$out" "json-input.sh"
 assert_contains "verify-skills: 列出缺失的手动 acknowledge 判定库" "$out" "hooks/lib/ack-command.sh"
+assert_contains "verify-skills: 列出缺失的只读命令判定库" "$out" "hooks/lib/read-only-command.sh"
 assert_contains "verify-skills: 列出缺失的信任与状态目录识别库" "$out" "hooks/lib/trust-command.sh"
 assert_contains "verify-skills: 列出不可执行 noexec.sh" "$out" "noexec.sh"
 assert_contains "verify-skills: 列出缺 SKILL.md 的 broken-skill" "$out" "broken-skill"
@@ -2815,6 +2845,9 @@ unlock_phrases_ok() { # $1=label $2=text containing the unlock list, ending at $
 }
 GATE_UNLOCK_TEXT="$(grep -o '没有提问工具时.*解封后再重发' "$ROOT/hooks/gate.sh")"
 unlock_phrases_ok "gate 解封提示" "$GATE_UNLOCK_TEXT" "即解封"
+# 评审标记有自己的一条提示（不提 AskUserQuestion）：它列出的放行语同样要真能解封、说不解封的同样要真不解封。
+GATE_REVIEW_UNLOCK_TEXT="$(grep -o '等用户回复「确认继续」.*放行语须是整条回复' "$ROOT/hooks/gate.sh")"
+unlock_phrases_ok "gate 评审提示" "$GATE_REVIEW_UNLOCK_TEXT" "即确认这道评审门"
 HINT_UNLOCK_TEXT="$(grep -o '用户回复「确认继续」.*带条件的请先说明' "$ROOT/hooks/confirm-clear-prompt.sh")"
 unlock_phrases_ok "confirm-clear-prompt 解封提示" "$HINT_UNLOCK_TEXT" "即确认当前待决事项"
 # 真机（第四轮）：SKILL.md 的模式表把评审门的放行语写成只有「确认继续」，模型据此对说了「按推荐」的
@@ -3547,6 +3580,205 @@ RC=$?
 big_elapsed=$((SECONDS - big_start))
 assert_exit "大 heredoc: 真的写任务测试计划 → exit 2" 2 "$RC"
 if [ "$big_elapsed" -le 3 ]; then ok "大 heredoc: 写计划被拒 ${big_elapsed}s 内完成"; else bad "大 heredoc: 写计划被拒 3s 内完成" "耗时 ${big_elapsed}s"; fi
+
+# ── 10d4b. gate.sh：待处理标记期间放行「每段都只读」的组合命令；评审标记下放行 `tenon transition` ──
+# 判定在 hooks/lib/read-only-command.sh（接口 pipeline_command_is_read_only）：按引号外的 | || && ; 切段，每段是 cd 或在严格只读名单内才放行；
+# 重定向、命令替换、后台执行、换行、引号不闭合、超长，以及名单内命令的写文件 / 执行程序形态一律按非只读拦（宁可误拦）。
+# 评审标记与交互标记共用同一个判定，各跑一遍矩阵。
+RO_PREV_PROJ="$proj" # 下一节（10d5）沿用 10d4 的项目夹具：本节结束时还原 $proj
+for ro_kind in review interaction; do
+  proj="$TMP/gate-ro-chain-$ro_kind"
+  mkdir -p "$proj"
+  if [ "$ro_kind" = review ]; then write_v2_review_marker "$proj" ro-demo verify; else write_v2_interaction_marker "$proj"; fi
+  allow_cmd "只读组合（${ro_kind}）：管道 grep" 'git status --short | grep -v "^M  \|^A  "'
+  allow_cmd "只读组合（${ro_kind}）：用户原样的两条 git status 组合" 'git status --short | grep -v "^M  \|^A  \|^D  \|^R  "; git status --short | wc -l'
+  allow_cmd "只读组合（${ro_kind}）：不带参数的 head / wc 作管道末端" 'ls | head; git log --oneline | wc'
+  allow_cmd "只读组合（${ro_kind}）：cd 后 ls" 'cd sub && ls'
+  allow_cmd "只读组合（${ro_kind}）：丢弃 stderr 再 head" 'rg x . 2>/dev/null | head -5'
+  allow_cmd "只读组合（${ro_kind}）：分号串两条只读" 'ls; pwd'
+  allow_cmd "只读组合（${ro_kind}）：|| 串两条只读" 'git log --oneline -3 || git status'
+  allow_cmd "只读组合（${ro_kind}）：sed 行号打印" "sed -n '10,20p' hooks/gate.sh"
+  allow_cmd "只读组合（${ro_kind}）：引号里的管道符" 'grep "a|b" f'
+  refuse_cmd "只读组合（${ro_kind}）：管道进 sh" 'cat a | sh'
+  refuse_cmd "只读组合（${ro_kind}）：分号后写" 'ls; touch y'
+  refuse_cmd "只读组合（${ro_kind}）：命令替换" 'cat "$(id)"'
+  refuse_cmd "只读组合（${ro_kind}）：反引号" 'cat `id`'
+  refuse_cmd "只读组合（${ro_kind}）：ANSI-C 引号" "ls \$'x'"
+  refuse_cmd "只读组合（${ro_kind}）：重定向到文件" 'cat a > b'
+  refuse_cmd "只读组合（${ro_kind}）：后台执行" 'ls &'
+  refuse_cmd "只读组合（${ro_kind}）：tee 写文件" 'grep x f | tee out'
+  refuse_cmd "只读组合（${ro_kind}）：引号不闭合" "ls 'unclosed"
+  refuse_cmd "收紧（${ro_kind}）：git diff --output" 'git diff --output=x'
+  refuse_cmd "收紧（${ro_kind}）：rg --pre" 'rg --pre ./run.sh x .'
+  refuse_cmd "收紧（${ro_kind}）：sed w 命令" "sed -n 'w out' f"
+  refuse_cmd "收紧（${ro_kind}）：sed 后接 -i" 'sed -n 1p -i f'
+  refuse_cmd "收紧（${ro_kind}）：file -C" 'file -C -m magic'
+  long_chain="$(printf 'ls; %.0s' $(seq 1 520))ls"   # 520 × 4 + 2 = 2082 字符
+  [ "${#long_chain}" -gt 2048 ] && ok "只读组合夹具（${ro_kind}）：超长命令确实超过 2048" || bad "只读组合夹具（${ro_kind}）：超长命令确实超过 2048" "长度 ${#long_chain}"
+  ro_start=$SECONDS
+  refuse_cmd "只读组合（${ro_kind}）：超过 2048 字符" "$long_chain"
+  [ $((SECONDS - ro_start)) -le 3 ] && ok "只读组合（${ro_kind}）：超长命令 3s 内拦截" || bad "只读组合（${ro_kind}）：超长命令 3s 内拦截" "耗时 $((SECONDS - ro_start))s"
+  near_chain="$(printf 'ls; %.0s' $(seq 1 500))ls"   # 500 × 4 + 2 = 2002 字符
+  [ "${#near_chain}" -le 2048 ] && ok "只读组合夹具（${ro_kind}）：接近上限的命令确实不超过 2048" || bad "只读组合夹具（${ro_kind}）：接近上限的命令确实不超过 2048" "长度 ${#near_chain}"
+  ro_start=$SECONDS
+  allow_cmd "只读组合（${ro_kind}）：接近上限的长组合仍放行" "$near_chain"
+  [ $((SECONDS - ro_start)) -le 3 ] && ok "只读组合（${ro_kind}）：接近上限 3s 内放行" || bad "只读组合（${ro_kind}）：接近上限 3s 内放行" "耗时 $((SECONDS - ro_start))s"
+  # 读取不清标记、不扩大成写权限。
+  case "$ro_kind" in
+    review) [ -f "$proj/.pipeline-pending-review" ] && ok "只读组合（${ro_kind}）：放行不清标记" || bad "只读组合（${ro_kind}）：放行不清标记" "标记被删" ;;
+    *) [ -f "$proj/.pipeline-pending-interaction" ] && ok "只读组合（${ro_kind}）：放行不清标记" || bad "只读组合（${ro_kind}）：放行不清标记" "标记被删" ;;
+  esac
+done
+# 制表符同样是参数分隔：`find .<TAB>-delete` 不能因为收紧形态只匹配「空格 + 选项」而被当成只读（收敛审查发现的绕过）。
+ro_lib_rc() { bash -c '. "$1"; pipeline_command_is_read_only "$2"' _ "$RO_LIB" "$1"; RO_RC=$?; } # 先存退出码，别让断言描述里的命令替换改写 $?
+for ro_tab_cmd in $'find .\t-delete' $'find . \t-exec touch x \\;' $'find . -name a\t-fprint x'; do
+  ro_lib_rc "$ro_tab_cmd"
+  assert_exit "只读判定库：制表符分隔的 find 写入形态判非只读（${ro_tab_cmd//$'\t'/<TAB>}）" 1 "$RO_RC"
+done
+ro_lib_rc $'cat\ta.txt | head\t-5'
+assert_exit "只读判定库：制表符分隔的只读命令仍放行" 0 "$RO_RC"
+# 裸变量展开同理：`$IFS` 在运行时展开成空白并拆词，`find .$IFS-delete` 里的 -delete 成了独立参数（复审发现的绕过）。
+# 引号外与双引号内的 `$名字` / 特殊参数一律判非只读；行尾锚点 `"a$"`、单引号里的 `'$p'` 不受影响。
+for ro_var_cmd in 'find .$IFS-delete' 'find . -name a$IFS-fprint x' 'ls $HOME' 'cat "$f"' 'ls $1' 'ls $@'; do
+  ro_lib_rc "$ro_var_cmd"
+  assert_exit "只读判定库：变量展开判非只读（${ro_var_cmd}）" 1 "$RO_RC"
+done
+for ro_var_cmd in 'grep "a$" f' "sed -n '\$p' f" 'grep -E "a$|b" f'; do
+  ro_lib_rc "$ro_var_cmd"
+  assert_exit "只读判定库：不是展开的 \$ 仍放行（${ro_var_cmd}）" 0 "$RO_RC"
+done
+# 会拉起外部程序的名单内形态：rg 的 -z / --search-zip 调解压程序，git 的 --ext-diff / --textconv 调配置里的外部程序
+# （git 长选项可缩写，按前缀拦）。--no-ext-diff 是关掉外部程序，照常放行。
+for ro_exec_cmd in 'rg -z x .' 'rg -iz x .' 'rg --search-zip x .' 'git diff --ext-diff' 'git log -p --ext' 'git show --textconv HEAD' 'git log -p --textc'; do
+  ro_lib_rc "$ro_exec_cmd"
+  assert_exit "只读判定库：会拉起外部程序的形态判非只读（${ro_exec_cmd}）" 1 "$RO_RC"
+done
+for ro_exec_cmd in 'git diff --no-ext-diff' 'rg -i x .' 'git log --oneline -3'; do
+  ro_lib_rc "$ro_exec_cmd"
+  assert_exit "只读判定库：不拉起外部程序的形态仍放行（${ro_exec_cmd}）" 0 "$RO_RC"
+done
+proj="$TMP/gate-ro-chain-review"
+run_gate "{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"find .\\t-delete\"}}"
+assert_exit "评审标记：JSON 里 \\t 分隔的 find -delete 被拦" 2 "$RC"
+refuse_cmd "评审标记：\$IFS 拆词的 find -delete" 'find .$IFS-delete'
+# 评审标记下放行恰好 `tenon transition <change> <event>`，由 CLI 判定（照旧拒绝缺回执的前进边与用完后的回退边）；交互标记下照拦。
+proj="$TMP/gate-ro-chain-review"
+allow_cmd "评审标记：tenon transition 交给 CLI" 'tenon transition ro-demo verify-fail'
+allow_cmd "评审标记：cd 后 tenon transition" 'cd /tmp && tenon transition ro-demo verify-fail'
+refuse_cmd "评审标记：tenon transition 后接写" 'tenon transition ro-demo verify-fail; touch x'
+refuse_cmd "评审标记：tenon transition 多余参数" 'tenon transition ro-demo verify-fail extra'
+refuse_cmd "评审标记：tenon transition 缺事件" 'tenon transition ro-demo'
+refuse_cmd "评审标记：tenon transition 事件是选项" 'tenon transition ro-demo --json'
+refuse_cmd "评审标记：tenon transition 任务名是选项" 'tenon transition --json verify-fail'
+refuse_cmd "评审标记：tenon transition 引号参数" 'tenon transition ro-demo "verify-fail"'
+refuse_cmd "评审标记：tenon transition 管道" 'tenon transition ro-demo verify-fail | cat'
+refuse_cmd "评审标记：tenon transition 命令替换" 'tenon transition ro-demo $(id)'
+# 只放行标记所属任务（即本会话的任务）的转换；别的任务的转换不借评审期这条口子。
+refuse_cmd "评审标记：tenon transition 别的任务" 'tenon transition other-change verify-fail'
+refuse_cmd "评审标记：cd 后 tenon transition 别的任务" 'cd /tmp && tenon transition other-change verify-fail'
+proj="$TMP/gate-ro-chain-interaction"
+refuse_cmd "交互标记：tenon transition 照拦" 'tenon transition ro-demo verify-fail'
+refuse_cmd "交互标记：cd 后 tenon transition 照拦" 'cd /tmp && tenon transition ro-demo verify-fail'
+# 判定库缺失（安装缺陷）：失败关闭——命令类工具一律不当只读放行，读取类工具与评审控制命令不受影响。
+RO_NOLIB_HOOKS="$TMP/hooks-without-ro-lib"
+mkdir -p "$RO_NOLIB_HOOKS"
+cp -R "$ROOT/hooks/." "$RO_NOLIB_HOOKS/"
+rm -f "$RO_NOLIB_HOOKS/lib/read-only-command.sh"
+run_ro_nolib() { printf '%s' "$1" | bash "$RO_NOLIB_HOOKS/gate.sh" >/dev/null 2>&1; }
+proj="$TMP/gate-ro-chain-review"
+run_ro_nolib "{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"ls -la\"}"
+assert_exit "只读判定库缺失：评审标记下连单条只读命令也拦（失败关闭）" 2 "$?"
+run_ro_nolib "{\"cwd\":\"$proj\",\"tool_name\":\"Read\",\"tool_input\":{\"file_path\":\"$proj/README.md\"}}"
+assert_exit "只读判定库缺失：Read 工具不受影响" 0 "$?"
+run_ro_nolib "{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"tenon transition ro-demo verify-fail\"}"
+assert_exit "只读判定库缺失：评审标记下 tenon transition 不依赖判定库" 0 "$?"
+proj="$TMP/gate-ro-chain-interaction"
+run_ro_nolib "{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"git status --short | grep -v M\"}"
+assert_exit "只读判定库缺失：交互标记下只读组合也拦（失败关闭）" 2 "$?"
+
+# 判定函数本身的边界（直接调用，不经 gate）：每条独立，不依赖标记夹具。
+ro_unit() { ( . "$RO_LIB" 2>/dev/null && pipeline_command_is_read_only "$1" ); }
+ro_unit_allow()  { ro_unit "$2"; assert_exit "只读判定：$1 → 只读" 0 "$?"; }
+ro_unit_refuse() { ro_unit "$2"; assert_exit "只读判定：$1 → 非只读" 1 "$?"; }
+ro_unit_allow '单条 ls' 'ls -la'
+ro_unit_allow 'cd 单独' 'cd'
+ro_unit_allow 'cd 带引号的目录再 ls' 'cd "my dir" && ls'
+ro_unit_allow '单引号里的分号' "grep -n 'a;b' f | wc -l"
+ro_unit_allow '单引号里的 $(' "grep '\$(' f"
+ro_unit_allow '双引号里的 &&' 'grep "a && b" f'
+ro_unit_allow '丢弃 stderr' 'ls 2>/dev/null'
+ro_unit_allow '合并 stderr 再 head' 'rg x . 2>&1 | head -5'
+ro_unit_allow '丢弃 stdout' 'ls >/dev/null'
+ro_unit_allow '&>/dev/null' 'ls &>/dev/null'
+ro_unit_allow '三段管道' 'git log --oneline | grep fix | wc -l'
+ro_unit_allow 'tenon status 接 head' 'tenon status demo | head -3'
+ro_unit_allow 'sed 单行号' 'sed -n 5p f'
+ro_unit_allow 'sed 末行' "sed -n '\$p' f"
+ro_unit_allow 'sed 双引号行号区间' 'sed -n "1,5p" f'
+ro_unit_allow 'sed --quiet' "sed --quiet '3,4p' f"
+ro_unit_allow 'file -b（-b 里没有 C）' 'file -b Cargo.toml'
+ro_unit_allow 'find -name' 'find . -name "*.sh" | head -5'
+ro_unit_allow 'find 的转义括号' 'find . \( -name a -o -name b \) | head -5'
+ro_unit_allow 'test 与 cat' 'test -f x && cat x'
+ro_unit_allow '段前后的制表符与多余空白' $'  ls -la\t;\tpwd  '
+ro_unit_allow '恰好 2048 字符' "$(printf 'ls%2046s' '')"
+ro_unit_refuse '空命令' ''
+ro_unit_refuse '2049 字符' "$(printf 'ls%2047s' '')"
+ro_unit_refuse '单个 & 后台' 'ls & ls'
+ro_unit_refuse '&& 后接写' 'ls && touch y'
+ro_unit_refuse '|| 后接写' 'cat a || rm x'
+ro_unit_refuse '|& 管道' 'cat a |& sh'
+ro_unit_refuse '输入重定向' 'cat < f'
+ro_unit_refuse '进程替换' 'cat <(ls)'
+ro_unit_refuse '带空格的 > /dev/null（只认独立记号，宁可误拦）' 'ls > /dev/null'
+ro_unit_refuse '重定向到文件的 2>' 'ls 2>err.txt'
+ro_unit_refuse '追加重定向' 'ls >>out'
+ro_unit_refuse '换行分隔第二条命令' $'ls\ntouch y'
+ro_unit_refuse '回车分隔第二条命令' $'ls\rtouch y'
+ro_unit_refuse '双引号里的命令替换' 'cat "$(id)"'
+ro_unit_refuse '双引号里的反引号' 'cat "`id`"'
+ro_unit_refuse '双引号里的 ${' 'cat "${X:-a}"'
+ro_unit_refuse '引号外的 ${' 'ls ${X}'
+ro_unit_refuse '算术展开' 'ls $((1+1))'
+ro_unit_refuse '花括号展开拼出 sed 选项' 'sed -n 1p {-i,f}'
+ro_unit_refuse '花括号展开拼出 find -delete' 'find . {-delete,-print}'
+ro_unit_refuse '默认值展开拼出 find -delete' 'find . ${X:--delete}'
+ro_unit_refuse '环境变量前缀' 'FOO=1 ls'
+ro_unit_refuse '子 shell' '(ls)'
+ro_unit_refuse '用函数重定义只读命令再调用它' 'ls () ( touch x ); ls'
+ro_unit_refuse '反斜杠续行把一个词拆到两行' $'find . \\\ncat -delete'
+ro_unit_refuse 'test -v 的下标会被算术求值' "test -v 'a[\$(id)]'"
+ro_unit_refuse '[ -v 的下标会被算术求值' "[ -v 'a[\$(id)]' ]"
+ro_unit_refuse '不在名单里的 echo' 'echo hi'
+ro_unit_refuse '解释器' 'bash -c ls'
+ro_unit_refuse '管道进 tee' 'ls | tee out'
+ro_unit_refuse '管道进 xargs' 'ls | xargs rm'
+ro_unit_refuse 'tenon transition 不在只读名单' 'tenon transition demo verify-fail'
+ro_unit_refuse 'find -delete' 'find . -delete'
+ro_unit_refuse 'find -exec' 'find . -exec rm {} +'
+ro_unit_refuse 'find 用引号拼出 -delete' 'find . -"delete"'
+ro_unit_refuse 'find -fprintf' 'find . -fprintf out x'
+ro_unit_refuse 'git diff --output 空格形式' 'git diff --output x'
+ro_unit_refuse 'git log 用引号拼出 --output' 'git log --o"utput"=x'
+ro_unit_refuse 'git show --output' 'git show --output=x HEAD'
+ro_unit_refuse 'git status --output' 'git status --output=x'
+ro_unit_refuse 'rg 用引号拼出 --pre' "rg --p're' ./run.sh x ."
+ro_unit_refuse 'rg --pre-glob' 'rg --pre-glob "*.gz" x .'
+ro_unit_refuse 'rg --hostname-bin' 'rg --hostname-bin=./x x .'
+ro_unit_refuse 'sed 脚本后接双引号的 -i' 'sed -n 1p "-i" f'
+ro_unit_refuse 'sed 脚本后接单引号的 -i' "sed -n 1p '-i' f"
+ro_unit_refuse 'sed 脚本后接反斜杠的 -i' 'sed -n 1p \-i f'
+ro_unit_refuse 'sed 长选项 --in-place' 'sed -n 1p --in-place f'
+ro_unit_refuse 'sed e 命令' "sed -n '1e id' f"
+ro_unit_refuse 'sed 多条命令' "sed -n '1p;2p' f"
+ro_unit_refuse 'sed 没有 -n' "sed 's/a/b/' f"
+ro_unit_refuse 'sed -n 缺脚本' 'sed -n'
+ro_unit_refuse 'file 合并短选项里的 C' 'file -bC x'
+ro_unit_refuse 'file --compile 的缩写' 'file --comp -m magic'
+ro_unit_refuse '双引号没闭合' 'ls "unclosed'
+ro_unit_refuse '单引号没闭合' "grep 'x f"
+ro_unit_refuse '反斜杠转义的引号不能闭合引号' 'ls "a\"'
+proj="$RO_PREV_PROJ"
 
 # ── 10d5. gate.sh：13 种绕过 `tenon test …` 写证据的写法（审计 §2.3）+ 信任决定只能由用户给 ──
 # 每种写法至少一条拒绝（exit 2）+ 相邻的放行用例。静态认不出的（字符串拼接出来的路径、来自别处的变量）

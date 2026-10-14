@@ -1,0 +1,4277 @@
+{
+  "schema": "tenon-test-run-v2",
+  "run_id": "20261013T133709Z-b836f0",
+  "change": "reduce-review-gate-friction",
+  "workflow_run_id": "f8b9ca23-48ee-4d1e-992c-ae1b2142df37",
+  "workflow": "default",
+  "track": "backend",
+  "step": "build",
+  "bindings": {
+    "candidate": "workspace:sha256:1e46659e1cdec3bf5a2c3fd2419709b75f4515d136e21fe7d5be5f19dcd7262b",
+    "workflow_fingerprint": "5b335442cae7137d357e1c59702816f3ac67fbde095517a75138cc28ddfa84aa",
+    "catalog_digest": "sha256:5fd7b42c3fe5bef5e34ffece8a1d40b5d07026a76b236c9eae1ddce6bac7f961",
+    "plan_digest": "sha256:ba289d4103aa536e3322d9bab96ba34fff90960fd9faa5e521352742f055b0eb",
+    "policy_digest": "sha256:b3c8330ab64358ab69db93351950c1586d7a98ba3070c8ca1549c43a069a1ba1"
+  },
+  "machine_profile": "darwin-arm64-16c-node24-3f41814e",
+  "machine_label": "darwin-arm64-16c-node24",
+  "services": [],
+  "suites": [
+    {
+      "suite": "unit",
+      "origin": "catalog",
+      "kind": "unit",
+      "runner": "vitest",
+      "scope": "full",
+      "selection": [],
+      "command": "npm test -- --reporter=default --reporter=json --outputFile.json=test-results/vitest.json",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 432866,
+      "result": "pass",
+      "reasons": [],
+      "totals": {
+        "cases": 11476,
+        "pass": 11458,
+        "fail": 0,
+        "skip": 18,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [
+        {
+          "id": "packages/cli/src/next-action-runner.integration.test.ts › 照着 next 做事的运行器：open → 完结 › 中途改掉一份已登记的文档，仍然能一路做到 list --finished",
+          "file": "packages/cli/src/next-action-runner.integration.test.ts",
+          "name": "中途改掉一份已登记的文档，仍然能一路做到 list --finished",
+          "suite_path": [
+            "照着 next 做事的运行器：open → 完结"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 20194,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/next-action-runner.integration.test.ts › 照着 next 做事的运行器：open → 完结 › 评审者打回一次：next 直接给回退边的 transition，再一路做到完结",
+          "file": "packages/cli/src/next-action-runner.integration.test.ts",
+          "name": "评审者打回一次：next 直接给回退边的 transition，再一路做到完结",
+          "suite_path": [
+            "照着 next 做事的运行器：open → 完结"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 19379,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/next-action-runner.integration.test.ts › 照着 next 做事的运行器：open → 完结 › pm 轨：build 的通过结论要等必需评审者 spec-consistency 通过",
+          "file": "packages/cli/src/next-action-runner.integration.test.ts",
+          "name": "pm 轨：build 的通过结论要等必需评审者 spec-consistency 通过",
+          "suite_path": [
+            "照着 next 做事的运行器：open → 完结"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 19259,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/next-action-runner.integration.test.ts › 照着 next 做事的运行器：open → 完结 › 项目没有 test:integration：计划步（spec）就要求配置，先于本步文档；未配置时 test run 拒跑、不落记录",
+          "file": "packages/cli/src/next-action-runner.integration.test.ts",
+          "name": "项目没有 test:integration：计划步（spec）就要求配置，先于本步文档；未配置时 test run 拒跑、不落记录",
+          "suite_path": [
+            "照着 next 做事的运行器：open → 完结"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 17073,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/next-action-runner.integration.test.ts › 照着 next 做事的运行器：open → 完结 › build 才发现未配置：决定字段在前，fix 只要求补脚本；只改 package.json 不回退 spec",
+          "file": "packages/cli/src/next-action-runner.integration.test.ts",
+          "name": "build 才发现未配置：决定字段在前，fix 只要求补脚本；只改 package.json 不回退 spec",
+          "suite_path": [
+            "照着 next 做事的运行器：open → 完结"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 19214,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/next-action-runner.integration.test.ts › 照着 next 做事的运行器：open → 完结 › 不存在的任务：status 给产品层文案",
+          "file": "packages/cli/src/next-action-runner.integration.test.ts",
+          "name": "不存在的任务：status 给产品层文案",
+          "suite_path": [
+            "照着 next 做事的运行器：open → 完结"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 49,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/next-action-runner.integration.test.ts › 照着 next 做事的运行器：轻量的平铺工作流（原内建 simple 的定义） › verify-pass 完结后 next 给出一次成功的提交（不含门禁标记）；提交之后 stop finished",
+          "file": "packages/cli/src/next-action-runner.integration.test.ts",
+          "name": "verify-pass 完结后 next 给出一次成功的提交（不含门禁标记）；提交之后 stop finished",
+          "suite_path": [
+            "照着 next 做事的运行器：轻量的平铺工作流（原内建 simple 的定义）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 748,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/next-action-runner.integration.test.ts › 照着 next 做事的运行器：轻量的平铺工作流（原内建 simple 的定义） › scope-expanded 放弃：finish-change 只带命令、不带提交；执行之后 step 的 next 是 stop finished",
+          "file": "packages/cli/src/next-action-runner.integration.test.ts",
+          "name": "scope-expanded 放弃：finish-change 只带命令、不带提交；执行之后 step 的 next 是 stop finished",
+          "suite_path": [
+            "照着 next 做事的运行器：轻量的平铺工作流（原内建 simple 的定义）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 333,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/review-residual.integration.test.ts › 上限未用完：一切照旧 › 第 1 轮、上限 2，评审者不通过：next 直接给 verify-fail 的 transition（没有新字段），verify-pass 的评审请求照旧被拒",
+          "file": "packages/cli/src/review-residual.integration.test.ts",
+          "name": "第 1 轮、上限 2，评审者不通过：next 直接给 verify-fail 的 transition（没有新字段），verify-pass 的评审请求照旧被拒",
+          "suite_path": [
+            "上限未用完：一切照旧"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 284,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/review-residual.integration.test.ts › 上限未用完：一切照旧 › 第 1 轮：轮次内直接转换回实现，不产生评审请求或标记（真实走完一轮再进入第 2 轮）",
+          "file": "packages/cli/src/review-residual.integration.test.ts",
+          "name": "第 1 轮：轮次内直接转换回实现，不产生评审请求或标记（真实走完一轮再进入第 2 轮）",
+          "suite_path": [
+            "上限未用完：一切照旧"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 338,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/review-residual.integration.test.ts › 上限用完：next 与强制层 › 第 2 轮仍不通过：next 不再给 verify-fail，改发 verify-pass 的评审请求（residual / rounds / 三条出路）",
+          "file": "packages/cli/src/review-residual.integration.test.ts",
+          "name": "第 2 轮仍不通过：next 不再给 verify-fail，改发 verify-pass 的评审请求（residual / rounds / 三条出路）",
+          "suite_path": [
+            "上限用完：next 与强制层"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 349,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/review-residual.integration.test.ts › 上限用完：next 与强制层 › 回退边的 review request 与 transition 被拒：exit 1，写出已用轮次 2/2、上限与调高上限的命令；zh / en 成对",
+          "file": "packages/cli/src/review-residual.integration.test.ts",
+          "name": "回退边的 review request 与 transition 被拒：exit 1，写出已用轮次 2/2、上限与调高上限的命令；zh / en 成对",
+          "suite_path": [
+            "上限用完：next 与强制层"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 340,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/review-residual.integration.test.ts › 上限用完：next 与强制层 › 调整上限：第 2 轮时设为 1 或 2 仍视为用完，设为 3 才恢复回退（next 恢复给 verify-fail 的 transition）",
+          "file": "packages/cli/src/review-residual.integration.test.ts",
+          "name": "调整上限：第 2 轮时设为 1 或 2 仍视为用完，设为 3 才恢复回退（next 恢复给 verify-fail 的 transition）",
+          "suite_path": [
+            "上限用完：next 与强制层"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 476,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/review-residual.integration.test.ts › 上限用完：next 与强制层 › 不受约束的步骤不受影响：上限用完时 build 的 requirements-changed 照常可用，回到规格后重新计数",
+          "file": "packages/cli/src/review-residual.integration.test.ts",
+          "name": "不受约束的步骤不受影响：上限用完时 build 的 requirements-changed 照常可用，回到规格后重新计数",
+          "suite_path": [
+            "上限用完：next 与强制层"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 562,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/review-residual.integration.test.ts › 上限用完：verify 自己声明了回 spec 的边 › 这条边用完后同样被拒（exits 带 rounds-exhausted、transition exit 1），next 因此不把它当直达命令，回规格不能让轮次清零",
+          "file": "packages/cli/src/review-residual.integration.test.ts",
+          "name": "这条边用完后同样被拒（exits 带 rounds-exhausted、transition exit 1），next 因此不把它当直达命令，回规格不能让轮次清零",
+          "suite_path": [
+            "上限用完：verify 自己声明了回 spec 的边"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 286,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/review-residual.integration.test.ts › 接受剩余阻断 › request 放行并逐条列出 reviewer:security、运行、候选与阻断级发现；委托确认被拒、评审保持待确认；人工确认后转换放行并记历史",
+          "file": "packages/cli/src/review-residual.integration.test.ts",
+          "name": "request 放行并逐条列出 reviewer:security、运行、候选与阻断级发现；委托确认被拒、评审保持待确认；人工确认后转换放行并记历史",
+          "suite_path": [
+            "接受剩余阻断"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 523,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/review-residual.integration.test.ts › 接受剩余阻断 › AFK 不接受剩余阻断：TENON_AFK=1 的确认被拒，评审保持待确认",
+          "file": "packages/cli/src/review-residual.integration.test.ts",
+          "name": "AFK 不接受剩余阻断：TENON_AFK=1 的确认被拒，评审保持待确认",
+          "suite_path": [
+            "接受剩余阻断"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 418,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/review-residual.integration.test.ts › 接受剩余阻断 › 代码变了接受失效：评审者在新候选上重跑仍不通过，前进边重新被阻断，next 要求撤回回执重新确认",
+          "file": "packages/cli/src/review-residual.integration.test.ts",
+          "name": "代码变了接受失效：评审者在新候选上重跑仍不通过，前进边重新被阻断，next 要求撤回回执重新确认",
+          "suite_path": [
+            "接受剩余阻断"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 615,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/review-residual.integration.test.ts › 接受剩余阻断 › 同一候选上带 --rerun-reason 重跑得到新运行：接受不覆盖新运行，新运行不通过要重新接受",
+          "file": "packages/cli/src/review-residual.integration.test.ts",
+          "name": "同一候选上带 --rerun-reason 重跑得到新运行：接受不覆盖新运行，新运行不通过要重新接受",
+          "suite_path": [
+            "接受剩余阻断"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 589,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/review-residual.integration.test.ts › 接受剩余阻断 › 撤回已批准的回执后重新请求：仍不通过的评审者再次列给用户，之前接受过也不悄悄不再出现；再次确认幂等",
+          "file": "packages/cli/src/review-residual.integration.test.ts",
+          "name": "撤回已批准的回执后重新请求：仍不通过的评审者再次列给用户，之前接受过也不悄悄不再出现；再次确认幂等",
+          "suite_path": [
+            "接受剩余阻断"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 618,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/review-residual.integration.test.ts › 接受剩余阻断 › 评审者在当前候选上通过时不冻结任何剩余阻断，request 与以前一致",
+          "file": "packages/cli/src/review-residual.integration.test.ts",
+          "name": "评审者在当前候选上通过时不冻结任何剩余阻断，request 与以前一致",
+          "suite_path": [
+            "接受剩余阻断"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 449,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/review-residual.integration.test.ts › 接受剩余阻断 › 评审者缺失 / 过期仍然拦着 request：剩余阻断只覆盖「评审者在当前候选上不通过」",
+          "file": "packages/cli/src/review-residual.integration.test.ts",
+          "name": "评审者缺失 / 过期仍然拦着 request：剩余阻断只覆盖「评审者在当前候选上不通过」",
+          "suite_path": [
+            "接受剩余阻断"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 302,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/review-residual.integration.test.ts › 失败的必需测试仍走步骤测试豁免 › 没有登记豁免：next 是 stop rounds-exhausted（点名 size、登记豁免与三条出路），request 与 transition 照旧被拒",
+          "file": "packages/cli/src/review-residual.integration.test.ts",
+          "name": "没有登记豁免：next 是 stop rounds-exhausted（点名 size、登记豁免与三条出路），request 与 transition 照旧被拒",
+          "suite_path": [
+            "失败的必需测试仍走步骤测试豁免"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 452,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/review-residual.integration.test.ts › 失败的必需测试仍走步骤测试豁免 › 登记豁免之后：waivers 与 residual 并存的评审请求，一次确认同时批准豁免、接受剩余阻断，转换放行",
+          "file": "packages/cli/src/review-residual.integration.test.ts",
+          "name": "登记豁免之后：waivers 与 residual 并存的评审请求，一次确认同时批准豁免、接受剩余阻断，转换放行",
+          "suite_path": [
+            "失败的必需测试仍走步骤测试豁免"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 620,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/test-flow.integration.test.ts › spec：目录 → 计划 → 映射 → 评审 › 没有目录先 test-discover，再 test-plan-seed，再 test-plan-map；映射完成后才进评审",
+          "file": "packages/cli/src/test-flow.integration.test.ts",
+          "name": "没有目录先 test-discover，再 test-plan-seed，再 test-plan-map；映射完成后才进评审",
+          "suite_path": [
+            "spec：目录 → 计划 → 映射 → 评审"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 163,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/test-flow.integration.test.ts › 豁免的评审批准 › request 列出待批准的豁免；acknowledge 只批准列出的那几条并留审计；批准后放行 transition",
+          "file": "packages/cli/src/test-flow.integration.test.ts",
+          "name": "request 列出待批准的豁免；acknowledge 只批准列出的那几条并留审计；批准后放行 transition",
+          "suite_path": [
+            "豁免的评审批准"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 198,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/test-flow.integration.test.ts › 豁免的评审批准 › TENON_LANG=en：确认的成功行、批准豁免的收尾行与重复请求的「仍待确认」是英文（zh 见上一条）",
+          "file": "packages/cli/src/test-flow.integration.test.ts",
+          "name": "TENON_LANG=en：确认的成功行、批准豁免的收尾行与重复请求的「仍待确认」是英文（zh 见上一条）",
+          "suite_path": [
+            "豁免的评审批准"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 143,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/test-flow.integration.test.ts › 豁免的评审批准 › 请求之后又加了豁免：next 先要求重新发起（幂等），重新发起后这次确认一并批准",
+          "file": "packages/cli/src/test-flow.integration.test.ts",
+          "name": "请求之后又加了豁免：next 先要求重新发起（幂等），重新发起后这次确认一并批准",
+          "suite_path": [
+            "豁免的评审批准"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 221,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/test-flow.integration.test.ts › 豁免的评审批准 › 委托确认（--delegated）遇到待批准的豁免被拒、receipt 保持待确认；人工确认批准后放行",
+          "file": "packages/cli/src/test-flow.integration.test.ts",
+          "name": "委托确认（--delegated）遇到待批准的豁免被拒、receipt 保持待确认；人工确认批准后放行",
+          "suite_path": [
+            "豁免的评审批准"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 189,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/test-flow.integration.test.ts › 豁免的评审批准 › 没有待批准的豁免时委托确认照常通过",
+          "file": "packages/cli/src/test-flow.integration.test.ts",
+          "name": "没有待批准的豁免时委托确认照常通过",
+          "suite_path": [
+            "豁免的评审批准"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 156,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/test-flow.integration.test.ts › 豁免的评审批准 › 确认之后豁免又变成未批准（换了理由）：next 不发必被拒的 transition，说明为什么批准不了",
+          "file": "packages/cli/src/test-flow.integration.test.ts",
+          "name": "确认之后豁免又变成未批准（换了理由）：next 不发必被拒的 transition，说明为什么批准不了",
+          "suite_path": [
+            "豁免的评审批准"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 140,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/test-flow.integration.test.ts › 豁免的评审批准 › 计划被手改（摘要不符）：确认不批准任何豁免，并说明原因",
+          "file": "packages/cli/src/test-flow.integration.test.ts",
+          "name": "计划被手改（摘要不符）：确认不批准任何豁免，并说明原因",
+          "suite_path": [
+            "豁免的评审批准"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 168,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/test-flow.integration.test.ts › 目录里项目级「不适用」声明的评审批准 › 未批准的声明挡出口并随 request 列出；人工确认批准并把批准人写回目录；批准后放行，后续任务同样生效",
+          "file": "packages/cli/src/test-flow.integration.test.ts",
+          "name": "未批准的声明挡出口并随 request 列出；人工确认批准并把批准人写回目录；批准后放行，后续任务同样生效",
+          "suite_path": [
+            "目录里项目级「不适用」声明的评审批准"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 206,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/test-flow.integration.test.ts › 目录里项目级「不适用」声明的评审批准 › 委托确认（--delegated）不批准声明：被拒、目录与 receipt 都不动；人工确认之后才放行",
+          "file": "packages/cli/src/test-flow.integration.test.ts",
+          "name": "委托确认（--delegated）不批准声明：被拒、目录与 receipt 都不动；人工确认之后才放行",
+          "suite_path": [
+            "目录里项目级「不适用」声明的评审批准"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 181,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/test-flow.integration.test.ts › 目录里项目级「不适用」声明的评审批准 › 请求之后才改了理由的声明不会被这次确认批准；重新 request 之后才行",
+          "file": "packages/cli/src/test-flow.integration.test.ts",
+          "name": "请求之后才改了理由的声明不会被这次确认批准；重新 request 之后才行",
+          "suite_path": [
+            "目录里项目级「不适用」声明的评审批准"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 134,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/test-flow.integration.test.ts › build：未登记的测试文件与运行 › diff 里的测试文件没登记 → test-register-files；登记后 run-tests；运行通过才放行出口",
+          "file": "packages/cli/src/test-flow.integration.test.ts",
+          "name": "diff 里的测试文件没登记 → test-register-files；登记后 run-tests；运行通过才放行出口",
+          "suite_path": [
+            "build：未登记的测试文件与运行"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 164,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/test-flow.integration.test.ts › build：未登记的测试文件与运行 › 代码变了：已有的运行过期，重新 run-tests",
+          "file": "packages/cli/src/test-flow.integration.test.ts",
+          "name": "代码变了：已有的运行过期，重新 run-tests",
+          "suite_path": [
+            "build：未登记的测试文件与运行"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 118,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/test-flow.integration.test.ts › verify：追溯矩阵与评审者的测试摘要 › 评审门上运行失败：走回退边，而不是继续派评审者",
+          "file": "packages/cli/src/test-flow.integration.test.ts",
+          "name": "评审门上运行失败：走回退边，而不是继续派评审者",
+          "suite_path": [
+            "verify：追溯矩阵与评审者的测试摘要"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 229,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/test-flow.integration.test.ts › verify：追溯矩阵与评审者的测试摘要 › 评审者提示词附带失败用例、flaky、覆盖率对照门槛；未声明 reads_tests 的评审者不附",
+          "file": "packages/cli/src/test-flow.integration.test.ts",
+          "name": "评审者提示词附带失败用例、flaky、覆盖率对照门槛；未声明 reads_tests 的评审者不附",
+          "suite_path": [
+            "verify：追溯矩阵与评审者的测试摘要"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 254,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/transition-effects.integration.test.ts › 真实 e2e —— explore-complete 校验（老仓 L120-126） › design_doc 未设（字面 null）真拒：exit 1、ERROR 对齐老仓、yaml 字节不变",
+          "file": "packages/cli/src/transition-effects.integration.test.ts",
+          "name": "design_doc 未设（字面 null）真拒：exit 1、ERROR 对齐老仓、yaml 字节不变",
+          "suite_path": [
+            "真实 e2e —— explore-complete 校验（老仓 L120-126）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1994,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/transition-effects.integration.test.ts › 真实 e2e —— explore-complete 校验（老仓 L120-126） › design_doc 指向不存在文件真拒：exit 1，相位停在 explore",
+          "file": "packages/cli/src/transition-effects.integration.test.ts",
+          "name": "design_doc 指向不存在文件真拒：exit 1，相位停在 explore",
+          "suite_path": [
+            "真实 e2e —— explore-complete 校验（老仓 L120-126）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1587,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/transition-effects.integration.test.ts › 真实 e2e —— explore-complete 校验（老仓 L120-126） › design_doc 真文件满足 → exit 0，phase=spec + phase_status=pending 落盘",
+          "file": "packages/cli/src/transition-effects.integration.test.ts",
+          "name": "design_doc 真文件满足 → exit 0，phase=spec + phase_status=pending 落盘",
+          "suite_path": [
+            "真实 e2e —— explore-complete 校验（老仓 L120-126）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1661,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/transition-effects.integration.test.ts › 真实 e2e —— spec-complete 校验（老仓 L127-138） › backend track 无 plan 真拒：exit 1，ERROR 带 track 名",
+          "file": "packages/cli/src/transition-effects.integration.test.ts",
+          "name": "backend track 无 plan 真拒：exit 1，ERROR 带 track 名",
+          "suite_path": [
+            "真实 e2e —— spec-complete 校验（老仓 L127-138）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 2243,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/transition-effects.integration.test.ts › 真实 e2e —— spec-complete 校验（老仓 L127-138） › pm track 保持原流程的 legacy plan artifact 豁免：无 plan 也可进 build",
+          "file": "packages/cli/src/transition-effects.integration.test.ts",
+          "name": "pm track 保持原流程的 legacy plan artifact 豁免：无 plan 也可进 build",
+          "suite_path": [
+            "真实 e2e —— spec-complete 校验（老仓 L127-138）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 2393,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/transition-effects.integration.test.ts › 真实 e2e —— build-complete 校验 + build_sha 冻结（老仓 L139-162） › 缺 build_mode → 缺 isolation → 逐个解锁（首错优先序对齐老仓）",
+          "file": "packages/cli/src/transition-effects.integration.test.ts",
+          "name": "缺 build_mode → 缺 isolation → 逐个解锁（首错优先序对齐老仓）",
+          "suite_path": [
+            "真实 e2e —— build-complete 校验 + build_sha 冻结（老仓 L139-162）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 2807,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/transition-effects.integration.test.ts › 真实 e2e —— build-complete 校验 + build_sha 冻结（老仓 L139-162） › isolation 非法枚举（绕过 set 闸直改 yaml）→ transition 防线仍拒：exit 1",
+          "file": "packages/cli/src/transition-effects.integration.test.ts",
+          "name": "isolation 非法枚举（绕过 set 闸直改 yaml）→ transition 防线仍拒：exit 1",
+          "suite_path": [
+            "真实 e2e —— build-complete 校验 + build_sha 冻结（老仓 L139-162）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 2887,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/transition-effects.integration.test.ts › 真实 e2e —— build-complete 校验 + build_sha 冻结（老仓 L139-162） › full preset + build_mode=direct 必须显式 direct_override=true，补设后冻结 build_sha",
+          "file": "packages/cli/src/transition-effects.integration.test.ts",
+          "name": "full preset + build_mode=direct 必须显式 direct_override=true，补设后冻结 build_sha",
+          "suite_path": [
+            "真实 e2e —— build-complete 校验 + build_sha 冻结（老仓 L139-162）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 2969,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/transition-effects.integration.test.ts › 真实 e2e —— build-complete 校验 + build_sha 冻结（老仓 L139-162） › hotfix preset + direct 不要求 direct_override（规则只锁 full）",
+          "file": "packages/cli/src/transition-effects.integration.test.ts",
+          "name": "hotfix preset + direct 不要求 direct_override（规则只锁 full）",
+          "suite_path": [
+            "真实 e2e —— build-complete 校验 + build_sha 冻结（老仓 L139-162）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 3071,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/transition-effects.integration.test.ts › 真实 e2e —— build-complete 校验 + build_sha 冻结（老仓 L139-162） › full preset + direct + in-place + direct_override 可完成构建出口",
+          "file": "packages/cli/src/transition-effects.integration.test.ts",
+          "name": "full preset + direct + in-place + direct_override 可完成构建出口",
+          "suite_path": [
+            "真实 e2e —— build-complete 校验 + build_sha 冻结（老仓 L139-162）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 2803,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/transition-effects.integration.test.ts › 真实 e2e —— verify-pass 校验 + 副作用（老仓 L163-205） › 两前置逐个解锁：report → branch_status（手填评审字段已删除）",
+          "file": "packages/cli/src/transition-effects.integration.test.ts",
+          "name": "两前置逐个解锁：report → branch_status（手填评审字段已删除）",
+          "suite_path": [
+            "真实 e2e —— verify-pass 校验 + 副作用（老仓 L163-205）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 4044,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/transition-effects.integration.test.ts › 真实 e2e —— verify-pass 校验 + 副作用（老仓 L163-205） › barrier：build_sha≠HEAD 真拒（双行 ERROR），yaml 字节不变",
+          "file": "packages/cli/src/transition-effects.integration.test.ts",
+          "name": "barrier：build_sha≠HEAD 真拒（双行 ERROR），yaml 字节不变",
+          "suite_path": [
+            "真实 e2e —— verify-pass 校验 + 副作用（老仓 L163-205）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 4059,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/transition-effects.integration.test.ts › 真实 e2e —— verify-pass 校验 + 副作用（老仓 L163-205） › in-place barrier：源码在 build 后漂移 → verify-pass 真拒（不是同一个 Git HEAD 假绿）",
+          "file": "packages/cli/src/transition-effects.integration.test.ts",
+          "name": "in-place barrier：源码在 build 后漂移 → verify-pass 真拒（不是同一个 Git HEAD 假绿）",
+          "suite_path": [
+            "真实 e2e —— verify-pass 校验 + 副作用（老仓 L163-205）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 4196,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/transition-effects.integration.test.ts › 真实 e2e —— verify-pass 校验 + 副作用（老仓 L163-205） › barrier 缺失：build_sha=null → fail closed，exit 1 且不提交",
+          "file": "packages/cli/src/transition-effects.integration.test.ts",
+          "name": "barrier 缺失：build_sha=null → fail closed，exit 1 且不提交",
+          "suite_path": [
+            "真实 e2e —— verify-pass 校验 + 副作用（老仓 L163-205）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 4013,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/transition-effects.integration.test.ts › 真实 e2e —— verify-pass 校验 + 副作用（老仓 L163-205） › pm track 豁免双 review（init 种 skipped 原样通过）",
+          "file": "packages/cli/src/transition-effects.integration.test.ts",
+          "name": "pm track 豁免双 review（init 种 skipped 原样通过）",
+          "suite_path": [
+            "真实 e2e —— verify-pass 校验 + 副作用（老仓 L163-205）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 4154,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/transition-effects.integration.test.ts › 真实 e2e —— verify-pass 校验 + 副作用（老仓 L163-205） › 完结：pm 带着 prd_path=null 走不进 archive；补齐 PRD 后才走得进",
+          "file": "packages/cli/src/transition-effects.integration.test.ts",
+          "name": "完结：pm 带着 prd_path=null 走不进 archive；补齐 PRD 后才走得进",
+          "suite_path": [
+            "真实 e2e —— verify-pass 校验 + 副作用（老仓 L163-205）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 4112,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/transition-effects.integration.test.ts › 真实 e2e —— verify-pass 校验 + 副作用（老仓 L163-205） › 完结：backend 在主规格为空、只有彩排回执时走不进 archive；真应用后才走得进",
+          "file": "packages/cli/src/transition-effects.integration.test.ts",
+          "name": "完结：backend 在主规格为空、只有彩排回执时走不进 archive；真应用后才走得进",
+          "suite_path": [
+            "真实 e2e —— verify-pass 校验 + 副作用（老仓 L163-205）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 4049,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/transition-effects.integration.test.ts › 真实 e2e —— verify-fail / archived 副作用（老仓 L206-218） › verify-fail：verify_result=fail + build_sha=null + phase_status=in_progress + phase=build",
+          "file": "packages/cli/src/transition-effects.integration.test.ts",
+          "name": "verify-fail：verify_result=fail + build_sha=null + phase_status=in_progress + phase=build",
+          "suite_path": [
+            "真实 e2e —— verify-fail / archived 副作用（老仓 L206-218）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 3493,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/transition-effects.integration.test.ts › 真实 e2e —— verify-fail / archived 副作用（老仓 L206-218） › archived：archived=true + archived_at=now + phase_status=done",
+          "file": "packages/cli/src/transition-effects.integration.test.ts",
+          "name": "archived：archived=true + archived_at=now + phase_status=done",
+          "suite_path": [
+            "真实 e2e —— verify-fail / archived 副作用（老仓 L206-218）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 4241,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/transition-effects.integration.test.ts › 真实 e2e —— 跨命令串联 + 历史 JSONL（GOAL C10） › 七相位全程（前置全喂足）：每条 transition 历史带事件名 raw（对齐老仓 transitions_history.event）",
+          "file": "packages/cli/src/transition-effects.integration.test.ts",
+          "name": "七相位全程（前置全喂足）：每条 transition 历史带事件名 raw（对齐老仓 transitions_history.event）",
+          "suite_path": [
+            "真实 e2e —— 跨命令串联 + 历史 JSONL（GOAL C10）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 3860,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/transition-effects.integration.test.ts › 真实 e2e —— 跨命令串联 + 历史 JSONL（GOAL C10） › verify-fail 回炉重跑：build-complete 重新冻结新 SHA 后 verify-pass 通过（老仓 barrier 修复路径）",
+          "file": "packages/cli/src/transition-effects.integration.test.ts",
+          "name": "verify-fail 回炉重跑：build-complete 重新冻结新 SHA 后 verify-pass 通过（老仓 barrier 修复路径）",
+          "suite_path": [
+            "真实 e2e —— 跨命令串联 + 历史 JSONL（GOAL C10）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 5160,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/transition-effects.integration.test.ts › 新建 default 任务：离开条件一次列出全部，退出码 2 › build-complete：实现前评审没通过且 tasks.md 有未勾项 → 退出码 2，同时列出两条，不提已删除的字段",
+          "file": "packages/cli/src/transition-effects.integration.test.ts",
+          "name": "build-complete：实现前评审没通过且 tasks.md 有未勾项 → 退出码 2，同时列出两条，不提已删除的字段",
+          "suite_path": [
+            "新建 default 任务：离开条件一次列出全部，退出码 2"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 331,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/transition-effects.integration.test.ts › 新建 default 任务：离开条件一次列出全部，退出码 2 › 离开条件满足之后，build_mode / isolation / direct_override 仍不出现在拒绝原因里（它们已不是检查项）",
+          "file": "packages/cli/src/transition-effects.integration.test.ts",
+          "name": "离开条件满足之后，build_mode / isolation / direct_override 仍不出现在拒绝原因里（它们已不是检查项）",
+          "suite_path": [
+            "新建 default 任务：离开条件一次列出全部，退出码 2"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 329,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/transition-effects.integration.test.ts › 新建 default 任务：离开条件一次列出全部，退出码 2 › verify-pass 不要求 branch_status",
+          "file": "packages/cli/src/transition-effects.integration.test.ts",
+          "name": "verify-pass 不要求 branch_status",
+          "suite_path": [
+            "新建 default 任务：离开条件一次列出全部，退出码 2"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 296,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/transition-effects.integration.test.ts › 新建 default 任务：离开条件一次列出全部，退出码 2 › verify-fail 回退边不带离开条件：任务没勾完也能退回实现步，build_sha 复位",
+          "file": "packages/cli/src/transition-effects.integration.test.ts",
+          "name": "verify-fail 回退边不带离开条件：任务没勾完也能退回实现步，build_sha 复位",
+          "suite_path": [
+            "新建 default 任务：离开条件一次列出全部，退出码 2"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 669,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/transition-effects.integration.test.ts › 新建 default 任务：离开条件一次列出全部，退出码 2 › 轮次内的 verify-fail 不需要任何评审请求或确认：直接 transition 成功",
+          "file": "packages/cli/src/transition-effects.integration.test.ts",
+          "name": "轮次内的 verify-fail 不需要任何评审请求或确认：直接 transition 成功",
+          "suite_path": [
+            "新建 default 任务：离开条件一次列出全部，退出码 2"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 331,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/transition-effects.integration.test.ts › 新建 default 任务：离开条件一次列出全部，退出码 2 › 升级前遗留的 pending 回退边请求：不确认直接 transition 成功，评审标记被删，step.review 复位为 none",
+          "file": "packages/cli/src/transition-effects.integration.test.ts",
+          "name": "升级前遗留的 pending 回退边请求：不确认直接 transition 成功，评审标记被删，step.review 复位为 none",
+          "suite_path": [
+            "新建 default 任务：离开条件一次列出全部，退出码 2"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 922,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/transition-effects.integration.test.ts › 新建 default 任务：离开条件一次列出全部，退出码 2 › requirements-changed：build 步的任务没勾完也能回到规格步（回退边不带离开条件）",
+          "file": "packages/cli/src/transition-effects.integration.test.ts",
+          "name": "requirements-changed：build 步的任务没勾完也能回到规格步（回退边不带离开条件）",
+          "suite_path": [
+            "新建 default 任务：离开条件一次列出全部，退出码 2"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 568,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/server/src/transition-concurrency.test.ts › 真实 e2e —— server 并发 transition 尾部写入严格串行（不逆序覆盖） › 第一次 transition 的 breadcrumb 写入被阻塞期间，第二次 transition（同一 change）无法抢先完成；释放阻塞后两次严格按序结算，最终 state/breadcrumb 都反映最新相位",
+          "file": "packages/server/src/transition-concurrency.test.ts",
+          "name": "第一次 transition 的 breadcrumb 写入被阻塞期间，第二次 transition（同一 change）无法抢先完成；释放阻塞后两次严格按序结算，最终 state/breadcrumb 都反映最新相位",
+          "suite_path": [
+            "真实 e2e —— server 并发 transition 尾部写入严格串行（不逆序覆盖）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 362,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/server/src/transition-concurrency.test.ts › 真实 e2e —— server 并发 transition 尾部写入严格串行（不逆序覆盖） › default workflow 的 review 出口也在同一 Change 锁内串行读取 receipt",
+          "file": "packages/server/src/transition-concurrency.test.ts",
+          "name": "default workflow 的 review 出口也在同一 Change 锁内串行读取 receipt",
+          "suite_path": [
+            "真实 e2e —— server 并发 transition 尾部写入严格串行（不逆序覆盖）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 2245,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/server/src/transition-concurrency.test.ts › 真实 e2e —— server 并发 transition 尾部写入严格串行（不逆序覆盖） › server 生产 TaskPlan callback 不用未完成 Verify tasks 阻断 verify-fail 回退",
+          "file": "packages/server/src/transition-concurrency.test.ts",
+          "name": "server 生产 TaskPlan callback 不用未完成 Verify tasks 阻断 verify-fail 回退",
+          "suite_path": [
+            "真实 e2e —— server 并发 transition 尾部写入严格串行（不逆序覆盖）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 542,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/server/src/transition-concurrency.test.ts › 真实 e2e —— server 并发 transition 尾部写入严格串行（不逆序覆盖） › 前进边的回执绑定摘要对不上（批准后状态变了）仍是 409 review-approval-required，零提交",
+          "file": "packages/server/src/transition-concurrency.test.ts",
+          "name": "前进边的回执绑定摘要对不上（批准后状态变了）仍是 409 review-approval-required，零提交",
+          "suite_path": [
+            "真实 e2e —— server 并发 transition 尾部写入严格串行（不逆序覆盖）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 2072,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/server/src/transition-concurrency.test.ts › 真实 e2e —— server 并发 transition 尾部写入严格串行（不逆序覆盖） › server 生产 TaskPlan callback 拒绝非法 UTF-8 tasks 且零提交",
+          "file": "packages/server/src/transition-concurrency.test.ts",
+          "name": "server 生产 TaskPlan callback 拒绝非法 UTF-8 tasks 且零提交",
+          "suite_path": [
+            "真实 e2e —— server 并发 transition 尾部写入严格串行（不逆序覆盖）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1525,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/server/src/transition-rounds.test.ts › Dashboard 服务的 transition：验证轮次上限 › 用完后回退边被拒：409 + code rounds-exhausted，写出已用轮次与上限；相位不动",
+          "file": "packages/server/src/transition-rounds.test.ts",
+          "name": "用完后回退边被拒：409 + code rounds-exhausted，写出已用轮次与上限；相位不动",
+          "suite_path": [
+            "Dashboard 服务的 transition：验证轮次上限"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 165,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/server/src/transition-rounds.test.ts › Dashboard 服务的 transition：验证轮次上限 › 调整上限：设为 1 仍用完；设为 3 才恢复（轮次内的回退边不需要评审回执，直接转换）",
+          "file": "packages/server/src/transition-rounds.test.ts",
+          "name": "调整上限：设为 1 仍用完；设为 3 才恢复（轮次内的回退边不需要评审回执，直接转换）",
+          "suite_path": [
+            "Dashboard 服务的 transition：验证轮次上限"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 208,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/server/src/transition-rounds.test.ts › Dashboard 服务的 transition：验证轮次上限 › 未用完：回退边不需要评审回执，直接转换",
+          "file": "packages/server/src/transition-rounds.test.ts",
+          "name": "未用完：回退边不需要评审回执，直接转换",
+          "suite_path": [
+            "Dashboard 服务的 transition：验证轮次上限"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 136,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/server/src/transition-rounds.test.ts › Dashboard 服务的 transition：验证轮次上限 › 用完后前进边不受影响：同样走到评审确认门，而不是 rounds-exhausted",
+          "file": "packages/server/src/transition-rounds.test.ts",
+          "name": "用完后前进边不受影响：同样走到评审确认门，而不是 rounds-exhausted",
+          "suite_path": [
+            "Dashboard 服务的 transition：验证轮次上限"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 158,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/server/src/transition-rounds.test.ts › Dashboard 服务的 transition：验证轮次上限 › 不受约束的步骤不受影响：build 的 requirements-changed 在上限用完时照常可用",
+          "file": "packages/server/src/transition-rounds.test.ts",
+          "name": "不受约束的步骤不受影响：build 的 requirements-changed 在上限用完时照常可用",
+          "suite_path": [
+            "Dashboard 服务的 transition：验证轮次上限"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 192,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › default workflow 轨 › H5 transition：policy 存在但当前 loop 非 active → commit 前 constraint-denied，状态/record 均不推进",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "H5 transition：policy 存在但当前 loop 非 active → commit 前 constraint-denied，状态/record 均不推进",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "default workflow 轨"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 969,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › default workflow 轨 › H5 transition：目标 explore 命中 human gate；AFK 未满足被拒，交互满足后同一事务正常提交",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "H5 transition：目标 explore 命中 human gate；AFK 未满足被拒，交互满足后同一事务正常提交",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "default workflow 轨"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 707,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › default workflow 轨 › 成功转换：applied + from/to 正确 + record 真实存在 + 空 warnings",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "成功转换：applied + from/to 正确 + record 真实存在 + 空 warnings",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "default workflow 轨"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 703,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › default workflow 轨 › tasks-through-phase 在 transition 锁内重验失败时零提交",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "tasks-through-phase 在 transition 锁内重验失败时零提交",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "default workflow 轨"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 733,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › default workflow 轨 › 所有 default track（含 PM）缺 OpenSpec 文档/读取证据 → document-evidence-failed 且零提交",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "所有 default track（含 PM）缺 OpenSpec 文档/读取证据 → document-evidence-failed 且零提交",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "default workflow 轨"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 46,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › default workflow 轨 › 成功转换后收尾顺序 = breadcrumb → history；review projection 不属于 transition",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "成功转换后收尾顺序 = breadcrumb → history；review projection 不属于 transition",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "default workflow 轨"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 708,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › default workflow 轨 › review 出口必须消费当前 phase 的 canonical approval receipt；进入 review phase 本身不写 marker",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "review 出口必须消费当前 phase 的 canonical approval receipt；进入 review phase 本身不写 marker",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "default workflow 轨"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 777,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › default workflow 轨 › review binding verifier=false → review-approval-required，且不写 history/interaction、不消费 receipt",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "review binding verifier=false → review-approval-required，且不写 history/interaction、不消费 receipt",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "default workflow 轨"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 734,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › default workflow 轨 › 非 review transition 不调用 review binding verifier",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "非 review transition 不调用 review binding verifier",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "default workflow 轨"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 746,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › default workflow 轨 › review receipt 绑定 exact event：verify-fail 的确认不能授权 verify-pass",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "review receipt 绑定 exact event：verify-fail 的确认不能授权 verify-pass",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "default workflow 轨"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 769,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › default workflow 轨 › 未知 event → unknown-event，不提交（commit 未发生：record store 里没有新记录，runMetadata.transitionSequence 仍是 0）",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "未知 event → unknown-event，不提交（commit 未发生：record store 里没有新记录，runMetadata.transitionSequence 仍是 0）",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "default workflow 轨"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 785,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › default workflow 轨 › event 与当前 phase 不匹配 → event-source-mismatch，携带 event/current/expected/to",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "event 与当前 phase 不匹配 → event-source-mismatch，携带 event/current/expected/to",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "default workflow 轨"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 837,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › default workflow 轨 › flow.transition 抛 IllegalTransitionError → illegal-transition，携带 from/to，不提交、不产生任何 projection（第 1 轮 review 抓到：9 种 kind 里唯独这种没有直接用例——它与event-source-mismatch 是两条独立路径：后者是本模块自己的 phase 前置检查，前者是FlowEngine 按 manifest 合法转换表独立裁决的拒绝，manifest 收紧时可在前置检查通过后仍拒）",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "flow.transition 抛 IllegalTransitionError → illegal-transition，携带 from/to，不提交、不产生任何 projection（第 1 轮 review 抓到：9 种 kind 里唯独这种没有直接用例——它与event-source-mismatch 是两条独立路径：后者是本模块自己的 phase 前置检查，前者是FlowEngine 按 manifest 合法转换表独立裁决的拒绝，manifest 收紧时可在前置检查通过后仍拒）",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "default workflow 轨"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 905,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › default workflow 轨 › 前置校验不满足（explore-complete 缺 design_doc）→ precondition-violated + lines",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "前置校验不满足（explore-complete 缺 design_doc）→ precondition-violated + lines",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "default workflow 轨"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 931,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › default workflow 轨 › ship-complete 由运行时 typed guard 强制迁移证据，缺失能力/非法证据零提交，有效状态才推进",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "ship-complete 由运行时 typed guard 强制迁移证据，缺失能力/非法证据零提交，有效状态才推进",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "default workflow 轨"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 945,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › default workflow 轨 › build-complete 且 capture capability 未注入 → revision-untrusted 且零提交",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "build-complete 且 capture capability 未注入 → revision-untrusted 且零提交",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "default workflow 轨"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 898,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › default workflow 轨 › approved transition remains applied when interaction effect projection fails",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "approved transition remains applied when interaction effect projection fails",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "default workflow 轨"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 880,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › default workflow 轨 › requirements-changed：即使上游文档已 stale 也可从 build 受控回退 spec，零伪造 receipt",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "requirements-changed：即使上游文档已 stale 也可从 build 受控回退 spec，零伪造 receipt",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "default workflow 轨"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 920,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › default workflow 轨 › projection（breadcrumb）写失败 → 仍是 applied，失败进 warnings 而不是让整体失败（commit是不可回退的成功点，projection 只是 commit 之后的 best-effort 兼容投影）",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "projection（breadcrumb）写失败 → 仍是 applied，失败进 warnings 而不是让整体失败（commit是不可回退的成功点，projection 只是 commit 之后的 best-effort 兼容投影）",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "default workflow 轨"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 856,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › default workflow 轨 › deps.history/breadcrumb 全部缺省（测试可不注入）→ applied，零 warnings",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "deps.history/breadcrumb 全部缺省（测试可不注入）→ applied，零 warnings",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "default workflow 轨"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 856,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › G2 P3：default 轨 typed guard/action 迁移的 IO 不变量（防双执行 + 拒绝零提交） › build-complete：captureBuildRevision 恰调一次且冻结 canonical token（拒绝 legacy fallback）",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "build-complete：captureBuildRevision 恰调一次且冻结 canonical token（拒绝 legacy fallback）",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "G2 P3：default 轨 typed guard/action 迁移的 IO 不变量（防双执行 + 拒绝零提交）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 994,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › G2 P3：default 轨 typed guard/action 迁移的 IO 不变量（防双执行 + 拒绝零提交） › verify-pass：assessor 恰调一次（mark action 不重复评估）→ 通过并落 verify_result=pass",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "verify-pass：assessor 恰调一次（mark action 不重复评估）→ 通过并落 verify_result=pass",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "G2 P3：default 轨 typed guard/action 迁移的 IO 不变量（防双执行 + 拒绝零提交）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1035,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › G2 P3：default 轨 typed guard/action 迁移的 IO 不变量（防双执行 + 拒绝零提交） › barrier 拒绝（revision stale）→ typed blocker + 零提交（phase 不推进、seq=0、零 projection）",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "barrier 拒绝（revision stale）→ typed blocker + 零提交（phase 不推进、seq=0、零 projection）",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "G2 P3：default 轨 typed guard/action 迁移的 IO 不变量（防双执行 + 拒绝零提交）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 953,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › G2 P3：default 轨 typed guard/action 迁移的 IO 不变量（防双执行 + 拒绝零提交） › verify-fail：mark-verification-failed 落 verify_result=fail + build_sha=null（barrier 复位）+phase 回退 build/phase_status=in_progress",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "verify-fail：mark-verification-failed 落 verify_result=fail + build_sha=null（barrier 复位）+phase 回退 build/phase_status=in_progress",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "G2 P3：default 轨 typed guard/action 迁移的 IO 不变量（防双执行 + 拒绝零提交）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 828,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › custom workflow 轨 › 成功转换：applied + from/to = step id，只写 history，不写 breadcrumb",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "成功转换：applied + from/to = step id，只写 history，不写 breadcrumb",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "custom workflow 轨"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 46,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › custom workflow 轨 › 验证轮次上限的强制层（rounds-exhausted） › 用完后回退边被拒：返回已用轮次与上限，零提交（phase 不动、不写历史）",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "用完后回退边被拒：返回已用轮次与上限，零提交（phase 不动、不写历史）",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "custom workflow 轨",
+            "验证轮次上限的强制层（rounds-exhausted）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 27,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › custom workflow 轨 › 验证轮次上限的强制层（rounds-exhausted） › 未用完：回退边不需要评审回执，直接转换；前进边仍要回执且不读轮次",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "未用完：回退边不需要评审回执，直接转换；前进边仍要回执且不读轮次",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "custom workflow 轨",
+            "验证轮次上限的强制层（rounds-exhausted）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 53,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › custom workflow 轨 › 验证轮次上限的强制层（rounds-exhausted） › 成功转换删除绑定本任务的评审标记，不碰其他任务的标记",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "成功转换删除绑定本任务的评审标记，不碰其他任务的标记",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "custom workflow 轨",
+            "验证轮次上限的强制层（rounds-exhausted）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 86,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › custom workflow 轨 › 验证轮次上限的强制层（rounds-exhausted） › 任何成功转换都清本任务的评审标记，包括持有回执的前进边",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "任何成功转换都清本任务的评审标记，包括持有回执的前进边",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "custom workflow 轨",
+            "验证轮次上限的强制层（rounds-exhausted）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 50,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › custom workflow 轨 › 验证轮次上限的强制层（rounds-exhausted） › 被拒的转换不动评审标记",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "被拒的转换不动评审标记",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "custom workflow 轨",
+            "验证轮次上限的强制层（rounds-exhausted）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 33,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › custom workflow 轨 › 验证轮次上限的强制层（rounds-exhausted） › 清标记失败只记 review-marker 告警，转换照样已提交",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "清标记失败只记 review-marker 告警，转换照样已提交",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "custom workflow 轨",
+            "验证轮次上限的强制层（rounds-exhausted）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 40,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › custom workflow 轨 › 验证轮次上限的强制层（rounds-exhausted） › 宿主没接线 roundsOf：不做轮次强制（与修改前一致）",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "宿主没接线 roundsOf：不做轮次强制（与修改前一致）",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "custom workflow 轨",
+            "验证轮次上限的强制层（rounds-exhausted）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 31,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › custom workflow 轨 › 声明 skill 的 step 在证据缺失时零提交；当前 visit 证据齐全后才允许退出",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "声明 skill 的 step 在证据缺失时零提交；当前 visit 证据齐全后才允许退出",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "custom workflow 轨"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 43,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › custom workflow 轨 › workflow 未找到 → workflow-not-found",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "workflow 未找到 → workflow-not-found",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "custom workflow 轨"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 27,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › custom workflow 轨 › 初始化时绑定的 document contract 被移除后 transition fail-closed 且零提交",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "初始化时绑定的 document contract 被移除后 transition fail-closed 且零提交",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "custom workflow 轨"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 15,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › custom workflow 轨 › event 在当前 step 不支持 → event-unsupported + available",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "event 在当前 step 不支持 → event-unsupported + available",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "custom workflow 轨"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 26,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › custom workflow 轨 › 当前 step 不在 workflow 图里 → step-not-in-graph",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "当前 step 不在 workflow 图里 → step-not-in-graph",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "custom workflow 轨"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 33,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › custom workflow 轨 › step guard 未通过 → step-guard-failed + failures",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "step guard 未通过 → step-guard-failed + failures",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "custom workflow 轨"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 25,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › 隐式完成边：没有前进出边的 custom step 以保留事件 archived 完成运行 › 末阶段只有退回边（gate=review）：skill 与 exact archived receipt 齐才归档，run 关闭且不可重复归档",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "末阶段只有退回边（gate=review）：skill 与 exact archived receipt 齐才归档，run 关闭且不可重复归档",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "隐式完成边：没有前进出边的 custom step 以保留事件 archived 完成运行"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 80,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › 隐式完成边：没有前进出边的 custom step 以保留事件 archived 完成运行 › 零出边 step（gate=auto）：进入不等于完成；输出守卫与 skill 都通过后 archived 归档",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "零出边 step（gate=auto）：进入不等于完成；输出守卫与 skill 都通过后 archived 归档",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "隐式完成边：没有前进出边的 custom step 以保留事件 archived 完成运行"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 89,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › 隐式完成边：没有前进出边的 custom step 以保留事件 archived 完成运行 › 有前进出边的 step 不接受 archived，也不把它列为可选 event",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "有前进出边的 step 不接受 archived，也不把它列为可选 event",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "隐式完成边：没有前进出边的 custom step 以保留事件 archived 完成运行"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 26,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › 隐式完成边：没有前进出边的 custom step 以保留事件 archived 完成运行 › archive 终点保持原行为：archived 归档一次，已归档后拒绝",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "archive 终点保持原行为：archived 归档一次，已归档后拒绝",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "隐式完成边：没有前进出边的 custom step 以保留事件 archived 完成运行"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 45,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › 隐式完成边：没有前进出边的 custom step 以保留事件 archived 完成运行 › simple 保持原行为：verify-pass 的显式 archive-run 进入 done，change/done 都不接受 archived",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "simple 保持原行为：verify-pass 的显式 archive-run 进入 done，change/done 都不接受 archived",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "隐式完成边：没有前进出边的 custom step 以保留事件 archived 完成运行"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 72,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › 提交原子性：projection 失败不回滚 commit › canonical current 已提交但 YAML adapter 写失败 → applied + state-yaml warning，状态真实推进",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "canonical current 已提交但 YAML adapter 写失败 → applied + state-yaml warning，状态真实推进",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "提交原子性：projection 失败不回滚 commit"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 868,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › 提交原子性：projection 失败不回滚 commit › history 写失败仍是 applied，且 state 已经真实推进（commit 早于 projection）",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "history 写失败仍是 applied，且 state 已经真实推进（commit 早于 projection）",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "提交原子性：projection 失败不回滚 commit"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 870,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › G2 P2 custom 轨 typed handler 接线（edge action/guard、when 按 track、handler 异常中止事务） › 通用离开条件：context 注入的三项能力进入 guard 求值；缺失或未满足时一次列出全部且零提交，满足后放行",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "通用离开条件：context 注入的三项能力进入 guard 求值；缺失或未满足时一次列出全部且零提交，满足后放行",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "G2 P2 custom 轨 typed handler 接线（edge action/guard、when 按 track、handler 异常中止事务）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 65,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › G2 P2 custom 轨 typed handler 接线（edge action/guard、when 按 track、handler 异常中止事务） › edge action mark-verification-passed 真改字段：verify_result 落盘 pass、verified_at 落时钟（patch 在 commit 前并入 nextFields）",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "edge action mark-verification-passed 真改字段：verify_result 落盘 pass、verified_at 落时钟（patch 在 commit 前并入 nextFields）",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "G2 P2 custom 轨 typed handler 接线（edge action/guard、when 按 track、handler 异常中止事务）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 87,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › G2 P2 custom 轨 typed handler 接线（edge action/guard、when 按 track、handler 异常中止事务） › openspec: true 的 custom build/verify 自动继承基线与验证不变量，YAML 漏写 action/guard 也不能降级",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "openspec: true 的 custom build/verify 自动继承基线与验证不变量，YAML 漏写 action/guard 也不能降级",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "G2 P2 custom 轨 typed handler 接线（edge action/guard、when 按 track、handler 异常中止事务）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 107,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › G2 P2 custom 轨 typed handler 接线（edge action/guard、when 按 track、handler 异常中止事务） › arbitrary Verify rollback injects no trust guard and clears the captured token",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "arbitrary Verify rollback injects no trust guard and clears the captured token",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "G2 P2 custom 轨 typed handler 接线（edge action/guard、when 按 track、handler 异常中止事务）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 47,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › G2 P2 custom 轨 typed handler 接线（edge action/guard、when 按 track、handler 异常中止事务） › governed custom rollback inherits fixed lifecycle when YAML omits mark-verification-failed",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "governed custom rollback inherits fixed lifecycle when YAML omits mark-verification-failed",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "G2 P2 custom 轨 typed handler 接线（edge action/guard、when 按 track、handler 异常中止事务）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 51,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › G2 P2 custom 轨 typed handler 接线（edge action/guard、when 按 track、handler 异常中止事务） › edge guard field-equals 真拦截/放行：branch_status≠handled → step-guard-failed 零写盘；=handled → applied",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "edge guard field-equals 真拦截/放行：branch_status≠handled → step-guard-failed 零写盘；=handled → applied",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "G2 P2 custom 轨 typed handler 接线（edge action/guard、when 按 track、handler 异常中止事务）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 81,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › G2 P2 custom 轨 typed handler 接线（edge action/guard、when 按 track、handler 异常中止事务） › step guard 的 when 谓词按 change track 生效：track_not_in:[pm] → backend 轨适用（拦截）、pm 轨豁免（放行）",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "step guard 的 when 谓词按 change track 生效：track_not_in:[pm] → backend 轨适用（拦截）、pm 轨豁免（放行）",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "G2 P2 custom 轨 typed handler 接线（edge action/guard、when 按 track、handler 异常中止事务）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 92,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › G2 P2 custom 轨 typed handler 接线（edge action/guard、when 按 track、handler 异常中止事务） › edge action 缺 capture capability → typed blocker 且事务不 commit：state 未推进、零 projection",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "edge action 缺 capture capability → typed blocker 且事务不 commit：state 未推进、零 projection",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "G2 P2 custom 轨 typed handler 接线（edge action/guard、when 按 track、handler 异常中止事务）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 52,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › G2 P2 custom 轨 typed handler 接线（edge action/guard、when 按 track、handler 异常中止事务） › verify-fail 双边端到端：触发 fail edge → 回退目标 phase + verify_result=fail + build_sha=null 落盘 + 不执行 pass edge 的 action",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "verify-fail 双边端到端：触发 fail edge → 回退目标 phase + verify_result=fail + build_sha=null 落盘 + 不执行 pass edge 的 action",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "G2 P2 custom 轨 typed handler 接线（edge action/guard、when 按 track、handler 异常中止事务）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 71,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › G2 P2 custom 轨 typed handler 接线（edge action/guard、when 按 track、handler 异常中止事务） › 含未知惰性 output（custom_doc，无 guard）的旧 workflow → load(compile)+执行转换成功（P2 兼容回退：pre-P2 能加载能跑转换图）",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "含未知惰性 output（custom_doc，无 guard）的旧 workflow → load(compile)+执行转换成功（P2 兼容回退：pre-P2 能加载能跑转换图）",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "G2 P2 custom 轨 typed handler 接线（edge action/guard、when 按 track、handler 异常中止事务）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 41,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › G2 P2 custom 轨 typed handler 接线（edge action/guard、when 按 track、handler 异常中止事务） › 门禁 null ≡ auto：输出齐全守卫只挂前进边 › gate=null：输出未齐 → 前进边被拦、退回边放行；输出齐了前进边放行",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "gate=null：输出未齐 → 前进边被拦、退回边放行；输出齐了前进边放行",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "G2 P2 custom 轨 typed handler 接线（edge action/guard、when 按 track、handler 异常中止事务）",
+            "门禁 null ≡ auto：输出齐全守卫只挂前进边"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 101,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制） › G2 P2 custom 轨 typed handler 接线（edge action/guard、when 按 track、handler 异常中止事务） › 门禁 null ≡ auto：输出齐全守卫只挂前进边 › gate=auto：输出未齐 → 前进边被拦、退回边放行；输出齐了前进边放行",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "gate=auto：输出未齐 → 前进边被拦、退回边放行；输出齐了前进边放行",
+          "suite_path": [
+            "createTransitionApplication —— 唯一 TransitionApplication 用例（G1：CLI 与 server共用同一份转换编排，消灭两处复制）",
+            "G2 P2 custom 轨 typed handler 接线（edge action/guard、when 按 track、handler 异常中止事务）",
+            "门禁 null ≡ auto：输出齐全守卫只挂前进边"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 98,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › 步骤测试证据（每步测试登记） › 前向边在必需测试未运行时被拦截，review 绑定不被询问，状态零推进",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "前向边在必需测试未运行时被拦截，review 绑定不被询问，状态零推进",
+          "suite_path": [
+            "步骤测试证据（每步测试登记）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 29,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › 步骤测试证据（每步测试登记） › 宿主未提供身份时失败关闭",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "宿主未提供身份时失败关闭",
+          "suite_path": [
+            "步骤测试证据（每步测试登记）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 27,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › 步骤测试证据（每步测试登记） › 通过的记录放行前向边",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "通过的记录放行前向边",
+          "suite_path": [
+            "步骤测试证据（每步测试登记）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 43,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › 步骤测试证据（每步测试登记） › 回退边不要求测试",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "回退边不要求测试",
+          "suite_path": [
+            "步骤测试证据（每步测试登记）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 38,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › 步骤测试证据（每步测试登记） › 隐式完结边同样要求测试",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "隐式完结边同样要求测试",
+          "suite_path": [
+            "步骤测试证据（每步测试登记）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 49,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › 观察模式：冻结计划没有文档契约的任务在离开步骤时记录产出、拦截未读输入 › 初始化时开始第一次访问；离开 explore 时记下新增文件（含代码）并为 spec 开始下一次访问",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "初始化时开始第一次访问；离开 explore 时记下新增文件（含代码）并为 spec 开始下一次访问",
+          "suite_path": [
+            "观察模式：冻结计划没有文档契约的任务在离开步骤时记录产出、拦截未读输入"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 150,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › 观察模式：冻结计划没有文档契约的任务在离开步骤时记录产出、拦截未读输入 › spec 步有未读输入：spec-complete 与 requirements-changed 都被拒，blockers 以「本步输入」开头，状态零推进",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "spec 步有未读输入：spec-complete 与 requirements-changed 都被拒，blockers 以「本步输入」开头，状态零推进",
+          "suite_path": [
+            "观察模式：冻结计划没有文档契约的任务在离开步骤时记录产出、拦截未读输入"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 161,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › 观察模式：冻结计划没有文档契约的任务在离开步骤时记录产出、拦截未读输入 › 放弃边（scope-expanded）不要求读完输入",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "放弃边（scope-expanded）不要求读完输入",
+          "suite_path": [
+            "观察模式：冻结计划没有文档契约的任务在离开步骤时记录产出、拦截未读输入"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 191,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › 观察模式：冻结计划没有文档契约的任务在离开步骤时记录产出、拦截未读输入 › 读完后转换成功：账本里有 spec 访问的离开记录与下一次访问的检查点",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "读完后转换成功：账本里有 spec 访问的离开记录与下一次访问的检查点",
+          "suite_path": [
+            "观察模式：冻结计划没有文档契约的任务在离开步骤时记录产出、拦截未读输入"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 197,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › 观察模式：冻结计划没有文档契约的任务在离开步骤时记录产出、拦截未读输入 › 读完后回退到 explore 也放行；回退后的访问有新的检查点",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "读完后回退到 explore 也放行；回退后的访问有新的检查点",
+          "suite_path": [
+            "观察模式：冻结计划没有文档契约的任务在离开步骤时记录产出、拦截未读输入"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 187,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › 观察模式：冻结计划没有文档契约的任务在离开步骤时记录产出、拦截未读输入 › 项目不是 git 工作区：转换照常成功，这次访问记 unavailable、没有产出，下一次访问没有检查点",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "项目不是 git 工作区：转换照常成功，这次访问记 unavailable、没有产出，下一次访问没有检查点",
+          "suite_path": [
+            "观察模式：冻结计划没有文档契约的任务在离开步骤时记录产出、拦截未读输入"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 73,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › 观察模式：冻结计划没有文档契约的任务在离开步骤时记录产出、拦截未读输入 › 账本损坏：失败关闭并点名文件，状态零推进",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "账本损坏：失败关闭并点名文件，状态零推进",
+          "suite_path": [
+            "观察模式：冻结计划没有文档契约的任务在离开步骤时记录产出、拦截未读输入"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 113,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › 观察模式：冻结计划没有文档契约的任务在离开步骤时记录产出、拦截未读输入 › status / check 的出口报告与转换同口径：未读输入阻断前进与回退（不阻断放弃边），读完后清零，没有 documents 段",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "status / check 的出口报告与转换同口径：未读输入阻断前进与回退（不阻断放弃边），读完后清零，没有 documents 段",
+          "suite_path": [
+            "观察模式：冻结计划没有文档契约的任务在离开步骤时记录产出、拦截未读输入"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 157,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › 观察模式：冻结计划没有文档契约的任务在离开步骤时记录产出、拦截未读输入 › 出口报告遇到损坏的账本：不抛，非放弃边各带一条 step-output-ledger-invalid 阻断",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "出口报告遇到损坏的账本：不抛，非放弃边各带一条 step-output-ledger-invalid 阻断",
+          "suite_path": [
+            "观察模式：冻结计划没有文档契约的任务在离开步骤时记录产出、拦截未读输入"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 94,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-application.test.ts › 观察模式：冻结计划没有文档契约的任务在离开步骤时记录产出、拦截未读输入 › 契约模式（冻结计划带旧契约）一个字节都不变：不建产出账本，不记录产出",
+          "file": "packages/kernel/src/workflow/transition-application.test.ts",
+          "name": "契约模式（冻结计划带旧契约）一个字节都不变：不建产出账本，不记录产出",
+          "suite_path": [
+            "观察模式：冻结计划没有文档契约的任务在离开步骤时记录产出、拦截未读输入"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1064,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-rounds-gate.test.ts › backEdgeRounds：受约束步骤上回退边的轮次结论（不受约束 / 轮次内 / 已用完） › 当前轮次 >= 上限的回退边是 exhausted：rejection 点名步骤、事件、已用轮次、上限与来源",
+          "file": "packages/kernel/src/workflow/transition-rounds-gate.test.ts",
+          "name": "当前轮次 >= 上限的回退边是 exhausted：rejection 点名步骤、事件、已用轮次、上限与来源",
+          "suite_path": [
+            "backEdgeRounds：受约束步骤上回退边的轮次结论（不受约束 / 轮次内 / 已用完）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-rounds-gate.test.ts › backEdgeRounds：受约束步骤上回退边的轮次结论（不受约束 / 轮次内 / 已用完） › 未用完（当前轮次 < 上限）：within-budget，调用方据此免评审回执",
+          "file": "packages/kernel/src/workflow/transition-rounds-gate.test.ts",
+          "name": "未用完（当前轮次 < 上限）：within-budget，调用方据此免评审回执",
+          "suite_path": [
+            "backEdgeRounds：受约束步骤上回退边的轮次结论（不受约束 / 轮次内 / 已用完）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-rounds-gate.test.ts › backEdgeRounds：受约束步骤上回退边的轮次结论（不受约束 / 轮次内 / 已用完） › 读取的是迁出的那一步：把步骤 id 交给 roundsOf",
+          "file": "packages/kernel/src/workflow/transition-rounds-gate.test.ts",
+          "name": "读取的是迁出的那一步：把步骤 id 交给 roundsOf",
+          "suite_path": [
+            "backEdgeRounds：受约束步骤上回退边的轮次结论（不受约束 / 轮次内 / 已用完）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-rounds-gate.test.ts › backEdgeRounds：受约束步骤上回退边的轮次结论（不受约束 / 轮次内 / 已用完） › 前进边永远是 not-limited，也不去读轮次",
+          "file": "packages/kernel/src/workflow/transition-rounds-gate.test.ts",
+          "name": "前进边永远是 not-limited，也不去读轮次",
+          "suite_path": [
+            "backEdgeRounds：受约束步骤上回退边的轮次结论（不受约束 / 轮次内 / 已用完）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-rounds-gate.test.ts › backEdgeRounds：受约束步骤上回退边的轮次结论（不受约束 / 轮次内 / 已用完） › 放弃边（scope-expanded）永远是 not-limited",
+          "file": "packages/kernel/src/workflow/transition-rounds-gate.test.ts",
+          "name": "放弃边（scope-expanded）永远是 not-limited",
+          "suite_path": [
+            "backEdgeRounds：受约束步骤上回退边的轮次结论（不受约束 / 轮次内 / 已用完）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-rounds-gate.test.ts › backEdgeRounds：受约束步骤上回退边的轮次结论（不受约束 / 轮次内 / 已用完） › 不受约束的步骤（没有评审门）：build 的 requirements-changed 是 not-limited，也不去读轮次",
+          "file": "packages/kernel/src/workflow/transition-rounds-gate.test.ts",
+          "name": "不受约束的步骤（没有评审门）：build 的 requirements-changed 是 not-limited，也不去读轮次",
+          "suite_path": [
+            "backEdgeRounds：受约束步骤上回退边的轮次结论（不受约束 / 轮次内 / 已用完）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-rounds-gate.test.ts › backEdgeRounds：受约束步骤上回退边的轮次结论（不受约束 / 轮次内 / 已用完） › 宿主没接线（没有 roundsOf）或步骤不受约束（返回 null）：not-limited，不免回执也不拦",
+          "file": "packages/kernel/src/workflow/transition-rounds-gate.test.ts",
+          "name": "宿主没接线（没有 roundsOf）或步骤不受约束（返回 null）：not-limited，不免回执也不拦",
+          "suite_path": [
+            "backEdgeRounds：受约束步骤上回退边的轮次结论（不受约束 / 轮次内 / 已用完）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/kernel/src/workflow/transition-rounds-gate.test.ts › backEdgeRounds：受约束步骤上回退边的轮次结论（不受约束 / 轮次内 / 已用完） › 内置 default（phase-manifest）：verify-fail 轮次内是 within-budget、用完是 exhausted，verify-pass 与 build 的 requirements-changed 不受影响",
+          "file": "packages/kernel/src/workflow/transition-rounds-gate.test.ts",
+          "name": "内置 default（phase-manifest）：verify-fail 轮次内是 within-budget、用完是 exhausted，verify-pass 与 build 的 requirements-changed 不受影响",
+          "suite_path": [
+            "backEdgeRounds：受约束步骤上回退边的轮次结论（不受约束 / 轮次内 / 已用完）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/review.integration.test.ts › 真实 e2e —— review exit receipt（default workflow） › 进入 review phase 不写 marker；request → exact pending receipt → acknowledge → transition 消费 receipt",
+          "file": "packages/cli/src/commands/review.integration.test.ts",
+          "name": "进入 review phase 不写 marker；request → exact pending receipt → acknowledge → transition 消费 receipt",
+          "suite_path": [
+            "真实 e2e —— review exit receipt（default workflow）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 863,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/review.integration.test.ts › 真实 e2e —— review exit receipt（default workflow） › request is an exit operation: incomplete output fails check and never writes a pending receipt",
+          "file": "packages/cli/src/commands/review.integration.test.ts",
+          "name": "request is an exit operation: incomplete output fails check and never writes a pending receipt",
+          "suite_path": [
+            "真实 e2e —— review exit receipt（default workflow）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1191,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/review.integration.test.ts › 真实 e2e —— review exit receipt（default workflow） › 必需评审者未通过时 review request 被拒，也不写 pending receipt",
+          "file": "packages/cli/src/commands/review.integration.test.ts",
+          "name": "必需评审者未通过时 review request 被拒，也不写 pending receipt",
+          "suite_path": [
+            "真实 e2e —— review exit receipt（default workflow）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 3429,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/review.integration.test.ts › 真实 e2e —— review exit receipt（default workflow） › exact review journey projects ordered request, acknowledgement, effect and valid resume",
+          "file": "packages/cli/src/commands/review.integration.test.ts",
+          "name": "exact review journey projects ordered request, acknowledgement, effect and valid resume",
+          "suite_path": [
+            "真实 e2e —— review exit receipt（default workflow）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1141,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/review.integration.test.ts › 真实 e2e —— review exit receipt（default workflow） › same-state repeat emits suppressed prompt without a second interruption",
+          "file": "packages/cli/src/commands/review.integration.test.ts",
+          "name": "same-state repeat emits suppressed prompt without a second interruption",
+          "suite_path": [
+            "真实 e2e —— review exit receipt（default workflow）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 800,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/review.integration.test.ts › 真实 e2e —— review exit receipt（default workflow） › canonical decision drift rejects acknowledgement until a fresh request rebinds it",
+          "file": "packages/cli/src/commands/review.integration.test.ts",
+          "name": "canonical decision drift rejects acknowledgement until a fresh request rebinds it",
+          "suite_path": [
+            "真实 e2e —— review exit receipt（default workflow）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 881,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/review.integration.test.ts › 真实 e2e —— review exit receipt（default workflow） › state-drift rejection writes no interaction; the fresh request completes one verified journey",
+          "file": "packages/cli/src/commands/review.integration.test.ts",
+          "name": "state-drift rejection writes no interaction; the fresh request completes one verified journey",
+          "suite_path": [
+            "真实 e2e —— review exit receipt（default workflow）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1246,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/review.integration.test.ts › 真实 e2e —— review exit receipt（default workflow） › approved receipt with deleted binding can recover through a fresh request",
+          "file": "packages/cli/src/commands/review.integration.test.ts",
+          "name": "approved receipt with deleted binding can recover through a fresh request",
+          "suite_path": [
+            "真实 e2e —— review exit receipt（default workflow）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 932,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/review.integration.test.ts › 真实 e2e —— review exit receipt（default workflow） › corrupt binding stays fail-closed until fresh request atomically rebuilds it",
+          "file": "packages/cli/src/commands/review.integration.test.ts",
+          "name": "corrupt binding stays fail-closed until fresh request atomically rebuilds it",
+          "suite_path": [
+            "真实 e2e —— review exit receipt（default workflow）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 907,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/review.integration.test.ts › 真实 e2e —— review exit receipt（default workflow） › oversize binding stays fail-closed for acknowledge and transition",
+          "file": "packages/cli/src/commands/review.integration.test.ts",
+          "name": "oversize binding stays fail-closed for acknowledge and transition",
+          "suite_path": [
+            "真实 e2e —— review exit receipt（default workflow）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 774,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/review.integration.test.ts › 真实 e2e —— review exit receipt（default workflow） › symlink binding stays fail-closed for acknowledge and transition",
+          "file": "packages/cli/src/commands/review.integration.test.ts",
+          "name": "symlink binding stays fail-closed for acknowledge and transition",
+          "suite_path": [
+            "真实 e2e —— review exit receipt（default workflow）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 859,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/review.integration.test.ts › 真实 e2e —— review exit receipt（default workflow） › missing interaction projection does not change canonical acknowledgement",
+          "file": "packages/cli/src/commands/review.integration.test.ts",
+          "name": "missing interaction projection does not change canonical acknowledgement",
+          "suite_path": [
+            "真实 e2e —— review exit receipt（default workflow）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 792,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/review.integration.test.ts › 真实 e2e —— review exit receipt（default workflow） › legacy approved receipt without a canonical decision binding fails closed",
+          "file": "packages/cli/src/commands/review.integration.test.ts",
+          "name": "legacy approved receipt without a canonical decision binding fails closed",
+          "suite_path": [
+            "真实 e2e —— review exit receipt（default workflow）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 765,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/review.integration.test.ts › 真实 e2e —— review exit receipt（default workflow） › transition refuses an approved receipt after its canonical binding is removed",
+          "file": "packages/cli/src/commands/review.integration.test.ts",
+          "name": "transition refuses an approved receipt after its canonical binding is removed",
+          "suite_path": [
+            "真实 e2e —— review exit receipt（default workflow）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 885,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/review.integration.test.ts › 真实 e2e —— review exit receipt（default workflow） › corrupt interaction projection does not change canonical acknowledgement",
+          "file": "packages/cli/src/commands/review.integration.test.ts",
+          "name": "corrupt interaction projection does not change canonical acknowledgement",
+          "suite_path": [
+            "真实 e2e —— review exit receipt（default workflow）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 796,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/review.integration.test.ts › 真实 e2e —— review exit receipt（default workflow） › resume with a changed canonical state is rejected and remains non-terminal",
+          "file": "packages/cli/src/commands/review.integration.test.ts",
+          "name": "resume with a changed canonical state is rejected and remains non-terminal",
+          "suite_path": [
+            "真实 e2e —— review exit receipt（default workflow）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1068,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/review.integration.test.ts › 真实 e2e —— review exit receipt（default workflow） › delegated acknowledge requires a current Change-bound user authority and records that source",
+          "file": "packages/cli/src/commands/review.integration.test.ts",
+          "name": "delegated acknowledge requires a current Change-bound user authority and records that source",
+          "suite_path": [
+            "真实 e2e —— review exit receipt（default workflow）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 761,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/review.integration.test.ts › 真实 e2e —— review exit receipt（default workflow） › acknowledge exit codes: 0 success, 2 review-approval-required, 4 idempotency-conflict, 1 invalid-command; failures write nothing",
+          "file": "packages/cli/src/commands/review.integration.test.ts",
+          "name": "acknowledge exit codes: 0 success, 2 review-approval-required, 4 idempotency-conflict, 1 invalid-command; failures write nothing",
+          "suite_path": [
+            "真实 e2e —— review exit receipt（default workflow）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1229,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/review.integration.test.ts › 真实 e2e —— review exit receipt（default workflow） › repeated acknowledge replays without new writes and clears a re-created marker",
+          "file": "packages/cli/src/commands/review.integration.test.ts",
+          "name": "repeated acknowledge replays without new writes and clears a re-created marker",
+          "suite_path": [
+            "真实 e2e —— review exit receipt（default workflow）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 873,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/review.integration.test.ts › 真实 e2e —— review exit receipt（default workflow） › marker cleanup failure keeps the approval, warns and exits 0 (marker-warning)",
+          "file": "packages/cli/src/commands/review.integration.test.ts",
+          "name": "marker cleanup failure keeps the approval, warns and exits 0 (marker-warning)",
+          "suite_path": [
+            "真实 e2e —— review exit receipt（default workflow）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 710,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/review.integration.test.ts › 真实 e2e —— review exit receipt（default workflow） › custom review request passes the exact event: success is revision-blocked while rollback remains requestable",
+          "file": "packages/cli/src/commands/review.integration.test.ts",
+          "name": "custom review request passes the exact event: success is revision-blocked while rollback remains requestable",
+          "suite_path": [
+            "真实 e2e —— review exit receipt（default workflow）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 734,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/review.integration.test.ts › 真实 e2e —— review exit receipt（default workflow） › custom step without a forward exit: request --event archived → acknowledge → transition archived closes the run",
+          "file": "packages/cli/src/commands/review.integration.test.ts",
+          "name": "custom step without a forward exit: request --event archived → acknowledge → transition archived closes the run",
+          "suite_path": [
+            "真实 e2e —— review exit receipt（default workflow）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 868,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 进入步骤先重新加载 tenon",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "进入步骤先重新加载 tenon",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 读取声明的输入文档排在一切产出之前",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "读取声明的输入文档排在一切产出之前",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 执行者先于本步技能",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "执行者先于本步技能",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 进行中的执行者先于本步技能：指回那次运行，而不是跳去加载技能",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "进行中的执行者先于本步技能：指回那次运行，而不是跳去加载技能",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 评审者要求在另一个宿主上跑：run-agent 动作带 host（待跑与进行中都带）；没要求的不带",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "评审者要求在另一个宿主上跑：run-agent 动作带 host（待跑与进行中都带）；没要求的不带",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 必需评审者不通过：不再要结果字段，直接指向回退边（D2）",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "必需评审者不通过：不再要结果字段，直接指向回退边（D2）",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 未勾的任务先于自由文本交付值：ship 不再只给一条 set-field pr_url",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "未勾的任务先于自由文本交付值：ship 不再只给一条 set-field pr_url",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 决定类字段（build_mode / isolation）先于执行者与本步技能，一波下发",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "决定类字段（build_mode / isolation）先于执行者与本步技能，一波下发",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › ship 有未勾任务：fix（带未勾项原文）先于 apply-spec 与 applied-spec 的骨架/登记",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "ship 有未勾任务：fix（带未勾项原文）先于 apply-spec 与 applied-spec 的骨架/登记",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › tasks.md 自己还没产出（open）：先铺骨架并登记，不先发勾选任务的 fix",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "tasks.md 自己还没产出（open）：先铺骨架并登记，不先发勾选任务的 fix",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 本步技能先于未勾任务的 fix：build 先加载实现技能，再列出要做的任务",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "本步技能先于未勾任务的 fix：build 先加载实现技能，再列出要做的任务",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 必需测试未配置：决定之后先 fix（test-unconfigured），先于执行者与技能",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "必需测试未配置：决定之后先 fix（test-unconfigured），先于执行者与技能",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 技能按波次下发，waiting 的不进本波",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "技能按波次下发，waiting 的不进本波",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › applied-spec 归本步时先应用规格，再登记",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "applied-spec 归本步时先应用规格，再登记",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 彩排过但没真应用：仍然是 apply-spec，不是去铺 applied-spec 骨架",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "彩排过但没真应用：仍然是 apply-spec，不是去铺 applied-spec 骨架",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › delta-spec 归本步时，登记完文档再彩排",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "delta-spec 归本步时，登记完文档再彩排",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 彩排已是最新：spec 步不再重复 validate-spec（彩排满足彩排，应用另算）",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "彩排已是最新：spec 步不再重复 validate-spec（彩排满足彩排，应用另算）",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 已登记的文档过期时重新登记，不再铺骨架",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "已登记的文档过期时重新登记，不再铺骨架",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 缺失的产出文档：铺骨架之后紧跟登记，一波下发",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "缺失的产出文档：铺骨架之后紧跟登记，一波下发",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 输入文档过期 → 按当前步的 producer 重新登记，而不是再读一次",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "输入文档过期 → 按当前步的 producer 重新登记，而不是再读一次",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 读清单里只有 unread 才发 read-documents；过期的那条不混进去",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "读清单里只有 unread 才发 read-documents；过期的那条不混进去",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › read-documents 说明哪些输入本步可改、其余只读，读取不得丢弃输出",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "read-documents 说明哪些输入本步可改、其余只读，读取不得丢弃输出",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 两个 kind 指向同一路径（plan / superpower-plan）时读清单只列一次该路径",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "两个 kind 指向同一路径（plan / superpower-plan）时读清单只列一次该路径",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 同一份文档既在读清单又在可改清单时只发一条动作",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "同一份文档既在读清单又在可改清单时只发一条动作",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 未登记的 role:update 槽不发动作，直接走到出口",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "未登记的 role:update 槽不发动作，直接走到出口",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 当前步没有合法 producer 的过期输入文档不发无法执行的登记",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "当前步没有合法 producer 的过期输入文档不发无法执行的登记",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 只跑必需测试；评审者排在测试之后",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "只跑必需测试；评审者排在测试之后",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 结果字段排在测试与评审者之后",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "结果字段排在测试与评审者之后",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › artifact 字段发 register-field，并带上合法 producer",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "artifact 字段发 register-field，并带上合法 producer",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 决定类字段先于 artifact 登记：build_mode 先拍板，artifact 等本步技能产出后再登记",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "决定类字段先于 artifact 登记：build_mode 先拍板，artifact 等本步技能产出后再登记",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 转换自己落的槽不发写入动作，直接走到出边",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "转换自己落的槽不发写入动作，直接走到出边",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 结果位上的 artifact 字段同样走 register-field",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "结果位上的 artifact 字段同样走 register-field",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 评审门：就绪 → 请求评审；pending → 等待；approved → 转换",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "评审门：就绪 → 请求评审；pending → 等待；approved → 转换",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 自动门：唯一就绪前进边直接转换；完结边走 complete",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "自动门：唯一就绪前进边直接转换；完结边走 complete",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 必需评审者不通过且存在回退边 → 选择出口，不再重跑评审者",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "必需评审者不通过且存在回退边 → 选择出口，不再重跑评审者",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 评审门上的回退边 › 唯一的回退边、轮次未用完：直接 transition，不请求评审",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "唯一的回退边、轮次未用完：直接 transition，不请求评审",
+          "suite_path": [
+            "step.next 顺序",
+            "评审门上的回退边"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 评审门上的回退边 › 唯一的回退边、宿主没给轮次（缺席或 null）：照旧先请求评审（失败关闭）",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "唯一的回退边、宿主没给轮次（缺席或 null）：照旧先请求评审（失败关闭）",
+          "suite_path": [
+            "step.next 顺序",
+            "评审门上的回退边"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 评审门上的回退边 › 轮次已用完：不免评审回执，仍走 request-review（实际的 stop / 剩余阻断由轮次判定在更前面处理）",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "轮次已用完：不免评审回执，仍走 request-review（实际的 stop / 剩余阻断由轮次判定在更前面处理）",
+          "suite_path": [
+            "step.next 顺序",
+            "评审门上的回退边"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 评审门上的回退边 › 多条回退边仍然交给人选，轮次内也不替他选一条",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "多条回退边仍然交给人选，轮次内也不替他选一条",
+          "suite_path": [
+            "step.next 顺序",
+            "评审门上的回退边"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 评审门上的回退边 › 非评审门：回退边仍交给人选",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "非评审门：回退边仍交给人选",
+          "suite_path": [
+            "step.next 顺序",
+            "评审门上的回退边"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 评审门上的回退边 › 放弃边永远要评审回执：它是唯一的「回退」出口时，轮次内也不直接 transition",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "放弃边永远要评审回执：它是唯一的「回退」出口时，轮次内也不直接 transition",
+          "suite_path": [
+            "step.next 顺序",
+            "评审门上的回退边"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 评审门上的回退边 › 升级前遗留的回退边评审请求：轮次内一律直接 transition（pending 不用等，approved 照转），没给轮次时照旧",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "升级前遗留的回退边评审请求：轮次内一律直接 transition（pending 不用等，approved 照转），没给轮次时照旧",
+          "suite_path": [
+            "step.next 顺序",
+            "评审门上的回退边"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 评审门上的回退边 › 回退时挂着的是前进边的评审回执：轮次内直接 transition 回退边；没给轮次时改为请求回退边的评审",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "回退时挂着的是前进边的评审回执：轮次内直接 transition 回退边；没给轮次时改为请求回退边的评审",
+          "suite_path": [
+            "step.next 顺序",
+            "评审门上的回退边"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 评审门上的回退边 › 挂着的回退边评审请求（pending），本步证据并没有不通过：轮次内同样直接 transition，不等一次用不上的确认",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "挂着的回退边评审请求（pending），本步证据并没有不通过：轮次内同样直接 transition，不等一次用不上的确认",
+          "suite_path": [
+            "step.next 顺序",
+            "评审门上的回退边"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 失败的执行者直接重跑",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "失败的执行者直接重跑",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 多条前进边就绪 → 选择出口；都不就绪 → 修",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "多条前进边就绪 → 选择出口；都不就绪 → 修",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 终态自边 → complete",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "终态自边 → complete",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 状态机已归档 → 点名 tenon task finish，而不是空 fix",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "状态机已归档 → 点名 tenon task finish，而不是空 fix",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › finish-change 的提交路径：原目录只在被 git 跟踪过时列出；不是 git 仓就不发提交",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "finish-change 的提交路径：原目录只在被 git 跟踪过时列出；不是 git 仓就不发提交",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 非 OpenSpec 治理的工作流：finish-change 恒带 tenon task finish；验证通过才带整个工作区的提交",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "非 OpenSpec 治理的工作流：finish-change 恒带 tenon task finish；验证通过才带整个工作区的提交",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › step.next 顺序 › 已归档时不再回头发加载、技能、文档或出口动作",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "已归档时不再回头发加载、技能、文档或出口动作",
+          "suite_path": [
+            "step.next 顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › 下一步评审者的口径（review_bar） › 实现技能、执行者、本步评审者与通过结论带 review_bar",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "实现技能、执行者、本步评审者与通过结论带 review_bar",
+          "suite_path": [
+            "下一步评审者的口径（review_bar）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › 下一步评审者的口径（review_bar） › 下一步没有评审者时不带 review_bar",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "下一步没有评审者时不带 review_bar",
+          "suite_path": [
+            "下一步评审者的口径（review_bar）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › 交付步的提交 › 交付物未提交：commit 先于交付值 pr_url，排在应用规格、文档与 artifact 登记之后",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "交付物未提交：commit 先于交付值 pr_url，排在应用规格、文档与 artifact 登记之后",
+          "suite_path": [
+            "交付步的提交"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › 交付步的提交 › 首次交付之后的补交换标题",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "首次交付之后的补交换标题",
+          "suite_path": [
+            "交付步的提交"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › 交付步的提交 › 交付值与状态文件：已知真值先写再提交，写完之后状态文件的改动也要提交",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "交付值与状态文件：已知真值先写再提交，写完之后状态文件的改动也要提交",
+          "suite_path": [
+            "交付步的提交"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › 交付步的提交 › 交付步有未勾任务且交付物未提交：先 commit，再 fix 勾选",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "交付步有未勾任务且交付物未提交：先 commit，再 fix 勾选",
+          "suite_path": [
+            "交付步的提交"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › 交付步的提交 › 已提交、不是 git 仓或只剩 change 目录的改动：不发 commit，直接交付值",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "已提交、不是 git 仓或只剩 change 目录的改动：不发 commit，直接交付值",
+          "suite_path": [
+            "交付步的提交"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › 交付步的提交 › 心跳已被旧版本跟踪：一起 untrack",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "心跳已被旧版本跟踪：一起 untrack",
+          "suite_path": [
+            "交付步的提交"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › 观察模式的 next（文档机制重做） › read-documents 只列未读输入，不带 editable，说明可改且改动记为本步产出",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "read-documents 只列未读输入，不带 editable，说明可改且改动记为本步产出",
+          "suite_path": [
+            "观察模式的 next（文档机制重做）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › 观察模式的 next（文档机制重做） › 排在 load-tenon 之后最先：先于执行者、技能与一切写入",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "排在 load-tenon 之后最先：先于执行者、技能与一切写入",
+          "suite_path": [
+            "观察模式的 next（文档机制重做）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › 观察模式的 next（文档机制重做） › 输入都读完了就不再发 read-documents，往下走本步的工作",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "输入都读完了就不再发 read-documents，往下走本步的工作",
+          "suite_path": [
+            "观察模式的 next（文档机制重做）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › 观察模式的 next（文档机制重做） › 没有输入（第一步或上游没写文档）也不发 read-documents",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "没有输入（第一步或上游没写文档）也不发 read-documents",
+          "suite_path": [
+            "观察模式的 next（文档机制重做）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › 观察模式的 next（文档机制重做） › 从不发 scaffold-document / record-document：即使技能已调用、必须产出缺失",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "从不发 scaffold-document / record-document：即使技能已调用、必须产出缺失",
+          "suite_path": [
+            "观察模式的 next（文档机制重做）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › 观察模式的 next（文档机制重做） › ship 步负责应用规格时发 apply-spec；spec 步负责 delta spec 且彩排未过时发 validate-spec",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "ship 步负责应用规格时发 apply-spec；spec 步负责 delta spec 且彩排未过时发 validate-spec",
+          "suite_path": [
+            "观察模式的 next（文档机制重做）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › 观察模式的 next（文档机制重做） › 规格已应用 / 彩排已过：不重复发",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "规格已应用 / 彩排已过：不重复发",
+          "suite_path": [
+            "观察模式的 next（文档机制重做）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › 观察模式的 next（文档机制重做） › 契约动作的两个来源在观察模式恒为空：骨架 / 登记（含技能欠的文档）一条都不产生",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "契约动作的两个来源在观察模式恒为空：骨架 / 登记（含技能欠的文档）一条都不产生",
+          "suite_path": [
+            "观察模式的 next（文档机制重做）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStep.test.ts › 观察模式的 next（文档机制重做） › 契约模式的文档视图不走观察模式的读取分支",
+          "file": "packages/cli/src/commands/statusStep.test.ts",
+          "name": "契约模式的文档视图不走观察模式的读取分支",
+          "suite_path": [
+            "观察模式的 next（文档机制重做）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepRoundsNext.test.ts › 未用完：回退边直接转换，其余与修改前一致 › 第 1 轮、上限 2，评审者不通过：直接 transition 回退边（不请求评审），动作里没有任何新字段",
+          "file": "packages/cli/src/commands/statusStepRoundsNext.test.ts",
+          "name": "第 1 轮、上限 2，评审者不通过：直接 transition 回退边（不请求评审），动作里没有任何新字段",
+          "suite_path": [
+            "未用完：回退边直接转换，其余与修改前一致"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepRoundsNext.test.ts › 未用完：回退边直接转换，其余与修改前一致 › 没有 rounds（不受约束的步骤、旧调用方）与 rounds 为 null：失败关闭，仍是回退边的评审请求",
+          "file": "packages/cli/src/commands/statusStepRoundsNext.test.ts",
+          "name": "没有 rounds（不受约束的步骤、旧调用方）与 rounds 为 null：失败关闭，仍是回退边的评审请求",
+          "suite_path": [
+            "未用完：回退边直接转换，其余与修改前一致"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepRoundsNext.test.ts › 未用完：回退边直接转换，其余与修改前一致 › 用完了但证据全过：与以前一样发前进边的评审请求，没有 residual / rounds / alternatives",
+          "file": "packages/cli/src/commands/statusStepRoundsNext.test.ts",
+          "name": "用完了但证据全过：与以前一样发前进边的评审请求，没有 residual / rounds / alternatives",
+          "suite_path": [
+            "未用完：回退边直接转换，其余与修改前一致"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepRoundsNext.test.ts › 用完且只剩评审者不通过：前进边的评审请求带待接受的剩余阻断 › 第 2 轮、上限 2：不再给 verify-fail 的 request-review / choose-exit / transition，给 verify-pass 的 request-review",
+          "file": "packages/cli/src/commands/statusStepRoundsNext.test.ts",
+          "name": "第 2 轮、上限 2：不再给 verify-fail 的 request-review / choose-exit / transition，给 verify-pass 的 request-review",
+          "suite_path": [
+            "用完且只剩评审者不通过：前进边的评审请求带待接受的剩余阻断"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepRoundsNext.test.ts › 用完且只剩评审者不通过：前进边的评审请求带待接受的剩余阻断 › 另外三条出路写在动作里：调高上限（用户决定，重发评审请求）、requirements-changed 回规格、终止任务",
+          "file": "packages/cli/src/commands/statusStepRoundsNext.test.ts",
+          "name": "另外三条出路写在动作里：调高上限（用户决定，重发评审请求）、requirements-changed 回规格、终止任务",
+          "suite_path": [
+            "用完且只剩评审者不通过：前进边的评审请求带待接受的剩余阻断"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepRoundsNext.test.ts › 用完且只剩评审者不通过：前进边的评审请求带待接受的剩余阻断 › 多个评审者不通过：residual 按评审者列出，参考（非必需）评审者不算",
+          "file": "packages/cli/src/commands/statusStepRoundsNext.test.ts",
+          "name": "多个评审者不通过：residual 按评审者列出，参考（非必需）评审者不算",
+          "suite_path": [
+            "用完且只剩评审者不通过：前进边的评审请求带待接受的剩余阻断"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepRoundsNext.test.ts › 用完且只剩评审者不通过：前进边的评审请求带待接受的剩余阻断 › 失败的必需测试都已登记豁免（待批准）：waivers 与 residual 并存",
+          "file": "packages/cli/src/commands/statusStepRoundsNext.test.ts",
+          "name": "失败的必需测试都已登记豁免（待批准）：waivers 与 residual 并存",
+          "suite_path": [
+            "用完且只剩评审者不通过：前进边的评审请求带待接受的剩余阻断"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepRoundsNext.test.ts › 用完且只剩评审者不通过：前进边的评审请求带待接受的剩余阻断 › 通过结论字段（outcome）仍要先填：剩余阻断的前进边需要它们才就绪",
+          "file": "packages/cli/src/commands/statusStepRoundsNext.test.ts",
+          "name": "通过结论字段（outcome）仍要先填：剩余阻断的前进边需要它们才就绪",
+          "suite_path": [
+            "用完且只剩评审者不通过：前进边的评审请求带待接受的剩余阻断"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepRoundsNext.test.ts › 用完且只剩评审者不通过：前进边的评审请求带待接受的剩余阻断 › 评审请求已发出（绑定前进边）：等人确认；已批准：转换",
+          "file": "packages/cli/src/commands/statusStepRoundsNext.test.ts",
+          "name": "评审请求已发出（绑定前进边）：等人确认；已批准：转换",
+          "suite_path": [
+            "用完且只剩评审者不通过：前进边的评审请求带待接受的剩余阻断"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepRoundsNext.test.ts › 用完且只剩评审者不通过：前进边的评审请求带待接受的剩余阻断 › 已批准的前进边仍被评审者挡着（接受没覆盖现在的运行或代码）：fix，要先撤回回执再重新请求",
+          "file": "packages/cli/src/commands/statusStepRoundsNext.test.ts",
+          "name": "已批准的前进边仍被评审者挡着（接受没覆盖现在的运行或代码）：fix，要先撤回回执再重新请求",
+          "suite_path": [
+            "用完且只剩评审者不通过：前进边的评审请求带待接受的剩余阻断"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepRoundsNext.test.ts › 用完且只剩评审者不通过：前进边的评审请求带待接受的剩余阻断 › 已有的评审请求绑在回退边上（用完之前发的）：不再等它，重新发前进边的评审请求",
+          "file": "packages/cli/src/commands/statusStepRoundsNext.test.ts",
+          "name": "已有的评审请求绑在回退边上（用完之前发的）：不再等它，重新发前进边的评审请求",
+          "suite_path": [
+            "用完且只剩评审者不通过：前进边的评审请求带待接受的剩余阻断"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepRoundsNext.test.ts › 用完且只剩评审者不通过：前进边的评审请求带待接受的剩余阻断 › 前进边还被评审者以外的东西挡着：fix 列出剩下的阻断（评审者的不通过已随请求交给用户，不重复列）",
+          "file": "packages/cli/src/commands/statusStepRoundsNext.test.ts",
+          "name": "前进边还被评审者以外的东西挡着：fix 列出剩下的阻断（评审者的不通过已随请求交给用户，不重复列）",
+          "suite_path": [
+            "用完且只剩评审者不通过：前进边的评审请求带待接受的剩余阻断"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepRoundsNext.test.ts › 用完且还有没登记豁免的失败必需测试：stop rounds-exhausted › 步骤测试失败且没有豁免：stop，code rounds-exhausted，写出 2/2、失败的测试、登记豁免与三条出路",
+          "file": "packages/cli/src/commands/statusStepRoundsNext.test.ts",
+          "name": "步骤测试失败且没有豁免：stop，code rounds-exhausted，写出 2/2、失败的测试、登记豁免与三条出路",
+          "suite_path": [
+            "用完且还有没登记豁免的失败必需测试：stop rounds-exhausted"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepRoundsNext.test.ts › 用完且还有没登记豁免的失败必需测试：stop rounds-exhausted › stop 排在 run-test 之前：同一份代码上重跑改变不了失败，用完后不再原地打转",
+          "file": "packages/cli/src/commands/statusStepRoundsNext.test.ts",
+          "name": "stop 排在 run-test 之前：同一份代码上重跑改变不了失败，用完后不再原地打转",
+          "suite_path": [
+            "用完且还有没登记豁免的失败必需测试：stop rounds-exhausted"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepRoundsNext.test.ts › 用完且还有没登记豁免的失败必需测试：stop rounds-exhausted › 目录套件的测试失败（testFlow.failed）同样 stop，并点名失败的对象",
+          "file": "packages/cli/src/commands/statusStepRoundsNext.test.ts",
+          "name": "目录套件的测试失败（testFlow.failed）同样 stop，并点名失败的对象",
+          "suite_path": [
+            "用完且还有没登记豁免的失败必需测试：stop rounds-exhausted"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepRoundsNext.test.ts › 用完且还有没登记豁免的失败必需测试：stop rounds-exhausted › 上限来源写进文案：任务字段覆盖时说明是 max_rounds 字段",
+          "file": "packages/cli/src/commands/statusStepRoundsNext.test.ts",
+          "name": "上限来源写进文案：任务字段覆盖时说明是 max_rounds 字段",
+          "suite_path": [
+            "用完且还有没登记豁免的失败必需测试：stop rounds-exhausted"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepRoundsNext.test.ts › 用完且还有没登记豁免的失败必需测试：stop rounds-exhausted › 第 1 轮、上限 2：测试失败仍是 run-test（与修改前一致）",
+          "file": "packages/cli/src/commands/statusStepRoundsNext.test.ts",
+          "name": "第 1 轮、上限 2：测试失败仍是 run-test（与修改前一致）",
+          "suite_path": [
+            "用完且还有没登记豁免的失败必需测试：stop rounds-exhausted"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepRoundsNext.test.ts › 第 2 条出路：回规格要分两步（受约束步骤上没有直达的边） › default 的 verify：先调高上限、经 verify-fail 回 build，再在 build 上执行 requirements-changed；回到 spec 后重新计数",
+          "file": "packages/cli/src/commands/statusStepRoundsNext.test.ts",
+          "name": "default 的 verify：先调高上限、经 verify-fail 回 build，再在 build 上执行 requirements-changed；回到 spec 后重新计数",
+          "suite_path": [
+            "第 2 条出路：回规格要分两步（受约束步骤上没有直达的边）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepRoundsNext.test.ts › 第 2 条出路：回规格要分两步（受约束步骤上没有直达的边） › 回规格的命令只出现一次，且明确写在 build 上执行；不再是在 verify 上直接执行的单步说法",
+          "file": "packages/cli/src/commands/statusStepRoundsNext.test.ts",
+          "name": "回规格的命令只出现一次，且明确写在 build 上执行；不再是在 verify 上直接执行的单步说法",
+          "suite_path": [
+            "第 2 条出路：回规格要分两步（受约束步骤上没有直达的边）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepRoundsNext.test.ts › 第 2 条出路：回规格要分两步（受约束步骤上没有直达的边） › stop 与前进边的评审请求共用同一份文案",
+          "file": "packages/cli/src/commands/statusStepRoundsNext.test.ts",
+          "name": "stop 与前进边的评审请求共用同一份文案",
+          "suite_path": [
+            "第 2 条出路：回规格要分两步（受约束步骤上没有直达的边）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepRoundsNext.test.ts › 第 2 条出路：回规格要分两步（受约束步骤上没有直达的边） › 回退目标步骤上没有落到更早步骤的边（reset 为 null）：不点名事件，只说那一步上回到规格的事件，不给单步命令",
+          "file": "packages/cli/src/commands/statusStepRoundsNext.test.ts",
+          "name": "回退目标步骤上没有落到更早步骤的边（reset 为 null）：不点名事件，只说那一步上回到规格的事件，不给单步命令",
+          "suite_path": [
+            "第 2 条出路：回规格要分两步（受约束步骤上没有直达的边）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepRoundsNext.test.ts › 第 2 条出路：回规格要分两步（受约束步骤上没有直达的边） › 没有比回退目标更早的步骤（resettable 为 false）：回规格帮不上忙，等同于调高上限，不给任何 transition 命令",
+          "file": "packages/cli/src/commands/statusStepRoundsNext.test.ts",
+          "name": "没有比回退目标更早的步骤（resettable 为 false）：回规格帮不上忙，等同于调高上限，不给任何 transition 命令",
+          "suite_path": [
+            "第 2 条出路：回规格要分两步（受约束步骤上没有直达的边）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepRoundsNext.test.ts › 第 2 条出路：回规格要分两步（受约束步骤上没有直达的边） › 自定义计划：事件名与步骤名取自计划，不写死 requirements-changed / build / spec",
+          "file": "packages/cli/src/commands/statusStepRoundsNext.test.ts",
+          "name": "自定义计划：事件名与步骤名取自计划，不写死 requirements-changed / build / spec",
+          "suite_path": [
+            "第 2 条出路：回规格要分两步（受约束步骤上没有直达的边）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepRoundsNext.test.ts › 第 2 条出路：回规格要分两步（受约束步骤上没有直达的边） › 调用方没有给 roundsRoute：回退边取自 exits，不给在当前步骤直接执行的单步命令",
+          "file": "packages/cli/src/commands/statusStepRoundsNext.test.ts",
+          "name": "调用方没有给 roundsRoute：回退边取自 exits，不给在当前步骤直接执行的单步命令",
+          "suite_path": [
+            "第 2 条出路：回规格要分两步（受约束步骤上没有直达的边）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepRoundsNext.test.ts › exits：用完后回退边不再算就绪（投影与命令的拒绝一致） › 用完：受约束步骤的回退边带 rounds-exhausted 阻断、ready 为 false；前进边与放弃边原样",
+          "file": "packages/cli/src/commands/statusStepRoundsNext.test.ts",
+          "name": "用完：受约束步骤的回退边带 rounds-exhausted 阻断、ready 为 false；前进边与放弃边原样",
+          "suite_path": [
+            "exits：用完后回退边不再算就绪（投影与命令的拒绝一致）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepRoundsNext.test.ts › exits：用完后回退边不再算就绪（投影与命令的拒绝一致） › 未用完 / 不受约束：原样返回同一份",
+          "file": "packages/cli/src/commands/statusStepRoundsNext.test.ts",
+          "name": "未用完 / 不受约束：原样返回同一份",
+          "suite_path": [
+            "exits：用完后回退边不再算就绪（投影与命令的拒绝一致）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepRoundsNext.test.ts › 任务覆盖上限（tenon set max_rounds）改变 rounds 之后 › 第 2 轮时设为 1：仍视为用完；设为 2（等于当前轮次）：仍用完；设为 3（大于）：恢复 verify-fail 的直接转换",
+          "file": "packages/cli/src/commands/statusStepRoundsNext.test.ts",
+          "name": "第 2 轮时设为 1：仍视为用完；设为 2（等于当前轮次）：仍用完；设为 3（大于）：恢复 verify-fail 的直接转换",
+          "suite_path": [
+            "任务覆盖上限（tenon set max_rounds）改变 rounds 之后"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepTests.test.ts › 策略阻塞归档 › 每个阻塞码落在唯一的一类；内联套件与提示性阻塞不进来",
+          "file": "packages/cli/src/commands/statusStepTests.test.ts",
+          "name": "每个阻塞码落在唯一的一类；内联套件与提示性阻塞不进来",
+          "suite_path": [
+            "策略阻塞归档"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 2,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepTests.test.ts › 策略阻塞归档 › 证据来源（v0.3）：受保护配置改动只等用户在评审里确认（与豁免同路），记录来源不明要重跑命令",
+          "file": "packages/cli/src/commands/statusStepTests.test.ts",
+          "name": "证据来源（v0.3）：受保护配置改动只等用户在评审里确认（与豁免同路），记录来源不明要重跑命令",
+          "suite_path": [
+            "策略阻塞归档"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepTests.test.ts › 策略阻塞归档 › 没有策略判定 = 什么动作都没有",
+          "file": "packages/cli/src/commands/statusStepTests.test.ts",
+          "name": "没有策略判定 = 什么动作都没有",
+          "suite_path": [
+            "策略阻塞归档"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepTests.test.ts › 策略阻塞归档 › 新鲜运行 id 只取目录套件里已判出通过 / 失败的，报告是否带上它们逐个核对",
+          "file": "packages/cli/src/commands/statusStepTests.test.ts",
+          "name": "新鲜运行 id 只取目录套件里已判出通过 / 失败的，报告是否带上它们逐个核对",
+          "suite_path": [
+            "策略阻塞归档"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepTests.test.ts › step.next 里的测试体系动作 › 登记按 discover → seed → map → register-files 逐类下发，一次只发最靠前的一类",
+          "file": "packages/cli/src/commands/statusStepTests.test.ts",
+          "name": "登记按 discover → seed → map → register-files 逐类下发，一次只发最靠前的一类",
+          "suite_path": [
+            "step.next 里的测试体系动作"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepTests.test.ts › step.next 里的测试体系动作 › 测试排在文档与规格彩排之后、评审者之前；旧的 run-test 在 run-tests 之后",
+          "file": "packages/cli/src/commands/statusStepTests.test.ts",
+          "name": "测试排在文档与规格彩排之后、评审者之前；旧的 run-test 在 run-tests 之后",
+          "suite_path": [
+            "step.next 里的测试体系动作"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepTests.test.ts › step.next 里的测试体系动作 › 执行者与本步技能仍先于测试",
+          "file": "packages/cli/src/commands/statusStepTests.test.ts",
+          "name": "执行者与本步技能仍先于测试",
+          "suite_path": [
+            "step.next 里的测试体系动作"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepTests.test.ts › step.next 里的测试体系动作 › 运行完了：先把追溯矩阵写进验证报告，再谈失败与评审者",
+          "file": "packages/cli/src/commands/statusStepTests.test.ts",
+          "name": "运行完了：先把追溯矩阵写进验证报告，再谈失败与评审者",
+          "suite_path": [
+            "step.next 里的测试体系动作"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepTests.test.ts › step.next 里的测试体系动作 › 已运行却不满足策略：非评审门是 fix（带修复命令）；评审门有回退边就走回退边",
+          "file": "packages/cli/src/commands/statusStepTests.test.ts",
+          "name": "已运行却不满足策略：非评审门是 fix（带修复命令）；评审门有回退边就走回退边",
+          "suite_path": [
+            "step.next 里的测试体系动作"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepTests.test.ts › step.next 里的测试体系动作 › 没有 testFlow（步骤未声明策略）：行为与没有测试体系时相同",
+          "file": "packages/cli/src/commands/statusStepTests.test.ts",
+          "name": "没有 testFlow（步骤未声明策略）：行为与没有测试体系时相同",
+          "suite_path": [
+            "step.next 里的测试体系动作"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepTests.test.ts › 评审门上的待批准豁免 › 只剩豁免挡着：可以 request-review，并把豁免连同请求一起下发",
+          "file": "packages/cli/src/commands/statusStepTests.test.ts",
+          "name": "只剩豁免挡着：可以 request-review，并把豁免连同请求一起下发",
+          "suite_path": [
+            "评审门上的待批准豁免"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepTests.test.ts › 评审门上的待批准豁免 › 评审已请求，但请求之后又加了豁免：先重新发起（幂等）再等人；回退边的请求不涉及豁免",
+          "file": "packages/cli/src/commands/statusStepTests.test.ts",
+          "name": "评审已请求，但请求之后又加了豁免：先重新发起（幂等）再等人；回退边的请求不涉及豁免",
+          "suite_path": [
+            "评审门上的待批准豁免"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepTests.test.ts › 评审门上的待批准豁免 › 还有别的阻塞：豁免不掩盖它们",
+          "file": "packages/cli/src/commands/statusStepTests.test.ts",
+          "name": "还有别的阻塞：豁免不掩盖它们",
+          "suite_path": [
+            "评审门上的待批准豁免"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepTests.test.ts › 评审门上的待批准豁免 › 不是评审门，或评审已批准：豁免仍挡出口（没有别的批准途径）",
+          "file": "packages/cli/src/commands/statusStepTests.test.ts",
+          "name": "不是评审门，或评审已批准：豁免仍挡出口（没有别的批准途径）",
+          "suite_path": [
+            "评审门上的待批准豁免"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepTests.test.ts › 失败的步骤测试带 test:<id> 豁免 › 失败且豁免待批准：不再 run-test，照常走评审者，再 request-review 并把 test:<id> 列给用户",
+          "file": "packages/cli/src/commands/statusStepTests.test.ts",
+          "name": "失败且豁免待批准：不再 run-test，照常走评审者，再 request-review 并把 test:<id> 列给用户",
+          "suite_path": [
+            "失败的步骤测试带 test:<id> 豁免"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepTests.test.ts › 失败的步骤测试带 test:<id> 豁免 › 失败且豁免已批准、评审已确认：可以转换；还没确认时先 request-review",
+          "file": "packages/cli/src/commands/statusStepTests.test.ts",
+          "name": "失败且豁免已批准、评审已确认：可以转换；还没确认时先 request-review",
+          "suite_path": [
+            "失败的步骤测试带 test:<id> 豁免"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepTests.test.ts › 失败的步骤测试带 test:<id> 豁免 › 评审已确认，但已批准的豁免对现在这份失败没有效力（批准绑定的是另一份代码）：不发必被拒的 transition，fix 点名撤回命令；撤回后重新发起评审",
+          "file": "packages/cli/src/commands/statusStepTests.test.ts",
+          "name": "评审已确认，但已批准的豁免对现在这份失败没有效力（批准绑定的是另一份代码）：不发必被拒的 transition，fix 点名撤回命令；撤回后重新发起评审",
+          "suite_path": [
+            "失败的步骤测试带 test:<id> 豁免"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepTests.test.ts › 失败的步骤测试带 test:<id> 豁免 › 没有豁免的失败测试行为不变：仍是 run-test；未运行 / 过期的测试豁免不了",
+          "file": "packages/cli/src/commands/statusStepTests.test.ts",
+          "name": "没有豁免的失败测试行为不变：仍是 run-test；未运行 / 过期的测试豁免不了",
+          "suite_path": [
+            "失败的步骤测试带 test:<id> 豁免"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/cli/src/commands/statusStepTests.test.ts › 失败的步骤测试带 test:<id> 豁免 › 待批准的豁免不算「必需测试失败」：结果字段与前进边照常，不被推去回退边",
+          "file": "packages/cli/src/commands/statusStepTests.test.ts",
+          "name": "待批准的豁免不算「必需测试失败」：结果字段与前进边照常，不被推去回退边",
+          "suite_path": [
+            "失败的步骤测试带 test:<id> 豁免"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        }
+      ],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [
+        {
+          "path": "artifacts/unit/test-results/vitest.json",
+          "bytes": 4715825,
+          "digest": "sha256:b8dab6f4673cf1dad834f611399b276a1dea5a4121b190c74daddc67fefb2ed6",
+          "media": "json"
+        }
+      ],
+      "report": {
+        "format": "vitest-json",
+        "path": "test-results/vitest.json",
+        "digest": "sha256:b8dab6f4673cf1dad834f611399b276a1dea5a4121b190c74daddc67fefb2ed6"
+      },
+      "log": {
+        "artifact": "logs/unit.log",
+        "bytes_total": 145262,
+        "bytes_kept": 145274,
+        "truncated": false,
+        "digest": "sha256:aa1524501d4dc2f7fc54405ab5a89df48166144177f23425f51f5b8cbbc46ffc"
+      }
+    },
+    {
+      "suite": "dashboard-app-unit",
+      "origin": "catalog",
+      "kind": "unit",
+      "runner": "vitest",
+      "scope": "full",
+      "selection": [],
+      "command": "npx vitest run --config packages/dashboard-app/vitest.config.ts --reporter=default --reporter=json --outputFile.json=test-results/vitest.json",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 11314,
+      "result": "pass",
+      "reasons": [],
+      "totals": {
+        "cases": 1955,
+        "pass": 1955,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [
+        {
+          "path": "artifacts/dashboard-app-unit/packages/dashboard-app/test-results/vitest.json",
+          "bytes": 742139,
+          "digest": "sha256:35d7691b7f7b03f823d825c1cdf14c362683df570244457d1f90bbf6d9255f84",
+          "media": "json"
+        }
+      ],
+      "report": {
+        "format": "vitest-json",
+        "path": "packages/dashboard-app/test-results/vitest.json",
+        "digest": "sha256:35d7691b7f7b03f823d825c1cdf14c362683df570244457d1f90bbf6d9255f84"
+      },
+      "log": {
+        "artifact": "logs/dashboard-app-unit.log",
+        "bytes_total": 239878,
+        "bytes_kept": 239890,
+        "truncated": false,
+        "digest": "sha256:6cf1e4c720dc2c645a8d91d014c91a0fe2d3f35d3b57b0614e9b520f0b1d445c"
+      }
+    },
+    {
+      "suite": "tools-node",
+      "origin": "catalog",
+      "kind": "unit",
+      "runner": "node-test",
+      "scope": "full",
+      "selection": [],
+      "command": "node --test --test-reporter=\"${TENON_NODE_TEST_REPORTER:-junit}\" --test-reporter-destination=test-results/tools-node.xml $(ls tools/*.node-test.mjs tools/bench/*.node-test.mjs | grep -v -e build-npx-package -e install-bootstrap -e clean-codex-install-acceptance -e spec-migration-cas -e reconcile-spec-application)",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 14991,
+      "result": "pass",
+      "reasons": [],
+      "totals": {
+        "cases": 228,
+        "pass": 228,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [
+        {
+          "path": "artifacts/tools-node/test-results/tools-node.xml",
+          "bytes": 61433,
+          "digest": "sha256:94af1d36cb7603e8d26463cfef4844deb2eefc8745fe7693b8905de3f5aa3c8b",
+          "media": "text"
+        }
+      ],
+      "report": {
+        "format": "junit",
+        "path": "test-results/tools-node.xml",
+        "digest": "sha256:94af1d36cb7603e8d26463cfef4844deb2eefc8745fe7693b8905de3f5aa3c8b"
+      },
+      "log": {
+        "artifact": "logs/tools-node.log",
+        "bytes_total": 0,
+        "bytes_kept": 12,
+        "truncated": false,
+        "digest": "sha256:c8473953ba5ed8acbf6f61af8aa3084c86eb102618eb6cc530a8ce726c6b5570"
+      }
+    },
+    {
+      "suite": "docs-site-unit",
+      "origin": "catalog",
+      "kind": "unit",
+      "runner": "node-test",
+      "scope": "full",
+      "selection": [],
+      "command": "node --test --test-reporter=\"${TENON_NODE_TEST_REPORTER:-junit}\" --test-reporter-destination=test-results/junit.xml scripts/*.node-test.mjs",
+      "cwd": "docs-site",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 134,
+      "result": "pass",
+      "reasons": [],
+      "totals": {
+        "cases": 2,
+        "pass": 2,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [
+        {
+          "path": "artifacts/docs-site-unit/docs-site/test-results/junit.xml",
+          "bytes": 620,
+          "digest": "sha256:f026e2d0d317c12dda4bf1a5388ce0b02620e97b9e2769badc3bd4d29a791445",
+          "media": "text"
+        }
+      ],
+      "report": {
+        "format": "junit",
+        "path": "test-results/junit.xml",
+        "digest": "sha256:f026e2d0d317c12dda4bf1a5388ce0b02620e97b9e2769badc3bd4d29a791445"
+      },
+      "log": {
+        "artifact": "logs/docs-site-unit.log",
+        "bytes_total": 0,
+        "bytes_kept": 12,
+        "truncated": false,
+        "digest": "sha256:c8473953ba5ed8acbf6f61af8aa3084c86eb102618eb6cc530a8ce726c6b5570"
+      }
+    },
+    {
+      "suite": "oracle-unit",
+      "origin": "catalog",
+      "kind": "unit",
+      "runner": "vitest",
+      "scope": "full",
+      "selection": [],
+      "command": "npx vitest run --pool=threads --reporter=default --reporter=json --outputFile.json=test-results/vitest.json",
+      "cwd": "tools/oracle",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 68763,
+      "result": "pass",
+      "reasons": [],
+      "totals": {
+        "cases": 19,
+        "pass": 19,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [
+        {
+          "path": "artifacts/oracle-unit/tools/oracle/test-results/vitest.json",
+          "bytes": 8110,
+          "digest": "sha256:96807e8d4171058caab35d3074f9fd81f0ead9d0861f4a869bdea9bb69466c43",
+          "media": "json"
+        }
+      ],
+      "report": {
+        "format": "vitest-json",
+        "path": "test-results/vitest.json",
+        "digest": "sha256:96807e8d4171058caab35d3074f9fd81f0ead9d0861f4a869bdea9bb69466c43"
+      },
+      "log": {
+        "artifact": "logs/oracle-unit.log",
+        "bytes_total": 1719,
+        "bytes_kept": 1731,
+        "truncated": false,
+        "digest": "sha256:7ee40646040f35964f56294a73ae3a9f36288705841efa657be0cd18091378f5"
+      }
+    },
+    {
+      "suite": "typecheck-packages",
+      "origin": "catalog",
+      "kind": "typecheck",
+      "runner": "tsc",
+      "scope": "full",
+      "selection": [],
+      "command": "npx tsc -b packages/kernel packages/channel packages/tap packages/automation packages/cli packages/server",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 265,
+      "result": "pass",
+      "reasons": [],
+      "totals": {
+        "cases": 0,
+        "pass": 0,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [],
+      "report": {
+        "format": "exit-code",
+        "path": null,
+        "digest": null
+      },
+      "log": {
+        "artifact": "logs/typecheck-packages.log",
+        "bytes_total": 0,
+        "bytes_kept": 12,
+        "truncated": false,
+        "digest": "sha256:c8473953ba5ed8acbf6f61af8aa3084c86eb102618eb6cc530a8ce726c6b5570"
+      }
+    },
+    {
+      "suite": "typecheck-web",
+      "origin": "catalog",
+      "kind": "typecheck",
+      "runner": "tsc",
+      "scope": "full",
+      "selection": [],
+      "command": "npm run typecheck:web",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 4629,
+      "result": "pass",
+      "reasons": [],
+      "totals": {
+        "cases": 0,
+        "pass": 0,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [],
+      "report": {
+        "format": "exit-code",
+        "path": null,
+        "digest": null
+      },
+      "log": {
+        "artifact": "logs/typecheck-web.log",
+        "bytes_total": 71,
+        "bytes_kept": 83,
+        "truncated": false,
+        "digest": "sha256:4802cd5398f149d445a3a63cd22a36c361f4ea442d3924caf75612d2af8808df"
+      }
+    },
+    {
+      "suite": "typecheck-e2e",
+      "origin": "catalog",
+      "kind": "typecheck",
+      "runner": "tsc",
+      "scope": "full",
+      "selection": [],
+      "command": "npx tsc -p e2e/dashboard",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 720,
+      "result": "pass",
+      "reasons": [],
+      "totals": {
+        "cases": 0,
+        "pass": 0,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [],
+      "report": {
+        "format": "exit-code",
+        "path": null,
+        "digest": null
+      },
+      "log": {
+        "artifact": "logs/typecheck-e2e.log",
+        "bytes_total": 0,
+        "bytes_kept": 12,
+        "truncated": false,
+        "digest": "sha256:c8473953ba5ed8acbf6f61af8aa3084c86eb102618eb6cc530a8ce726c6b5570"
+      }
+    }
+  ],
+  "result": "pass",
+  "actor": {
+    "id": "710227704@qq.com",
+    "name": "jefferySha",
+    "trust": "declared"
+  },
+  "host": {
+    "kind": "claude-code",
+    "sandbox": null
+  },
+  "git_head": "33425ab01248ecceff2c792be70011b931ead018",
+  "started_at": "2026-10-13T13:37:09Z",
+  "finished_at": "2026-10-13T13:46:04Z",
+  "duration_ms": 534990,
+  "prev_digest": null,
+  "digest": "sha256:e5276c43c802399b3f3c39ae6a180bdc0595a0cf0eb6e6283aa30d0a0c7e4121"
+}

@@ -889,16 +889,80 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
         expect(deps.historyEntries).toHaveLength(0)
       })
 
-      test('未用完：回退边越过这道门，由后面的评审确认门接着判；前进边不去读轮次', async () => {
+      test('未用完：回退边不需要评审回执，直接转换；前进边仍要回执且不读轮次', async () => {
         const root = await freshRepoRoot()
         const roundsOf = vi.fn(async () => ({ current: 1, max: 2, source: 'workflow' as const }))
         const deps = makeDeps({ roundsOf, reviewGateBinding: async () => false })
         const dir = await atVerify(deps, root)
         const app = createTransitionApplication(deps)
-        expect(await app.execute(commandOf(root, dir, 'verify-fail'))).toMatchObject({ kind: 'review-approval-required', event: 'verify-fail' })
-        expect(roundsOf).toHaveBeenCalledTimes(1)
         expect(await app.execute(commandOf(root, dir, 'verify-pass'))).toMatchObject({ kind: 'review-approval-required', event: 'verify-pass' })
+        expect(roundsOf).toHaveBeenCalledTimes(0)
+        expect(await app.execute(commandOf(root, dir, 'verify-fail'))).toMatchObject({ kind: 'applied', from: 'verify', to: 'build' })
         expect(roundsOf).toHaveBeenCalledTimes(1)
+      })
+
+      test('成功转换删除绑定本任务的评审标记，不碰其他任务的标记', async () => {
+        const roundsOf = vi.fn(async () => ({ current: 1, max: 2, source: 'workflow' as const }))
+        const markerOf = (change: string) =>
+          `pipeline-review-v2\nphase=verify\nchange=${change}\nevent=verify-pass\nrequested_at=2026-10-13T00:00:00Z\n`
+
+        const otherRoot = await freshRepoRoot()
+        const otherDeps = makeDeps({ roundsOf, reviewGateBinding: async () => false })
+        const otherDir = await atVerify(otherDeps, otherRoot)
+        await writeFile(join(otherRoot, '.pipeline-pending-review'), markerOf('other'))
+        expect(await createTransitionApplication(otherDeps).execute(commandOf(otherRoot, otherDir, 'verify-fail')))
+          .toMatchObject({ kind: 'applied' })
+        expect(existsSync(join(otherRoot, '.pipeline-pending-review'))).toBe(true)
+
+        const root = await freshRepoRoot()
+        const deps = makeDeps({ roundsOf, reviewGateBinding: async () => false })
+        const dir = await atVerify(deps, root)
+        await writeFile(join(root, '.pipeline-pending-review'), markerOf('demo'))
+        expect(await createTransitionApplication(deps).execute(commandOf(root, dir, 'verify-fail')))
+          .toMatchObject({ kind: 'applied' })
+        expect(existsSync(join(root, '.pipeline-pending-review'))).toBe(false)
+      })
+
+      test('任何成功转换都清本任务的评审标记，包括持有回执的前进边', async () => {
+        const root = await freshRepoRoot()
+        const deps = makeDeps()
+        const dir = await atVerify(deps, root)
+        await createStateStore().setMany(dir, {
+          review_gate_phase: 'verify', review_gate_status: 'approved', review_gate_event: 'verify-pass',
+          review_requested_at: FIXED_CLOCK(), review_acknowledged_at: FIXED_CLOCK(),
+        })
+        await writeFile(join(root, '.pipeline-pending-review'),
+          'pipeline-review-v2\nphase=verify\nchange=demo\nevent=verify-pass\nrequested_at=2026-10-13T00:00:00Z\n')
+        expect(await createTransitionApplication(deps).execute(commandOf(root, dir, 'verify-pass')))
+          .toMatchObject({ kind: 'applied', from: 'verify', to: 'ship' })
+        expect(existsSync(join(root, '.pipeline-pending-review'))).toBe(false)
+      })
+
+      test('被拒的转换不动评审标记', async () => {
+        const root = await freshRepoRoot()
+        const deps = makeDeps({ reviewGateBinding: async () => false })
+        const dir = await atVerify(deps, root)
+        await writeFile(join(root, '.pipeline-pending-review'),
+          'pipeline-review-v2\nphase=verify\nchange=demo\nevent=verify-pass\nrequested_at=2026-10-13T00:00:00Z\n')
+        expect(await createTransitionApplication(deps).execute(commandOf(root, dir, 'verify-pass')))
+          .toMatchObject({ kind: 'review-approval-required' })
+        expect(existsSync(join(root, '.pipeline-pending-review'))).toBe(true)
+      })
+
+      test('清标记失败只记 review-marker 告警，转换照样已提交', async () => {
+        const root = await freshRepoRoot()
+        const roundsOf = vi.fn(async () => ({ current: 1, max: 2, source: 'workflow' as const }))
+        const deps = makeDeps({ roundsOf, reviewGateBinding: async () => false })
+        const dir = await atVerify(deps, root)
+        // 标记路径被占成目录：读它抛 EISDIR（不是 ENOENT），清理失败。
+        await mkdir(join(root, '.pipeline-pending-review'))
+        const result = await createTransitionApplication(deps).execute(commandOf(root, dir, 'verify-fail'))
+        expect(result).toMatchObject({ kind: 'applied', from: 'verify', to: 'build' })
+        if (result.kind !== 'applied') throw new Error('expected applied')
+        expect(result.warnings).toEqual([
+          expect.objectContaining({ kind: 'projection-write-failed', projection: 'review-marker' }),
+        ])
+        expect((await createStateStore().read(dir)).fields.phase).toBe('build')
       })
 
       test('宿主没接线 roundsOf：不做轮次强制（与修改前一致）', async () => {

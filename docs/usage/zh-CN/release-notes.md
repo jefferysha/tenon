@@ -47,6 +47,12 @@ Tenon 的发布说明用于回答三个问题：这一版改变了什么、用�
 - 文档机制不再依赖 OpenSpec：观察、交接、读取回执和必须产出对轻量轨道、`spec: none` 和平铺的自定义工作流同样生效，`spec: openspec` 只管 OpenSpec 自己的生命周期。Spec Kit 风格的流程就是一个要求 `specs/*/spec.md`、`plan.md`、`tasks.md` 的普通工作流。
 - 工作台显示每一步真实的输入（文件、来源阶段、来源技能、已读 / 未读）和输出（文件、新增 / 修改 / 删除、来源技能）；工作流页不再有输入、输出表，门禁下列出「必须产出 `<path>`」。
 
+### 轮次内的回退边不再需要评审回执；门禁放行只读组合命令
+
+- 轮次内的回退边。受轮次上限约束的步骤（评审门且有回退边，例如带 `verify-fail` 的验证）上，轮次还没用完时走回退边不需要评审回执，直接 `tenon transition`。`step.next` 对唯一的回退边直接给 `transition`，不再给 `request-review`；Dashboard 的转换接口行为一致。前进边、剩余阻断与测试豁免仍只认人工确认，轮次用完后回退边照旧被拒。每次成功转换现在还会删除绑定本任务的评审标记（`.pipeline-pending-review`），所以升级前已发起的评审请求、或前进评审待确认时用户要求回去修改，都不会再留下一个最长 30 分钟内拦住写入的过期标记；删除失败只输出一行警告。
+- 只读组合命令。评审、交互或确认待处理期间，写门放行由 `|`、`&&`、`||`、`;` 连接、每一段都只读的命令（`git status --short | grep x`、`cd sub && ls`）。`>/dev/null`、`2>/dev/null`、`&>/dev/null`、`2>&1` 以外的重定向、后台 `&`、命令替换与变量展开（含 `$IFS`）、引号不闭合、超过 2048 个字符的命令一律不算只读。部分只读命令的写文件或执行程序形态现在被拒：`git diff|log|show --output`/`--ext-diff`/`--textconv`、`rg --pre`/`-z`/`--search-zip`、`sed -n` 非行号区间打印、`file -C`。
+- 按种类的提示与评审期间的 `tenon transition`。评审待确认时，门恰好放行本任务（标记所属任务）的 `tenon transition <change> <event>` 这一形态并交给 CLI 判定，用户要求回去修改时 agent 才走得了回退边（缺已批准回执的前进边仍由 CLI 拒绝）。拦截提示现在按标记种类区分：评审提示写明任务与事件，列出放行语与 Dashboard 确认，不再提 AskUserQuestion；确认与交互标记的提示保留 AskUserQuestion 的说法。
+
 ### 升级动作
 
 1. 把脚本和笔记里的 `--workflow standard` / `--workflow simple` 换成 `--workflow default --track lite`，`design-system` 任务去掉 `--track`。
@@ -55,6 +61,7 @@ Tenon 的发布说明用于回答三个问题：这一版改变了什么、用�
 4. 如果你在全局存储里保存过自己的 `default`，它照常加载，但缺 `lite` 分支的副本会让 `tenon assess` 报「没有改动风险阈值」而不是去猜；要用评估，就加一条带 `diff-risk` 测试的 `lite` 分支。
 5. 回滚到更早的版本之前，先完结或终止升级后新建的任务。更早的版本不认识三个通用离开条件，新建的 `default` 任务在 `tenon status` 里步骤投影只显示一行警告；它不认识的轨道上新建的任务会被直接拒绝读取：`lite`，以及没有 `tracks:` 的工作流（`design-system` 或你自己的平铺工作流，轨道记的是工作流名）（见[更新、恢复与卸载](updates-recovery-and-uninstall.md)）。
 6. 如果你的工作流保存失败并点名 `document_contract`、`inputs`、`outputs` 或 `artifacts`，删掉这些键；步骤必须产出的文件写 `required-output`，字段条件写 `field-nonempty` 或 `field-equals`。靠自己 `outputs` 检查的 `gate: auto` 步骤，要把那些检查改写成守卫。读工作流 API 的 `effectiveIo` 或 `GET /api/change/:name/orchestration` 的 `io` 的脚本，改读 `stepIo`。
+7. 脚本和笔记里“先为回退边请求评审、再走回退边”的步骤，轮次没用完时可以去掉：`tenon transition <name> verify-fail` 自己就能成功，已经存在的请求仍然被接受。前进边不变。
 
 ### 测试设置简化
 

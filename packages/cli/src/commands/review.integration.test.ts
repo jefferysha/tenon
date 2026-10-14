@@ -120,12 +120,12 @@ describe('真实 e2e —— review exit receipt（default workflow）', () => {
       await expect(stat(join(h2.cwd, '.pipeline-pending-review'))).rejects.toMatchObject({ code: 'ENOENT' })
       await h2.satisfyStepAgents('reviewed')
       expect(await h2.run(['review', 'request', 'reviewed', '--event', 'verify-pass']), h2.err.join('\n')).toBe(0)
-      // A pending request for verify-pass does not authorise verify-fail: the refusal asks for the
-      // matching request and names the event the pending one is bound to.
-      expect(await h2.run(['transition', 'reviewed', 'verify-fail'])).toBe(2)
-      const crossEvent = h2.err.join('\n')
-      expect(crossEvent).toContain('先运行 tenon review request reviewed --event verify-fail')
-      expect(crossEvent).toContain("绑定的是 event 'verify-pass'")
+      // 前进边（verify-pass）评审待确认时用户要求回退：轮次内的回退边不需要评审回执，直接转换成功，
+      // 并且清掉这条过期的待处理标记（canonical 回执随转换清空，标记不能留着继续拦）。
+      await expect(stat(join(h2.cwd, '.pipeline-pending-review'))).resolves.toBeDefined()
+      expect(await h2.run(['transition', 'reviewed', 'verify-fail']), h2.err.join('\n')).toBe(0)
+      expect(await h2.read('reviewed')).toMatch(/^phase: build$/m)
+      await expect(stat(join(h2.cwd, '.pipeline-pending-review'))).rejects.toMatchObject({ code: 'ENOENT' })
     } finally {
       await rm(h2.cwd, { recursive: true, force: true })
     }

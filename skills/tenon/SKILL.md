@@ -35,7 +35,7 @@ text(result);
 
 | 模式 | 来源 | 规则 |
 | --- | --- | --- |
-| `interactive` | 缺省 | 有 `allowed` 的字段用 AskUserQuestion 问（Codex：一个纯文本问题后结束回合）。每次 `transition` / `complete` 前展示产出、测试结果与评审发现，等用户说「继续」。评审门：`request-review` 后展示并结束回合；能确认这道门的回复是「确认继续」「继续执行」「同意继续」，以及简短同意「继续」「可以」「同意」「好的」「按推荐」「按你的推荐」（拒绝或带条件的回复不算）。 |
+| `interactive` | 缺省 | 有 `allowed` 的字段用 AskUserQuestion 问（Codex：一个纯文本问题后结束回合）。每次 `transition` / `complete` 前展示产出、测试结果与评审发现，等用户说「继续」（受轮次约束的评审步上轮次内的回退除外：直接 `transition`，用一句话告诉用户为什么回退）。评审门：`request-review` 后展示并结束回合；能确认这道门的回复是「确认继续」「继续执行」「同意继续」，以及简短同意「继续」「可以」「同意」「好的」「按推荐」「按你的推荐」（拒绝或带条件的回复不算）。 |
 | `continuous` | 本任务已有交互授权（`tenon session activate --continuous`） | 有 `recommended` 的选择不停；评审门在 `request-review` 后用 `tenon review acknowledge <c> --delegated`。必需测试或评审者不通过时走回退边修问题，绝不「接受偏差」。 |
 | `afk` | `TENON_AFK=1` | 同 continuous；`await-review` 直接以当前步骤状态结束本轮。 |
 
@@ -128,10 +128,10 @@ repeat:
 | `test-plan-seed` | 跑 `command`（`tenon test plan <c> --seed`）生成本任务的测试计划初稿。按档位（`test:`）要求测试的步骤，初稿不写套件和测试文件——运行集由档位、目录和本任务改动在求值时算出，测试文件按套件 glob 自动认领，只报告缺的必需测试类。计划、基线、已知失败清单只经 `tenon test …` 写入，不要手改 `test-plan.yaml`（会被判 `test-plan-tampered`），hook 也会拒绝。 |
 | `test-plan-map` | 只在缺必需测试类（目录里没有该类套件），或档位要求场景映射（`scenarios: required` / `passing`）时下发；默认不要求映射场景。逐条处理 `items`，每条自带 `fix` 命令：缺的类照 `fix` 补套件（`tenon test catalog add`）或声明不适用，旧 `test_policy` 缺的种类 `tenon test register <c> --suite <id>`，没映射的场景（仅档位要求时）`--case "<covers>" --test "<文件> › <用例名>"`（用例要真的存在）。确实不适用的种类：整个项目都不适用用 `tenon test catalog not-applicable <k> --reason <原因>`（评审确认一次后对所有任务生效），只有本任务不适用才 `tenon test waive <c> --kind <k> --reason <原因>`——两者都要评审批准，不是绕过。`show` 是查看当前计划的命令。 |
 | `test-register-files` | 只为孤儿下发：`files` 是本任务新增或修改、像测试却没有任何套件的 glob 认领的文件（`test-file-orphan`）。执行一条 `fix`（`tenon test register <c> --auto`）认领全部：只把各文件的精确路径追加进合适套件的 `files`，不放宽 glob，也不动本任务没改过的文件；没有合适的套件才先补目录。被套件 glob 认领的改动文件不用登记，也不会下发这个动作。 |
-| `run-tests` | 动作带 `trust` 时先请用户在自己的终端运行 `trust.command`（把 `trust.commands` 列给用户看；它只列本次要执行、尚未信任的命令，信任在同一仓库的所有 worktree 共享），得到答复后再执行，不要先撞一次拒绝。执行 `command`（`tenon test run <c> --stage`）：一条命令跑完本阶段按档位要求的全部套件；改动没碰到任何套件时它说明没有要运行的套件并以 0 退出，不是失败。跑完用例失败、覆盖率不足之类不是「没跑」，`next` 会改发 `fix`（评审门上有回退边就走回退边）。命令以 exit 1 报「还没有得到你的信任」时，是本次要执行的命令里有尚未得到用户本人确认的：把它列出的命令摆给用户，请用户在自己的终端运行 `tenon test trust`，然后再重跑。不要自己运行 `tenon test trust`，也不要设置 `TENON_TEST_TRUST`（hook 会拒绝）。 |
+| `run-tests` | 动作带 `trust` 时先请用户在自己的终端运行 `trust.command`（把 `trust.commands` 列给用户看；它只列本次要执行、尚未信任的命令，信任在同一仓库的所有 worktree 共享），得到答复后再执行，不要先撞一次拒绝。执行 `command`（`tenon test run <c> --stage`）：一条命令跑完本阶段按档位要求的全部套件；改动没碰到任何套件时它说明没有要运行的套件并以 0 退出，不是失败。跑完用例失败、覆盖率不足之类不是「没跑」，`next` 会改发 `fix`（评审门上有回退边就走回退边；受轮次约束的步骤上，轮次内直接 `transition`，不需要评审回执）。命令以 exit 1 报「还没有得到你的信任」时，是本次要执行的命令里有尚未得到用户本人确认的：把它列出的命令摆给用户，请用户在自己的终端运行 `tenon test trust`，然后再重跑。不要自己运行 `tenon test trust`，也不要设置 `TENON_TEST_TRUST`（hook 会拒绝）。 |
 | `test-report` | 执行 `command`：把追溯矩阵写进验证报告。档位不要求场景映射时，矩阵只列已映射的行，另加一行「另有 N 条场景 / 任务未映射（本步不要求映射）」，那不是缺陷。报告是已登记文档，写完会变过期，照 `next` 重新登记。 |
 | `fix` | 逐条解决 `blockers[]`（改代码或文档），然后回到循环。`source: tasks` 的 blocker 带 `items`（截至本步仍未勾的任务原文）：把这些任务真的做完，再在 tasks.md 里勾上。`code: test-unconfigured`：项目没有这条必需测试要的 npm 脚本——在 package.json 加上运行本项目真正这类测试的脚本，不要复制别的测试命令凑数；在计划步提出时，把「写这类测试」列进本步的计划与 tasks，并把新增的测试脚本与测试同步写进 proposal（What Changes / Impact）与 design，删掉与之矛盾的表述（如「不改 package.json」）；在之后的步骤提出时只补 package.json 的脚本（及它要跑的测试代码），不要改已登记的规格文档（proposal / design / plan）。项目不用 npm 时停下告诉用户去改工作流的测试命令。 |
-| `request-review` | `tenon check <c>` → `tenon review request <c> --event <event>` → 把产出与结论摆给用户。动作带 `waivers` 时，里面是待用户批准的项：计划里的测试豁免（`kind:<种类>`）、目录里项目级的「不适用」声明（`not-applicable:<种类>`），以及本任务改动了的测试配置文件（目录、基线、已知失败清单、项目工作流的路径）。把 request 输出逐条列出的这些项连同理由、文件摘要一并摆给用户：用户的确认同时批准它们，确认之后配置文件再变要重新确认。委托确认（持续授权）不批准它们，只能等用户回复「确认继续」。动作带 `residual`（验证轮次已用完，必需评审者在当前候选上仍不通过）时，还要把 `review request` 输出里逐条列出的剩余阻断（评审者、阻断级发现）连同 `alternatives`（另外的出路）摆给用户：只有用户回复放行语（「确认继续」等）的人工确认才接受这些剩余阻断；持续授权的委托确认会被拒、评审保持待确认，如实告诉用户，不要自己批准也不要绕开。 |
+| `request-review` | `tenon check <c>` → `tenon review request <c> --event <event>` → 把产出与结论摆给用户。动作带 `waivers` 时，里面是待用户批准的项：计划里的测试豁免（`kind:<种类>`）、目录里项目级的「不适用」声明（`not-applicable:<种类>`），以及本任务改动了的测试配置文件（目录、基线、已知失败清单、项目工作流的路径）。把 request 输出逐条列出的这些项连同理由、文件摘要一并摆给用户：用户的确认同时批准它们，确认之后配置文件再变要重新确认。委托确认（持续授权）不批准它们，只能等用户回复「确认继续」。动作带 `residual`（验证轮次已用完，必需评审者在当前候选上仍不通过）时，还要把 `review request` 输出里逐条列出的剩余阻断（评审者、阻断级发现）连同 `alternatives`（另外的出路）摆给用户：只有用户回复放行语（「确认继续」等）的人工确认才接受这些剩余阻断；持续授权的委托确认会被拒、评审保持待确认，如实告诉用户，不要自己批准也不要绕开。受轮次约束的评审步上，轮次内的回退边不走这个动作：`next` 直接给 `transition`，不需要评审回执。 |
 | `await-review` | interactive：结束回合等人。continuous：`tenon review acknowledge <c> --delegated`（计划里有待批准的测试豁免或待接受的剩余阻断时委托确认会被拒、评审仍待确认：如实告诉用户，等用户回复「确认继续」人工批准，不要自己批准也不要绕开）。afk：结束本轮。 |
 | `commit` | 交付物提交（交付步有未勾任务时它排在勾选之前：先提交，再勾「提交代码」这类任务）：`git add -A -- <commit.paths…>`；`commit.untrack` 非空时接着 `git rm --cached -q --ignore-unmatch -- <commit.untrack…>`；最后 `git commit -m "<commit.message>"`。paths / untrack 原样用、不增不减（`:(exclude)…` 是挡住仓库根门禁标记的 pathspec，照抄）。宿主不让写 `.git` 时如实告诉用户这一步留给他，不要说已提交。 |
 | `choose-exit` | 按下面的「出口」挑一条边。 |
@@ -162,7 +162,11 @@ repeat:
   `commit` / `finish-change` 做（交付步在交付值之前点名提交交付物，完结后点名提交归档），`next` 没点名
   就不提交；技能自带的提交步骤同样不做。
 - 出口：`ready` 的前进边直接走；回退边只在它的含义成立时走（必需测试或评审者不通过 → 回到实现
-  的那条边；已确认的需求变了 → 回到规格的那条边）；interactive 先问。走到终态的
+  的那条边；已确认的需求变了 → 回到规格的那条边）。受轮次上限约束的评审步（评审门且有回退边）上，
+  轮次还没用完时走回退边不需要评审回执：`next` 会直接给 `transition`，任何模式都直接走，用一句话
+  告诉用户为什么回退；评审待确认时用户要求回去修改，同样直接
+  `tenon transition <c> <回退事件>`，不要等确认。前进边、剩余阻断与测试豁免仍只认人工确认。没有轮次约束的步骤上的
+  回退边，interactive 先问；轮次用完后回退边会被拒（见下）。走到终态的
   `scope-expanded` 表示目标超出了这条轨道：之后按 `escalate.then` 新建重型轨道任务，并
   `tenon set <new> depends_on <old>`（由改动风险探针触发时，`next` 会直接给出它；它是 `next` 里唯一的 `transition` 时不用问，见动作表的 `transition`）。
 - 验证轮次上限 `max_rounds` 是用户的决定：不要自行执行 `tenon set <c> max_rounds <N>`，只在用户明确指示时执行；设置会改变任务状态，已发起或已批准的评审请求随之失效，执行后重读 `next` 并重新 `tenon review request`。上限用完时回退边会被拒，不要换事件、改状态或删 marker 绕过，照 `stop` / `request-review` 把出路摆给用户。
@@ -188,5 +192,5 @@ repeat:
 | 技能加载不了 | 停下，提示 `tenon setup --<host>` / `tenon update --<host>` |
 | `lacks exact host confirmation` | 按上面的读取规则重新加载产出者技能，再登记一次 |
 | `stop` 且 `code: retired-skills` | 告诉用户新建任务；旧任务可以终止（`tenon task terminate`）或删除 |
-| 评审待确认、回复不是放行语 | 继续等；hook 会打印解锁提示 |
+| 评审待确认、回复不是放行语 | 继续等；hook 会打印解锁提示。等待期间只读工具与只读命令不受拦截，由 `\|` `&&` `\|\|` `;` 连接、每段都只读的组合命令（如 `git status --short \| grep x`）也放行 |
 | 回退边被拒、报「验证轮次已用完」 | 不要换事件或调高上限绕过；把已用轮次、上限与出路摆给用户，等用户决定 |

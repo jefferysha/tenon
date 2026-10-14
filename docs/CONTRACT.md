@@ -159,7 +159,11 @@
   `review_requested_at` / `review_acknowledged_at` 是 `FIELD_ORDER` 的受保护字段。只有
   `pipeline review request|acknowledge` 与成功的 transition 可以写入/消费它们；通用
   `set` / `set-many` / `cas` 必须拒绝。它记录的是“离开当前 review phase 前”的 exact-phase-and-event
-  review 确认，而不是“刚进入 phase 就暂停”；例如 `verify-fail` 的确认绝不能授权 `verify-pass`。常规确认
+  review 确认，而不是“刚进入 phase 就暂停”；例如 `verify-fail` 的确认绝不能授权 `verify-pass`。轮次内回退边除外：
+  受轮次上限约束的步骤（评审门且有回退边）上，轮次还没用完时走回退边不需要评审回执，直接 `tenon transition`
+  （转换用例在同一把 Change 锁内与轮次门读同一份轮次；宿主没有提供轮次读取时仍要回执）；这次转换照常清空
+  当前步骤上任何待确认或已批准的回执，且不记录评审确认类的交互效果。前进边、放弃边、剩余阻断与测试豁免的
+  人工确认不变。常规确认
   由 `acknowledge` 记录；用户明确的 Change 绑定持续授权只能在真实 review 证据完成后经
   `acknowledge --delegated` 记录来源与授权时间，不能跳过该 receipt 或任何 guard。
   每个 request 还在 Change 锁内写 `.pipeline-review-gate-binding.json`：它绑定排除上述五个 receipt
@@ -250,6 +254,15 @@
   决策 phase，缩短会中途误清 → 绕过强制复核）。边界同老内核：age > TTL 才陈旧。
   **子代理**：宿主在子代理里触发的 PreToolUse 输入带 `agent_id`；`-confirm` / `-interaction` 约束的是主线「先问用户再产出」，
   子代理没有提问工具，这两类 marker 不拦带 `agent_id` 的调用（也不清 marker）。`-review` 不在此列，对子代理照拦（人工确认不能被绕过）。
+  **待处理期间的只读放行与提示**：三种 marker 下，由引号外的 `|` `||` `&&` `;` 连接、每段都是 `cd` 或严格只读命令的组合命令放行
+  （`hooks/lib/read-only-command.sh`，失败关闭：引号外的重定向、后台 `&`、换行、命令替换与变量展开（含 `$IFS`）、引号不闭合、超过 2048 字符一律算非只读；
+  丢弃输出的 `>/dev/null`、`2>/dev/null`、`&>/dev/null`、`2>&1` 不算重定向）。只读名单里带写文件或执行程序参数的形态被收紧：
+  `git diff|log|show --output`/`--ext-diff`/`--textconv`、`rg --pre`/`-z`/`--search-zip`、`sed -n` 的非行号区间打印、
+  `file -C`/`--compile` 均非只读。评审 marker 下访问本机
+  Dashboard 控制面或其凭据的命令（自审批候选）排在只读放行之前拦截；形如 `tenon transition <change> <event>` 的单条命令
+  （无 shell 元字符，且 `<change>` 是 marker 所属的本任务）放行，交给 CLI 判定——CLI 照旧拒绝缺回执的前进边与轮次用完后的回退边，只放行轮次内的回退边；确认与交互 marker
+  下这条命令照旧被拦。拦截提示按 marker 种类区分：评审 marker 的提示写明任务与事件，要求把产出摆给用户，列出放行语与 Dashboard
+  确认（`tenon dashboard --open`），不再提 AskUserQuestion；确认与交互 marker 的提示保留 AskUserQuestion / ToolSearch / 放行语的说法。
 - **交互 marker v2（按会话归属）**：`.pipeline-pending-interaction` 首行为 `pipeline-interaction-v2`，随后 `change=`、`session=`、`skills=`、`requested_at=`。`session` 非空只属于该会话；`session` 为空而 `change` 非空属于「本会话任务为该 Change」的会话；两者皆空属于全部会话（宿主不给 session id 时的旧行为）。gate 只拦归属方；`confirm-clear.sh` 与 `confirm-clear-prompt.sh` 只解归属本会话的标记，InteractionConfirmed 只记到本会话任务；旧格式（首行不是协议名，含空文件）见到即删除、不拦截。「本会话任务」由 `hooks/active-change.sh` 的 `pipeline_session_change_dir` 解析：本会话有会话绑定取绑定的 Change；无绑定而共享指针指向的 Change 已被别的会话绑定则没有任务；宿主没给 `session_id` 或该 Change 无人绑定则回退共享指针。放行语只认整条短回复（`pipeline_text_is_approval_phrase`），AskUserQuestion 只看 `tool_response.answers` 的答案值。
 - **持续交互授权投影（不是第四道 gate）**：用户在正常对话明确说“后续不用问 / 自主执行完成”后，
   `pipeline session activate <change> --continuous --host-session <id>` 或带合法 `session_id` 的 UserPromptSubmit 会写
@@ -276,6 +289,11 @@
   default 的 `verify-fail` 是内建回退 event：它校验真实 `verification_report` 与受治理的 OpenSpec
   文档证据，而不错误运行只适用于 `verify-pass` 的成功 guard。自定义多出口 review workflow 必须为每个
   可选 event 定义在该结果下可满足、可审计的前置证据；CLI 永远要求显式选择 event，不会猜测或复用另一出口的确认。
+  例外是受轮次上限约束的步骤（评审门且有回退边，如 default 的 verify）：轮次还没用完时，回退边（既非前进边也非放弃边）
+  不需要 `review request` 与评审回执，`tenon transition <name> verify-fail` 直接转换（`next` 也直接给 `transition`）；
+  轮次用完后回退边的 `review request` 与 `transition` 照旧被拒。轮次内对回退边执行 `review request --event <回退事件>` 仍被接受
+  （兼容升级前的流程与 Dashboard「退回到…」），只是 `next` 不再给出它。每次成功转换提交之后，转换用例还会删除绑定本任务的
+  `.pipeline-pending-review`（失败只警告、不回滚，标记在 TTL 后自行失效；不碰其他任务的标记）。
 
 ## 3. CLI 面（`pipeline <cmd>`）与输出契约
 
@@ -639,7 +657,7 @@ most 64 characters, and a manifest contains at most 256 fixtures.
    `trust` 只列本次要执行、尚未信任的命令）→ `test-report`
    （验证报告还没带上最新运行的追溯矩阵）。登记类一次只发最靠前的一类；整体排在本步文档之后、评审者之前；
    旧步骤 `tests[]` 仍走 `run-test`。已经运行过却不满足策略的阻塞（用例失败、覆盖率不足……）没有专门动作：
-   非评审门发 `fix`，评审门上有回退边就走回退边。计划里的豁免（`waivers[].approved_by`）只由人工确认写入：
+   非评审门发 `fix`，评审门上有回退边就走回退边（受轮次约束的步骤上，轮次内 `next` 直接给回退边的 `transition`，不要评审回执）。计划里的豁免（`waivers[].approved_by`）只由人工确认写入：
    `tenon review acknowledge`（非 `--delegated`）与 Dashboard 复核决策台的通过（`POST /api/change/<name>/decisions`）
    在提交 receipt 的同一把锁内写入（同一个 kernel `approveFrozenWaivers`）：`review request` 冻结并列出未批准的豁免
    （`request-review` 带 `waivers`），确认只批准清单里仍原样存在的那几条；`--delegated` 不批准豁免，计划里有待批准的豁免时它整个被拒
@@ -752,6 +770,11 @@ most 64 characters, and a manifest contains at most 256 fixtures.
    回到规格）。计数取 canonical 转换记录链（`readChain` + `runMetadata`，只数当前 run），没有链的旧任务读 `.pipeline-history.jsonl`
    的 `kind: transition` 行。`tenon status --json` 的 `step.rounds` 是 `{ current, max, source }`（键序在 `exits` 之后、`next` 之前）；
    不受约束的步骤与已完结任务为 `null`。
+   · 未用完（`current < max`）：回退边**不需要评审回执**。受约束步骤上必需测试或必需评审者不通过时，`next` 对唯一的回退边直接给
+   `transition`（多条回退边仍给 `choose-exit`；`step.rounds` 缺席时失败关闭，仍走 `request-review` → `await-review` → `transition`），
+   `tenon transition <name> <回退事件>` 在 kernel 转换用例里与「用完即拒」读同一份轮次（同一把 Change 锁），读到未用完就跳过回执要求；
+   宿主没有接线轮次读取时仍要回执，轮次读取抛错照旧向上抛。前进边与放弃边的回执要求不变，也不为此去读轮次。轮次内回退边上挂着的
+   pending / approved 请求（升级前遗留）由转换一并清空，不另外要求确认。
    · 用完（`current >= max`）且必需测试或必需评审者不通过：`next` 不再给回退边的 `request-review` / `choose-exit` / `transition`。
    只剩必需评审者不通过、或失败的必需测试都已豁免 → 前进边的 `request-review`，多带 `residual`（`reviewer:<agent>` 列表）、`rounds`、
    `alternatives`；还有没登记豁免的失败必需测试 → `stop`，`code: rounds-exhausted`。`step.exits[]` 里回退边 `ready: false`，带阻断

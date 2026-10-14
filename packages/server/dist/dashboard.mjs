@@ -38351,6 +38351,35 @@ function roundsExhausted(rounds) {
   return rounds !== null && rounds !== void 0 && rounds.current >= rounds.max;
 }
 
+// packages/kernel/dist/workflow/transition-rounds-gate.js
+function backEdgeSkipsReview(input2) {
+  return input2.back && !isAbandonEvent(input2.event) && input2.rounds !== null && input2.rounds !== void 0 && !roundsExhausted(input2.rounds);
+}
+async function backEdgeRounds(input2) {
+  const { deps, plan, from, event } = input2;
+  if (deps.roundsOf === void 0 || isAbandonEvent(event))
+    return { kind: "not-limited" };
+  if (isForwardExit(plan, from, input2.to, event) || !isRoundsLimited(plan, from))
+    return { kind: "not-limited" };
+  const rounds = await deps.roundsOf({ changeDir: input2.changeDir, plan, state: input2.state, stepId: from });
+  if (rounds === null)
+    return { kind: "not-limited" };
+  if (backEdgeSkipsReview({ event, back: true, rounds }))
+    return { kind: "within-budget" };
+  return {
+    kind: "exhausted",
+    rejection: {
+      kind: "rounds-exhausted",
+      workflowName: input2.workflowName,
+      stepId: from,
+      event,
+      current: rounds.current,
+      max: rounds.max,
+      source: rounds.source
+    }
+  };
+}
+
 // packages/kernel/dist/workflow/agent-scope.js
 function unattachedReviewers(reviewers, attachOnOf, touched) {
   if (touched === void 0)
@@ -39855,27 +39884,6 @@ async function rejectOnStepGates(input2) {
   return void 0;
 }
 
-// packages/kernel/dist/workflow/transition-rounds-gate.js
-async function rejectOnRoundsExhausted(input2) {
-  const { deps, plan, from, event } = input2;
-  if (deps.roundsOf === void 0 || isAbandonEvent(event))
-    return void 0;
-  if (isForwardExit(plan, from, input2.to, event) || !isRoundsLimited(plan, from))
-    return void 0;
-  const rounds = await deps.roundsOf({ changeDir: input2.changeDir, plan, state: input2.state, stepId: from });
-  if (rounds === null || !roundsExhausted(rounds))
-    return void 0;
-  return {
-    kind: "rounds-exhausted",
-    workflowName: input2.workflowName,
-    stepId: from,
-    event,
-    current: rounds.current,
-    max: rounds.max,
-    source: rounds.source
-  };
-}
-
 // packages/kernel/dist/workflow/transition-step-outputs.js
 async function rejectOnUnreadInputs(input2) {
   if (isAbandonEvent(input2.event))
@@ -39956,7 +39964,7 @@ function createTransitionApplication(deps) {
         });
         if (isRejection(prepared))
           return prepared;
-        const exhausted = await rejectOnRoundsExhausted({
+        const backEdge = await backEdgeRounds({
           deps,
           changeDir: command.changeDir,
           workflowName,
@@ -39966,8 +39974,9 @@ function createTransitionApplication(deps) {
           to: prepared.to,
           event: command.event
         });
-        if (exhausted !== void 0)
-          return exhausted;
+        if (backEdge.kind === "exhausted")
+          return backEdge.rejection;
+        const requiresReviewApproval = prepared.requiresReviewApproval && backEdge.kind !== "within-budget";
         const gated = await rejectOnStepGates({
           deps,
           changeDir: command.changeDir,
@@ -40039,7 +40048,7 @@ function createTransitionApplication(deps) {
           return testRejection;
         const receiptApproved = reviewGateApprovedFor(tx.state, prepared.from, command.event);
         let bindingApproved = false;
-        if (prepared.requiresReviewApproval && receiptApproved) {
+        if (requiresReviewApproval && receiptApproved) {
           bindingApproved = await deps.reviewGateBinding({
             changeDir: command.changeDir,
             state: tx.state,
@@ -40047,7 +40056,7 @@ function createTransitionApplication(deps) {
             event: command.event
           });
         }
-        if (prepared.requiresReviewApproval && !bindingApproved) {
+        if (requiresReviewApproval && !bindingApproved) {
           const pendingEvent = reviewGatePendingFor(tx.state, prepared.from) ? reviewGateEvent(tx.state) : "";
           return {
             kind: "review-approval-required",
@@ -40105,6 +40114,11 @@ function createTransitionApplication(deps) {
               cause: error2
             });
           }
+        }
+        try {
+          await clearReviewMarkerOfChange(command.root, command.changeName);
+        } catch (error2) {
+          warnings.push({ kind: "projection-write-failed", projection: "review-marker", cause: error2 });
         }
         if (prepared.governedDocumentContract) {
           const breadcrumbTail = await applyBreadcrumbTail(deps.breadcrumb, { changeDir: command.changeDir, name: command.changeName, to: prepared.to });
@@ -50642,6 +50656,10 @@ function mapTransitionResult(name, event, result2) {
             break;
           case "history":
             process.stderr.write(`WARN: history \u5199\u5165\u5931\u8D25: ${errText4(warning.cause)}
+`);
+            break;
+          case "review-marker":
+            process.stderr.write(`WARN: \u8BC4\u5BA1\u5F85\u5904\u7406\u6807\u8BB0\u6E05\u9664\u5931\u8D25\uFF08\u8F6C\u6362\u5DF2\u63D0\u4EA4\uFF0C\u6807\u8BB0\u4F1A\u5728 30 \u5206\u949F\u540E\u5931\u6548\uFF09: ${errText4(warning.cause)}
 `);
             break;
         }

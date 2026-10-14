@@ -2,11 +2,11 @@
  * 真实 e2e —— 验证轮次上限与剩余阻断：真临时项目、真 CLI（buildProgram）、真落盘；评审者的报告由用例直接写进
  * `report_path`（模型不跑），`agent record` 读它得到真实的「不通过」结论。
  *
- * 覆盖：未用完时一切照旧；用完后 `next` 改发前进边的评审请求（带待接受的剩余阻断）或 stop；回退边的
+ * 覆盖：未用完时回退边直接转换（`next` 给 transition，不要评审回执），其余照旧；用完后 `next` 改发前进边的评审请求（带待接受的剩余阻断）或 stop；回退边的
  * `review request` / `transition` 被拒；评审请求冻结、委托确认被拒、人工确认接受、转换放行并记历史；
  * 代码变了、评审者有了新运行（含同一候选上带 --rerun-reason 的重跑）接受失效；`tenon set max_rounds` 调整上限。
  */
-import { appendFile, mkdir, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { testSystemPaths } from '@tenon/kernel'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
@@ -119,13 +119,11 @@ async function loadTenon(): Promise<void> {
   expect(await h.run(['internal-native-skill-receipt', CHANGE, 'tenon', 'flow-session', `tool-${toolUse}`, FIXED_CLOCK]), h.err.join('\n')).toBe(0)
 }
 
-/** 前几轮都真实走完：进入 verify → 发起 verify-fail 评审 → 确认 → 回到实现 → 再进入 verify。 */
+/** 前几轮都真实走完：进入 verify → 轮次内直接 verify-fail（回退边不需要评审回执）→ 回到实现 → 再进入 verify。 */
 async function enterVerify(): Promise<void> {
   expect(await h.run(['transition', CHANGE, 'build-done']), h.err.join('\n')).toBe(0)
 }
 async function failBackToBuild(): Promise<void> {
-  expect(await h.run(['review', 'request', CHANGE, '--event', 'verify-fail']), h.err.join('\n')).toBe(0)
-  expect(await h.run(['review', 'acknowledge', CHANGE]), h.err.join('\n')).toBe(0)
   expect(await h.run(['transition', CHANGE, 'verify-fail']), h.err.join('\n')).toBe(0)
 }
 
@@ -182,21 +180,23 @@ async function changeCode(content: string): Promise<void> {
 describe('上限未用完：一切照旧', () => {
   beforeEach(async () => { await setup('residualwf', PLAIN) })
 
-  test('第 1 轮、上限 2，评审者不通过：next 是 verify-fail 的评审请求（没有新字段），verify-pass 的评审请求照旧被拒', async () => {
+  test('第 1 轮、上限 2，评审者不通过：next 直接给 verify-fail 的 transition（没有新字段），verify-pass 的评审请求照旧被拒', async () => {
     await atRound(1)
     await review()
     const current = await step()
     expect(current.rounds).toEqual({ current: 1, max: 2, source: 'workflow' })
-    expect(current.next).toEqual([{ action: 'request-review', event: 'verify-fail' }])
+    expect(current.next).toEqual([{ action: 'transition', event: 'verify-fail' }])
     expect(await h.run(['review', 'request', CHANGE, '--event', 'verify-pass'])).toBe(2)
     expect(h.out.join('\n')).toContain("评审者 'security' 未通过")
     expect(await sidecar()).toBeUndefined()
   })
 
-  test('第 1 轮：verify-fail 的评审请求 → 确认 → 转换回实现，都照常（真实走完一轮再进入第 2 轮）', async () => {
+  test('第 1 轮：轮次内直接转换回实现，不产生评审请求或标记（真实走完一轮再进入第 2 轮）', async () => {
     await atRound(1)
     await review()
     await failBackToBuild()
+    await expect(stat(join(h.cwd, '.pipeline-pending-review'))).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(await sidecar()).toBeUndefined()
     await enterVerify()
     await loadTenon()
     expect((await step()).rounds).toEqual({ current: 2, max: 2, source: 'workflow' })
@@ -255,7 +255,7 @@ describe('上限用完：next 与强制层', () => {
     expect(await sidecar()).toBeUndefined()
   })
 
-  test('调整上限：第 2 轮时设为 1 或 2 仍视为用完，设为 3 才恢复回退（verify-fail 的评审请求可发）', async () => {
+  test('调整上限：第 2 轮时设为 1 或 2 仍视为用完，设为 3 才恢复回退（next 恢复给 verify-fail 的 transition）', async () => {
     await atRound(2)
     await review()
     for (const value of ['1', '2']) {
@@ -267,11 +267,12 @@ describe('上限用完：next 与强制层', () => {
     }
     expect(await h.run(['set', CHANGE, 'max_rounds', '3']), h.err.join('\n')).toBe(0)
     const restored = await step()
-    expect(restored.next).toEqual([{ action: 'request-review', event: 'verify-fail' }])
+    expect(restored.next).toEqual([{ action: 'transition', event: 'verify-fail' }])
     expect(restored.exits.find((candidate) => candidate.event === 'verify-fail')).toMatchObject({ ready: true, blockers: [] })
+    // `review request --event <回退边>` 轮次内仍被接受（兼容升级前的流程）；next 不再给它，直接转换也行。
     expect(await h.run(['review', 'request', CHANGE, '--event', 'verify-fail']), h.err.join('\n')).toBe(0)
-    expect(await h.run(['review', 'acknowledge', CHANGE]), h.err.join('\n')).toBe(0)
     expect(await h.run(['transition', CHANGE, 'verify-fail']), h.err.join('\n')).toBe(0)
+    await expect(stat(join(h.cwd, '.pipeline-pending-review'))).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
   test('不受约束的步骤不受影响：上限用完时 build 的 requirements-changed 照常可用，回到规格后重新计数', async () => {

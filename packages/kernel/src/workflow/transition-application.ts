@@ -35,8 +35,8 @@
  */
 import type { FieldName, Phase, PipelineState } from '../types.js'
 import {
-  applyBreadcrumbTail, clearReviewGatePatch, readCurrentRunRevision, reviewGateApprovedFor, reviewGateEvent,
-  reviewGatePendingFor, transitionRecordToHistoryEntry,
+  applyBreadcrumbTail, clearReviewGatePatch, clearReviewMarkerOfChange, readCurrentRunRevision, reviewGateApprovedFor,
+  reviewGateEvent, reviewGatePendingFor, transitionRecordToHistoryEntry,
 } from '../state/index.js'
 import { evaluateDocumentEvidence } from '../state/document-evidence.js'
 import { rejectOnTestEvidence } from '../test-evidence/transition-gate.js'
@@ -47,7 +47,7 @@ import type { TransitionContext } from '../flow/index.js'
 import { isAbandonEvent } from './implicit-completion.js'
 import { retiredSkillReferences } from './retired-skills.js'
 import { rejectOnStepGates } from './transition-step-gates.js'
-import { rejectOnRoundsExhausted } from './transition-rounds-gate.js'
+import { backEdgeRounds } from './transition-rounds-gate.js'
 import { recordObservedStepExit, rejectOnUnreadInputs } from './transition-step-outputs.js'
 // 转换规划随执行模型而变，由接缝选适配器（step-graph 或 legacy-phase-manifest）；本文件只留编排。
 import { selectExecution } from './execution-seam.js'
@@ -106,12 +106,13 @@ export function createTransitionApplication(deps: TransitionApplicationDeps): Tr
           state: tx.state, plan: effectivePlan, command, flow: deps.flow, clock: deps.clock,
         })
         if (isRejection(prepared)) return prepared
-        // 验证轮次上限用完后，受约束步骤的回退边不再放行（强制层；`next` 只是投影）。
-        const exhausted = await rejectOnRoundsExhausted({
+        // 验证轮次：用完后受约束步骤的回退边被拒（强制层；`next` 只是投影）；轮次内的回退边不需要评审回执。
+        const backEdge = await backEdgeRounds({
           deps, changeDir: command.changeDir, workflowName, plan: effectivePlan, state: tx.state,
           from: prepared.from, to: prepared.to, event: command.event,
         })
-        if (exhausted !== undefined) return exhausted
+        if (backEdge.kind === 'exhausted') return backEdge.rejection
+        const requiresReviewApproval = prepared.requiresReviewApproval && backEdge.kind !== 'within-budget'
         const gated = await rejectOnStepGates({
           deps,
           changeDir: command.changeDir,
@@ -188,8 +189,9 @@ export function createTransitionApplication(deps: TransitionApplicationDeps): Tr
         // Non-review transitions must not consult the review sidecar at all. A malformed or
         // unreadable verifier projection is a fail-closed review rejection only when this exact
         // transition leaves a governed review phase; otherwise it must not block unrelated edges.
+        // 轮次内的回退边不消费回执（requiresReviewApproval 已为 false）：也不读 sidecar，不记评审确认的交互效果。
         let bindingApproved = false
-        if (prepared.requiresReviewApproval && receiptApproved) {
+        if (requiresReviewApproval && receiptApproved) {
           bindingApproved = await deps.reviewGateBinding({
             changeDir: command.changeDir,
             state: tx.state,
@@ -197,7 +199,7 @@ export function createTransitionApplication(deps: TransitionApplicationDeps): Tr
             event: command.event,
           })
         }
-        if (prepared.requiresReviewApproval && !bindingApproved) {
+        if (requiresReviewApproval && !bindingApproved) {
           // A request that is already waiting for the user changes the next step (acknowledge, not
           // another request), so the refusal names the event that request is bound to.
           const pendingEvent = reviewGatePendingFor(tx.state, prepared.from) ? reviewGateEvent(tx.state) : ''
@@ -244,6 +246,13 @@ export function createTransitionApplication(deps: TransitionApplicationDeps): Tr
               code: INTERACTION_PROJECTION_WRITE_FAILED, cause: error,
             })
           }
+        }
+        // 任何成功转换都清空了本任务的评审回执，它在项目根上的待处理标记随之过期：删掉，免得 gate 继续拦、放行语也解不开。
+        // 只删绑定本任务的标记；删除失败只告警（标记 30 分钟 TTL 后自动失效），不回滚已提交的转换。
+        try {
+          await clearReviewMarkerOfChange(command.root, command.changeName)
+        } catch (error) {
+          warnings.push({ kind: 'projection-write-failed', projection: 'review-marker', cause: error })
         }
         // 收尾顺序 breadcrumb → history：breadcrumb 是 hook 热路径的当前相位缓存，history 是
         // durable transition audit。review marker 已移到 `tenon review request`，不能在进入
