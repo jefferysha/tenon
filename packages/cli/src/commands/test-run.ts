@@ -30,6 +30,8 @@ import { declaredTestIds, locateTest, resolveTestCommand, type TestCommandContex
 import { ensureTrusted, stepTestsTrustTarget } from './test-trust.js'
 
 const FAILURE_TAIL_CHARS = 4096
+/** 代码规模测试的方向 id（templates/test-directions/code-size.yaml）。 */
+const CODE_SIZE_DIRECTION = 'code-size'
 
 /** run-id 按时间排序，且不同用户各自目录，所以只需要 6 位随机后缀防同秒碰撞。 */
 export function newRunId(iso: string): string {
@@ -77,6 +79,14 @@ async function resolvedCwd(repoRoot: string, cwd: string): Promise<string | unde
   }
 }
 
+/**
+ * 要不要读指标：声明了门槛或 `metrics_path`，或是代码规模探针——它的输出就是给代码规模评审者读的实测值，
+ * 没有门槛（default 的缺省）也要记进运行记录。没有门槛时读到什么都不产生失败原因（`metric-threshold` 只对门槛出现）。
+ */
+function readsMetrics(test: StepTestIR): boolean {
+  return test.pass.metrics.length > 0 || test.metrics_path !== undefined || test.direction === CODE_SIZE_DIRECTION
+}
+
 interface RunInput {
   readonly step: StepIR
   readonly test: StepTestIR
@@ -105,8 +115,8 @@ export async function cmdTestRun(
     deps.io.err(`ERROR: ${unconfiguredMessage(test.id, test.command, gap)}`)
     return 1
   }
-  // 步骤测试命令来自项目工作流：首次执行前需要用户在本机确认（R6）。
-  const trustTarget = stepTestsTrustTarget(context.plan)
+  // 步骤测试命令来自项目工作流：首次执行前需要用户在本机确认（R6）；只校验本次要执行的这一条。
+  const trustTarget = stepTestsTrustTarget(context.plan, [test.id])
   if (trustTarget !== undefined && !(await ensureTrusted(deps, context.slug, trustTarget, change))) return 1
   const runId = newRunId(deps.clock())
   const paths = await ensureTestEvidenceDirs(deps.cwd, context.slug, change, runId)
@@ -173,7 +183,7 @@ async function execute(deps: CliDeps, context: TestCommandContext, input: RunInp
       })
 
   const outputs = workDir === undefined ? [] : await collectTestOutputs(deps.cwd, test, runDir)
-  const values = test.pass.metrics.length === 0 && test.metrics_path === undefined
+  const values = !readsMetrics(test)
     ? undefined
     : await readMetrics({
         ...(test.metrics_path === undefined ? {} : { metricsPath: resolve(deps.cwd, test.metrics_path) }),

@@ -1,0 +1,4725 @@
+{
+  "schema": "tenon-test-run-v2",
+  "run_id": "20261013T170832Z-80c752",
+  "change": "simplify-test-settings",
+  "workflow_run_id": "c6279f4b-c76a-441d-8407-28a39aef3839",
+  "workflow": "default",
+  "track": "backend",
+  "step": "build",
+  "bindings": {
+    "candidate": "workspace:sha256:57eadfc2433cd7e9792d6aae22e047829069972c80f633a9d80a805100a6b2a0",
+    "workflow_fingerprint": "5b335442cae7137d357e1c59702816f3ac67fbde095517a75138cc28ddfa84aa",
+    "catalog_digest": "sha256:010b211c0ef8b90950fdcdb875155ee2d4b74e410cc22eb3da350ce96c58e501",
+    "plan_digest": "sha256:9e2a61fca7725eff24779d9adc4203192f0710bde3f4c1cf0c7f89261138dbc2",
+    "policy_digest": "sha256:b3c8330ab64358ab69db93351950c1586d7a98ba3070c8ca1549c43a069a1ba1"
+  },
+  "machine_profile": "darwin-arm64-16c-node24-3f41814e",
+  "machine_label": "darwin-arm64-16c-node24",
+  "services": [],
+  "suites": [
+    {
+      "suite": "dashboard-app-unit",
+      "origin": "catalog",
+      "kind": "unit",
+      "runner": "vitest",
+      "scope": "full",
+      "selection": [],
+      "command": "npx vitest run --config packages/dashboard-app/vitest.config.ts --reporter=default --reporter=json --outputFile.json=test-results/vitest.json",
+      "cwd": ".",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 11210,
+      "result": "pass",
+      "reasons": [],
+      "totals": {
+        "cases": 1998,
+        "pass": 1998,
+        "fail": 0,
+        "skip": 0,
+        "flaky": 0,
+        "known_fail": 0
+      },
+      "cases": [
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › projects legacy definitions to the safe independent policy defaults",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "projects legacy definitions to the safe independent policy defaults",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 2,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › preserves the complete decomposition and interaction policy without coupling them",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "preserves the complete decomposition and interaction policy without coupling them",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › rejects the removed review budget, review lanes and skill classification keys",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "rejects the removed review budget, review lanes and skill classification keys",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › fills omitted v1 policy fields while rejecting unknown keys, duplicate conditions, and invalid limits",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "fills omitted v1 policy fields while rejecting unknown keys, duplicate conditions, and invalid limits",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › decodes the openspec switch; rejects the removed openspecContract key and a branch that still carries a document contract",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "decodes the openspec switch; rejects the removed openspecContract key and a branch that still carries a document contract",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › a definition no longer carries materialised IO or a document contract; branches keep only their label",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "a definition no longer carries materialised IO or a document contract; branches keep only their label",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › required-output carries a string path and nothing else",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "required-output carries a string path and nothing else",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › decodes step tests with their pass criteria, inputs and outputs; rejects closed-set violations",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "decodes step tests with their pass criteria, inputs and outputs; rejects closed-set violations",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › accepts every canonical default-workflow guard and action used by the kernel",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "accepts every canonical default-workflow guard and action used by the kernel",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › decodes the three universal leave conditions on a step and on an exit, parameterless",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "decodes the three universal leave conditions on a step and on an exit, parameterless",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › keeps the branch keys spec / route / automation of a built-in default track, exactly",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "keeps the branch keys spec / route / automation of a built-in default track, exactly",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › rejects malformed branch keys instead of dropping them",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "rejects malformed branch keys instead of dropping them",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › tasks-through-step takes no parameters",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "tasks-through-step takes no parameters",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › not-afk-queued takes no parameters",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "not-afk-queued takes no parameters",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › dependencies-ended takes no parameters",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "dependencies-ended takes no parameters",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › tasks-at-least rejects an illegal top-level data key instead of silently normalizing it",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "tasks-at-least rejects an illegal top-level data key instead of silently normalizing it",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › nonempty-output rejects an illegal top-level data key instead of silently normalizing it",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "nonempty-output rejects an illegal top-level data key instead of silently normalizing it",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › field-nonempty rejects an illegal top-level data key instead of silently normalizing it",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "field-nonempty rejects an illegal top-level data key instead of silently normalizing it",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › file-exists rejects an illegal top-level data key instead of silently normalizing it",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "file-exists rejects an illegal top-level data key instead of silently normalizing it",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › field-equals rejects an illegal top-level data key instead of silently normalizing it",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "field-equals rejects an illegal top-level data key instead of silently normalizing it",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 2,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › field-in rejects an illegal top-level data key instead of silently normalizing it",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "field-in rejects an illegal top-level data key instead of silently normalizing it",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › full-direct-override rejects an illegal top-level data key instead of silently normalizing it",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "full-direct-override rejects an illegal top-level data key instead of silently normalizing it",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › build-head-unchanged rejects an illegal top-level data key instead of silently normalizing it",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "build-head-unchanged rejects an illegal top-level data key instead of silently normalizing it",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › spec-migration-applied rejects an illegal top-level data key instead of silently normalizing it",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "spec-migration-applied rejects an illegal top-level data key instead of silently normalizing it",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › tasks-through-step rejects an illegal top-level data key instead of silently normalizing it",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "tasks-through-step rejects an illegal top-level data key instead of silently normalizing it",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › not-afk-queued rejects an illegal top-level data key instead of silently normalizing it",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "not-afk-queued rejects an illegal top-level data key instead of silently normalizing it",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › dependencies-ended rejects an illegal top-level data key instead of silently normalizing it",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "dependencies-ended rejects an illegal top-level data key instead of silently normalizing it",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › required-output rejects an illegal top-level data key instead of silently normalizing it",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "required-output rejects an illegal top-level data key instead of silently normalizing it",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › rejects action variants with extra keys instead of silently normalizing them",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "rejects action variants with extra keys instead of silently normalizing them",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › requires tasks-at-least n to match the kernel non-negative integer contract",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "requires tasks-at-least n to match the kernel non-negative integer contract",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › tasks-at-least requires an exact nested when predicate",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "tasks-at-least requires an exact nested when predicate",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › nonempty-output requires an exact nested when predicate",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "nonempty-output requires an exact nested when predicate",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › field-nonempty requires an exact nested when predicate",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "field-nonempty requires an exact nested when predicate",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › file-exists requires an exact nested when predicate",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "file-exists requires an exact nested when predicate",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › field-equals requires an exact nested when predicate",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "field-equals requires an exact nested when predicate",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › field-in requires an exact nested when predicate",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "field-in requires an exact nested when predicate",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › full-direct-override requires an exact nested when predicate",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "full-direct-override requires an exact nested when predicate",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › build-head-unchanged requires an exact nested when predicate",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "build-head-unchanged requires an exact nested when predicate",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › spec-migration-applied requires an exact nested when predicate",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "spec-migration-applied requires an exact nested when predicate",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › tasks-through-step requires an exact nested when predicate",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "tasks-through-step requires an exact nested when predicate",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › not-afk-queued requires an exact nested when predicate",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "not-afk-queued requires an exact nested when predicate",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › dependencies-ended requires an exact nested when predicate",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "dependencies-ended requires an exact nested when predicate",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › required-output requires an exact nested when predicate",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "required-output requires an exact nested when predicate",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › rejects the concrete nonempty-output+n corruption and an over-broad file-exists path",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "rejects the concrete nonempty-output+n corruption and an over-broad file-exists path",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › tasks-at-least still accepts its exact canonical key set with an exact when predicate",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "tasks-at-least still accepts its exact canonical key set with an exact when predicate",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › nonempty-output still accepts its exact canonical key set with an exact when predicate",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "nonempty-output still accepts its exact canonical key set with an exact when predicate",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › field-nonempty still accepts its exact canonical key set with an exact when predicate",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "field-nonempty still accepts its exact canonical key set with an exact when predicate",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › file-exists still accepts its exact canonical key set with an exact when predicate",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "file-exists still accepts its exact canonical key set with an exact when predicate",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › field-equals still accepts its exact canonical key set with an exact when predicate",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "field-equals still accepts its exact canonical key set with an exact when predicate",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › field-in still accepts its exact canonical key set with an exact when predicate",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "field-in still accepts its exact canonical key set with an exact when predicate",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › full-direct-override still accepts its exact canonical key set with an exact when predicate",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "full-direct-override still accepts its exact canonical key set with an exact when predicate",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › build-head-unchanged still accepts its exact canonical key set with an exact when predicate",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "build-head-unchanged still accepts its exact canonical key set with an exact when predicate",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › spec-migration-applied still accepts its exact canonical key set with an exact when predicate",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "spec-migration-applied still accepts its exact canonical key set with an exact when predicate",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › tasks-through-step still accepts its exact canonical key set with an exact when predicate",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "tasks-through-step still accepts its exact canonical key set with an exact when predicate",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › not-afk-queued still accepts its exact canonical key set with an exact when predicate",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "not-afk-queued still accepts its exact canonical key set with an exact when predicate",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › dependencies-ended still accepts its exact canonical key set with an exact when predicate",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "dependencies-ended still accepts its exact canonical key set with an exact when predicate",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition › required-output still accepts its exact canonical key set with an exact when predicate",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "required-output still accepts its exact canonical key set with an exact when predicate",
+          "suite_path": [
+            "decodeWorkflowDefinition"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition · 步骤 agents › 执行者与评审者按原样解出；缺省不补键",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "执行者与评审者按原样解出；缺省不补键",
+          "suite_path": [
+            "decodeWorkflowDefinition · 步骤 agents"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition · 步骤 agents › 评审者的执行宿主 host（codex | claude | any）原样解出并写回；写错值、放在执行者上整份作废",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "评审者的执行宿主 host（codex | claude | any）原样解出并写回；写错值、放在执行者上整份作废",
+          "suite_path": [
+            "decodeWorkflowDefinition · 步骤 agents"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition · 步骤 agents › 未知字段、非法阻断级别、缺 required 都整份作废",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "未知字段、非法阻断级别、缺 required 都整份作废",
+          "suite_path": [
+            "decodeWorkflowDefinition · 步骤 agents"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition · 步骤 test_policy › 每个键原样解出，写回前整形后逐字相同（保存不丢策略）",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "每个键原样解出，写回前整形后逐字相同（保存不丢策略）",
+          "suite_path": [
+            "decodeWorkflowDefinition · 步骤 test_policy"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition · 步骤 test_policy › integrity: block 与 notice 原样解出并写回；写错值整份作废",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "integrity: block 与 notice 原样解出并写回；写错值整份作废",
+          "suite_path": [
+            "decodeWorkflowDefinition · 步骤 test_policy"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition · 步骤 test_policy › track 分支里的步骤同样保留策略；缺省不补键",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "track 分支里的步骤同样保留策略；缺省不补键",
+          "suite_path": [
+            "decodeWorkflowDefinition · 步骤 test_policy"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition · 步骤 test_policy › 未知键、未知种类、越界数字、错误取值整份作废",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "未知键、未知种类、越界数字、错误取值整份作废",
+          "suite_path": [
+            "decodeWorkflowDefinition · 步骤 test_policy"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition · 步骤 test（测试档位） › 四个档位原样解出，写回前整形后逐字相同（保存不丢档位）",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "四个档位原样解出，写回前整形后逐字相同（保存不丢档位）",
+          "suite_path": [
+            "decodeWorkflowDefinition · 步骤 test（测试档位）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition · 步骤 test（测试档位） › track 分支里的步骤同样保留；没声明的步骤不补键",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "track 分支里的步骤同样保留；没声明的步骤不补键",
+          "suite_path": [
+            "decodeWorkflowDefinition · 步骤 test（测试档位）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition · 步骤 test（测试档位） › 未知档位、非字符串整份作废",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "未知档位、非字符串整份作废",
+          "suite_path": [
+            "decodeWorkflowDefinition · 步骤 test（测试档位）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition · 步骤 test（测试档位） › 同一步同时有 test 与 test_policy 整份作废（互斥）",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "同一步同时有 test 与 test_policy 整份作废（互斥）",
+          "suite_path": [
+            "decodeWorkflowDefinition · 步骤 test（测试档位）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition · 步骤 maxRounds（验证轮次上限） › 1 到 20 的整数原样解出，写回前整形后逐字相同（读写不丢）",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "1 到 20 的整数原样解出，写回前整形后逐字相同（读写不丢）",
+          "suite_path": [
+            "decodeWorkflowDefinition · 步骤 maxRounds（验证轮次上限）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition · 步骤 maxRounds（验证轮次上限） › track 分支里的步骤同样保留；没声明的步骤不补键",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "track 分支里的步骤同样保留；没声明的步骤不补键",
+          "suite_path": [
+            "decodeWorkflowDefinition · 步骤 maxRounds（验证轮次上限）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition · 步骤 maxRounds（验证轮次上限） › 复制、克隆工作流时保留上限",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "复制、克隆工作流时保留上限",
+          "suite_path": [
+            "decodeWorkflowDefinition · 步骤 maxRounds（验证轮次上限）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceSchema.test.tsx › decodeWorkflowDefinition · 步骤 maxRounds（验证轮次上限） › 越界、小数、非数字整份作废（与服务端同一取值口径）",
+          "file": "packages/dashboard-app/src/api/governanceSchema.test.tsx",
+          "name": "越界、小数、非数字整份作废（与服务端同一取值口径）",
+          "suite_path": [
+            "decodeWorkflowDefinition · 步骤 maxRounds（验证轮次上限）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceTestPolicy.integration.test.tsx › 保存工作流保留测试设置（真 server 往返） › 内建 default 读出 → 解码 → 写回 → 再读，每个阶段的档位不变；default 里没有旧 test_policy",
+          "file": "packages/dashboard-app/src/api/governanceTestPolicy.integration.test.tsx",
+          "name": "内建 default 读出 → 解码 → 写回 → 再读，每个阶段的档位不变；default 里没有旧 test_policy",
+          "suite_path": [
+            "保存工作流保留测试设置（真 server 往返）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 186,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/governanceTestPolicy.integration.test.tsx › 保存工作流保留测试设置（真 server 往返） › 旧 test_policy 原样往返；选档位即替换（写回后该步只有 test）",
+          "file": "packages/dashboard-app/src/api/governanceTestPolicy.integration.test.tsx",
+          "name": "旧 test_policy 原样往返；选档位即替换（写回后该步只有 test）",
+          "suite_path": [
+            "保存工作流保留测试设置（真 server 往返）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 155,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx › decodeCatalogResponse › 线上形状原样解出（往返相等）",
+          "file": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx",
+          "name": "线上形状原样解出（往返相等）",
+          "suite_path": [
+            "decodeCatalogResponse"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 2,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx › decodeCatalogResponse › missing / invalid 目录与已知失败各自成状态",
+          "file": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx",
+          "name": "missing / invalid 目录与已知失败各自成状态",
+          "suite_path": [
+            "decodeCatalogResponse"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx › decodeCatalogResponse › 形状不合一律 null：未知状态、缺键、类型错、计数为负",
+          "file": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx",
+          "name": "形状不合一律 null：未知状态、缺键、类型错、计数为负",
+          "suite_path": [
+            "decodeCatalogResponse"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx › decodeCatalogResponse · 档位定义（levels） › 三档的生效定义原样解出：必需类、碰到才跑的类、场景、覆盖率、不稳定、基线与来源",
+          "file": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx",
+          "name": "三档的生效定义原样解出：必需类、碰到才跑的类、场景、覆盖率、不稳定、基线与来源",
+          "suite_path": [
+            "decodeCatalogResponse · 档位定义（levels）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx › decodeCatalogResponse · 档位定义（levels） › levels 缺失、档名 / 类名 / 来源 / 场景取值不合、门槛类型错都整份拒绝",
+          "file": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx",
+          "name": "levels 缺失、档名 / 类名 / 来源 / 场景取值不合、门槛类型错都整份拒绝",
+          "suite_path": [
+            "decodeCatalogResponse · 档位定义（levels）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx › decodeCatalogResponse · 档位定义（levels） › missing / invalid 目录没有 levels",
+          "file": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx",
+          "name": "missing / invalid 目录没有 levels",
+          "suite_path": [
+            "decodeCatalogResponse · 档位定义（levels）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx › decodeBaselinesResponse › 每个画像的中位数、p95 与历史",
+          "file": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx",
+          "name": "每个画像的中位数、p95 与历史",
+          "suite_path": [
+            "decodeBaselinesResponse"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx › decodeBaselinesResponse › 缺画像名、指标方向非法、样本数为 0.5 都拒绝",
+          "file": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx",
+          "name": "缺画像名、指标方向非法、样本数为 0.5 都拒绝",
+          "suite_path": [
+            "decodeBaselinesResponse"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx › decodePlanResponse › 三种状态",
+          "file": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx",
+          "name": "三种状态",
+          "suite_path": [
+            "decodePlanResponse"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx › decodePlanResponse › tampered 缺原因、豁免批准人不是字符串或 null 都拒绝",
+          "file": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx",
+          "name": "tampered 缺原因、豁免批准人不是字符串或 null 都拒绝",
+          "suite_path": [
+            "decodePlanResponse"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx › decodeRecordListResponse / decodeRecordResponse › 列表与明细往返相等",
+          "file": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx",
+          "name": "列表与明细往返相等",
+          "suite_path": [
+            "decodeRecordListResponse / decodeRecordResponse"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx › decodeRecordListResponse / decodeRecordResponse › 明细：未知用例状态、未知产物类型、失败信息缺 message、退出码为字符串都拒绝",
+          "file": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx",
+          "name": "明细：未知用例状态、未知产物类型、失败信息缺 message、退出码为字符串都拒绝",
+          "suite_path": [
+            "decodeRecordListResponse / decodeRecordResponse"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx › decodeRecordListResponse / decodeRecordResponse › 列表：用户链状态非法拒绝",
+          "file": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx",
+          "name": "列表：用户链状态非法拒绝",
+          "suite_path": [
+            "decodeRecordListResponse / decodeRecordResponse"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx › 快照里的策略判定 › 往返相等；同一步骤重复出现拒绝",
+          "file": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx",
+          "name": "往返相等；同一步骤重复出现拒绝",
+          "suite_path": [
+            "快照里的策略判定"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx › 快照里的策略判定 › 策略取值、套件状态、追溯状态、阻塞字段任一不合都拒绝",
+          "file": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx",
+          "name": "策略取值、套件状态、追溯状态、阻塞字段任一不合都拒绝",
+          "suite_path": [
+            "快照里的策略判定"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx › 快照里的策略判定 › 档位策略：level 原样解出（名称、必需类、碰到才跑的类、来源）；旧策略没有 level；写错整份拒绝",
+          "file": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx",
+          "name": "档位策略：level 原样解出（名称、必需类、碰到才跑的类、来源）；旧策略没有 level；写错整份拒绝",
+          "suite_path": [
+            "快照里的策略判定"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 4,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx › 快照里的策略判定 › 自动认领的文件：files.claimed 原样解出；缺 claimed、形状不合都拒绝；不再有 unregistered",
+          "file": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx",
+          "name": "自动认领的文件：files.claimed 原样解出；缺 claimed、形状不合都拒绝；不再有 unregistered",
+          "suite_path": [
+            "快照里的策略判定"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx › 快照里的策略判定 › 步骤测试豁免：套件状态 waived / waiver-pending 与计划里的 test 豁免都能解码",
+          "file": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx",
+          "name": "步骤测试豁免：套件状态 waived / waiver-pending 与计划里的 test 豁免都能解码",
+          "suite_path": [
+            "快照里的策略判定"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx › 快照里的策略判定 › 目录的不适用声明：往返相等；缺省 = 没有声明；每一项字段类型不合都拒绝",
+          "file": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx",
+          "name": "目录的不适用声明：往返相等；缺省 = 没有声明；每一项字段类型不合都拒绝",
+          "suite_path": [
+            "快照里的策略判定"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx › 快照里的策略判定 › 测试完整性：往返相等；缺省 = 没有这段；策略里缺省 notice；任一字段不合都拒绝",
+          "file": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx",
+          "name": "测试完整性：往返相等；缺省 = 没有这段；策略里缺省 notice；任一字段不合都拒绝",
+          "suite_path": [
+            "快照里的策略判定"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx › 快照里的策略判定 › 解码不把提示并进阻塞：完整性提示留在 notices，blockers 的 blocking 标志原样保留",
+          "file": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx",
+          "name": "解码不把提示并进阻塞：完整性提示留在 notices，blockers 的 blocking 标志原样保留",
+          "suite_path": [
+            "快照里的策略判定"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx › 快照里的策略判定 › 没有策略（只有旧步骤测试）时 policy 为 null",
+          "file": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx",
+          "name": "没有策略（只有旧步骤测试）时 policy 为 null",
+          "suite_path": [
+            "快照里的策略判定"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx › 快照里的策略判定 › 计划概要三种状态",
+          "file": "packages/dashboard-app/src/api/testSystemDecoders.test.tsx",
+          "name": "计划概要三种状态",
+          "suite_path": [
+            "快照里的策略判定"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/tests/testPrimitives.test.tsx › testFormat › 耗时：毫秒 / 秒 / 分秒；无效值破折号",
+          "file": "packages/dashboard-app/src/tests/testPrimitives.test.tsx",
+          "name": "耗时：毫秒 / 秒 / 分秒；无效值破折号",
+          "suite_path": [
+            "testFormat"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/tests/testPrimitives.test.tsx › testFormat › 百分比、字节、变化量、指标",
+          "file": "packages/dashboard-app/src/tests/testPrimitives.test.tsx",
+          "name": "百分比、字节、变化量、指标",
+          "suite_path": [
+            "testFormat"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/tests/testPrimitives.test.tsx › testLabels › 阻塞与提示的短标签取自 kernel，按语言选；未知码原样",
+          "file": "packages/dashboard-app/src/tests/testPrimitives.test.tsx",
+          "name": "阻塞与提示的短标签取自 kernel，按语言选；未知码原样",
+          "suite_path": [
+            "testLabels"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/tests/testPrimitives.test.tsx › TestState › 状态 = 圆点 + 一个词；用例状态词与套件状态词各自来自词表",
+          "file": "packages/dashboard-app/src/tests/testPrimitives.test.tsx",
+          "name": "状态 = 圆点 + 一个词；用例状态词与套件状态词各自来自词表",
+          "suite_path": [
+            "TestState"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 13,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/tests/testPrimitives.test.tsx › FixCommand › 命令单行不折行；点复制写入剪贴板并短暂变勾",
+          "file": "packages/dashboard-app/src/tests/testPrimitives.test.tsx",
+          "name": "命令单行不折行；点复制写入剪贴板并短暂变勾",
+          "suite_path": [
+            "FixCommand"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 41,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/tests/testPrimitives.test.tsx › FixCommand › 剪贴板不可用时不抛错也不变勾",
+          "file": "packages/dashboard-app/src/tests/testPrimitives.test.tsx",
+          "name": "剪贴板不可用时不抛错也不变勾",
+          "suite_path": [
+            "FixCommand"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 22,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/tests/testPrimitives.test.tsx › classOf / LEVELS_FILE › 旧种类名按类归并（与 kernel 同一张表）；类名自己不变；不认识的原样返回",
+          "file": "packages/dashboard-app/src/tests/testPrimitives.test.tsx",
+          "name": "旧种类名按类归并（与 kernel 同一张表）；类名自己不变；不认识的原样返回",
+          "suite_path": [
+            "classOf / LEVELS_FILE"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/tests/testPrimitives.test.tsx › classOf / LEVELS_FILE › 每个测试类都有图标，界面词按 tests.kind.<类> 取；档位定义文件只有一个路径",
+          "file": "packages/dashboard-app/src/tests/testPrimitives.test.tsx",
+          "name": "每个测试类都有图标，界面词按 tests.kind.<类> 取；档位定义文件只有一个路径",
+          "suite_path": [
+            "classOf / LEVELS_FILE"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 2,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/tests/testPrimitives.test.tsx › KindIcon › 已知种类各有图标，未知种类回落到 custom 的图标",
+          "file": "packages/dashboard-app/src/tests/testPrimitives.test.tsx",
+          "name": "已知种类各有图标，未知种类回落到 custom 的图标",
+          "suite_path": [
+            "KindIcon"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/tests/testPrimitives.test.tsx › useRemote › 加载 → 就绪；reload 重取；晚到的旧响应不覆盖新的",
+          "file": "packages/dashboard-app/src/tests/testPrimitives.test.tsx",
+          "name": "加载 → 就绪；reload 重取；晚到的旧响应不覆盖新的",
+          "suite_path": [
+            "useRemote"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 3,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/tests/testPrimitives.test.tsx › useRemote › 失败进入 error；enabled=false 不请求",
+          "file": "packages/dashboard-app/src/tests/testPrimitives.test.tsx",
+          "name": "失败进入 error；enabled=false 不请求",
+          "suite_path": [
+            "useRemote"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 56,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workbench/draftChanges.test.tsx › countDraftChanges：「未保存 N 处」按阶段 / 轨道 / 工作流级字段计数 › 没有改动、或只有读接口附带字段不同 → 0；任一边为 null → 0",
+          "file": "packages/dashboard-app/src/workbench/draftChanges.test.tsx",
+          "name": "没有改动、或只有读接口附带字段不同 → 0；任一边为 null → 0",
+          "suite_path": [
+            "countDraftChanges：「未保存 N 处」按阶段 / 轨道 / 工作流级字段计数"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workbench/draftChanges.test.tsx › countDraftChanges：「未保存 N 处」按阶段 / 轨道 / 工作流级字段计数 › 改名 + 换门禁在同一阶段算 1 处；另一轨道再改一处算 2 处",
+          "file": "packages/dashboard-app/src/workbench/draftChanges.test.tsx",
+          "name": "改名 + 换门禁在同一阶段算 1 处；另一轨道再改一处算 2 处",
+          "suite_path": [
+            "countDraftChanges：「未保存 N 处」按阶段 / 轨道 / 工作流级字段计数"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workbench/draftChanges.test.tsx › countDraftChanges：「未保存 N 处」按阶段 / 轨道 / 工作流级字段计数 › gate null 与 auto 同义：null 改成 auto 不算改动，写回时统一是 auto",
+          "file": "packages/dashboard-app/src/workbench/draftChanges.test.tsx",
+          "name": "gate null 与 auto 同义：null 改成 auto 不算改动，写回时统一是 auto",
+          "suite_path": [
+            "countDraftChanges：「未保存 N 处」按阶段 / 轨道 / 工作流级字段计数"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workbench/draftChanges.test.tsx › countDraftChanges：「未保存 N 处」按阶段 / 轨道 / 工作流级字段计数 › 删一个阶段 = 1；只换顺序 = 1；新增轨道 = 1；工作流级开关 = 1",
+          "file": "packages/dashboard-app/src/workbench/draftChanges.test.tsx",
+          "name": "删一个阶段 = 1；只换顺序 = 1；新增轨道 = 1；工作流级开关 = 1",
+          "suite_path": [
+            "countDraftChanges：「未保存 N 处」按阶段 / 轨道 / 工作流级字段计数"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workbench/draftChanges.test.tsx › countDraftChanges：「未保存 N 处」按阶段 / 轨道 / 工作流级字段计数 › 加阶段连带改写前一阶段的转移只算 1 处；删阶段同理",
+          "file": "packages/dashboard-app/src/workbench/draftChanges.test.tsx",
+          "name": "加阶段连带改写前一阶段的转移只算 1 处；删阶段同理",
+          "suite_path": [
+            "countDraftChanges：「未保存 N 处」按阶段 / 轨道 / 工作流级字段计数"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workbench/draftChanges.test.tsx › countDraftChanges：「未保存 N 处」按阶段 / 轨道 / 工作流级字段计数 › 结构不变时改退回目标算在该阶段上；只是键顺序不同不算改动",
+          "file": "packages/dashboard-app/src/workbench/draftChanges.test.tsx",
+          "name": "结构不变时改退回目标算在该阶段上；只是键顺序不同不算改动",
+          "suite_path": [
+            "countDraftChanges：「未保存 N 处」按阶段 / 轨道 / 工作流级字段计数"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workbench/draftChanges.test.tsx › countDraftChanges：「未保存 N 处」按阶段 / 轨道 / 工作流级字段计数 › 阶段里的必须产出、技能、测试策略的改动都记到所属阶段：同一阶段两处改动 = 1 处；OpenSpec 开关只算开关 1 处",
+          "file": "packages/dashboard-app/src/workbench/draftChanges.test.tsx",
+          "name": "阶段里的必须产出、技能、测试策略的改动都记到所属阶段：同一阶段两处改动 = 1 处；OpenSpec 开关只算开关 1 处",
+          "suite_path": [
+            "countDraftChanges：「未保存 N 处」按阶段 / 轨道 / 工作流级字段计数"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workbench/draftChanges.test.tsx › countDraftChanges · 轨道设置 › 改关键词 = 轨道 1 处；改规范 = 1 处",
+          "file": "packages/dashboard-app/src/workbench/draftChanges.test.tsx",
+          "name": "改关键词 = 轨道 1 处；改规范 = 1 处",
+          "suite_path": [
+            "countDraftChanges · 轨道设置"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workbench/draftChanges.test.tsx › countDraftChanges · 轨道设置 › 同样的设置、只是键顺序不同不算改动",
+          "file": "packages/dashboard-app/src/workbench/draftChanges.test.tsx",
+          "name": "同样的设置、只是键顺序不同不算改动",
+          "suite_path": [
+            "countDraftChanges · 轨道设置"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workbench/draftChanges.test.tsx › countDraftChanges · 测试档位 › 改档位算所属阶段的 1 处，换档位仍是 1 处",
+          "file": "packages/dashboard-app/src/workbench/draftChanges.test.tsx",
+          "name": "改档位算所属阶段的 1 处，换档位仍是 1 处",
+          "suite_path": [
+            "countDraftChanges · 测试档位"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workbench/draftChanges.test.tsx › countDraftChanges · 测试档位 › 选档替换旧策略也是 1 处；选回不要求的原状（没有声明）不产生草稿改动",
+          "file": "packages/dashboard-app/src/workbench/draftChanges.test.tsx",
+          "name": "选档替换旧策略也是 1 处；选回不要求的原状（没有声明）不产生草稿改动",
+          "suite_path": [
+            "countDraftChanges · 测试档位"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx › workbenchDefinition · 写回投影 › 门禁只有 评审 / 自动：gate null 读作自动，写回时顶层与每条轨道分支都显式写 auto，review 不动",
+          "file": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx",
+          "name": "门禁只有 评审 / 自动：gate null 读作自动，写回时顶层与每条轨道分支都显式写 auto，review 不动",
+          "suite_path": [
+            "workbenchDefinition · 写回投影"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx › workbenchDefinition · 写回投影 › definitionForWrite 剔除 source / branches；clone 深拷贝且不带投影字段",
+          "file": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx",
+          "name": "definitionForWrite 剔除 source / branches；clone 深拷贝且不带投影字段",
+          "suite_path": [
+            "workbenchDefinition · 写回投影"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx › workbenchDefinition · 技能顺序（kernel skill-order） › addSkill 不写 depends_on，按声明顺序接在最后；removeSkill 顺带清掉依赖，只依赖它的改回声明顺序",
+          "file": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx",
+          "name": "addSkill 不写 depends_on，按声明顺序接在最后；removeSkill 顺带清掉依赖，只依赖它的改回声明顺序",
+          "suite_path": [
+            "workbenchDefinition · 技能顺序（kernel skill-order）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx › workbenchDefinition · 删除阶段 › removeStage 删掉阶段并重接转换边；阶段上的必须产出随阶段一起走，别的阶段不受影响",
+          "file": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx",
+          "name": "removeStage 删掉阶段并重接转换边；阶段上的必须产出随阶段一起走，别的阶段不受影响",
+          "suite_path": [
+            "workbenchDefinition · 删除阶段"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx › workbenchDefinition · 删除阶段 › 删中间阶段：前一阶段的正向边接到新的下一阶段；指向它的退回边改指它的下一阶段，变成自指就删，与已有同目标边冲突就丢改出来的那条",
+          "file": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx",
+          "name": "删中间阶段：前一阶段的正向边接到新的下一阶段；指向它的退回边改指它的下一阶段，变成自指就删，与已有同目标边冲突就丢改出来的那条",
+          "suite_path": [
+            "workbenchDefinition · 删除阶段"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx › workbenchDefinition · 删除阶段 › 删阶段：退回边改指它的下一阶段后仍在来源之前 → 保留 event / guards / actions",
+          "file": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx",
+          "name": "删阶段：退回边改指它的下一阶段后仍在来源之前 → 保留 event / guards / actions",
+          "suite_path": [
+            "workbenchDefinition · 删除阶段"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx › workbenchDefinition · 删除阶段 › 删阶段：前一阶段另有往后跳到新下一阶段的边 → 不留两条同目标边",
+          "file": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx",
+          "name": "删阶段：前一阶段另有往后跳到新下一阶段的边 → 不留两条同目标边",
+          "suite_path": [
+            "workbenchDefinition · 删除阶段"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx › workbenchDefinition · 排序 › E2E 复现：把末阶段 verify 拖到它的退回目标 build 之前 → 旧退回边删掉，不再变成第二条去 build 的边",
+          "file": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx",
+          "name": "E2E 复现：把末阶段 verify 拖到它的退回目标 build 之前 → 旧退回边删掉，不再变成第二条去 build 的边",
+          "suite_path": [
+            "workbenchDefinition · 排序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx › workbenchDefinition · 排序 › 仍然指向更早阶段的退回边原样保留（同一个对象，guards / actions 不动）；失效的退回边删掉",
+          "file": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx",
+          "name": "仍然指向更早阶段的退回边原样保留（同一个对象，guards / actions 不动）；失效的退回边删掉",
+          "suite_path": [
+            "workbenchDefinition · 排序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx › workbenchDefinition · 排序 › 移动中间阶段：正向边保留事件名改指新的下一阶段；变成往后指的退回边删掉，别的退回边保留",
+          "file": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx",
+          "name": "移动中间阶段：正向边保留事件名改指新的下一阶段；变成往后指的退回边删掉，别的退回边保留",
+          "suite_path": [
+            "workbenchDefinition · 排序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx › workbenchDefinition · 排序 › 移动第一个阶段到末尾：指向它的退回边全部失效；原末阶段合成正向边，不与旧退回边同目标",
+          "file": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx",
+          "name": "移动第一个阶段到末尾：指向它的退回边全部失效；原末阶段合成正向边，不与旧退回边同目标",
+          "suite_path": [
+            "workbenchDefinition · 排序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx › workbenchDefinition · 排序 › 往后跳的边在排序后成了去下一阶段的边也不留：正向边只有一条",
+          "file": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx",
+          "name": "往后跳的边在排序后成了去下一阶段的边也不留：正向边只有一条",
+          "suite_path": [
+            "workbenchDefinition · 排序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx › workbenchDefinition · 排序与删阶段丢掉的退回边 › 拖走再拖回：丢掉的 verify-fail 被报出来，作为模板重新选回时整条装回",
+          "file": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx",
+          "name": "拖走再拖回：丢掉的 verify-fail 被报出来，作为模板重新选回时整条装回",
+          "suite_path": [
+            "workbenchDefinition · 排序与删阶段丢掉的退回边"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx › workbenchDefinition · 排序与删阶段丢掉的退回边 › 删掉退回目标、改指后成了自指：丢掉的边被报出来；退回边还在的阶段与被删阶段不报",
+          "file": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx",
+          "name": "删掉退回目标、改指后成了自指：丢掉的边被报出来；退回边还在的阶段与被删阶段不报",
+          "suite_path": [
+            "workbenchDefinition · 排序与删阶段丢掉的退回边"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx › workbenchDefinition · 新建 › 从 default 复制：原样深拷贝（必须产出守卫、分支设置都带着），不带读接口附带的投影；不写任何文档契约",
+          "file": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx",
+          "name": "从 default 复制：原样深拷贝（必须产出守卫、分支设置都带着），不带读接口附带的投影；不写任何文档契约",
+          "suite_path": [
+            "workbenchDefinition · 新建"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx › workbenchDefinition · 新建 › blankWorkflow 一个阶段、无输出；workflowNameFromYaml 取 name 行",
+          "file": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx",
+          "name": "blankWorkflow 一个阶段、无输出；workflowNameFromYaml 取 name 行",
+          "suite_path": [
+            "workbenchDefinition · 新建"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx › workbenchDefinition · OpenSpec 开关与离开条件 › setOpenspecInDef：开启写 openspec: true，关闭删掉这个键；分支与阶段（含必须产出）原样不动",
+          "file": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx",
+          "name": "setOpenspecInDef：开启写 openspec: true，关闭删掉这个键；分支与阶段（含必须产出）原样不动",
+          "suite_path": [
+            "workbenchDefinition · OpenSpec 开关与离开条件"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx › workbenchDefinition · OpenSpec 开关与离开条件 › 分支视图只带所选分支的步骤；写回只改所选分支，新建轨道深拷贝来源分支的步骤（必须产出一并带着）",
+          "file": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx",
+          "name": "分支视图只带所选分支的步骤；写回只改所选分支，新建轨道深拷贝来源分支的步骤（必须产出一并带着）",
+          "suite_path": [
+            "workbenchDefinition · OpenSpec 开关与离开条件"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx › workbenchDefinition · track 分支 › branchesOf：有 tracks 只列 track；selectBranchDef 提升分支 steps，不存在的分支退到第一条；writeBranchDef 只写回对应分支",
+          "file": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx",
+          "name": "branchesOf：有 tracks 只列 track；selectBranchDef 提升分支 steps，不存在的分支退到第一条；writeBranchDef 只写回对应分支",
+          "suite_path": [
+            "workbenchDefinition · track 分支"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx › workbenchDefinition · track 分支 › 分支视图的 openspec 取分支自己的 spec（没写继承顶层）；写回时不把分支的取值冒充成工作流顶层的开关",
+          "file": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx",
+          "name": "分支视图的 openspec 取分支自己的 spec（没写继承顶层）；写回时不把分支的取值冒充成工作流顶层的开关",
+          "suite_path": [
+            "workbenchDefinition · track 分支"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx › workbenchDefinition · track 分支 › addTrackBranch：单条 pipeline 的工作流搬进 main 再加新分支；已有 tracks 复制指定分支；removeTrackBranch 删到最后一条时 steps 回到顶层",
+          "file": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx",
+          "name": "addTrackBranch：单条 pipeline 的工作流搬进 main 再加新分支；已有 tracks 复制指定分支；removeTrackBranch 删到最后一条时 steps 回到顶层",
+          "suite_path": [
+            "workbenchDefinition · track 分支"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx › setStepAgentsInDef › 只替换给的那一侧；两侧都空时删掉 agents 键",
+          "file": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx",
+          "name": "只替换给的那一侧；两侧都空时删掉 agents 键",
+          "suite_path": [
+            "setStepAgentsInDef"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx › setStepTestLevelInDef › 给一个阶段写入档位；别的阶段与入参都不动",
+          "file": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx",
+          "name": "给一个阶段写入档位；别的阶段与入参都不动",
+          "suite_path": [
+            "setStepTestLevelInDef"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx › setStepTestLevelInDef › 换档位：新档位替换旧档位",
+          "file": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx",
+          "name": "换档位：新档位替换旧档位",
+          "suite_path": [
+            "setStepTestLevelInDef"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx › setStepTestLevelInDef › 选档即替换旧 test_policy：写 test、删 test_policy，旧策略的任何键都不留",
+          "file": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx",
+          "name": "选档即替换旧 test_policy：写 test、删 test_policy，旧策略的任何键都不留",
+          "suite_path": [
+            "setStepTestLevelInDef"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx › setStepTestLevelInDef › 内容没变时返回原对象（不制造无意义的草稿改动）：同档位、没有声明时选「不要求」、不存在的阶段",
+          "file": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx",
+          "name": "内容没变时返回原对象（不制造无意义的草稿改动）：同档位、没有声明时选「不要求」、不存在的阶段",
+          "suite_path": [
+            "setStepTestLevelInDef"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx › setStepTestLevelInDef › 写回前整形（definitionForWrite）仍带着档位；复制工作流保留每个阶段的档位",
+          "file": "packages/dashboard-app/src/workbench/workbenchDefinition.test.tsx",
+          "name": "写回前整形（definitionForWrite）仍带着档位；复制工作流保留每个阶段的档位",
+          "suite_path": [
+            "setStepTestLevelInDef"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/GateSection.test.tsx › GateSection · 离开条件 › 后端实现步：实现前评审通过 · 本阶段任务已勾选 · 未在 AFK 队列中 · 依赖任务已结束，每条一行，退回边的条件不列",
+          "file": "packages/dashboard-app/src/workflow/GateSection.test.tsx",
+          "name": "后端实现步：实现前评审通过 · 本阶段任务已勾选 · 未在 AFK 队列中 · 依赖任务已结束，每条一行，退回边的条件不列",
+          "suite_path": [
+            "GateSection · 离开条件"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 56,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/GateSection.test.tsx › GateSection · 离开条件 › 放弃边（scope-expanded，转入已升级）的条件不算离开条件：任务要被放弃了，与 CLI 的 check 同口径",
+          "file": "packages/dashboard-app/src/workflow/GateSection.test.tsx",
+          "name": "放弃边（scope-expanded，转入已升级）的条件不算离开条件：任务要被放弃了，与 CLI 的 check 同口径",
+          "suite_path": [
+            "GateSection · 离开条件"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 5,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/GateSection.test.tsx › GateSection · 离开条件 › 只读：条件行里没有输入框、按钮、开关，也不随 canWrite 出现编辑入口",
+          "file": "packages/dashboard-app/src/workflow/GateSection.test.tsx",
+          "name": "只读：条件行里没有输入框、按钮、开关，也不随 canWrite 出现编辑入口",
+          "suite_path": [
+            "GateSection · 离开条件"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 25,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/GateSection.test.tsx › GateSection · 离开条件 › 没有任何离开条件的阶段不画这一块",
+          "file": "packages/dashboard-app/src/workflow/GateSection.test.tsx",
+          "name": "没有任何离开条件的阶段不画这一块",
+          "suite_path": [
+            "GateSection · 离开条件"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 36,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/GateSection.test.tsx › GateSection · 离开条件 › 覆盖已有的 guard 类型，每种一句话；相同的话只列一次",
+          "file": "packages/dashboard-app/src/workflow/GateSection.test.tsx",
+          "name": "覆盖已有的 guard 类型，每种一句话；相同的话只列一次",
+          "suite_path": [
+            "GateSection · 离开条件"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 6,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/GateSection.test.tsx › GateSection · 离开条件 › 自动门禁的警示只看有没有离开条件：default 的实现步（有条件）不出；一条条件都没有的自动阶段出，评审门不出",
+          "file": "packages/dashboard-app/src/workflow/GateSection.test.tsx",
+          "name": "自动门禁的警示只看有没有离开条件：default 的实现步（有条件）不出；一条条件都没有的自动阶段出，评审门不出",
+          "suite_path": [
+            "GateSection · 离开条件"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 29,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/GateSection.test.tsx › GateSection · 离开条件 › 必须产出：一条一行，不换行，完整文案进 title；路径里的 {change} 原样显示",
+          "file": "packages/dashboard-app/src/workflow/GateSection.test.tsx",
+          "name": "必须产出：一条一行，不换行，完整文案进 title；路径里的 {change} 原样显示",
+          "suite_path": [
+            "GateSection · 离开条件"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 4,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/GateSection.test.tsx › GateSection · 离开条件 › 必须产出可挂在通向后面阶段的转换上；带 when 的只在命中的轨道出现；退回边上的不算",
+          "file": "packages/dashboard-app/src/workflow/GateSection.test.tsx",
+          "name": "必须产出可挂在通向后面阶段的转换上；带 when 的只在命中的轨道出现；退回边上的不算",
+          "suite_path": [
+            "GateSection · 离开条件"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 12,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/GateSection.test.tsx › GateSection · 离开条件 › 带 when 的条件只在所选轨道命中时列出",
+          "file": "packages/dashboard-app/src/workflow/GateSection.test.tsx",
+          "name": "带 when 的条件只在所选轨道命中时列出",
+          "suite_path": [
+            "GateSection · 离开条件"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 18,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/GateSection.test.tsx › GateSection · 离开条件 › English wording",
+          "file": "packages/dashboard-app/src/workflow/GateSection.test.tsx",
+          "name": "English wording",
+          "suite_path": [
+            "GateSection · 离开条件"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 25,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/GateSection.test.tsx › GateSection · 离开条件 › 门禁段原有的内容还在：分段控件与退回目标",
+          "file": "packages/dashboard-app/src/workflow/GateSection.test.tsx",
+          "name": "门禁段原有的内容还在：分段控件与退回目标",
+          "suite_path": [
+            "GateSection · 离开条件"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 5,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx › StageEditorPane · 两栏定稿 › 没有面包屑与「n / N」：工作流名与轨道只在左栏；标题输入直接改名；段落顺序 技能 → 门禁",
+          "file": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx",
+          "name": "没有面包屑与「n / N」：工作流名与轨道只在左栏；标题输入直接改名；段落顺序 技能 → 门禁",
+          "suite_path": [
+            "StageEditorPane · 两栏定稿"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 85,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx › StageEditorPane · 两栏定稿 › 没有输入表与输出表：不手写每步的输入输出，也没有 + 输入 / + 输出的入口",
+          "file": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx",
+          "name": "没有输入表与输出表：不手写每步的输入输出，也没有 + 输入 / + 输出的入口",
+          "suite_path": [
+            "StageEditorPane · 两栏定稿"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 29,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx › StageEditorPane · 两栏定稿 › 必须产出列在门禁段：必须产出 <路径>，一条一行",
+          "file": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx",
+          "name": "必须产出列在门禁段：必须产出 <路径>，一条一行",
+          "suite_path": [
+            "StageEditorPane · 两栏定稿"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 12,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx › StageEditorPane · 两栏定稿 › 只读且本阶段什么都没有：段内只写「无」，不渲染空画布；可编辑时有动作的空泳道（执行者、评审者）各留一个「＋」",
+          "file": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx",
+          "name": "只读且本阶段什么都没有：段内只写「无」，不渲染空画布；可编辑时有动作的空泳道（执行者、评审者）各留一个「＋」",
+          "suite_path": [
+            "StageEditorPane · 两栏定稿"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 23,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx › StageEditorPane · 两栏定稿 › 保存条只在有改动时渲染：写「未保存 N 处」，在滚动区之外（不盖住门禁 / 退回）；没改动（含无写入凭证）整条不渲染",
+          "file": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx",
+          "name": "保存条只在有改动时渲染：写「未保存 N 处」，在滚动区之外（不盖住门禁 / 退回）；没改动（含无写入凭证）整条不渲染",
+          "suite_path": [
+            "StageEditorPane · 两栏定稿"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 31,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx › StageEditorPane · 两栏定稿 › 无写入凭证：右栏顶部直接给错误（role=alert），排在阶段名之前；「已保存」这类非错误不显示",
+          "file": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx",
+          "name": "无写入凭证：右栏顶部直接给错误（role=alert），排在阶段名之前；「已保存」这类非错误不显示",
+          "suite_path": [
+            "StageEditorPane · 两栏定稿"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 18,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx › StageEditorPane · 两栏定稿 › 保存条：改动清空（保存成功 / 放弃）后卸载；保存失败时仍在并显示原因；点保存 / 放弃各自回调",
+          "file": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx",
+          "name": "保存条：改动清空（保存成功 / 放弃）后卸载；保存失败时仍在并显示原因；点保存 / 放弃各自回调",
+          "suite_path": [
+            "StageEditorPane · 两栏定稿"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 36,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx › StageEditorPane · 两栏定稿 › lint 挡住保存时保存条说明原因、保存禁用",
+          "file": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx",
+          "name": "lint 挡住保存时保存条说明原因、保存禁用",
+          "suite_path": [
+            "StageEditorPane · 两栏定稿"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 9,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx › StageEditorPane · 两栏定稿 › 技能画布：与总览同一组件的单列形态；节点数 = 条目数；点技能打开详情抽屉；编辑按钮打开编辑器",
+          "file": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx",
+          "name": "技能画布：与总览同一组件的单列形态；节点数 = 条目数；点技能打开详情抽屉；编辑按钮打开编辑器",
+          "suite_path": [
+            "StageEditorPane · 两栏定稿"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 90,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx › StageEditorPane · 两栏定稿 › 右栏只有两段：技能 → 门禁；执行者 / 测试 / 评审者是技能画布里的泳道，退回与测试策略在门禁段里",
+          "file": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx",
+          "name": "右栏只有两段：技能 → 门禁；执行者 / 测试 / 评审者是技能画布里的泳道，退回与测试策略在门禁段里",
+          "suite_path": [
+            "StageEditorPane · 两栏定稿"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 19,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx › StageEditorPane · 两栏定稿 › 泳道按 runner 顺序：执行者 → 技能 → 测试 → 评审者；泳道旁的动作打开对应编辑器，旧步骤测试节点只读",
+          "file": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx",
+          "name": "泳道按 runner 顺序：执行者 → 技能 → 测试 → 评审者；泳道旁的动作打开对应编辑器，旧步骤测试节点只读",
+          "suite_path": [
+            "StageEditorPane · 两栏定稿"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 53,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx › StageEditorPane · 两栏定稿 › 测试泳道也画策略要求运行的种类：一个种类一个节点，词是种类的界面词、标识在提示里；旧测试已覆盖的种类不重复",
+          "file": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx",
+          "name": "测试泳道也画策略要求运行的种类：一个种类一个节点，词是种类的界面词、标识在提示里；旧测试已覆盖的种类不重复",
+          "suite_path": [
+            "StageEditorPane · 两栏定稿"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 13,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx › StageEditorPane · 两栏定稿 › 门禁是分段控件：fill 轨道，选中项里有白色滑块，没有内联说明图标",
+          "file": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx",
+          "name": "门禁是分段控件：fill 轨道，选中项里有白色滑块，没有内联说明图标",
+          "suite_path": [
+            "StageEditorPane · 两栏定稿"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 10,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx › StageEditorPane · 两栏定稿 › 门禁键盘：方向键在评审 / 自动两项间移动并选中",
+          "file": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx",
+          "name": "门禁键盘：方向键在评审 / 自动两项间移动并选中",
+          "suite_path": [
+            "StageEditorPane · 两栏定稿"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 30,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx › StageEditorPane · 两栏定稿 › 门禁两选（评审 / 自动）：aria-checked 跟随 step.gate，点选写回；说明用 Tooltip（聚焦可达），不用原生 title",
+          "file": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx",
+          "name": "门禁两选（评审 / 自动）：aria-checked 跟随 step.gate，点选写回；说明用 Tooltip（聚焦可达），不用原生 title",
+          "suite_path": [
+            "StageEditorPane · 两栏定稿"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 27,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx › StageEditorPane · 两栏定稿 › gate null 与自动同义：控件按自动选中，点「自动」不产生改动；点「评审」写回 review",
+          "file": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx",
+          "name": "gate null 与自动同义：控件按自动选中，点「自动」不产生改动；点「评审」写回 review",
+          "suite_path": [
+            "StageEditorPane · 两栏定稿"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 26,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx › StageEditorPane · 切换阶段的进场 › 按阶段重挂载时各段依次上浮淡入（revealList，错开 0.03s）",
+          "file": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx",
+          "name": "按阶段重挂载时各段依次上浮淡入（revealList，错开 0.03s）",
+          "suite_path": [
+            "StageEditorPane · 切换阶段的进场"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 9,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx › StageEditorPane · 技能只来自 YAML › 没声明技能的阶段不会凭空多出技能节点",
+          "file": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx",
+          "name": "没声明技能的阶段不会凭空多出技能节点",
+          "suite_path": [
+            "StageEditorPane · 技能只来自 YAML"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 6,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx › StageEditorPane · 技能只来自 YAML › 声明了的技能原样画出，别名也不会被另行注入",
+          "file": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx",
+          "name": "声明了的技能原样画出，别名也不会被另行注入",
+          "suite_path": [
+            "StageEditorPane · 技能只来自 YAML"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 7,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx › StageEditorPane · 自动门禁与只读 › 自动门禁的阶段完全没有离开条件：门禁旁出警示图标（说明在 Tooltip）；有任何离开条件或非自动时不出",
+          "file": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx",
+          "name": "自动门禁的阶段完全没有离开条件：门禁旁出警示图标（说明在 Tooltip）；有任何离开条件或非自动时不出",
+          "suite_path": [
+            "StageEditorPane · 自动门禁与只读"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 44,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx › StageEditorPane · 自动门禁与只读 › 不能写入（缺凭证）：报缺凭证错误，写入口置灰",
+          "file": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx",
+          "name": "不能写入（缺凭证）：报缺凭证错误，写入口置灰",
+          "suite_path": [
+            "StageEditorPane · 自动门禁与只读"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 6,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx › StageEditorPane · 退回 › 退回下拉只列本阶段之前的阶段，加「不退回」；当前值取自指向靠前阶段的那条 transition",
+          "file": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx",
+          "name": "退回下拉只列本阶段之前的阶段，加「不退回」；当前值取自指向靠前阶段的那条 transition",
+          "suite_path": [
+            "StageEditorPane · 退回"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 38,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx › StageEditorPane · 退回 › 界面上没有事件名和正向去向",
+          "file": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx",
+          "name": "界面上没有事件名和正向去向",
+          "suite_path": [
+            "StageEditorPane · 退回"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 12,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx › StageEditorPane · 退回 › 第一个阶段没有可退回的目标，整段不渲染",
+          "file": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx",
+          "name": "第一个阶段没有可退回的目标，整段不渲染",
+          "suite_path": [
+            "StageEditorPane · 退回"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 7,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx › StageEditorPane · 退回 › 选目标与选「不退回」各自回调",
+          "file": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx",
+          "name": "选目标与选「不退回」各自回调",
+          "suite_path": [
+            "StageEditorPane · 退回"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 77,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx › StageEditorPane · 退回 › 无写入凭证时下拉禁用",
+          "file": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx",
+          "name": "无写入凭证时下拉禁用",
+          "suite_path": [
+            "StageEditorPane · 退回"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 8,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx › StageEditorPane · 退回 › 本阶段的退回 lint 显示在段内",
+          "file": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx",
+          "name": "本阶段的退回 lint 显示在段内",
+          "suite_path": [
+            "StageEditorPane · 退回"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 8,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx › StageEditorPane · 退回 › 既不去下一阶段也不退回的转移：段内说出事件与目标",
+          "file": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx",
+          "name": "既不去下一阶段也不退回的转移：段内说出事件与目标",
+          "suite_path": [
+            "StageEditorPane · 退回"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 8,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx › StageEditorPane · 退回 › 第一个阶段带着往后跳的边：段落只为说出问题而出现，没有下拉",
+          "file": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx",
+          "name": "第一个阶段带着往后跳的边：段落只为说出问题而出现，没有下拉",
+          "suite_path": [
+            "StageEditorPane · 退回"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 7,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx › StageEditorPane · 测试 › 测试是技能画布里的一条泳道（技能之后、评审者之前）；旧步骤测试只读：没有「+」，点节点不开抽屉",
+          "file": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx",
+          "name": "测试是技能画布里的一条泳道（技能之后、评审者之前）；旧步骤测试只读：没有「+」，点节点不开抽屉",
+          "suite_path": [
+            "StageEditorPane · 测试"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 26,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx › StageEditorPane · 测试 › 没有独立的测试段：测试档位在门禁段里，顺序 门禁 → 退回 → 测试档位",
+          "file": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx",
+          "name": "没有独立的测试段：测试档位在门禁段里，顺序 门禁 → 退回 → 测试档位",
+          "suite_path": [
+            "StageEditorPane · 测试"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 13,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx › StageEditorPane · 测试 › 选档位经 setTestLevel 回草稿；旧策略只读显示摘要，旧步骤测试是只读行，只给转成目录套件的命令",
+          "file": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx",
+          "name": "选档位经 setTestLevel 回草稿；旧策略只读显示摘要，旧步骤测试是只读行，只给转成目录套件的命令",
+          "suite_path": [
+            "StageEditorPane · 测试"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 35,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx › StageEditorPane · 测试 › 没有声明的阶段：「不要求」被选中，没有添加 / 移除动作；选另一档经 setTestLevel 写入",
+          "file": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx",
+          "name": "没有声明的阶段：「不要求」被选中，没有添加 / 移除动作；选另一档经 setTestLevel 写入",
+          "suite_path": [
+            "StageEditorPane · 测试"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 17,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx › StageEditorPane · 测试 › 无写入凭证：档位单选只读",
+          "file": "packages/dashboard-app/src/workflow/StageEditorPane.test.tsx",
+          "name": "无写入凭证：档位单选只读",
+          "suite_path": [
+            "StageEditorPane · 测试"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 10,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/TestPolicyForm.test.tsx › TestPolicyForm · 档位单选 › 四选一：不要求 / 写计划 / 跑改动 / 全量，按这个顺序；子块头一行，只有一个标题",
+          "file": "packages/dashboard-app/src/workflow/TestPolicyForm.test.tsx",
+          "name": "四选一：不要求 / 写计划 / 跑改动 / 全量，按这个顺序；子块头一行，只有一个标题",
+          "suite_path": [
+            "TestPolicyForm · 档位单选"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 65,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/TestPolicyForm.test.tsx › TestPolicyForm · 档位单选 › 没有声明：选中「不要求」；声明了哪档就选中哪档",
+          "file": "packages/dashboard-app/src/workflow/TestPolicyForm.test.tsx",
+          "name": "没有声明：选中「不要求」；声明了哪档就选中哪档",
+          "suite_path": [
+            "TestPolicyForm · 档位单选"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 3,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/TestPolicyForm.test.tsx › TestPolicyForm · 档位单选 › 档位 none 被选中，别的不选",
+          "file": "packages/dashboard-app/src/workflow/TestPolicyForm.test.tsx",
+          "name": "档位 none 被选中，别的不选",
+          "suite_path": [
+            "TestPolicyForm · 档位单选"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 2,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/TestPolicyForm.test.tsx › TestPolicyForm · 档位单选 › 档位 plan 被选中，别的不选",
+          "file": "packages/dashboard-app/src/workflow/TestPolicyForm.test.tsx",
+          "name": "档位 plan 被选中，别的不选",
+          "suite_path": [
+            "TestPolicyForm · 档位单选"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 2,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/TestPolicyForm.test.tsx › TestPolicyForm · 档位单选 › 档位 changed 被选中，别的不选",
+          "file": "packages/dashboard-app/src/workflow/TestPolicyForm.test.tsx",
+          "name": "档位 changed 被选中，别的不选",
+          "suite_path": [
+            "TestPolicyForm · 档位单选"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 2,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/TestPolicyForm.test.tsx › TestPolicyForm · 档位单选 › 档位 full 被选中，别的不选",
+          "file": "packages/dashboard-app/src/workflow/TestPolicyForm.test.tsx",
+          "name": "档位 full 被选中，别的不选",
+          "suite_path": [
+            "TestPolicyForm · 档位单选"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/TestPolicyForm.test.tsx › TestPolicyForm · 档位单选 › 点另一档上报该档位；点已选中的不上报",
+          "file": "packages/dashboard-app/src/workflow/TestPolicyForm.test.tsx",
+          "name": "点另一档上报该档位；点已选中的不上报",
+          "suite_path": [
+            "TestPolicyForm · 档位单选"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 43,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/TestPolicyForm.test.tsx › TestPolicyForm · 档位单选 › 键盘：只有选中的那一项在 Tab 序里；方向键、Home、End 在选项间移动并即时选中",
+          "file": "packages/dashboard-app/src/workflow/TestPolicyForm.test.tsx",
+          "name": "键盘：只有选中的那一项在 Tab 序里；方向键、Home、End 在选项间移动并即时选中",
+          "suite_path": [
+            "TestPolicyForm · 档位单选"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 40,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/TestPolicyForm.test.tsx › TestPolicyForm · 档位单选 › 页面上没有说明句子；档位定义在哪个文件只在图标的 Tooltip 里，键盘聚焦即可读到",
+          "file": "packages/dashboard-app/src/workflow/TestPolicyForm.test.tsx",
+          "name": "页面上没有说明句子；档位定义在哪个文件只在图标的 Tooltip 里，键盘聚焦即可读到",
+          "suite_path": [
+            "TestPolicyForm · 档位单选"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 26,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/TestPolicyForm.test.tsx › TestPolicyForm · 档位单选 › 标签与选项不折行",
+          "file": "packages/dashboard-app/src/workflow/TestPolicyForm.test.tsx",
+          "name": "标签与选项不折行",
+          "suite_path": [
+            "TestPolicyForm · 档位单选"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 2,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/TestPolicyForm.test.tsx › TestPolicyForm · 档位单选 › 只读：选项全部禁用，点击不上报，选中项照常显示，没有动作",
+          "file": "packages/dashboard-app/src/workflow/TestPolicyForm.test.tsx",
+          "name": "只读：选项全部禁用，点击不上报，选中项照常显示，没有动作",
+          "suite_path": [
+            "TestPolicyForm · 档位单选"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 12,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/TestPolicyForm.test.tsx › TestPolicyForm · 旧 test_policy › 只读摘要：种类（必跑 / 登记 / 有则跑去重）· 范围；没有任何档位被选中，第一项可 Tab 进入",
+          "file": "packages/dashboard-app/src/workflow/TestPolicyForm.test.tsx",
+          "name": "只读摘要：种类（必跑 / 登记 / 有则跑去重）· 范围；没有任何档位被选中，第一项可 Tab 进入",
+          "suite_path": [
+            "TestPolicyForm · 旧 test_policy"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 2,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/TestPolicyForm.test.tsx › TestPolicyForm · 旧 test_policy › 旧策略没有种类也没有范围：摘要是破折号",
+          "file": "packages/dashboard-app/src/workflow/TestPolicyForm.test.tsx",
+          "name": "旧策略没有种类也没有范围：摘要是破折号",
+          "suite_path": [
+            "TestPolicyForm · 旧 test_policy"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/TestPolicyForm.test.tsx › TestPolicyForm · 旧 test_policy › 选档即替换：上报新档位，摘要随之消失，该档被选中",
+          "file": "packages/dashboard-app/src/workflow/TestPolicyForm.test.tsx",
+          "name": "选档即替换：上报新档位，摘要随之消失，该档被选中",
+          "suite_path": [
+            "TestPolicyForm · 旧 test_policy"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 20,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/TestPolicyForm.test.tsx › TestPolicyForm · 旧 test_policy › 选「不要求」同样替换旧策略（旧策略下没有任何档位被选中，所以这一点是有效动作）",
+          "file": "packages/dashboard-app/src/workflow/TestPolicyForm.test.tsx",
+          "name": "选「不要求」同样替换旧策略（旧策略下没有任何档位被选中，所以这一点是有效动作）",
+          "suite_path": [
+            "TestPolicyForm · 旧 test_policy"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 20,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/TestPolicyForm.test.tsx › TestPolicyForm · 旧 test_policy › 只读且有旧策略：摘要照常显示，选项禁用",
+          "file": "packages/dashboard-app/src/workflow/TestPolicyForm.test.tsx",
+          "name": "只读且有旧策略：摘要照常显示，选项禁用",
+          "suite_path": [
+            "TestPolicyForm · 旧 test_policy"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 10,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/TestPolicyForm.test.tsx › TestPolicyForm · 旧步骤测试（只读行） › 一行一项：名称（label，缺省 id）· 种类 · 命令 · 可复制的转成目录套件命令；没有编辑入口",
+          "file": "packages/dashboard-app/src/workflow/TestPolicyForm.test.tsx",
+          "name": "一行一项：名称（label，缺省 id）· 种类 · 命令 · 可复制的转成目录套件命令；没有编辑入口",
+          "suite_path": [
+            "TestPolicyForm · 旧步骤测试（只读行）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 27,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/TestPolicyForm.test.tsx › TestPolicyForm · 旧步骤测试（只读行） › 旧步骤测试与档位并存：两者都显示",
+          "file": "packages/dashboard-app/src/workflow/TestPolicyForm.test.tsx",
+          "name": "旧步骤测试与档位并存：两者都显示",
+          "suite_path": [
+            "TestPolicyForm · 旧步骤测试（只读行）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 5,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx › WorkflowView · URL 记住工作流 / 轨道 / 阶段 › 深链 ?wf=&track=&step= 直接落到那个阶段",
+          "file": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx",
+          "name": "深链 ?wf=&track=&step= 直接落到那个阶段",
+          "suite_path": [
+            "WorkflowView · URL 记住工作流 / 轨道 / 阶段"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 88,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx › WorkflowView · URL 记住工作流 / 轨道 / 阶段 › 深链点名的工作流不存在：落到 default，并把 URL 改成实际选择",
+          "file": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx",
+          "name": "深链点名的工作流不存在：落到 default，并把 URL 改成实际选择",
+          "suite_path": [
+            "WorkflowView · URL 记住工作流 / 轨道 / 阶段"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 26,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx › WorkflowView · URL 记住工作流 / 轨道 / 阶段 › 没有深链：有自定义工作流也打开 default",
+          "file": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx",
+          "name": "没有深链：有自定义工作流也打开 default",
+          "suite_path": [
+            "WorkflowView · URL 记住工作流 / 轨道 / 阶段"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 24,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx › WorkflowView · URL 记住工作流 / 轨道 / 阶段 › 换轨道、选阶段都写回 URL（replace，不加历史项），外部 query 原样保留",
+          "file": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx",
+          "name": "换轨道、选阶段都写回 URL（replace，不加历史项），外部 query 原样保留",
+          "suite_path": [
+            "WorkflowView · URL 记住工作流 / 轨道 / 阶段"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 82,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx › WorkflowView · 测试档位随保存写回 › 某步选「跑改动」并保存：未保存 1 处；请求体该步是 test: changed，没有 test_policy",
+          "file": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx",
+          "name": "某步选「跑改动」并保存：未保存 1 处；请求体该步是 test: changed，没有 test_policy",
+          "suite_path": [
+            "WorkflowView · 测试档位随保存写回"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 55,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx › WorkflowView · 测试档位随保存写回 › 旧 test_policy 步骤先只读显示摘要，选档即替换：保存后该步只有 test，旧策略的键一个不留",
+          "file": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx",
+          "name": "旧 test_policy 步骤先只读显示摘要，选档即替换：保存后该步只有 test，旧策略的键一个不留",
+          "suite_path": [
+            "WorkflowView · 测试档位随保存写回"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 47,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx › WorkflowView · 测试档位随保存写回 › 换档位也是一处改动；选「不要求」写 test: none",
+          "file": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx",
+          "name": "换档位也是一处改动；选「不要求」写 test: none",
+          "suite_path": [
+            "WorkflowView · 测试档位随保存写回"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 45,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx › WorkflowView · 测试档位随保存写回 › 没有选档就没有改动：打开旧 test_policy 步骤只读显示摘要，保存条不出现",
+          "file": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx",
+          "name": "没有选档就没有改动：打开旧 test_policy 步骤只读显示摘要，保存条不出现",
+          "suite_path": [
+            "WorkflowView · 测试档位随保存写回"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 21,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx › WorkflowView · 删除阶段 › 左栏阶段 ⋯ → 删除阶段 → 确认框（标题点名）→ 阶段消失，保存条写出改动数",
+          "file": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx",
+          "name": "左栏阶段 ⋯ → 删除阶段 → 确认框（标题点名）→ 阶段消失，保存条写出改动数",
+          "suite_path": [
+            "WorkflowView · 删除阶段"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 97,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx › WorkflowView · 删除阶段 › 取消确认框不删",
+          "file": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx",
+          "name": "取消确认框不删",
+          "suite_path": [
+            "WorkflowView · 删除阶段"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 65,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx › WorkflowView · 切换器列出全部模板 › 切换器含 default、自定义与随插件发布的 design-system；打开 design-system 可编辑（能添加阶段）",
+          "file": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx",
+          "name": "切换器含 default、自定义与随插件发布的 design-system；打开 design-system 可编辑（能添加阶段）",
+          "suite_path": [
+            "WorkflowView · 切换器列出全部模板"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 54,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx › WorkflowView · 切换器列出全部模板 › 深链 ?wf=design-system 直接打开它",
+          "file": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx",
+          "name": "深链 ?wf=design-system 直接打开它",
+          "suite_path": [
+            "WorkflowView · 切换器列出全部模板"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 14,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx › WorkflowView · 添加阶段只填名称 › 对话框只有名称；id 由名称自动生成（slug），插在所选阶段之后",
+          "file": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx",
+          "name": "对话框只有名称；id 由名称自动生成（slug），插在所选阶段之后",
+          "suite_path": [
+            "WorkflowView · 添加阶段只填名称"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 124,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx › WorkflowView · 添加阶段只填名称 › 纯中文名 → stage；重名依次 -2",
+          "file": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx",
+          "name": "纯中文名 → stage；重名依次 -2",
+          "suite_path": [
+            "WorkflowView · 添加阶段只填名称"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 143,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx › WorkflowView · 删除工作流 › 被引用：拒绝删除，逐个列出任务与循环 / 模板，确认按钮随即置灰，不 toast；旧的轨道登记表引用不再被识别",
+          "file": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx",
+          "name": "被引用：拒绝删除，逐个列出任务与循环 / 模板，确认按钮随即置灰，不 toast；旧的轨道登记表引用不再被识别",
+          "suite_path": [
+            "WorkflowView · 删除工作流"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 79,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx › WorkflowView · 删除工作流 › 删除成功：关闭对话框、回到 default，并 toast",
+          "file": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx",
+          "name": "删除成功：关闭对话框、回到 default，并 toast",
+          "suite_path": [
+            "WorkflowView · 删除工作流"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 91,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx › WorkflowView · 总览 › 左栏顶部「总览」是第 0 步：点它右栏整宽一张编排画布，阶段块都不高亮；URL 记住；点列头回到那个阶段",
+          "file": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx",
+          "name": "左栏顶部「总览」是第 0 步：点它右栏整宽一张编排画布，阶段块都不高亮；URL 记住；点列头回到那个阶段",
+          "suite_path": [
+            "WorkflowView · 总览"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 50,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx › WorkflowView · 总览 › 深链 step=:overview 直接打开总览",
+          "file": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx",
+          "name": "深链 step=:overview 直接打开总览",
+          "suite_path": [
+            "WorkflowView · 总览"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 10,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx › WorkflowView · 名称不翻译：有 label 显示 label，没有显示 id › 英文界面：阶段名与轨道页签照样显示存下来的 label；阶段标题（编辑框）是同一个名字，没改就没有未保存的改动",
+          "file": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx",
+          "name": "英文界面：阶段名与轨道页签照样显示存下来的 label；阶段标题（编辑框）是同一个名字，没改就没有未保存的改动",
+          "suite_path": [
+            "WorkflowView · 名称不翻译：有 label 显示 label，没有显示 id"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 49,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx › WorkflowView · 名称不翻译：有 label 显示 label，没有显示 id › 中文界面：同样显示存下来的 label",
+          "file": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx",
+          "name": "中文界面：同样显示存下来的 label",
+          "suite_path": [
+            "WorkflowView · 名称不翻译：有 label 显示 label，没有显示 id"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 14,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx › WorkflowView · 名称不翻译：有 label 显示 label，没有显示 id › 英文界面：总览画布的阶段列头同样显示存下来的 label，自建工作流也一样",
+          "file": "packages/dashboard-app/src/workflow/WorkflowView.test.tsx",
+          "name": "英文界面：总览画布的阶段列头同样显示存下来的 label，自建工作流也一样",
+          "suite_path": [
+            "WorkflowView · 名称不翻译：有 label 显示 label，没有显示 id"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 16,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 项目页 · 「客户端 / 测试」分段 › 列头是分段页签（客户端 · 测试），H1 退成读屏标题；默认客户端，切到测试才请求目录",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "列头是分段页签（客户端 · 测试），H1 退成读屏标题；默认客户端，切到测试才请求目录",
+          "suite_path": [
+            "项目页 · 「客户端 / 测试」分段"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 105,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 项目页 · 「客户端 / 测试」分段 › 方向键在两段之间移动并即时切换",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "方向键在两段之间移动并即时切换",
+          "suite_path": [
+            "项目页 · 「客户端 / 测试」分段"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 29,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 项目页 · 套件表 › 列：图标 + 名称（label，缺省 id）· 工具 · 最近结果 · 不稳定数；没有记录的套件是破折号",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "列：图标 + 名称（label，缺省 id）· 工具 · 最近结果 · 不稳定数；没有记录的套件是破折号",
+          "suite_path": [
+            "项目页 · 套件表"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 35,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 项目页 · 套件表 › 每个套件显示所属测试类（旧种类名按类归并）：图标 + 类名，标识放 Tooltip",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "每个套件显示所属测试类（旧种类名按类归并）：图标 + 类名，标识放 Tooltip",
+          "suite_path": [
+            "项目页 · 套件表"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 52,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 项目页 · 套件表 › 「不稳定」整列都是 0 / 没有记录时不出这一列（只剩名称 · 工具 · 最近结果）；有一个非零就整列出现",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "「不稳定」整列都是 0 / 没有记录时不出这一列（只剩名称 · 工具 · 最近结果）；有一个非零就整列出现",
+          "suite_path": [
+            "项目页 · 套件表"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 67,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 项目页 · 套件表 › 表不是卡片：无 ul / li，行为 grid 单行不折行，名称截断",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "表不是卡片：无 ul / li，行为 grid 单行不折行，名称截断",
+          "suite_path": [
+            "项目页 · 套件表"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 21,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 项目页 · 套件表 › 工具列固定宽，放得下 playwright（不再被挤成 vit…）；名称格吃剩余宽度",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "工具列固定宽，放得下 playwright（不再被挤成 vit…）；名称格吃剩余宽度",
+          "suite_path": [
+            "项目页 · 套件表"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 22,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 项目页 · 套件表 › 默认选中第一个套件（右列不留空）；点行或名称切换，选中态用共享的列表选中类",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "默认选中第一个套件（右列不留空）；点行或名称切换，选中态用共享的列表选中类",
+          "suite_path": [
+            "项目页 · 套件表"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 51,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 项目页 · 套件详情 › 定义行：命令可复制、目录、超时、报告格式与路径、覆盖率报告；只写有值的行",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "定义行：命令可复制、目录、超时、报告格式与路径、覆盖率报告；只写有值的行",
+          "suite_path": [
+            "项目页 · 套件详情"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 37,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 项目页 · 套件详情 › 服务、浏览器、重试：服务 id 上的就绪探测说明在 Tooltip（键盘可达）",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "服务、浏览器、重试：服务 id 上的就绪探测说明在 Tooltip（键盘可达）",
+          "suite_path": [
+            "项目页 · 套件详情"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 57,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 项目页 · 套件详情 › 所属测试类是一行定义（类名）",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "所属测试类是一行定义（类名）",
+          "suite_path": [
+            "项目页 · 套件详情"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 41,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 项目页 · 套件详情 › 覆盖率门槛来自档位定义：声明了覆盖率报告、且所属类被某档要求或碰到才跑的套件取各档最高值，来源档位在 Tooltip；其余是破折号",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "覆盖率门槛来自档位定义：声明了覆盖率报告、且所属类被某档要求或碰到才跑的套件取各档最高值，来源档位在 Tooltip；其余是破折号",
+          "suite_path": [
+            "项目页 · 套件详情"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 71,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 项目页 · 套件详情 › 目录没写门槛（三档都是内建缺省）：门槛是破折号",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "目录没写门槛（三档都是内建缺省）：门槛是破折号",
+          "suite_path": [
+            "项目页 · 套件详情"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 21,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 项目页 · 套件详情 › 项目页不再读工作流：覆盖率门槛不依赖 default 工作流",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "项目页不再读工作流：覆盖率门槛不依赖 default 工作流",
+          "suite_path": [
+            "项目页 · 套件详情"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 24,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 项目页 · 档位定义 › 三档各一行（写计划 · 跑改动 · 全量）：必需类、碰到才跑的类、门槛；类用图标 + 类名，标识放 Tooltip",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "三档各一行（写计划 · 跑改动 · 全量）：必需类、碰到才跑的类、门槛；类用图标 + 类名，标识放 Tooltip",
+          "suite_path": [
+            "项目页 · 档位定义"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 26,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 项目页 · 档位定义 › 标出来自目录还是内建缺省：目录写了的那一档是「目录」，其余是「内建缺省」",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "标出来自目录还是内建缺省：目录写了的那一档是「目录」，其余是「内建缺省」",
+          "suite_path": [
+            "项目页 · 档位定义"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 21,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 项目页 · 档位定义 › 目录没写 levels：三档都显示缺省并标「内建缺省」，门槛是破折号",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "目录没写 levels：三档都显示缺省并标「内建缺省」，门槛是破折号",
+          "suite_path": [
+            "项目页 · 档位定义"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 19,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 项目页 · 档位定义 › 门槛一格：覆盖率各项 · 不稳定上限 · 基线 · 场景，完整内容在 title；不折行、截断",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "门槛一格：覆盖率各项 · 不稳定上限 · 基线 · 场景，完整内容在 title；不折行、截断",
+          "suite_path": [
+            "项目页 · 档位定义"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 18,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 项目页 · 档位定义 › 场景要求通过显示「场景通过」",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "场景要求通过显示「场景通过」",
+          "suite_path": [
+            "项目页 · 档位定义"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 24,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 项目页 · 档位定义 › 没有目录、目录无效、没有套件：不出档位定义",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "没有目录、目录无效、没有套件：不出档位定义",
+          "suite_path": [
+            "项目页 · 档位定义"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 13,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 项目页 · 档位定义 › 页面上没有说明句子",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "页面上没有说明句子",
+          "suite_path": [
+            "项目页 · 档位定义"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 23,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 项目页 · 档位定义 › 档位定义所在的文件只是标题旁图标的 Tooltip（键盘聚焦即可读到），不写成页面上的句子",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "档位定义所在的文件只是标题旁图标的 Tooltip（键盘聚焦即可读到），不写成页面上的句子",
+          "suite_path": [
+            "项目页 · 档位定义"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 45,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 项目页 · 档位定义 › 每个格子不折行：档位行 nowrap，类图标一排，不用 flex-wrap",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "每个格子不折行：档位行 nowrap，类图标一排，不用 flex-wrap",
+          "suite_path": [
+            "项目页 · 档位定义"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 28,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 项目页 · 基线 › 只给声明了基准的套件；每个画像每个指标一行，走势折线从旧到新、当前值在右端",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "只给声明了基准的套件；每个画像每个指标一行，走势折线从旧到新、当前值在右端",
+          "suite_path": [
+            "项目页 · 基线"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 43,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 项目页 · 基线 › 基线文件损坏：一行错误带个数；没有任何基线也没有损坏则整段不出现；读取失败给一行错误",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "基线文件损坏：一行错误带个数；没有任何基线也没有损坏则整段不出现；读取失败给一行错误",
+          "suite_path": [
+            "项目页 · 基线"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 42,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 项目页 · 基线 › 没有基线数据：整段不出现",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "没有基线数据：整段不出现",
+          "suite_path": [
+            "项目页 · 基线"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 43,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 项目页 · 基线 › 基线读取失败：段内一行错误",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "基线读取失败：段内一行错误",
+          "suite_path": [
+            "项目页 · 基线"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 35,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 项目页 · 已知失败 › 本套件的条目：用例 · 原因 · 链接 · 到期；过期用红点 + 「过期」；别的套件的条目不出现",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "本套件的条目：用例 · 原因 · 链接 · 到期；过期用红点 + 「过期」；别的套件的条目不出现",
+          "suite_path": [
+            "项目页 · 已知失败"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 48,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 项目页 · 已知失败 › 非 http(s) 链接当纯文本，不做成锚点",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "非 http(s) 链接当纯文本，不做成锚点",
+          "suite_path": [
+            "项目页 · 已知失败"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 28,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 项目页 · 已知失败 › 清单无法解析：段内一行错误；没有清单或本套件没有条目：整段不出现",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "清单无法解析：段内一行错误；没有清单或本套件没有条目：整段不出现",
+          "suite_path": [
+            "项目页 · 已知失败"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 19,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 项目页 · 已知失败 › 没有清单：不出现",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "没有清单：不出现",
+          "suite_path": [
+            "项目页 · 已知失败"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 19,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 项目页 · 空态、错误与刷新 › 没有目录：只给可复制的发现命令，没有句子；右列留空",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "没有目录：只给可复制的发现命令，没有句子；右列留空",
+          "suite_path": [
+            "项目页 · 空态、错误与刷新"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 31,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 项目页 · 空态、错误与刷新 › 目录无效：逐条问题，一行一个，不折行；没有套件的目录与缺失同样给发现命令",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "目录无效：逐条问题，一行一个，不折行；没有套件的目录与缺失同样给发现命令",
+          "suite_path": [
+            "项目页 · 空态、错误与刷新"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 23,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 项目页 · 空态、错误与刷新 › 目录里一个套件都没有：同样给发现命令",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "目录里一个套件都没有：同样给发现命令",
+          "suite_path": [
+            "项目页 · 空态、错误与刷新"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 22,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 项目页 · 空态、错误与刷新 › 读取中是骨架",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "读取中是骨架",
+          "suite_path": [
+            "项目页 · 空态、错误与刷新"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 16,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 项目页 · 空态、错误与刷新 › 读取失败：一行错误 + 重试；重试重新请求",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "读取失败：一行错误 + 重试；重试重新请求",
+          "suite_path": [
+            "项目页 · 空态、错误与刷新"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 29,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 项目页 · 空态、错误与刷新 › 快照版本变化重读目录；版本不变不重读",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "快照版本变化重读目录；版本不变不重读",
+          "suite_path": [
+            "项目页 · 空态、错误与刷新"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 32,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 纯逻辑 › suiteThresholds › 取各档最高值；来源档位按档名给出；只算声明了覆盖率的档位",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "取各档最高值；来源档位按档名给出；只算声明了覆盖率的档位",
+          "suite_path": [
+            "纯逻辑",
+            "suiteThresholds"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 纯逻辑 › suiteThresholds › 套件所属类不在档位的必需类或碰到才跑的类里：不算；类按旧种类名归并（coverage 属于单测类）",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "套件所属类不在档位的必需类或碰到才跑的类里：不算；类按旧种类名归并（coverage 属于单测类）",
+          "suite_path": [
+            "纯逻辑",
+            "suiteThresholds"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 纯逻辑 › suiteThresholds › 没有声明覆盖率报告的套件（种类也不是 coverage）、没有门槛、没有档位：null",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "没有声明覆盖率报告的套件（种类也不是 coverage）、没有门槛、没有档位：null",
+          "suite_path": [
+            "纯逻辑",
+            "suiteThresholds"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 纯逻辑 › suiteThresholds › 五项指标都认：函数、语句同样进最高值；档位没有声明任何指标：不算来源",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "五项指标都认：函数、语句同样进最高值；档位没有声明任何指标：不算来源",
+          "suite_path": [
+            "纯逻辑",
+            "suiteThresholds"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 纯逻辑 › chartPoints：等距、按最小到最大映射；单点居中；全相等居中；空为空",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "chartPoints：等距、按最小到最大映射；单点居中；全相等居中；空为空",
+          "suite_path": [
+            "纯逻辑"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/projects/ProjectTests.test.tsx › 纯逻辑 › isSafeLink 只认 http(s)",
+          "file": "packages/dashboard-app/src/projects/ProjectTests.test.tsx",
+          "name": "isSafeLink 只认 http(s)",
+          "suite_path": [
+            "纯逻辑"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 汇总与顺序 › 汇总：套件 · 用例 · 失败 · 不稳定（+ 覆盖率）是并排的大数字，标签在数字下；一行不折行",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "汇总：套件 · 用例 · 失败 · 不稳定（+ 覆盖率）是并排的大数字，标签在数字下；一行不折行",
+          "suite_path": [
+            "TaskTestsTab · 汇总与顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 36,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 汇总与顺序 › 0 退成 text-3；失败非零用红，其余非零是正文色",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "0 退成 text-3；失败非零用红，其余非零是正文色",
+          "suite_path": [
+            "TaskTestsTab · 汇总与顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 24,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 汇总与顺序 › 记录是负责人的：汇总行末尾只加一个「· 名字」（真机验收 F15），13px text-3，不新增句子，不折行",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "记录是负责人的：汇总行末尾只加一个「· 名字」（真机验收 F15），13px text-3，不新增句子，不折行",
+          "suite_path": [
+            "TaskTestsTab · 汇总与顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 9,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 汇总与顺序 › 没有负责人：汇总行没有名字这一格",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "没有负责人：汇总行没有名字这一格",
+          "suite_path": [
+            "TaskTestsTab · 汇总与顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 7,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 汇总与顺序 › 没有任何覆盖率：汇总不带覆盖率一格；空运行集全部为 0",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "没有任何覆盖率：汇总不带覆盖率一格；空运行集全部为 0",
+          "suite_path": [
+            "TaskTestsTab · 汇总与顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 7,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 汇总与顺序 › 顺序：汇总 → 测试文件 → 策略矩阵 → 阻塞 → 场景/任务；没有的段整段不出现",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "顺序：汇总 → 测试文件 → 策略矩阵 → 阻塞 → 场景/任务；没有的段整段不出现",
+          "suite_path": [
+            "TaskTestsTab · 汇总与顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 11,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 汇总与顺序 › 页面上除错误信息外不写句子：正文不含句号",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "页面上除错误信息外不写句子：正文不含句号",
+          "suite_path": [
+            "TaskTestsTab · 汇总与顺序"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 6,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 测试文件 › 套件自动认领的文件标「自动认领」：文件 · 套件 · 状态，没有命令；不再出现未登记",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "套件自动认领的文件标「自动认领」：文件 · 套件 · 状态，没有命令；不再出现未登记",
+          "suite_path": [
+            "TaskTestsTab · 测试文件"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 27,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 测试文件 › 孤儿文件（没有套件认领）在前：红色短标签 + 一条可复制的 --auto 认领命令",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "孤儿文件（没有套件认领）在前：红色短标签 + 一条可复制的 --auto 认领命令",
+          "suite_path": [
+            "TaskTestsTab · 测试文件"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 27,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 测试文件 › 英文界面：Auto-claimed",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "英文界面：Auto-claimed",
+          "suite_path": [
+            "TaskTestsTab · 测试文件"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 7,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 测试文件 › 每行一行不折行：路径、套件、状态都是 truncate",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "每行一行不折行：路径、套件、状态都是 truncate",
+          "suite_path": [
+            "TaskTestsTab · 测试文件"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 7,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 档位策略按类 › 矩阵一行一个测试类：表头「测试类」，要求词「必需」「碰到才跑」，套件按类归并，没运行的类满足",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "矩阵一行一个测试类：表头「测试类」，要求词「必需」「碰到才跑」，套件按类归并，没运行的类满足",
+          "suite_path": [
+            "TaskTestsTab · 档位策略按类"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 7,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 档位策略按类 › 要求词的说明在 Tooltip，键盘可达",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "要求词的说明在 Tooltip，键盘可达",
+          "suite_path": [
+            "TaskTestsTab · 档位策略按类"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 27,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 档位策略按类 › 页签的文件段认领了文件、没有孤儿：没有任何登记类阻塞，页面没有句子",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "页签的文件段认领了文件、没有孤儿：没有任何登记类阻塞，页面没有句子",
+          "suite_path": [
+            "TaskTestsTab · 档位策略按类"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 6,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 档位策略按类 › scenarios: off：追溯矩阵只有一行统计，没有逐条「未覆盖」，不可展开",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "scenarios: off：追溯矩阵只有一行统计，没有逐条「未覆盖」，不可展开",
+          "suite_path": [
+            "TaskTestsTab · 档位策略按类"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 6,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 档位策略按类 › scenarios: off 时已映射的行照常列出，统计只数没映射的",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "scenarios: off 时已映射的行照常列出，统计只数没映射的",
+          "suite_path": [
+            "TaskTestsTab · 档位策略按类"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 5,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 档位策略按类 › scenarios: required：未映射逐条列出为缺项，没有统计行",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "scenarios: required：未映射逐条列出为缺项，没有统计行",
+          "suite_path": [
+            "TaskTestsTab · 档位策略按类"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 6,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 档位策略按类 › 英文界面：N Unmapped",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "英文界面：N Unmapped",
+          "suite_path": [
+            "TaskTestsTab · 档位策略按类"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 8,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 策略矩阵 › 按种类一行：要求词、已登记的套件、最近结果；要求词的说明在 Tooltip（键盘可达）",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "按种类一行：要求词、已登记的套件、最近结果；要求词的说明在 Tooltip（键盘可达）",
+          "suite_path": [
+            "TaskTestsTab · 策略矩阵"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 17,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 策略矩阵 › 缺项：行内只有短标签，修复命令收进行展开（点箭头才显示，可再收起）；满足的行没有",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "缺项：行内只有短标签，修复命令收进行展开（点箭头才显示，可再收起）；满足的行没有",
+          "suite_path": [
+            "TaskTestsTab · 策略矩阵"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 36,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 策略矩阵 › 展开的修复命令可复制",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "展开的修复命令可复制",
+          "suite_path": [
+            "TaskTestsTab · 策略矩阵"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 23,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 策略矩阵 › 豁免：待批准显示为待批准的点 + 词",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "豁免：待批准显示为待批准的点 + 词",
+          "suite_path": [
+            "TaskTestsTab · 策略矩阵"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 12,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 策略矩阵 › 项目级不适用（目录声明） › 已批准：显示「不适用」，不当作缺（满足、没有缺项标签）；原因在 Tooltip，键盘可达",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "已批准：显示「不适用」，不当作缺（满足、没有缺项标签）；原因在 Tooltip，键盘可达",
+          "suite_path": [
+            "TaskTestsTab · 策略矩阵",
+            "项目级不适用（目录声明）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 19,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 策略矩阵 › 项目级不适用（目录声明） › 未批准：「不适用」旁标待批准，仍是缺（豁免未批准 + 评审命令）",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "未批准：「不适用」旁标待批准，仍是缺（豁免未批准 + 评审命令）",
+          "suite_path": [
+            "TaskTestsTab · 策略矩阵",
+            "项目级不适用（目录声明）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 15,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 策略矩阵 › 项目级不适用（目录声明） › 页签计数把已批准的不适用算作满足；不适用与说明一行不折行",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "页签计数把已批准的不适用算作满足；不适用与说明一行不折行",
+          "suite_path": [
+            "TaskTestsTab · 策略矩阵",
+            "项目级不适用（目录声明）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 5,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 策略矩阵 › 项目级不适用（目录声明） › 没有声明：和以前一样是「缺测试种类」",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "没有声明：和以前一样是「缺测试种类」",
+          "suite_path": [
+            "TaskTestsTab · 策略矩阵",
+            "项目级不适用（目录声明）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 5,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 策略矩阵 › 套件名可点：打开时回调套件 id；没有运行记录的套件只是文字",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "套件名可点：打开时回调套件 id；没有运行记录的套件只是文字",
+          "suite_path": [
+            "TaskTestsTab · 策略矩阵"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 19,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 策略矩阵 › 当前打开的套件带选中标记",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "当前打开的套件带选中标记",
+          "suite_path": [
+            "TaskTestsTab · 策略矩阵"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 5,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 策略矩阵 › 旧步骤的内联套件：有旧式运行记录才可点，回调带 step: 前缀",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "旧步骤的内联套件：有旧式运行记录才可点，回调带 step: 前缀",
+          "suite_path": [
+            "TaskTestsTab · 策略矩阵"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 22,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 策略矩阵 › 计划被改动 / 目录缺失：所有缺项行退到全局阻塞，一行一个短标签与修复命令",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "计划被改动 / 目录缺失：所有缺项行退到全局阻塞，一行一个短标签与修复命令",
+          "suite_path": [
+            "TaskTestsTab · 策略矩阵"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 52,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 策略矩阵 › 每个格子不折行：种类、套件、缺项都是 truncate / nowrap",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "每个格子不折行：种类、套件、缺项都是 truncate / nowrap",
+          "suite_path": [
+            "TaskTestsTab · 策略矩阵"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 14,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 阻塞与追溯 › 阻塞表只列矩阵和文件表没用上的真阻塞；提示另成一段，中性、分开计数；对象与命令各一格",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "阻塞表只列矩阵和文件表没用上的真阻塞；提示另成一段，中性、分开计数；对象与命令各一格",
+          "suite_path": [
+            "TaskTestsTab · 阻塞与追溯"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 6,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 阻塞与追溯 › 完整性提示（策略缺省 notice）只在完整性段：不在阻塞表、不算进阻塞数，也没有第二处重复",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "完整性提示（策略缺省 notice）只在完整性段：不在阻塞表、不算进阻塞数，也没有第二处重复",
+          "suite_path": [
+            "TaskTestsTab · 阻塞与追溯"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 7,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 阻塞与追溯 › 完整性 block：汇总是真阻塞，进阻塞表并计入阻塞数",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "完整性 block：汇总是真阻塞，进阻塞表并计入阻塞数",
+          "suite_path": [
+            "TaskTestsTab · 阻塞与追溯"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 4,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 阻塞与追溯 › 追溯表：场景/任务 · 用例（最多两个，其余 +N）· 结果",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "追溯表：场景/任务 · 用例（最多两个，其余 +N）· 结果",
+          "suite_path": [
+            "TaskTestsTab · 阻塞与追溯"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 5,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 阻塞与追溯 › 场景要求关闭时没映射的合并成一行统计；豁免与映射未通过各有词",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "场景要求关闭时没映射的合并成一行统计；豁免与映射未通过各有词",
+          "suite_path": [
+            "TaskTestsTab · 阻塞与追溯"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 5,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 阻塞与追溯 › 追溯行一行：任务 = 编号 · 阶段名 · 文字，场景 = 能力 · 场景；截断并带完整 title；没有阶段小节时省略阶段",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "追溯行一行：任务 = 编号 · 阶段名 · 文字，场景 = 能力 · 场景；截断并带完整 title；没有阶段小节时省略阶段",
+          "suite_path": [
+            "TaskTestsTab · 阻塞与追溯"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 13,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 阻塞与追溯 › 可选的任务（非实现阶段小节）没映射时写「可选」，中性，不当缺项；合并成一行，展开才逐条列出",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "可选的任务（非实现阶段小节）没映射时写「可选」，中性，不当缺项；合并成一行，展开才逐条列出",
+          "suite_path": [
+            "TaskTestsTab · 阻塞与追溯"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 19,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 阻塞与追溯 › 英文界面用 kernel 的英文短标签",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "英文界面用 kernel 的英文短标签",
+          "suite_path": [
+            "TaskTestsTab · 阻塞与追溯"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 6,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 阻塞与追溯 › 英文汇总的计数词按数量取单 / 复数：0 与多个是复数，1 是单数；Failed / Flaky 不变；中文不分",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "英文汇总的计数词按数量取单 / 复数：0 与多个是复数，1 是单数；Failed / Flaky 不变；中文不分",
+          "suite_path": [
+            "TaskTestsTab · 阻塞与追溯"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 14,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 阻塞与追溯 › 可选任务合并成一行「N 可选」：计数随数量，默认收起，可展开再收起；表头计数仍是全部条目",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "可选任务合并成一行「N 可选」：计数随数量，默认收起，可展开再收起；表头计数仍是全部条目",
+          "suite_path": [
+            "TaskTestsTab · 阻塞与追溯"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 25,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 阻塞与追溯 › 没有可选任务：不出现「N 可选」行",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "没有可选任务：不出现「N 可选」行",
+          "suite_path": [
+            "TaskTestsTab · 阻塞与追溯"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 5,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 阻塞与追溯 › 失败的行排在最前，其后按 缺映射 → 未运行 → 通过 的顺序；同权重保持服务端顺序",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "失败的行排在最前，其后按 缺映射 → 未运行 → 通过 的顺序；同权重保持服务端顺序",
+          "suite_path": [
+            "TaskTestsTab · 阻塞与追溯"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 5,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx › TaskTestsTab · 套件名不翻译 › 英文界面照样显示存下来的 label（代码规模），中文界面一样",
+          "file": "packages/dashboard-app/src/workspace/TaskTestsTab.test.tsx",
+          "name": "英文界面照样显示存下来的 label（代码规模），中文界面一样",
+          "suite_path": [
+            "TaskTestsTab · 套件名不翻译"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 24,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › summarize › 套件数、用例合计、失败、flaky，覆盖率取最低的行覆盖率",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "套件数、用例合计、失败、flaky，覆盖率取最低的行覆盖率",
+          "suite_path": [
+            "summarize"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › summarize › 没有套件或没有覆盖率：覆盖率为 null，其余为 0",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "没有套件或没有覆盖率：覆盖率为 null，其余为 0",
+          "suite_path": [
+            "summarize"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › summarize › 页签计数是满足要求的种类 / 要求的种类（与矩阵同口径）；没有任何要求时不给计数",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "页签计数是满足要求的种类 / 要求的种类（与矩阵同口径）；没有任何要求时不给计数",
+          "suite_path": [
+            "summarize"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 1,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › buildMatrix › 行 = 登记 ∪ 运行 ∪ 有则跑，按声明顺序去重；要求词：运行优先，其次登记，其次有则跑",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "行 = 登记 ∪ 运行 ∪ 有则跑，按声明顺序去重；要求词：运行优先，其次登记，其次有则跑",
+          "suite_path": [
+            "buildMatrix"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › buildMatrix › 登记的套件与它们的判定挂在对应种类下；结果取最差的判定",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "登记的套件与它们的判定挂在对应种类下；结果取最差的判定",
+          "suite_path": [
+            "buildMatrix"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › buildMatrix › 没登记也没豁免：缺项行用种类阻塞；有则登记的种类跑不到（无套件无判定）结果为空",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "没登记也没豁免：缺项行用种类阻塞；有则登记的种类跑不到（无套件无判定）结果为空",
+          "suite_path": [
+            "buildMatrix"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › buildMatrix › 已批准的豁免满足登记要求；待批准的不满足",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "已批准的豁免满足登记要求；待批准的不满足",
+          "suite_path": [
+            "buildMatrix"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › buildMatrix › 目录声明的项目级不适用（服务端给出，不在这里重新判定） › 已批准：满足要求，不是缺，也不挂缺项阻塞；原因带在行上",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "已批准：满足要求，不是缺，也不挂缺项阻塞；原因带在行上",
+          "suite_path": [
+            "buildMatrix",
+            "目录声明的项目级不适用（服务端给出，不在这里重新判定）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › buildMatrix › 目录声明的项目级不适用（服务端给出，不在这里重新判定） › 未批准：仍不满足，原因照带；阻塞是服务端的 waiver-unapproved",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "未批准：仍不满足，原因照带；阻塞是服务端的 waiver-unapproved",
+          "suite_path": [
+            "buildMatrix",
+            "目录声明的项目级不适用（服务端给出，不在这里重新判定）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › buildMatrix › 目录声明的项目级不适用（服务端给出，不在这里重新判定） › 只对声明的种类生效；该种类已登记套件时以套件为准，不显示不适用",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "只对声明的种类生效；该种类已登记套件时以套件为准，不显示不适用",
+          "suite_path": [
+            "buildMatrix",
+            "目录声明的项目级不适用（服务端给出，不在这里重新判定）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › buildMatrix › 目录声明的项目级不适用（服务端给出，不在这里重新判定） › 没有声明：与之前一样是缺项",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "没有声明：与之前一样是缺项",
+          "suite_path": [
+            "buildMatrix",
+            "目录声明的项目级不适用（服务端给出，不在这里重新判定）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › buildMatrix › 没有计划：全部缺项，退到全局阻塞（计划缺失 / 被改动 / 目录缺失 / 记录被改动）",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "没有计划：全部缺项，退到全局阻塞（计划缺失 / 被改动 / 目录缺失 / 记录被改动）",
+          "suite_path": [
+            "buildMatrix"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › buildMatrix › 全局阻塞按优先级挑第一条；非阻塞的提示型阻塞不做缺项说明",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "全局阻塞按优先级挑第一条；非阻塞的提示型阻塞不做缺项说明",
+          "suite_path": [
+            "buildMatrix"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › buildMatrix › 有则跑的种类没登记不算缺；旧步骤内联套件按种类进矩阵并算运行要求",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "有则跑的种类没登记不算缺；旧步骤内联套件按种类进矩阵并算运行要求",
+          "suite_path": [
+            "buildMatrix"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › buildMatrix › 没有策略（只有旧步骤测试）：只出内联套件的种类行",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "没有策略（只有旧步骤测试）：只出内联套件的种类行",
+          "suite_path": [
+            "buildMatrix"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › buildMatrix › 结果取最差：失败 > 过期 > 运行中 > 未运行 > 通过",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "结果取最差：失败 > 过期 > 运行中 > 未运行 > 通过",
+          "suite_path": [
+            "buildMatrix"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › extraBlockers / reportNotices / fileRows / traceNeedsMapping › 阻塞表：只有没被矩阵行用上、也不属于文件表的真阻塞；提示一条都不混进来",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "阻塞表：只有没被矩阵行用上、也不属于文件表的真阻塞；提示一条都不混进来",
+          "suite_path": [
+            "extraBlockers / reportNotices / fileRows / traceNeedsMapping"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › extraBlockers / reportNotices / fileRows / traceNeedsMapping › 非阻塞的阻塞（只提示）不进阻塞表",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "非阻塞的阻塞（只提示）不进阻塞表",
+          "suite_path": [
+            "extraBlockers / reportNotices / fileRows / traceNeedsMapping"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › extraBlockers / reportNotices / fileRows / traceNeedsMapping › 完整性提示（策略缺省 notice）不阻塞：阻塞表和阻塞数里都没有它，提示段也不重复列",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "完整性提示（策略缺省 notice）不阻塞：阻塞表和阻塞数里都没有它，提示段也不重复列",
+          "suite_path": [
+            "extraBlockers / reportNotices / fileRows / traceNeedsMapping"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › extraBlockers / reportNotices / fileRows / traceNeedsMapping › 完整性 block 模式下它是真阻塞：照常进阻塞表",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "完整性 block 模式下它是真阻塞：照常进阻塞表",
+          "suite_path": [
+            "extraBlockers / reportNotices / fileRows / traceNeedsMapping"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › extraBlockers / reportNotices / fileRows / traceNeedsMapping › 提示段：其余提示照旧列出（已修好的已知失败等），完整性汇总提示除外",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "提示段：其余提示照旧列出（已修好的已知失败等），完整性汇总提示除外",
+          "suite_path": [
+            "extraBlockers / reportNotices / fileRows / traceNeedsMapping"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › extraBlockers / reportNotices / fileRows / traceNeedsMapping › 文件表：孤儿在前（带 --auto 认领命令），套件自动认领的在后（只有套件，没有阻塞）",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "文件表：孤儿在前（带 --auto 认领命令），套件自动认领的在后（只有套件，没有阻塞）",
+          "suite_path": [
+            "extraBlockers / reportNotices / fileRows / traceNeedsMapping"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › extraBlockers / reportNotices / fileRows / traceNeedsMapping › 没有改动过的测试文件：文件表为空；没有 unregistered 这一类",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "没有改动过的测试文件：文件表为空；没有 unregistered 这一类",
+          "suite_path": [
+            "extraBlockers / reportNotices / fileRows / traceNeedsMapping"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › extraBlockers / reportNotices / fileRows / traceNeedsMapping › 追溯：未覆盖只在策略要求场景时算缺项",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "追溯：未覆盖只在策略要求场景时算缺项",
+          "suite_path": [
+            "extraBlockers / reportNotices / fileRows / traceNeedsMapping"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › extraBlockers / reportNotices / fileRows / traceNeedsMapping › 追溯：可选的任务（非实现阶段小节）未覆盖永远中性，不算缺项",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "追溯：可选的任务（非实现阶段小节）未覆盖永远中性，不算缺项",
+          "suite_path": [
+            "extraBlockers / reportNotices / fileRows / traceNeedsMapping"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › buildMatrix · 档位策略按测试类 › 行 = 必需类 → 碰到才跑的类；要求词是「必需」「碰到才跑」，不再有登记",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "行 = 必需类 → 碰到才跑的类；要求词是「必需」「碰到才跑」，不再有登记",
+          "suite_path": [
+            "buildMatrix · 档位策略按测试类"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › buildMatrix · 档位策略按测试类 › 套件按所属类归并（旧种类名 playwright 在 e2e 类下）；结果取最差，缺项挂这一类",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "套件按所属类归并（旧种类名 playwright 在 e2e 类下）；结果取最差，缺项挂这一类",
+          "suite_path": [
+            "buildMatrix · 档位策略按测试类"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › buildMatrix · 档位策略按测试类 › 本阶段没有运行的类（改动没碰到）不算缺：零运行即满足",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "本阶段没有运行的类（改动没碰到）不算缺：零运行即满足",
+          "suite_path": [
+            "buildMatrix · 档位策略按测试类"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › buildMatrix · 档位策略按测试类 › 页签计数与矩阵同口径：满足的类 / 档位列出的类",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "页签计数与矩阵同口径：满足的类 / 档位列出的类",
+          "suite_path": [
+            "buildMatrix · 档位策略按测试类"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › buildMatrix · 档位策略按测试类 › 必需类在目录里没有套件：服务端的 test-kind-missing（对象是类名）挂在这一类",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "必需类在目录里没有套件：服务端的 test-kind-missing（对象是类名）挂在这一类",
+          "suite_path": [
+            "buildMatrix · 档位策略按测试类"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › buildMatrix · 档位策略按测试类 › 豁免按类名匹配；项目级不适用声明按类归并（static 类用 typecheck 声明）",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "豁免按类名匹配；项目级不适用声明按类归并（static 类用 typecheck 声明）",
+          "suite_path": [
+            "buildMatrix · 档位策略按测试类"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › buildMatrix · 档位策略按测试类 › plan 档：不运行套件，必需类没有套件也满足",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "plan 档：不运行套件，必需类没有套件也满足",
+          "suite_path": [
+            "buildMatrix · 档位策略按测试类"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › buildMatrix · 档位策略按测试类 › 计划显式加跑的、不在档位两类里的套件：所属类也进矩阵，要求词是运行",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "计划显式加跑的、不在档位两类里的套件：所属类也进矩阵，要求词是运行",
+          "suite_path": [
+            "buildMatrix · 档位策略按测试类"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › buildMatrix · 档位策略按测试类 › 目录缺失 / 计划缺失这类全局阻塞：没有套件的类退到全局阻塞",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "目录缺失 / 计划缺失这类全局阻塞：没有套件的类退到全局阻塞",
+          "suite_path": [
+            "buildMatrix · 档位策略按测试类"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › buildMatrix · 档位策略按测试类 › 旧策略（没有 level）仍按种类一行：登记 / 运行 / 有则跑",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "旧策略（没有 level）仍按种类一行：登记 / 运行 / 有则跑",
+          "suite_path": [
+            "buildMatrix · 档位策略按测试类"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › 追溯 · 档位不要求映射（scenarios: off） › 只有策略存在且 scenarios 为 off 时成立；没有策略与要求映射时不成立",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "只有策略存在且 scenarios 为 off 时成立；没有策略与要求映射时不成立",
+          "suite_path": [
+            "追溯 · 档位不要求映射（scenarios: off）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › 追溯 · 档位不要求映射（scenarios: off） › 没有任何映射：一行都不逐条列出，只有没映射的条数",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "没有任何映射：一行都不逐条列出，只有没映射的条数",
+          "suite_path": [
+            "追溯 · 档位不要求映射（scenarios: off）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › 追溯 · 档位不要求映射（scenarios: off） › 已映射、失败、通过的行照常列出（失败在前），统计只数没映射的",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "已映射、失败、通过的行照常列出（失败在前），统计只数没映射的",
+          "suite_path": [
+            "追溯 · 档位不要求映射（scenarios: off）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        },
+        {
+          "id": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx › 追溯 · 档位不要求映射（scenarios: off） › 要求映射（required / passing）：行为与之前相同，逐条列出，没有统计",
+          "file": "packages/dashboard-app/src/workspace/testsTabModel.test.tsx",
+          "name": "要求映射（required / passing）：行为与之前相同，逐条列出，没有统计",
+          "suite_path": [
+            "追溯 · 档位不要求映射（scenarios: off）"
+          ],
+          "project": null,
+          "status": "pass",
+          "duration_ms": 0,
+          "attempts": 1,
+          "artifacts": []
+        }
+      ],
+      "projects": [],
+      "coverage": null,
+      "metrics": [],
+      "artifacts": [
+        {
+          "path": "artifacts/dashboard-app-unit/packages/dashboard-app/test-results/vitest.json",
+          "bytes": 759174,
+          "digest": "sha256:b06863a908e001a033824f927a8959003520ef90572b67c5d51a5bab9b7ce62a",
+          "media": "json"
+        }
+      ],
+      "report": {
+        "format": "vitest-json",
+        "path": "packages/dashboard-app/test-results/vitest.json",
+        "digest": "sha256:b06863a908e001a033824f927a8959003520ef90572b67c5d51a5bab9b7ce62a"
+      },
+      "log": {
+        "artifact": "logs/dashboard-app-unit.log",
+        "bytes_total": 243195,
+        "bytes_kept": 243207,
+        "truncated": false,
+        "digest": "sha256:c69a0c35c65019fde147f1828ed8e8df677fcf1f50933c8638082e6b47412113"
+      }
+    }
+  ],
+  "result": "pass",
+  "actor": {
+    "id": "710227704@qq.com",
+    "name": "jefferySha",
+    "trust": "declared"
+  },
+  "host": {
+    "kind": "claude-code",
+    "sandbox": null
+  },
+  "git_head": "33425ab01248ecceff2c792be70011b931ead018",
+  "started_at": "2026-10-13T17:08:32Z",
+  "finished_at": "2026-10-13T17:08:44Z",
+  "duration_ms": 12411,
+  "prev_digest": "sha256:307afdb90deea754af6554f87efd98c972417580389d912b2b2df2351a5da374",
+  "digest": "sha256:71b694ab7da66f1b29c77e73594f3b1014df7584f064a165351bf1bd318df513"
+}

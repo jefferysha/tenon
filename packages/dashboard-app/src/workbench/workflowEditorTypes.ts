@@ -1,6 +1,6 @@
 import type { RefObject } from 'react'
 import type { AgentSummary } from '../api/agentClient'
-import type { WbExecutorRef, WbReviewerRef, WbSkillEntry, WbSkillRef, WbStepDef, WbStepTestPolicy, WbWorkflowDef, WbWorkflowSource } from '../api/governanceTypes'
+import type { WbExecutorRef, WbReviewerRef, WbSkillEntry, WbSkillRef, WbStepDef, WbTestLevel, WbWorkflowDef, WbWorkflowSource } from '../api/governanceTypes'
 import type { LintIssue } from '../workflow/lint'
 import type { TrackSettings } from './trackSettings'
 import type { useStageDraftEditor } from './useStageDraftEditor'
@@ -140,7 +140,7 @@ export interface WorkflowEditor {
   reorderStages: (fromId: string, toId: string, after: boolean) => void
   setSkills: (stepId: string, skills: readonly WbSkillRef[]) => void
   setAgents: (stepId: string, patch: { executors?: readonly WbExecutorRef[]; reviewers?: readonly WbReviewerRef[] }) => void
-  setTestPolicy: (stepId: string, policy: WbStepTestPolicy | undefined) => void
+  setTestLevel: (stepId: string, level: WbTestLevel) => void
   addSkill: (stepId: string, skillId: string) => void
   removeSkill: (stepId: string, skillId: string) => void
   save: () => Promise<void>

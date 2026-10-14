@@ -45,6 +45,40 @@ describe('decodeCatalogResponse', () => {
   })
 })
 
+describe('decodeCatalogResponse · 档位定义（levels）', () => {
+  const levelsOf = (value: unknown): Array<Record<string, unknown>> => ((value as { catalog: { levels: Array<Record<string, unknown>> } }).catalog.levels)
+
+  it('三档的生效定义原样解出：必需类、碰到才跑的类、场景、覆盖率、不稳定、基线与来源', () => {
+    const decoded = decodeCatalogResponse(JSON.parse(JSON.stringify(catalogResponse())))
+    const levels = decoded?.catalog.state === 'ok' ? decoded.catalog.levels : []
+    expect(levels.map((level) => [level.name, level.source])).toEqual([['plan', 'default'], ['changed', 'default'], ['full', 'catalog']])
+    expect(levels[2]).toEqual({
+      name: 'full', required: ['unit'], touched: ['integration', 'e2e', 'static', 'benchmark'], scenarios: 'required',
+      coverage: { lines: 80, branches: 60 }, flaky: { max: 2, failOnNew: true }, requireBaseline: true, source: 'catalog',
+    })
+    expect(levels[0]).not.toHaveProperty('coverage')
+  })
+
+  it('levels 缺失、档名 / 类名 / 来源 / 场景取值不合、门槛类型错都整份拒绝', () => {
+    const wire = catalogResponse()
+    const first = (d: unknown): Record<string, unknown> => levelsOf(d)[0] ?? {}
+    expect(decodeCatalogResponse(mutate(wire, (d) => { delete (d.catalog as Record<string, unknown>).levels }))).toBeNull()
+    expect(decodeCatalogResponse(mutate(wire, (d) => { first(d).name = 'quick' }))).toBeNull()
+    expect(decodeCatalogResponse(mutate(wire, (d) => { first(d).required = ['unit', 'smoke'] }))).toBeNull()
+    expect(decodeCatalogResponse(mutate(wire, (d) => { first(d).touched = 'static' }))).toBeNull()
+    expect(decodeCatalogResponse(mutate(wire, (d) => { first(d).source = 'file' }))).toBeNull()
+    expect(decodeCatalogResponse(mutate(wire, (d) => { first(d).scenarios = 'strict' }))).toBeNull()
+    expect(decodeCatalogResponse(mutate(wire, (d) => { first(d).requireBaseline = 'yes' }))).toBeNull()
+    expect(decodeCatalogResponse(mutate(wire, (d) => { delete first(d).requireBaseline }))).toBeNull()
+    expect(decodeCatalogResponse(mutate(wire, (d) => { first(d).flaky = { max: 'a', failOnNew: true } }))).toBeNull()
+    expect(decodeCatalogResponse(mutate(wire, (d) => { (levelsOf(d)[2] ?? {}).coverage = { lines: 'high' } }))).toBeNull()
+  })
+
+  it('missing / invalid 目录没有 levels', () => {
+    expect(decodeCatalogResponse({ catalog: { state: 'missing' }, knownFailures: { state: 'missing' }, latest: [] })?.catalog).not.toHaveProperty('levels')
+  })
+})
+
 describe('decodeBaselinesResponse', () => {
   it('每个画像的中位数、p95 与历史', () => {
     const decoded = decodeBaselinesResponse(JSON.parse(JSON.stringify(baselinesResponse())))
@@ -121,6 +155,30 @@ describe('快照里的策略判定', () => {
     expect(decodePolicyReports(one((d) => { d.chain = 'gone' }))).toBeNull()
     expect(decodePolicyReports(one((d) => { delete (d.files as Record<string, unknown>).orphans }))).toBeNull()
     expect(decodePolicyReports('x')).toBeNull()
+  })
+
+  it('档位策略：level 原样解出（名称、必需类、碰到才跑的类、来源）；旧策略没有 level；写错整份拒绝', () => {
+    const level = { name: 'changed', required: ['unit'], touched: ['static'], source: 'default' }
+    const withLevel = (over: Record<string, unknown> = {}): unknown => [mutate(verifyReport(), (d) => {
+      (d.policy as Record<string, unknown>).level = { ...level, ...over }
+    })]
+    expect(decodePolicyReports(JSON.parse(JSON.stringify(withLevel())))?.[0]?.policy?.level).toEqual(level)
+    expect(decodePolicyReports(JSON.parse(JSON.stringify([verifyReport()])))?.[0]?.policy).not.toHaveProperty('level')
+    expect(decodePolicyReports(withLevel({ name: 'quick' }))).toBeNull()
+    expect(decodePolicyReports(withLevel({ required: ['unit', 'lint'] }))).toBeNull()
+    expect(decodePolicyReports(withLevel({ touched: [1] }))).toBeNull()
+    expect(decodePolicyReports(withLevel({ source: 'file' }))).toBeNull()
+    expect(decodePolicyReports(withLevel({ source: undefined }))).toBeNull()
+  })
+
+  it('自动认领的文件：files.claimed 原样解出；缺 claimed、形状不合都拒绝；不再有 unregistered', () => {
+    const decoded = decodePolicyReports(JSON.parse(JSON.stringify([verifyReport()])))
+    expect(decoded?.[0]?.files).toEqual({ checked: true, claimed: [{ path: 'e2e/new.spec.ts', suites: ['web-e2e'] }], orphans: ['scripts/tmp.test.mjs'] })
+    expect(decoded?.[0]?.files).not.toHaveProperty('unregistered')
+    const one = (edit: (draft: Record<string, unknown>) => void): unknown => [mutate(verifyReport(), edit)]
+    expect(decodePolicyReports(one((d) => { delete (d.files as Record<string, unknown>).claimed }))).toBeNull()
+    expect(decodePolicyReports(one((d) => { (d.files as Record<string, unknown>).claimed = [{ path: 'a.test.ts' }] }))).toBeNull()
+    expect(decodePolicyReports(one((d) => { (d.files as Record<string, unknown>).claimed = 'a.test.ts' }))).toBeNull()
   })
 
   it('步骤测试豁免：套件状态 waived / waiver-pending 与计划里的 test 豁免都能解码', () => {

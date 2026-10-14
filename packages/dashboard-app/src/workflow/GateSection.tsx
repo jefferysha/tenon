@@ -16,9 +16,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 const BACK_NONE = '__none__'
 
 /**
- * 「门禁」段：门禁分段控件（评审 / 自动）→ 退回目标 → 离开条件（只读，每条一行）→ 测试策略（结构化表单）。
+ * 「门禁」段：门禁分段控件（评审 / 自动）→ 退回目标 → 离开条件（只读，每条一行）→ 测试档位（四选一单选）。
  * 退回目标只能是本阶段之前的阶段——往后跳在流程里不存在，从选项里就配不出来。离开条件在 YAML 里改，这里只列出，
- * 「必须产出 <路径>」就是其中一种。测试策略是放行本阶段要满足的测试条件，所以归在门禁里。
+ * 「必须产出 <路径>」就是其中一种。测试档位是放行本阶段要满足的测试条件，所以归在门禁里。
  */
 export function GateSection({ editor, step }: { editor: WorkflowEditor; step: WbStepDef }): JSX.Element {
   const { t } = useT()
@@ -86,10 +86,11 @@ export function GateSection({ editor, step }: { editor: WorkflowEditor; step: Wb
       )}
       <TestPolicyForm
         stepId={step.id}
-        policy={step.test_policy}
+        level={step.test}
+        legacyPolicy={step.test_policy}
         legacyTests={step.tests ?? []}
         editable={editable}
-        onChange={(next) => editor.setTestPolicy(step.id, next)}
+        onChange={(next) => editor.setTestLevel(step.id, next)}
       />
     </section>
   )

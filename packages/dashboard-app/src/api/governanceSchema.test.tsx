@@ -454,6 +454,42 @@ describe('decodeWorkflowDefinition · 步骤 test_policy', () => {
   })
 })
 
+describe('decodeWorkflowDefinition · 步骤 test（测试档位）', () => {
+  const withLevel = (level: unknown, extra: Record<string, unknown> = {}) => decodeWorkflowDefinition({
+    name: 'levels', steps: [{ ...step, test: level, ...extra }],
+  })
+
+  it('四个档位原样解出，写回前整形后逐字相同（保存不丢档位）', () => {
+    for (const level of ['none', 'plan', 'changed', 'full']) {
+      const decoded = withLevel(level)
+      expect(decoded?.steps[0]?.test).toBe(level)
+      const written = JSON.parse(JSON.stringify(definitionForWrite(decoded as WbWorkflowDef))) as WbWorkflowDef
+      expect(written.steps[0]?.test).toBe(level)
+    }
+  })
+
+  it('track 分支里的步骤同样保留；没声明的步骤不补键', () => {
+    const decoded = decodeWorkflowDefinition({
+      name: 'branches', steps: [],
+      tracks: { backend: { steps: [{ ...step, test: 'changed' }, step] } },
+    })
+    expect(decoded?.tracks?.backend?.steps[0]?.test).toBe('changed')
+    expect(decoded?.tracks?.backend?.steps[1]).not.toHaveProperty('test')
+    expect(decodeWorkflowDefinition({ name: 'bare', steps: [step] })?.steps[0]).not.toHaveProperty('test')
+  })
+
+  it('未知档位、非字符串整份作废', () => {
+    expect(withLevel('quick')).toBeNull()
+    expect(withLevel('FULL')).toBeNull()
+    expect(withLevel(true)).toBeNull()
+    expect(withLevel(null)).toBeNull()
+  })
+
+  it('同一步同时有 test 与 test_policy 整份作废（互斥）', () => {
+    expect(withLevel('full', { test_policy: { run: ['unit'] } })).toBeNull()
+  })
+})
+
 describe('decodeWorkflowDefinition · 步骤 maxRounds（验证轮次上限）', () => {
   const withRounds = (maxRounds: unknown) => decodeWorkflowDefinition({
     name: 'rounds', steps: [{ ...step, gate: 'review', maxRounds }],

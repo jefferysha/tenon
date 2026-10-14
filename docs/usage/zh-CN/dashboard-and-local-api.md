@@ -146,16 +146,18 @@ AFK、Machine、Host Plan 等低频能力从设置面板进入，仍保留原有
 
 ### 测试
 
-Dashboard 只读取测试数据、只编辑工作流的测试策略，不运行也不登记测试（那是 `tenon test ...` 的事）。项目页有「客户端 / 测试」分段（目录套件、按机器画像的基线、已知失败）；工作台任务有「测试」页签（策略矩阵、场景追溯、未登记文件）和运行抽屉（失败用例、产物、覆盖率、基准对基线、日志）；工作流页编辑各阶段的 `test_policy`；库里的测试模板只读。
+Dashboard 只读取测试数据、只编辑工作流各步骤的测试档位，不运行也不登记测试（那是 `tenon test ...` 的事）。项目页有「客户端 / 测试」分段（目录套件及其测试类、生效的档位定义、按机器画像的基线、已知失败）；工作台任务有「测试」页签（按测试类的要求矩阵、场景追溯、标出「自动认领」或孤儿的测试文件）和运行抽屉（失败用例、产物、覆盖率、基准对基线、日志）；工作流页用单选给每个步骤选档位（`none`、`plan`、`changed`、`full`）；库里的测试模板只读。档位单选旁的信息图标在悬停提示里给出档位定义所在的文件（`.tenon/tests/catalog.yaml` 的 `levels`）；仍带旧 `test_policy` 的步骤只读显示摘要，选了档位就替换掉它。档位不要求场景映射时，追溯区只显示一行统计，不再逐条写「未覆盖」。
 
-- `GET /api/tests/catalog?root=` → 解析后的目录（`missing`、带行号问题的 `invalid`、或 `ok`）、已知失败、各套件最近结果。
+- `GET /api/tests/catalog?root=` → 解析后的目录（`missing`、带行号问题的 `invalid`、或 `ok`）、生效的 `levels`（`plan`、`changed`、`full`，各标出来自目录还是内建缺省）、已知失败、各套件最近结果。
+- `POST /api/workflows/:name` 接受步骤上的 `test`，同一步同时带 `test` 与 `test_policy` 时返回 `400`。
 - `GET /api/tests/baselines?root=&suite=` → 按机器画像的基线与历史。
 - `GET /api/tests/plan?root=&change=` → 任务测试计划状态（`missing`、`tampered`、`ok`）。
 - `GET /api/tests/records?root=&change=[&suite=]` → v2 运行记录（新的在前）与哈希链状态；不在完好链上的记录标 `trusted: false`。
 - `GET /api/tests/record?root=&change=&user=&run=` → 一次运行的失败用例、覆盖率、基准指标、服务与逐文件产物索引（`present` 表示本机文件是否还在）。
 - `GET /api/tests/artifact?root=&change=&user=&run=&path=` → 该次运行产物目录内的单个文件。路径必须是不含 `..` 的相对路径，目标必须是真实路径仍在运行目录内的普通文件（对已打开的 inode 再核对一次），超过 64 MiB 返回 `413`。图片和视频内联，zip 与 HTML 只作附件；所有响应都带 `nosniff`、`Content-Security-Policy: sandbox`，以及带原文件名的 `Content-Disposition`（`attachment; filename="trace.zip"` 或 `inline; filename="home.png"`；文件名含非 ASCII 时补 RFC 5987 的 `filename*=UTF-8''…`），下载存下来的仍是原名，不会变成 `artifact.zip`。
 
-`GET /api/snapshot` 里每个 change 还带 `testPolicy`（每个声明了策略的阶段的判定）、`testPlan` 与 `testUser`。
+`GET /api/snapshot` 里每个 change 还带 `testPolicy`（每个声明了测试档位或旧策略的阶段的判定；由档位派生的条目带
+`level: { name, required, touched, source }`）、`testPlan` 与 `testUser`。
 每条 `testPolicy` 还把目录里项目级的 `not_applicable` 声明列为 `notApplicable: [{kind, reason, approved}]`（`approved: false` = 还在等评审确认），测试页签据此把已批准的种类显示为「不适用」而不是缺。
 Dashboard 自己读的是更轻的「列表层」（见下文「快照分层与缓存」），打开一个任务时才从
 `GET /api/change/:name/snapshot` 读这些逐任务的证据。

@@ -5,9 +5,11 @@ import { CommandLine } from '../shared/CommandLine'
 import { BUTTON_GHOST, LIST_SELECTED } from '../shared/uiRecipes'
 import { KindLabel } from '../tests/KindLabel'
 import { ResultMark } from '../tests/TestState'
+import { classOf } from '../tests/testLabels'
 import { TABLE_HEAD, TABLE_ROW, gridRow } from '../tests/testStyles'
 import type { Remote } from '../tests/useRemote'
 import { cn } from '@/lib/utils'
+import { ProjectLevels } from './ProjectLevels'
 
 /** 工具列固定宽：放得下 playwright / vitest-bench，不再被挤成 vit…；结果列放得下英文表头 Latest result。 */
 const COLUMNS = 'grid-cols-[minmax(0,1fr)_5.5rem_5.5rem_3.5rem]'
@@ -55,7 +57,7 @@ function Rows({ suites, latest, selectedId, onSelect }: {
             onClick={() => onSelect(suite.id)}
           >
             <span className="flex min-w-0 items-center gap-2" role="cell">
-              <KindLabel kind={suite.kind} iconOnly testId={`proj-suite-kind-${suite.id}`} />
+              <KindLabel kind={classOf(suite.kind)} iconOnly testId={`proj-suite-kind-${suite.id}`} />
               <button
                 type="button"
                 className="block min-w-0 flex-1 truncate rounded-xs text-left font-semibold text-text outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
@@ -82,7 +84,10 @@ function Rows({ suites, latest, selectedId, onSelect }: {
   )
 }
 
-/** 项目页「测试」的中列：套件表（图标 + 名称 · 工具 · 最近结果 · 不稳定数，后者全 0 时整列隐藏）；没有目录时只给可复制的发现命令。 */
+/**
+ * 项目页「测试」的中列：套件表（测试类图标 + 名称 · 工具 · 最近结果 · 不稳定数，后者全 0 时整列隐藏）+ 生效的档位定义；
+ * 没有目录时只给可复制的发现命令。
+ */
 export function ProjectTestsList({ catalog, selectedId, onSelect, onRetry }: {
   catalog: Remote<TestCatalogResponse>
   selectedId: string | null
@@ -118,5 +123,10 @@ export function ProjectTestsList({ catalog, selectedId, onSelect, onRetry }: {
     )
   }
   if (view.state === 'missing' || view.suites.length === 0) return <DiscoverEmpty />
-  return <Rows suites={view.suites} latest={catalog.data.latest} selectedId={selectedId} onSelect={onSelect} />
+  return (
+    <div className="grid gap-6">
+      <Rows suites={view.suites} latest={catalog.data.latest} selectedId={selectedId} onSelect={onSelect} />
+      <ProjectLevels levels={view.levels} />
+    </div>
+  )
 }

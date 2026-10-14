@@ -1,5 +1,5 @@
 /**
- * 步骤 agent 的测试就绪判定：本步必需的测试是否都已通过（旧步骤测试），以及本步声明了 test_policy 时的策略判定
+ * 步骤 agent 的测试就绪判定：本步必需的测试是否都已通过（旧步骤测试），以及本步声明了测试档位或 test_policy 时的策略判定
  * （评审者提示词的 v2 测试摘要读它）。
  */
 import { evaluateTestEvidence, testItemSettled, type TestPolicyReport } from '@tenon/kernel'

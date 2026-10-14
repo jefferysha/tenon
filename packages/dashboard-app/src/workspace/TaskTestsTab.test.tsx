@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { I18nProvider } from '../i18n'
 import { TaskTestsTab } from './TaskTestsTab'
-import { planBrief, totals, verdict, verifyReport } from '../api/testSystemFixtures'
+import { levelReport, planBrief, totals, verdict, verifyReport } from '../api/testSystemFixtures'
 import type { PolicyReport, TestPlanBrief } from '../api/testSystemTypes'
 import type { TestRow } from './stageTests'
 
@@ -120,14 +120,14 @@ describe('TaskTestsTab · 汇总与顺序', () => {
     expect(['suite', 'case', 'fail', 'flaky'].map((id) => screen.getByTestId(`tests-stat-${id}`).textContent)).toEqual(['0套件', '0用例', '0失败', '0不稳定'])
   })
 
-  it('顺序：汇总 → 未登记文件 → 策略矩阵 → 阻塞 → 场景/任务；没有的段整段不出现', () => {
+  it('顺序：汇总 → 测试文件 → 策略矩阵 → 阻塞 → 场景/任务；没有的段整段不出现', () => {
     mount()
     const order = ['tests-summary', 'tests-files', 'tests-matrix', 'tests-blockers', 'tests-trace'].map((id) => screen.getByTestId(id))
     for (let index = 1; index < order.length; index += 1) {
       expect(order[index - 1]!.compareDocumentPosition(order[index]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     }
     reset()
-    mount({ ...verifyReport(), files: { checked: true, unregistered: [], orphans: [] }, blockers: [], notices: [], trace: [] })
+    mount({ ...verifyReport(), files: { checked: true, claimed: [], orphans: [] }, blockers: [], notices: [], trace: [] })
     expect(screen.queryByTestId('tests-files')).toBeNull()
     expect(screen.queryByTestId('tests-blockers')).toBeNull()
     expect(screen.queryByTestId('tests-trace')).toBeNull()
@@ -140,25 +140,124 @@ describe('TaskTestsTab · 汇总与顺序', () => {
   })
 })
 
-describe('TaskTestsTab · 未登记文件', () => {
-  it('置顶表：文件 · 套件 · 阻塞短标签 · 可复制的登记命令；孤儿文件没有套件也没有命令', async () => {
+describe('TaskTestsTab · 测试文件', () => {
+  it('套件自动认领的文件标「自动认领」：文件 · 套件 · 状态，没有命令；不再出现未登记', () => {
+    mount()
+    const files = within(screen.getByTestId('tests-files'))
+    expect(files.getByRole('heading').textContent).toBe('测试文件')
+    const claimed = files.getByTestId('tests-file-e2e/new.spec.ts')
+    expect(claimed).toHaveAttribute('data-orphan', 'false')
+    expect(within(claimed).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['e2e/new.spec.ts', 'web-e2e', '自动认领', '—'])
+    expect(within(claimed).getByTestId('tests-file-status').className).not.toContain('text-red-d')
+    expect(screen.getByTestId('task-tests').textContent).not.toContain('未登记')
+    expect(screen.getByTestId('task-tests').textContent).not.toContain('文件未登记')
+  })
+
+  it('孤儿文件（没有套件认领）在前：红色短标签 + 一条可复制的 --auto 认领命令', async () => {
     const write = vi.fn(async () => undefined)
     Object.defineProperty(navigator, 'clipboard', { value: { writeText: write }, configurable: true })
     mount()
     const files = within(screen.getByTestId('tests-files'))
-    const unregistered = files.getByTestId('tests-file-e2e/new.spec.ts')
-    expect(within(unregistered).getAllByRole('cell')[0]?.textContent).toBe('e2e/new.spec.ts')
-    expect(within(unregistered).getAllByRole('cell')[1]?.textContent).toBe('web-e2e')
-    expect(within(unregistered).getAllByRole('cell')[2]?.textContent).toBe('文件未登记')
-    expect(within(unregistered).getByTestId('tests-file-fix-e2e/new.spec.ts-text').textContent).toBe('tenon test register add-login --file e2e/new.spec.ts --suite web-e2e')
-    await userEvent.click(within(unregistered).getByTestId('tests-file-fix-e2e/new.spec.ts-copy'))
-    expect(write).toHaveBeenCalledWith('tenon test register add-login --file e2e/new.spec.ts --suite web-e2e')
     const orphan = files.getByTestId('tests-file-scripts/tmp.test.mjs')
     expect(orphan).toHaveAttribute('data-orphan', 'true')
     const cells = within(orphan).getAllByRole('cell')
+    expect(cells[0]?.textContent).toBe('scripts/tmp.test.mjs')
     expect(cells[1]?.textContent).toBe('—')
     expect(cells[2]?.textContent).toBe('文件无套件')
-    expect(cells[3]?.textContent).toBe('—')
+    expect(within(orphan).getByTestId('tests-file-status').className).toContain('text-red-d')
+    expect(within(orphan).getByTestId('tests-file-fix-scripts/tmp.test.mjs-text').textContent).toBe('tenon test register add-login --auto')
+    await userEvent.click(within(orphan).getByTestId('tests-file-fix-scripts/tmp.test.mjs-copy'))
+    expect(write).toHaveBeenCalledWith('tenon test register add-login --auto')
+    const rows = files.getAllByRole('row').slice(1).map((row) => row.getAttribute('data-orphan'))
+    expect(rows).toEqual(['true', 'false'])
+  })
+
+  it('英文界面：Auto-claimed', () => {
+    window.localStorage.setItem('tenon-dashboard-lang', 'en')
+    mount()
+    expect(within(screen.getByTestId('tests-file-e2e/new.spec.ts')).getByTestId('tests-file-status').textContent).toBe('Auto-claimed')
+    expect(within(screen.getByTestId('tests-files')).getByRole('heading').textContent).toBe('Test files')
+  })
+
+  it('每行一行不折行：路径、套件、状态都是 truncate', () => {
+    mount()
+    const row = screen.getByTestId('tests-file-e2e/new.spec.ts')
+    expect(row.className).toContain('whitespace-nowrap')
+    for (const cell of within(row).getAllByRole('cell').slice(0, 3)) expect(cell.className).toContain('truncate')
+  })
+})
+
+describe('TaskTestsTab · 档位策略按类', () => {
+  const none: TestPlanBrief = { state: 'ok', suites: [], waivers: [], files: 0, cases: 0 }
+
+  it('矩阵一行一个测试类：表头「测试类」，要求词「必需」「碰到才跑」，套件按类归并，没运行的类满足', () => {
+    mount(levelReport(), { plan: none })
+    const head = within(screen.getByTestId('tests-matrix-head')).getAllByRole('columnheader').map((cell) => cell.textContent)
+    expect(head).toEqual(['测试类', '要求', '套件', '最近结果', '缺项'])
+    expect(['unit', 'integration', 'e2e', 'static', 'benchmark'].map((cls) => screen.getByTestId(`tests-kind-${cls}`).getAttribute('data-met')))
+      .toEqual(['true', 'true', 'false', 'true', 'true'])
+    expect(screen.getByTestId('tests-requirement-unit').textContent).toBe('必需')
+    expect(screen.getByTestId('tests-requirement-e2e').textContent).toBe('碰到才跑')
+    expect(screen.getByTestId('tests-registered-unit').textContent).toBe('前端单测')
+    expect(screen.getByTestId('tests-registered-e2e').textContent).toBe('浏览器 e2e')
+    expect(screen.getByTestId('tests-result-e2e').textContent).toBe('过期')
+    expect(screen.getByTestId('tests-blocker-label-e2e').textContent).toBe('过期')
+    expect(screen.getByTestId('tests-registered-static').textContent).toBe('—')
+    expect(screen.getByTestId('tests-kind-label-e2e')).toHaveAttribute('data-kind', 'e2e')
+  })
+
+  it('要求词的说明在 Tooltip，键盘可达', async () => {
+    mount(levelReport(), { plan: none })
+    screen.getByTestId('tests-requirement-e2e').focus()
+    expect((await screen.findAllByText('改动碰到这一类套件才运行')).length).toBeGreaterThan(0)
+  })
+
+  it('页签的文件段认领了文件、没有孤儿：没有任何登记类阻塞，页面没有句子', () => {
+    mount(levelReport(), { plan: none })
+    expect(within(screen.getByTestId('tests-file-src/Login.test.tsx')).getByTestId('tests-file-status').textContent).toBe('自动认领')
+    expect(screen.getByTestId('task-tests').textContent ?? '').not.toContain('。')
+  })
+
+  it('scenarios: off：追溯矩阵只有一行统计，没有逐条「未覆盖」，不可展开', () => {
+    mount(levelReport(), { plan: none })
+    const trace = screen.getByTestId('tests-trace')
+    expect(within(trace).queryAllByTestId('tests-trace-title')).toHaveLength(0)
+    expect(within(trace).queryByTestId('tests-trace-optional')).toBeNull()
+    const stat = within(trace).getByTestId('tests-trace-unmapped')
+    expect(stat.textContent).toBe('3 未映射')
+    expect(stat.className).toContain('whitespace-nowrap')
+    expect(within(stat).getByRole('cell')).toHaveAttribute('title', '本步不要求映射')
+    expect(trace.textContent).not.toContain('未覆盖')
+    expect(within(trace).getAllByRole('row')).toHaveLength(2)
+    expect(trace.querySelector('h3')?.nextElementSibling?.textContent).toBe('3')
+  })
+
+  it('scenarios: off 时已映射的行照常列出，统计只数没映射的', () => {
+    const base = levelReport()
+    mount({
+      ...base,
+      trace: [
+        ...base.trace,
+        { covers: 'spec:auth/已通过', kind: 'spec', title: 'auth · 已通过', required: true, state: 'passing', tests: [{ ref: 'a.test.ts › 过', status: 'pass' }] },
+      ],
+    }, { plan: none })
+    expect(within(screen.getByTestId('tests-trace')).getAllByTestId('tests-trace-title').map((cell) => cell.textContent)).toEqual(['auth · 已通过'])
+    expect(screen.getByTestId('tests-trace-unmapped').textContent).toBe('3 未映射')
+  })
+
+  it('scenarios: required：未映射逐条列出为缺项，没有统计行', () => {
+    const base = levelReport()
+    mount({ ...base, policy: { ...base.policy!, scenarios: 'required' } }, { plan: none })
+    expect(screen.queryByTestId('tests-trace-unmapped')).toBeNull()
+    expect(within(screen.getByTestId('tests-trace')).getAllByTestId('tests-trace-title')).toHaveLength(3)
+    expect(screen.getByTestId('tests-trace-state-spec:auth/退出登录')).toHaveAttribute('data-tone', 'blocked')
+  })
+
+  it('英文界面：N Unmapped', () => {
+    window.localStorage.setItem('tenon-dashboard-lang', 'en')
+    mount(levelReport(), { plan: none })
+    expect(screen.getByTestId('tests-trace-unmapped').textContent).toBe('3 Unmapped')
+    expect(screen.getByTestId('tests-matrix-head').textContent).toContain('Class')
   })
 })
 
@@ -402,7 +501,7 @@ describe('TaskTestsTab · 阻塞与追溯', () => {
     expect(screen.getByTestId('tests-trace-spec:auth/退出登录').querySelector('[data-testid="tests-trace-cases"]')?.textContent).toBe('—')
   })
 
-  it('场景要求关闭时未覆盖是中性的；豁免与映射未通过各有词', () => {
+  it('场景要求关闭时没映射的合并成一行统计；豁免与映射未通过各有词', () => {
     const base = verifyReport()
     const report: PolicyReport = {
       ...base,
@@ -414,7 +513,8 @@ describe('TaskTestsTab · 阻塞与追溯', () => {
       ],
     }
     mount(report)
-    expect(screen.getByTestId('tests-trace-state-spec:auth/退出登录')).toHaveAttribute('data-tone', 'neutral')
+    expect(screen.queryByTestId('tests-trace-state-spec:auth/退出登录')).toBeNull()
+    expect(screen.getByTestId('tests-trace-unmapped').textContent).toBe('1 未映射')
     expect(screen.getByTestId('tests-trace-state-spec:auth/豁免的').textContent).toBe('豁免')
     expect(screen.getByTestId('tests-trace-state-spec:auth/豁免的')).toHaveAttribute('data-tone', 'pending')
     expect(screen.getByTestId('tests-trace-state-spec:auth/映射了').textContent).toBe('未运行')

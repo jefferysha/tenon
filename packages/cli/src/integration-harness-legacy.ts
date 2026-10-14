@@ -15,6 +15,7 @@ import {
   ensureAgentFreeze,
   parseWorkflow,
   prepareAgentFreeze,
+  stepHasTestPolicy,
   workflowPlanSnapshot,
 } from '@tenon/kernel'
 import type { EffectiveWorkflowPlan, WorkflowDef } from '@tenon/kernel'
@@ -202,8 +203,8 @@ async function initLegacyChange(
     })
   }
   await recordHistory(deps, changeDir, { ts: deps.clock(), kind: 'init', actor: creator })
-  // 声明了测试策略而项目还没有测试目录：立项后自动识别（同 cmdInit）。
-  if (plan.workflow.steps.some((step) => step.test_policy !== undefined)) await autoDiscoverCatalog(cwd)
+  // 声明了测试策略（旧 test_policy 或档位 test）而项目还没有测试目录：立项后自动识别（同 cmdInit）。
+  if (plan.workflow.steps.some((step) => stepHasTestPolicy(step))) await autoDiscoverCatalog(cwd)
   return 0
 }
 

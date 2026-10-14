@@ -186,6 +186,7 @@ async function main(): Promise<void> {
     agentLibrary: () => loadAgentLibrary({ payloadRoot: pluginRoot(), configRoot: runtimePaths().configRoot, projectRoot: process.cwd() }),
     agentPaths: () => ({ payloadRoot: pluginRoot(), configRoot: runtimePaths().configRoot }),
     hostKind: () => detectHostEnvironment(process.env).kind,
+    homeDir: homedir,
     knownSkillIds: () => pluginSkillIds(pluginRoot()),
     testDirections: () => loadTestDirections([
       join(pluginRoot(), 'templates', 'test-directions'),

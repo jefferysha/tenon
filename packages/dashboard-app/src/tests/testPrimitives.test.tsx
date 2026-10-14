@@ -5,7 +5,8 @@ import { I18nProvider } from '../i18n'
 import { CaseStateMark, ResultMark, SuiteStateMark, caseTone, suiteTone } from './TestState'
 import { FixCommand } from './FixCommand'
 import { KindIcon } from './KindIcon'
-import { blockerLabel, noticeLabel } from './testLabels'
+import { TEST_CLASSES } from '@tenon/kernel/test-system/vocabulary'
+import { LEVELS_FILE, blockerLabel, classOf, kindLabel, noticeLabel } from './testLabels'
 import { formatBytes, formatDelta, formatDuration, formatMetric, formatPercent } from './testFormat'
 import { useRemote } from './useRemote'
 
@@ -82,6 +83,21 @@ describe('FixCommand', () => {
     render(<I18nProvider><FixCommand command="x" testId="fix" /></I18nProvider>)
     await userEvent.click(screen.getByTestId('fix-copy'))
     expect(screen.getByTestId('fix-copy')).toHaveAttribute('data-copied', 'false')
+  })
+})
+
+describe('classOf / LEVELS_FILE', () => {
+  it('旧种类名按类归并（与 kernel 同一张表）；类名自己不变；不认识的原样返回', () => {
+    expect(['unit', 'coverage', 'regression', 'contract', 'smoke', 'playwright', 'browser', 'a11y', 'visual', 'typecheck', 'lint', 'code-size', 'design-system', 'benchmark', 'custom', 'static', 'made-up'].map(classOf))
+      .toEqual(['unit', 'unit', 'integration', 'integration', 'integration', 'e2e', 'e2e', 'e2e', 'e2e', 'static', 'static', 'static', 'static', 'benchmark', 'custom', 'static', 'made-up'])
+  })
+
+  it('每个测试类都有图标，界面词按 tests.kind.<类> 取；档位定义文件只有一个路径', () => {
+    const { container } = render(<div>{TEST_CLASSES.map((cls) => <KindIcon key={cls} kind={cls} />)}</div>)
+    expect([...container.querySelectorAll('svg')].map((icon) => icon.getAttribute('data-kind'))).toEqual([...TEST_CLASSES])
+    const words = TEST_CLASSES.map((cls) => kindLabel(cls, (key) => (key === `tests.kind.${cls}` ? cls.toUpperCase() : key)))
+    expect(words).toEqual(TEST_CLASSES.map((cls) => cls.toUpperCase()))
+    expect(LEVELS_FILE).toBe('.tenon/tests/catalog.yaml')
   })
 })
 

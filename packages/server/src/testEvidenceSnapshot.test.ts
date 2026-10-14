@@ -377,20 +377,18 @@ suites:
       ...(changedFiles === undefined ? {} : { changedFiles }),
     })).testPolicy?.[0]
 
-    test('新增的测试文件没登记：test-file-unregistered 进投影，带修复命令；登记后消失', async () => {
+    test('新增的测试文件由套件 glob 认领、不用登记（不出 test-file-unregistered）；没人认领的是孤儿，带一条 --auto 修复命令', async () => {
       const input = await prepared()
-      const step = await project(input, async () => ['src/new.test.ts', 'README.md'])
-      const blocker = step?.blockers.find((item) => item.code === 'test-file-unregistered')
-      expect(blocker).toMatchObject({ subject: 'src/new.test.ts', blocking: true })
-      expect(blocker?.fix).toBe(`tenon test register ${CHANGE} --file src/new.test.ts --suite unit`)
-      expect(step?.files).toMatchObject({ checked: true, unregistered: [{ path: 'src/new.test.ts', suites: ['unit'] }] })
+      const step = await project(input, async () => ['src/new.test.ts', 'tools/x.spec.js', 'README.md'])
+      expect(step?.blockers.map((item) => item.code)).not.toContain('test-file-unregistered')
+      expect(step?.files).toMatchObject({ checked: true, claimed: [{ path: 'src/new.test.ts', suites: ['unit'] }], orphans: ['tools/x.spec.js'] })
+      const orphan = step?.blockers.find((item) => item.code === 'test-file-orphan')
+      expect(orphan).toMatchObject({ subject: 'tools/x.spec.js', blocking: true })
+      expect(orphan?.fix).toBe(`tenon test register ${CHANGE} --auto`)
 
-      await writeTestPlan(input.changeDir, {
-        ...emptyTestPlan(CHANGE), suites: [{ suite: 'unit', scope: 'changed' }], files: [{ path: 'src/new.test.ts', suite: 'unit', kind: 'unit' }],
-      }, { actor: { id: 'a@x.io', name: 'A', trust: 'declared' }, recordedAt: '2026-09-15T10:01:00Z' })
-      const registered = await project(input, async () => ['src/new.test.ts'])
-      expect(registered?.blockers.map((item) => item.code)).not.toContain('test-file-unregistered')
-      expect(registered?.files).toMatchObject({ checked: true, unregistered: [] })
+      const claimedOnly = await project(input, async () => ['src/new.test.ts'])
+      expect(claimedOnly?.blockers.map((item) => item.code)).not.toContain('test-file-orphan')
+      expect(claimedOnly?.files).toMatchObject({ checked: true, claimed: [{ path: 'src/new.test.ts', suites: ['unit'] }], orphans: [] })
     })
 
     test('读不到 diff：以 files-diff-unavailable 阻塞，不降级成通过；宿主没提供 diff：只提示、不阻塞', async () => {
@@ -401,6 +399,78 @@ suites:
       const absent = await project(input)
       expect(absent?.blockers.map((item) => item.code)).not.toContain('files-diff-unavailable')
       expect(absent?.notices.map((item) => item.code)).toContain('files-unchecked')
+    })
+  })
+
+  describe('test 档位的步骤也有策略判定', () => {
+    const LEVEL_CATALOG = `schema: tenon-test-catalog/v1
+suites:
+  - id: unit
+    kind: unit
+    runner: vitest
+    command: npx vitest run
+    files: ["src/**/*.test.ts"]
+    report: { format: junit, path: test-results/unit.xml }
+`
+    function levelPlan(): EffectiveWorkflowPlan {
+      return compileEffectiveWorkflowPlan('levelled', {
+        name: 'levelled',
+        steps: [
+          { id: 'build', label: '实现', gate: null, skills: [], inputs: [], outputs: [], test: 'changed', guards: [], transitions: [{ event: 'done', to: 'verify' }] },
+          { id: 'verify', label: '验证', gate: null, skills: [], inputs: [], outputs: [], test: 'none', guards: [], transitions: [] },
+        ],
+      })
+    }
+    async function prepared(catalog: string): Promise<{ root: string; changeDir: string }> {
+      const { root, changeDir } = await freshRoot()
+      const paths = testSystemPaths(root)
+      await mkdir(paths.root, { recursive: true })
+      await writeFile(paths.catalog, catalog, 'utf8')
+      await writeTestPlan(changeDir, emptyTestPlan(CHANGE), {
+        actor: { id: 'a@x.io', name: 'A', trust: 'declared' }, recordedAt: '2026-09-15T10:00:00Z',
+      })
+      return { root, changeDir }
+    }
+    const project = (input: { root: string; changeDir: string }, changedFiles?: () => Promise<readonly string[]>) =>
+      projectTestEvidence({
+        ...input, changeName: CHANGE, plan: levelPlan(), user: USER, candidate: async () => CANDIDATE,
+        ...(changedFiles === undefined ? {} : { changedFiles }),
+      })
+
+    test('档位步骤出策略判定，策略带 level（内建缺省）；test: none 的步骤没有判定', async () => {
+      const projected = await project(await prepared(LEVEL_CATALOG))
+      expect(projected.testPolicy?.map((item) => item.stepId)).toEqual(['build'])
+      expect(projected.testPolicy?.[0]?.policy).toMatchObject({
+        scope: 'changed', files: 'any', scenarios: 'off', requireBaseline: false,
+        level: { name: 'changed', required: ['unit'], touched: ['static'], source: 'default' },
+      })
+      expect(projected.testUser).toBe(SLUG)
+      expect(projected.testPlan).toMatchObject({ state: 'ok' })
+    })
+
+    test('目录的 levels 改了档位含义：来源是目录，工作流不用改', async () => {
+      const catalog = `${LEVEL_CATALOG}levels:\n  changed: { required: [unit], touched: [static, integration] }\n`
+      const projected = await project(await prepared(catalog))
+      expect(projected.testPolicy?.[0]?.policy?.level).toEqual({
+        name: 'changed', required: ['unit'], touched: ['static', 'integration'], source: 'catalog',
+      })
+    })
+
+    test('目录无效：档位用缺省求值，照旧出 test-catalog-missing 阻塞', async () => {
+      const projected = await project(await prepared('schema: tenon-test-catalog/v1\nsuites:\n  - id: Bad Id\n'))
+      const step = projected.testPolicy?.[0]
+      expect(step?.policy?.level).toMatchObject({ name: 'changed', source: 'default' })
+      expect(step?.blockers.map((item) => item.code)).toContain('test-catalog-missing')
+    })
+
+    test('改动过的测试文件由套件认领，进 files.claimed；没人认领的是孤儿', async () => {
+      const projected = await project(
+        await prepared(LEVEL_CATALOG),
+        async () => ['src/new.test.ts', 'tools/x.spec.js', 'README.md'],
+      )
+      const step = projected.testPolicy?.[0]
+      expect(step?.files).toEqual({ checked: true, claimed: [{ path: 'src/new.test.ts', suites: ['unit'] }], orphans: ['tools/x.spec.js'] })
+      expect(step?.blockers.map((item) => item.code)).not.toContain('test-file-unregistered')
     })
   })
 

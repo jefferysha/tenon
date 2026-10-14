@@ -21,6 +21,7 @@
     "./workflow/auto-gate": "./dist/workflow/auto-gate.js",
     "./workflow/orchestration": "./dist/workflow/orchestration.js",
     "./workflow/skill-order": "./dist/workflow/skill-order.js",
+    "./workflow/test-level": "./dist/workflow/test-level.js",
     "./workflow/test-support": "./dist/workflow/test-support.js"
   },
   "engines": {

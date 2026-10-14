@@ -9,7 +9,7 @@ import { realpathSync } from 'node:fs'
 import { realpath, stat } from 'node:fs/promises'
 import { isAbsolute, relative, resolve } from 'node:path'
 import {
-  isCaseReportFormat, planFilesOfSuite,
+  claimedFilesOfSuite, isCaseReportFormat, planFilesOfSuite,
   type CatalogSuite, type CoverageResult, type SuiteReason, type SuiteRunV2,
 } from '@tenon/kernel'
 import { looksSandboxDenied } from '../test-runner/classify.js'
@@ -216,7 +216,9 @@ export async function executeSuite(context: ExecContext, item: RunItem, blocked:
   if (suite.coverage !== undefined && planned.scope === 'full' && suite.benchmark === undefined) {
     coverage = await coverageOf(suite, context, cwd, parsedCases.some((entry) => entry.status === 'fail'), reasons)
   }
-  const wanted = wantedFiles(context.plan, planFilesOfSuite(context.plan, suite), context.knownFailures, suite.id)
+  // 记录里必须留下的文件：计划登记的，加上本任务改动过、被本套件 glob 认领的（门禁据此核对它们执行过）。
+  const claimed = context.changedFiles === undefined ? [] : claimedFilesOfSuite(context.changedFiles, suite)
+  const wanted = wantedFiles(context.plan, [...planFilesOfSuite(context.plan, suite), ...claimed], context.knownFailures, suite.id)
   const attachments = parsedCases.flatMap((entry) => (isRetained(entry, wanted)
     ? entry.attachments.map((attachment) => resolve(cwd, attachment.path)) : []))
   // 报告永远第一个复制：判定层据此确认记录里的报告摘要就是这次运行留下的文件（没进产物目录的报告不可信）。
@@ -247,6 +249,10 @@ export async function executeSuite(context: ExecContext, item: RunItem, blocked:
     report: { format: suite.report.format, path: suite.report.path ?? null, digest },
     log,
   }
-  const judged = await judgeSuite(suite, run, context)
+  const judged = await judgeSuite(suite, run, context, claimed)
+  if (judged.claimedMissing.length > 0) {
+    const listed = judged.claimedMissing.slice(0, 5).join('、')
+    notes.push(`本任务改动的测试文件被套件 ${suite.id} 的 files glob 认领，但报告里没有它们执行过的用例：${listed}${judged.claimedMissing.length > 5 ? ' …' : ''}（目录 glob 与运行器实际收录的范围不一致？别的认领套件执行过则不算）`)
+  }
   return { run: judged.run, notices: judged.notices, notes, tail, sandboxDenied }
 }

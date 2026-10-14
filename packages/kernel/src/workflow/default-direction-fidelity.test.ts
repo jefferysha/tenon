@@ -1,7 +1,8 @@
 /**
  * 随发行版分发的工作流，其步骤测试项要与所引用的测试方向一致。方向是创作模板：字段被整份抄进
- * 步骤 YAML，只写 `direction: code-size` 而不带 `pass.metrics` 的步骤，冻结计划里是
- * `pass: {exit_code: 0, metrics: []}`，2000 行阈值从来不判（真机验收 F11：lines_added 2036 仍 pass）。
+ * 步骤 YAML，方向带的 `pass.metrics` 阈值若不抄进步骤，冻结计划里就是 `pass: {exit_code: 0, metrics: []}`，
+ * 阈值从来不判（真机验收 F11：lines_added 2036 仍 pass）。代码规模现在没有缺省上限：方向模板与步骤都不带
+ * `pass`，要上限的项目在工作流里自己写回 `pass.metrics`。
  */
 import { readFile, readdir } from 'node:fs/promises'
 import { basename, join } from 'node:path'
@@ -41,7 +42,7 @@ async function shippedSteps(): Promise<readonly { readonly where: string; readon
 }
 
 describe('发行版工作流的测试项与方向模板一致', () => {
-  it('每个带 direction 的步骤测试项都带上方向的命令与通过条件（code-size 的 2000 行阈值进入计划）', async () => {
+  it('每个带 direction 的步骤测试项都带上方向的命令与通过条件（方向带阈值的，阈值进入计划）', async () => {
     const byId = await directions()
     const seen = new Set<string>()
     for (const { where, step } of await shippedSteps()) {
@@ -57,13 +58,14 @@ describe('发行版工作流的测试项与方向模板一致', () => {
     expect(seen.has('code-size')).toBe(true)
   })
 
-  it('code-size 测试项：lines_added 上限 2000', async () => {
+  it('code-size 测试项没有缺省上限：方向模板与三个验证步都不带 pass', async () => {
+    expect((await directions()).get('code-size')?.pass).toBeUndefined()
     let checked = 0
     for (const { step } of await shippedSteps()) {
       for (const test of step.tests ?? []) {
         if (test.direction !== 'code-size') continue
         checked += 1
-        expect(test.pass?.metrics).toEqual([{ name: 'lines_added', max: 2000 }])
+        expect(test.pass).toBeUndefined()
       }
     }
     expect(checked).toBeGreaterThanOrEqual(3) // pm / frontend / backend 的验证步；lite 的探针是 diff-risk，不在此列

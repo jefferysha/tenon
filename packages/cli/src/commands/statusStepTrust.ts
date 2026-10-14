@@ -3,19 +3,20 @@
  * `tenon test run` 的「还没有得到你的信任」再来回一趟。
  *
  * 判定与执行前的校验（commands/test-trust.ts ensureTrusted）同一份：目录里的命令、任务冻结工作流里的步骤测试命令，
- * 摘要都记在用户本地的封存里才算信任；环境显式信任（CI）算信任。读不出封存 / 目录时不预告——真正的拦截
- * 仍在 `tenon test run` 那一侧，这里只是少撞一次墙。
+ * 逐条在用户级信任存储（按仓库）里才算信任；不是 git 仓库时才认检出旧封存，有 `.git` 却读不出仓库身份的检出全部算未信任；
+ * 环境显式信任（CI）算信任。只列还没有得到信任的那几条。
+ * 读不出封存 / 目录时不预告——真正的拦截仍在 `tenon test run` 那一侧，这里只是少撞一次墙。
  */
-import { isTrusted, isTenonUser, readTestSeal, userSlug, type EffectiveWorkflowPlan } from '@tenon/kernel'
+import { isTenonUser, userSlug, type EffectiveWorkflowPlan } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
 import { readCatalogFile } from '../test-system/project-files.js'
 import type { StepAction } from './statusStepAction.js'
-import { TRUST_ENV, catalogTrustTarget, stepTestsTrustTarget, type TrustTarget } from './test-trust.js'
+import { TRUST_ENV, catalogTrustTarget, stepTestsTrustTarget, trustScope, untrustedEntries, type TrustTarget } from './test-trust.js'
 
 export interface TrustNotice {
   /** 请用户在自己的终端运行的命令。 */
   readonly command: string
-  /** 将要执行、还没有得到信任的命令（最多 10 条）。 */
+  /** 将要执行、还没有得到信任的命令（最多 10 条，只列未信任的）。 */
   readonly commands: readonly string[]
 }
 
@@ -33,10 +34,12 @@ async function pendingTrust(deps: CliDeps, change: string, plan: EffectiveWorkfl
     }
     const steps = stepTestsTrustTarget(plan)
     if (steps !== undefined) targets.push(steps)
-    const { seal } = await readTestSeal(deps.cwd, userSlug(user.id))
-    const pending = targets.filter((target) => !isTrusted(seal, target.digest))
+    const slug = userSlug(user.id)
+    const scope = await trustScope(deps)
+    const pending: string[] = []
+    for (const target of targets) pending.push(...(await untrustedEntries(deps, slug, target, scope)).map((entry) => entry.line))
     if (pending.length === 0) return null
-    return { command: `tenon test trust ${change}`, commands: pending.flatMap((target) => target.lines).slice(0, MAX_LINES) }
+    return { command: `tenon test trust ${change}`, commands: pending.slice(0, MAX_LINES) }
   } catch {
     return null
   }

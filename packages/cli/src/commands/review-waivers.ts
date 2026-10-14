@@ -14,10 +14,10 @@
  */
 import {
   boundReviewWaiverSelection, clearReviewWaiverSelection, describeProtectedChange, fileAtChangeStart, changeStartOfFields,
-  pendingReviewWaivers, protectedApprovalDigests, protectedChangeLine, protectedOrigin, readTestSeal,
-  residualAcceptedRaw, residualLines, stepTestFailuresOf, userSlug, writeReviewWaiverSelection,
+  displaySafeText, foldDisplayText, formatWaiverMetrics, pendingReviewWaivers, protectedApprovalDigests, protectedChangeLine, protectedOrigin, readTestSeal,
+  residualAcceptedRaw, residualLines, stepTestFailuresOf, stepTestMetricsOf, userSlug, writeReviewWaiverSelection,
   type FrozenProtectedChange, type FrozenResidual, type PendingWaiver, type PipelineState, type StepTestFailures,
-  type WaiverApprovalOutcome, type WaiverSkipReason,
+  type WaiverApprovalOutcome, type WaiverMetric, type WaiverSkipReason,
 } from '@tenon/kernel'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -28,8 +28,16 @@ import { recordTestAudit } from '../testAudit.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
 import { recordHistory } from './fields.js'
 
+/** 待批准清单里步骤测试豁免的键前缀（`test:<步骤测试 id>`）。 */
+const STEP_TEST_PREFIX = 'test:'
+
 export interface PendingReviewItems {
   readonly waivers: readonly PendingWaiver[]
+  /**
+   * 当前候选上各步骤测试的新鲜失败记录里的指标（键为步骤测试 id，每次请求现读；不进冻结清单）：`test:<id>` 豁免下方写
+   * 「最新运行：…」。不在其中 = 当前候选上没有失败记录。
+   */
+  readonly stepTestMetrics?: ReadonlyMap<string, readonly WaiverMetric[]>
   readonly protected: readonly FrozenProtectedChange[]
   /** 验证轮次用完后待用户接受的剩余阻断（必需评审者在当前候选上不通过）。 */
   readonly residual: readonly FrozenResidual[]
@@ -53,22 +61,31 @@ export async function pendingProtectedChanges(
 
 /**
  * 当前步骤各测试新鲜失败的豁免事实（kernel `stepTestFailuresOf`）：步骤测试豁免的批准绑定被批准的那份代码，
- * 评审请求据此把「批准绑定的已不是现在这份代码」的 `test:` 豁免再次列给用户并冻结现在的候选。
- * 工作流或证据读不出来时返回空（不额外列出；转换时门禁仍以「豁免待批准」挡住）。
+ * 评审请求据此把「批准绑定的已不是现在这份代码」的 `test:` 豁免再次列给用户并冻结现在的候选；
+ * 同一次证据读取里的失败指标（`stepTestMetricsOf`）供豁免下方的「最新运行」一行用。
+ * 工作流或证据读不出来时都返回空（不额外列出；转换时门禁仍以「豁免待批准」挡住）。
  */
-export async function currentStepTestFailures(deps: CliDeps, dir: string, change: string): Promise<StepTestFailures> {
+export async function currentStepTestEvidence(
+  deps: CliDeps,
+  dir: string,
+  change: string,
+): Promise<{ readonly failures: StepTestFailures; readonly metrics: ReadonlyMap<string, readonly WaiverMetric[]> }> {
   try {
     const state = await deps.store.read(dir)
     const plan = effectiveWorkflowForState(deps, state)
     const stepId = state.fields.phase
-    if (plan === null || typeof stepId !== 'string') return new Map()
+    if (plan === null || typeof stepId !== 'string') return { failures: new Map(), metrics: new Map() }
     const report = await testEvidenceReaderFor(deps)({
       repoRoot: deps.cwd, changeDir: dir, changeName: change, plan, stepId, context: testEvidenceContextFor(deps, change),
     })
-    return stepTestFailuresOf(report.items)
+    return { failures: stepTestFailuresOf(report.items), metrics: stepTestMetricsOf(report.items) }
   } catch {
-    return new Map()
+    return { failures: new Map(), metrics: new Map() }
   }
+}
+
+export async function currentStepTestFailures(deps: CliDeps, dir: string, change: string): Promise<StepTestFailures> {
+  return (await currentStepTestEvidence(deps, dir, change)).failures
 }
 
 /** 冻结清单（调用方持有 Change 锁）。没有待批准项（计划缺失、不可信也算）时清掉旧清单。 */
@@ -80,13 +97,15 @@ export async function freezePendingWaivers(
   request: { readonly phase: string; readonly event: string; readonly requestedAt: string },
   residual: readonly FrozenResidual[] = [],
 ): Promise<PendingReviewItems> {
-  const waivers = await pendingReviewWaivers({ repoRoot: deps.cwd, dir, change, failures: await currentStepTestFailures(deps, dir, change) })
+  const evidence = await currentStepTestEvidence(deps, dir, change)
+  const waivers = await pendingReviewWaivers({ repoRoot: deps.cwd, dir, change, failures: evidence.failures })
   let frozen: readonly FrozenProtectedChange[] = []
   let protectedError: string | undefined
   try {
     frozen = await pendingProtectedChanges(deps, change, userSlug(actorId))
   } catch (error) {
-    protectedError = error instanceof Error ? error.message.slice(0, 200) : '读取失败'
+    // 错误信息来自 git 子进程，会被拼进评审请求的一行输出：先折成单行并去控制字符，再截短。
+    protectedError = error instanceof Error ? foldDisplayText(error.message).slice(0, 200) : '读取失败'
   }
   if (waivers.length === 0 && frozen.length === 0 && residual.length === 0) await clearReviewWaiverSelection(dir)
   else {
@@ -96,7 +115,7 @@ export async function freezePendingWaivers(
       ...(residual.length === 0 ? {} : { residual }),
     })
   }
-  return { waivers, protected: frozen, residual, ...(protectedError === undefined ? {} : { protectedError }) }
+  return { waivers, stepTestMetrics: evidence.metrics, protected: frozen, residual, ...(protectedError === undefined ? {} : { protectedError }) }
 }
 
 async function currentText(deps: CliDeps, path: string): Promise<string | undefined> {
@@ -112,16 +131,26 @@ export async function reviewItemLines(deps: CliDeps, state: PipelineState, items
   const lines: string[] = []
   if (items.waivers.length > 0) {
     const bound = items.waivers.some((waiver) => waiver.candidate !== undefined)
+    const stepTests = items.waivers.some((waiver) => waiver.key.startsWith(STEP_TEST_PREFIX))
     lines.push(
-      `[REVIEW] 待批准的豁免 ${items.waivers.length} 项（用户的确认同时批准这些豁免；\`not-applicable:<种类>\` 是 catalog.yaml 里项目级的「不适用」声明，批准一次对全项目生效。${bound ? '`test:<步骤测试 id>` 的批准只对现在这份代码上的失败有效，代码再变、同一测试再次失败要重新确认。' : ''}请连同理由一并展示给用户）：`,
-      ...items.waivers.map((waiver) => `  ${waiver.key} — ${waiver.reason}`),
+      `[REVIEW] 待批准的豁免 ${items.waivers.length} 项（用户的确认同时批准这些豁免；\`not-applicable:<种类>\` 是 catalog.yaml 里项目级的「不适用」声明，批准一次对全项目生效。${bound ? '`test:<步骤测试 id>` 的批准只对现在这份代码上的失败有效，代码再变、同一测试再次失败要重新确认。' : ''}${stepTests ? '`test:<步骤测试 id>` 的理由是登记者自述、未经核实，其下一行「最新运行」是 Tenon 此刻从当前候选上最新失败记录读出的实测值，以它核对理由里的数字。' : ''}请连同理由一并展示给用户）：`,
+      // 豁免的键与理由是登记者自述的自由文本，会被 agent 读到再转述：用 displaySafeText 把反引号与尖括号换成全角，
+      // 伪造的标签、代码块才不能成形；仍不截短，用户要看全文才能批准。
+      ...items.waivers.flatMap((waiver) => [
+        `  ${displaySafeText(waiver.key)} — ${displaySafeText(waiver.reason)}`,
+        ...(waiver.key.startsWith(STEP_TEST_PREFIX)
+          ? [`    ${formatWaiverMetrics(items.stepTestMetrics?.get(waiver.key.slice(STEP_TEST_PREFIX.length)))}`]
+          : []),
+      ]),
     )
   }
   if (items.protected.length > 0) {
     lines.push(`[REVIEW] 待确认的测试配置改动 ${items.protected.length} 项（用户的确认同时批准这些内容；请连同下列摘要一并展示给用户，确认之后文件再变就要重新确认）：`)
     const start = changeStartOfFields(state.fields)
+    // 路径与摘要里有用户要批准的测试命令（如 `node x.mjs > out.log`）：只用 foldDisplayText 折行并去控制字符，
+    // 不做 displaySafeText 的全角替换，否则用户看到的命令和实际会执行的不一致。
     for (const item of items.protected) {
-      lines.push(`  ${protectedChangeLine(item)}${item.origin === 'outside-command' ? ' [台账外改动：Tenon 命令写出之后又被改过]' : ''}`)
+      lines.push(`  ${foldDisplayText(protectedChangeLine(item))}${item.origin === 'outside-command' ? ' [台账外改动：Tenon 命令写出之后又被改过]' : ''}`)
       let before: string | undefined
       try {
         before = await fileAtChangeStart(deps.cwd, start, item.path)
@@ -129,7 +158,7 @@ export async function reviewItemLines(deps: CliDeps, state: PipelineState, items
         before = undefined
       }
       const after = item.status === 'deleted' ? undefined : await currentText(deps, item.path)
-      for (const line of describeProtectedChange(item.kind, before, after)) lines.push(`    · ${line}`)
+      for (const line of describeProtectedChange(item.kind, before, after)) lines.push(`    · ${foldDisplayText(line)}`)
     }
   }
   lines.push(...residualLines(items.residual))
@@ -145,10 +174,11 @@ const SKIP_WORDS: Readonly<Record<WaiverSkipReason, string>> = {
   'already-approved': '已经批准过',
 }
 
+/** 键来自登记者写的计划 / 目录，路径来自仓库文件名：打印前去掉控制与双向字符；键另把反引号与尖括号换成全角，路径保持原样。 */
 export function skippedWaiverLines(outcome: WaiverApprovalOutcome): readonly string[] {
   return [
-    ...outcome.skipped.map((item) => `[REVIEW] 豁免 ${item.key} 未批准：${SKIP_WORDS[item.why]}；需要时重新 review request`),
-    ...outcome.protectedSkipped.map((item) => `[REVIEW] 配置改动 ${item.path} 未批准：${item.why === 'content-changed' ? '请求之后内容又变了' : '读不出内容'}；需要时重新 review request`),
+    ...outcome.skipped.map((item) => `[REVIEW] 豁免 ${displaySafeText(item.key)} 未批准：${SKIP_WORDS[item.why]}；需要时重新 review request`),
+    ...outcome.protectedSkipped.map((item) => `[REVIEW] 配置改动 ${foldDisplayText(item.path)} 未批准：${item.why === 'content-changed' ? '请求之后内容又变了' : '读不出内容'}；需要时重新 review request`),
   ]
 }
 
@@ -168,14 +198,14 @@ export async function refuseDelegatedWhileWaiversPending(
   const pending = await pendingReviewWaivers({ repoRoot: deps.cwd, dir, change, failures: await currentStepTestFailures(deps, dir, change) })
   if (pending.length > 0) {
     throw new Error(
-      `有 ${pending.length} 项测试豁免 / 不适用声明待人工批准（${pending.map((item) => item.key).join('、')}）：`
+      `有 ${pending.length} 项测试豁免 / 不适用声明待人工批准（${pending.map((item) => displaySafeText(item.key)).join('、')}）：`
       + '委托确认不批准豁免（也不批准目录里的「不适用」声明）；请用户回复「确认继续」人工确认，或先撤掉它们',
     )
   }
   const items = await pendingProtectedChanges(deps, change, userSlug(actorId)).catch(() => [])
   if (items.length > 0) {
     throw new Error(
-      `本任务改动了 ${items.length} 处测试配置待人工确认（${items.map((item) => item.path).join('、')}）：`
+      `本任务改动了 ${items.length} 处测试配置待人工确认（${items.map((item) => foldDisplayText(item.path)).join('、')}）：`
       + '委托确认不批准测试配置改动；请用户回复「确认继续」人工确认，或先还原这些改动',
     )
   }

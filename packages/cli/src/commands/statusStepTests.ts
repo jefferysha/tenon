@@ -4,7 +4,8 @@
  *
  *   discover → seed → map → register-files → run-tests → report
  *
- * 前四类是登记（目录 → 计划 → 场景与套件映射 → 测试文件），依赖前一类，所以一次只下发最靠前的一类；
+ * 前四类是登记（目录 → 计划 → 缺的测试类与场景映射 → 孤儿测试文件），依赖前一类，所以一次只下发最靠前的一类；
+ * 改动过的测试文件按套件 glob 自动认领，不需要登记，所以 register-files 只为没人认领的孤儿下发；
  * `run-tests` 是按策略在当前代码上运行；`test-report` 把追溯矩阵写进验证报告；其余已经运行过却不满足
  * 策略的阻塞（用例失败、覆盖率不足、基准退化……）没有专门动作，交给 `fix` / 回退边。
  * 旧步骤测试（内联套件，id 以 `step:` 开头）仍走 `run-test`，不在这里。
@@ -59,7 +60,8 @@ export interface StepTestFlow {
 
 const SEED_CODES: ReadonlySet<string> = new Set(['test-plan-missing', 'test-plan-tampered'])
 const MAP_CODES: ReadonlySet<string> = new Set(['test-kind-missing', 'scenario-uncovered'])
-const FILE_CODES: ReadonlySet<string> = new Set(['test-file-unregistered', 'test-file-orphan'])
+/** 认领取代逐个登记：测试文件类只会有孤儿（test-file-unregistered 求值不再产生，码只留给旧报告显示）。 */
+const FILE_CODES: ReadonlySet<string> = new Set(['test-file-orphan'])
 const RUN_CODES: ReadonlySet<string> = new Set(['test-not-run', 'test-stale', 'record-chain-broken', 'record-unsealed'])
 /** 只等用户在评审里确认（review request 列出、acknowledge 同一次批准）的受保护配置改动。 */
 const CONFIRM_CODES: ReadonlySet<string> = new Set(['protected-file-unapproved', 'protected-file-tampered'])
@@ -128,7 +130,10 @@ export function testPlanningActions(change: string, flow: StepTestFlow): readonl
   if (flow.map.length > 0) {
     return [{ action: 'test-plan-map', show: `tenon test plan ${change} --json`, items: flow.map }]
   }
-  if (flow.files.length > 0) return [{ action: 'test-register-files', files: flow.files }]
+  // 只有孤儿：一条 `register --auto` 认领全部（该文件的精确路径并进对应套件的 files），不再逐个登记。
+  if (flow.files.length > 0) {
+    return [{ action: 'test-register-files', files: flow.files.map((item) => ({ ...item, fix: `tenon test register ${change} --auto` })) }]
+  }
   return []
 }
 

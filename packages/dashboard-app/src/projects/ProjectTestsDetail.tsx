@@ -12,5 +12,5 @@ export function ProjectTestsDetail({ root, tests }: { root: string; tests: Proje
   if (data === null || view?.state !== 'ok' || suite === undefined) {
     return <DetailEmpty label={t('tests.project.empty')} testId="proj-suite-empty" />
   }
-  return <SuiteDetail key={suite.id} root={root} suite={suite} services={view.services} knownFailures={data.knownFailures} workflow={tests.workflow} />
+  return <SuiteDetail key={suite.id} root={root} suite={suite} services={view.services} knownFailures={data.knownFailures} levels={view.levels} />
 }

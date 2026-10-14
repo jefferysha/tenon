@@ -1,0 +1,48 @@
+track: backend
+preset: full
+created_by: jefferySha <710227704@qq.com>
+assignee: jefferySha <710227704@qq.com>
+phase: ship
+phase_status: pending
+design_doc: docs/superpowers/specs/simplify-test-settings-design.md
+plan: docs/superpowers/plans/simplify-test-settings.md
+verification_report: docs/superpowers/reports/simplify-test-settings-verify.md
+build_mode: subagent-driven-development
+isolation: in-place
+build_sha: build:v1:workspace:56c178646aa21cb9765d3430e6c9b226d4eeeeea310706e65de81703974d0844:467996397e337a566945ca1fde5f827268a63c2735267155c7c68855a8263fc7:37d2c849a1e6d96e01a4cade3a8350e7723e6a72f4178edd9ce8c36742488c7f
+agent_review_result: pending
+codex_review_result: pending
+verify_result: pass
+branch_status: handled
+direct_override: false
+prd_path: null
+pr_url: null
+automation: off
+automation_queued_at: ""
+automation_sandbox: ""
+automation_worktree: ""
+automation_attempts: 0
+automation_last_error: ""
+automation_preserved_path: ""
+branch: null
+base_branch: tenon/simplify-test-settings
+scope: null
+related_files: null
+spec_scope: null
+depends_on: null
+created_at: 2026-10-12T00:37:56Z
+updated_at: 2026-10-14T00:31:07Z
+verified_at: 2026-10-14T00:31:07Z
+archived_at: null
+archived: false
+workflow: default
+automation_current_phase: ""
+automation_cause: ""
+pipeline_run_id: c6279f4b-c76a-441d-8407-28a39aef3839
+pipeline_transition_sequence: 19
+pipeline_transition_head: 2ba1d590-b64e-4559-b860-76a349e6d512
+pipeline_state_revision: 50
+pipeline_state_revision_id: 6feceb13-7ea4-47ea-9c9a-e0058c3dcf84
+pipeline_state_digest: 16c7cd5b3fa3bbc888e6a8a25bfffec4c5697de11800c1ae93e11e2e29d57eda
+# tenon-internal-pre-verify-review-v1: eyJzY2hlbWFWZXJzaW9uIjoxLCJyZXZpc2lvbiI6NTAsInJldmlzaW9uSWQiOiI2ZmVjZWIxMy03ZWE0LTQ3ZWEtOWM5YS1lMDA1OGMzZGNmODQiLCJwYXlsb2FkRGlnZXN0IjoiODQ0ODgwYzhkN2VmOGZlODRmMDZhOWM2MTM0MDYxZTJkYmIyMmQ0ZjVkNDlhN2UyY2YxMTI4OGE3YmE4MDc3YSJ9
+# tenon-internal-transition-head-v1: eyJzY2hlbWFWZXJzaW9uIjoxLCJydW5JZCI6ImM2Mjc5ZjRiLWM3NmEtNDQxZC04NDA3LTI4YTM5YWVmMzgzOSIsInNlcXVlbmNlIjoxOSwicmVjb3JkSWQiOiIyYmExZDU5MC1iNjRlLTQ1NTktYjg2MC03NmEzNDllNmQ1MTIiLCJyZWNvcmREaWdlc3QiOiI5M2ExYWU1YjgxYjY0ODBmODI4ZmFhZTVhNjZkYmYzZjk5YmNlMzk3OGYxZmY3OWYyNDU2OWZiNmQwMjhiYzA0In0

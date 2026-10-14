@@ -43,7 +43,7 @@ function editorFor(def: WbWorkflowDef, branch: string, canWrite = true): Workflo
   return {
     def, canWrite, lint: [], branch, branches: [{ id: branch, label: branch }],
     labelOf: (id: string) => labels.get(id) ?? id,
-    setGate: vi.fn(), setStageBack: vi.fn(), setTestPolicy: vi.fn(),
+    setGate: vi.fn(), setStageBack: vi.fn(), setTestLevel: vi.fn(),
   } as unknown as WorkflowEditor
 }
 

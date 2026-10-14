@@ -29,7 +29,7 @@
       "name": "code-size",
       "version": "1.0.0",
       "role": "reviewer",
-      "digest": "sha256:7d54969586ab9117f664c9834f6889b671b4628a70c18f372d40f0aba9bdb16d"
+      "digest": "sha256:67a3c90c717690c82f040bc90a0bae271c50f5b3451cc973520bd5629d2e211c"
     },
     {
       "name": "e2e",

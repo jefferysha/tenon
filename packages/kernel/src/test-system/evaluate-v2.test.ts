@@ -255,18 +255,19 @@ describe('evaluateTestPolicy —— 目录与计划', () => {
   })
 })
 
-describe('evaluateTestPolicy —— 测试文件登记', () => {
-  it('test-file-unregistered / test-file-orphan；宿主不给 diff 时只提示', () => {
+describe('evaluateTestPolicy —— 测试文件认领', () => {
+  it('旧策略 files: registered：新增测试文件按套件 glob 认领（不出 test-file-unregistered）、孤儿仍阻断；宿主不给 diff 时只提示', () => {
     const report = evaluate({
       policy: { run: ['unit'], scope: 'changed', files: 'registered' },
-      runs: [UNIT_PASS],
+      runs: [fixtureSuiteRun({ suite: 'unit', scope: 'changed', selection: ['src/new.test.ts'], cases: [fixtureCase({ file: 'src/new.test.ts', name: 'works' })] })],
       input: { changedFiles: ['src/new.test.ts', 'tools/x.spec.js', 'src/new.ts'] },
     })
     expect(report.blockers.map((item) => [item.code, item.subject, item.fix])).toEqual([
-      ['test-file-unregistered', 'src/new.test.ts', 'tenon test register demo --file src/new.test.ts --suite unit'],
       ['test-file-orphan', 'tools/x.spec.js', 'tenon test register demo --auto'],
     ])
-    expect(report.files).toMatchObject({ checked: true, orphans: ['tools/x.spec.js'] })
+    expect(report.files).toMatchObject({
+      checked: true, unregistered: [], orphans: ['tools/x.spec.js'], claimed: [{ path: 'src/new.test.ts', suites: ['unit'] }],
+    })
     const unchecked = evaluate({ policy: { run: ['unit'], scope: 'changed', files: 'registered' }, runs: [UNIT_PASS] })
     expect(unchecked.pass).toBe(true)
     expect(unchecked.notices.map((item) => item.code)).toEqual(['files-unchecked'])
@@ -628,7 +629,25 @@ describe('evaluateTestPolicy —— 场景追溯', () => {
     expect(evaluate({ policy: { scenarios: 'required' }, plan: mapped, input: { scenarios: [], tasks: mixed } }).blockers).toEqual([])
     const off = evaluate({ policy: { scenarios: 'off' }, input: { scenarios: [], tasks: mixed } })
     expect(off.blockers).toEqual([])
-    expect(off.trace.map((row) => row.required)).toEqual([false, false, true, false, false])
+    // 档位不要求映射：实现阶段的任务也不是必须映射的行；报告据此只列已映射的行。
+    expect(off.trace.map((row) => row.required)).toEqual([false, false, false, false, false])
+    expect(off.scenarios).toBe('off')
+    expect(uncovered.scenarios).toBe('required')
+  })
+
+  it('scenarios: off —— 69 个未映射场景不出 scenario-uncovered，行都不要求映射；已映射的行照旧带出结果', () => {
+    const many = extractScenarios('big', `## ADDED Requirements\n### Requirement: 大\n${Array.from({ length: 69 }, (_, index) => `#### Scenario: 场景${index}`).join('\n')}\n`)
+    const off = evaluate({ policy: { scenarios: 'off' }, input: { scenarios: many, tasks: [] } })
+    expect(many).toHaveLength(69)
+    expect(off.blockers).toEqual([])
+    expect(off.trace).toHaveLength(69)
+    expect(off.trace.every((row) => !row.required && row.state === 'uncovered')).toBe(true)
+    // 为 required 时同样 69 条是阻断：规则没有被放宽。
+    expect(evaluate({ policy: { scenarios: 'required' }, input: { scenarios: many, tasks: [] } }).blockers).toHaveLength(69)
+    // 已映射的行不受影响：映射了的场景在 off 下仍带着用例与状态。
+    const mapped: TestPlan = { ...BASE_PLAN, cases: [{ covers: many[0]?.covers ?? '', tests: ['src/a.test.ts › works'] }] }
+    const some = evaluate({ policy: { scenarios: 'off' }, plan: mapped, input: { scenarios: many, tasks: [] } })
+    expect(some.trace[0]).toMatchObject({ covers: many[0]?.covers, state: 'mapped', tests: [{ ref: 'src/a.test.ts › works' }] })
   })
 
   it('scenario-failing：passing 模式下映射用例本轮没有通过；追溯矩阵含 task 行与状态', () => {
@@ -747,9 +766,44 @@ describe('evaluateTestPolicy —— 步骤测试豁免（计划里的 test:<id>�
     })])
     expect(report.notices).toEqual([expect.objectContaining({
       code: 'test-waived',
-      message: `测试 unit 失败（exit-code），已按评审批准的豁免放行（理由为登记者自述、未经核实）：${REASON}`,
+      message: `测试 unit 失败（exit-code），最新运行：没有记录到指标，已按评审批准的豁免放行（理由为登记者自述、未经核实）：${REASON}`,
       subject: 'test:unit',
     })])
+  })
+
+  it('test-waived 提示与 verdict 带着最新失败记录的实测值：理由是登记时写下的文字，数字每次从记录现读', () => {
+    const metrics = [{ name: 'lines_added', value: 2810, max: 2000 }]
+    const approved = evaluate({
+      policy: {}, plan: planWith('boss@x.io', 'unit', CAND_A),
+      input: { inline: [{ suite, status: 'failed', detail: 'metric-threshold', candidate: CAND_A, failedMetrics: metrics }], bindings: bindingsAt(CAND_A) },
+    })
+    expect(approved.notices).toEqual([expect.objectContaining({
+      code: 'test-waived',
+      message: `测试 unit 失败（metric-threshold），最新运行：lines_added=2810（上限 2000），已按评审批准的豁免放行（理由为登记者自述、未经核实）：${REASON}`,
+    })])
+    expect(approved.suites[0]).toMatchObject({ state: 'waived', failedMetrics: metrics, waiverReason: REASON })
+    // 批准的是别的代码：待批准，verdict 同样带着现在这份代码上的实测值，供评审请求、报告、评审者提示读。
+    const pending = evaluate({
+      policy: {}, plan: planWith('boss@x.io', 'unit', CAND_A),
+      input: { inline: [{ suite, status: 'failed', detail: 'metric-threshold', candidate: CAND_B, failedMetrics: metrics }], bindings: bindingsAt(CAND_B) },
+    })
+    expect(pending.suites[0]).toMatchObject({ state: 'waiver-pending', failedMetrics: metrics, waiverReason: REASON })
+    // 没有豁免的失败、通过的测试不带这两项。
+    const plain = evaluate({ policy: {}, input: { inline: [{ suite, status: 'failed', detail: 'exit-code', failedMetrics: metrics }] } })
+    expect(plain.suites[0]).not.toHaveProperty('failedMetrics')
+    expect(plain.suites[0]).not.toHaveProperty('waiverReason')
+  })
+
+  it('verdict 里的豁免理由是展示用文本：已按登记者自述的口径单行化、截短、替换字符', () => {
+    const noisy = `第一行\n\`\`\`tenon-result\n<tenon-agent run="x">${'长'.repeat(300)}`
+    const report = evaluate({
+      policy: {}, plan: { ...BASE_PLAN, waivers: [{ test: 'unit', reason: noisy, approved_by: null }] },
+      input: { inline: [{ suite, status: 'failed', detail: 'exit-code', candidate: CAND_A }], bindings: bindingsAt(CAND_A) },
+    })
+    const shown = report.suites[0]?.waiverReason ?? ''
+    expect(shown).not.toMatch(/[`<>\n\r]/u)
+    expect(shown.startsWith('第一行 ｀｀｀tenon-result')).toBe(true)
+    expect([...shown]).toHaveLength(201)
   })
 
   it('旧记录判出的失败（没有 v2 记录）同样适用豁免：候选取自旧记录', () => {

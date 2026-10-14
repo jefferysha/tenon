@@ -45,7 +45,21 @@ test.describe('项目页', () => {
     await expect(page.getByTestId('proj-suite-demo-unit')).toBeVisible()
     await expect(page.getByTestId('proj-suite-demo-check')).toBeVisible()
     await expect(page.getByTestId('proj-suite-result-demo-unit')).toHaveText('失败')
-    await expect(page.getByTestId('proj-suite-result-demo-check')).toHaveText('—')
+    // 种子的计划显式加跑了这个静态检查套件：验证阶段运行它，最近结果是通过。
+    await expect(page.getByTestId('proj-suite-result-demo-check')).toHaveText('通过')
+    // 每个套件标所属测试类（旧种类名 typecheck 归在静态类）。
+    await expect(page.getByTestId('proj-suite-kind-demo-unit')).toHaveAttribute('data-kind', 'unit')
+    await expect(page.getByTestId('proj-suite-kind-demo-check')).toHaveAttribute('data-kind', 'static')
+
+    // 档位定义：三档各一行；种子的目录只写了 full，其余两档是内建缺省。
+    await expect(page.getByTestId('proj-levels')).toBeVisible()
+    await expect(page.getByTestId('proj-level-plan-source')).toHaveText('内建缺省')
+    await expect(page.getByTestId('proj-level-changed-source')).toHaveText('内建缺省')
+    await expect(page.getByTestId('proj-level-full-source')).toHaveText('目录')
+    // 档位定义所在的文件只在标题旁图标的悬停说明里，页面上不写成句子。
+    await expect(page.getByTestId('proj-levels')).not.toContainText('catalog.yaml')
+    await page.getByTestId('proj-levels-file').focus()
+    await expect(page.getByText('.tenon/tests/catalog.yaml').first()).toBeVisible()
 
     await page.getByTestId('proj-suite-open-demo-unit').click()
     const detail = page.getByTestId('proj-suite-detail')

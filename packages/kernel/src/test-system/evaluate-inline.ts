@@ -7,6 +7,7 @@ import { STALE_WORDS, staleBindings, type FreshnessContext, type SuiteRunRef } f
 import type { SuiteVerdict, TestPolicyEvaluationInput } from './evaluate-types.js'
 import type { TestPlan } from './plan.js'
 import { stepTestWaiver, waiverReasonText } from './step-test-waivers.js'
+import { formatWaiverMetrics } from './waiver-metrics.js'
 
 export interface InlineSink {
   readonly blockers: TestBlocker[]
@@ -45,11 +46,14 @@ export function evaluateInline(
     }
     const waiver = suite.required && state === 'failed' ? stepTestWaiver(plan, suite.testId, failedCandidate, freshness) : undefined
     const verdictState = waiver === undefined ? state : waiver.approved ? 'waived' : 'waiver-pending'
+    // 豁免旁的「最新运行」读这条失败记录里的指标（现读，不随理由里的数字固定）；v2 记录判出的失败没有指标来源，按空处理。
+    const failedMetrics = item.failedMetrics ?? []
     verdicts.push({
       ...base,
       state: verdictState,
       ...(detail === undefined || detail === '' ? {} : { detail }),
       ...(waiver !== undefined && typeof failedCandidate === 'string' ? { failedCandidate } : {}),
+      ...(waiver === undefined ? {} : { failedMetrics, waiverReason: waiverReasonText(waiver.reason) }),
     })
     if (!suite.required || state === 'passed') continue
     const suffix = detail === undefined || detail === '' ? '' : `：${detail}`
@@ -57,7 +61,12 @@ export function evaluateInline(
       const failed = `测试 ${name} 失败${detail === undefined || detail === '' ? '' : `（${detail}）`}`
       const subject = `test:${suite.testId}`
       if (waiver.approved) {
-        out.notices.push(testNotice('test-waived', `${failed}，已按评审批准的豁免放行（理由为登记者自述、未经核实）：${waiverReasonText(waiver.reason)}`, { subject }))
+        // 单行消息里，运行记录里的实测值（测试命令输出、Tenon 现读）放在登记者自述的理由之前，不可信的理由收尾。
+        out.notices.push(testNotice(
+          'test-waived',
+          `${failed}，${formatWaiverMetrics(failedMetrics)}，已按评审批准的豁免放行（理由为登记者自述、未经核实）：${waiverReasonText(waiver.reason)}`,
+          { subject },
+        ))
       } else out.blockers.push(testBlocker('waiver-unapproved', `${failed}，豁免尚未经评审批准`, { fix: reviewFix, subject }))
     } else if (state === 'running') out.blockers.push(testBlocker('test-not-run', `测试 ${name} 运行中`, { subject: suite.id }))
     else if (state === 'missing') out.blockers.push(testBlocker('test-not-run', `测试 ${name} 未运行`, { fix, subject: suite.id }))

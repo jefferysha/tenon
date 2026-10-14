@@ -343,6 +343,9 @@ export type {
   ActionInput, CompiledGuardConfig, DependencyState, GuardDecision, GuardInput, StepIR, StepTestIR, StepTestPolicyIR,
   StepTransitionIR, TasksThroughStepResult, UniversalGuardCapabilities, WorkflowIR,
 } from './workflow/ir.js'
+// 步骤测试档位（`test:`）：四选一闭集；档位含义在求值时读项目测试目录的 levels（test-system/levels.ts）。
+export { TEST_LEVELS, isTestLevel, stepDeclaresTests } from './workflow/test-level.js'
+export type { TestLevel } from './workflow/test-level.js'
 export { universalGuardCapabilities } from './workflow/universal-guard-capabilities.js'
 export type { UniversalGuardSource } from './workflow/universal-guard-capabilities.js'
 export { readinessByTransition } from './workflow/transition-readiness.js'

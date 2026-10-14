@@ -31,6 +31,7 @@ import {
   requiredTrackChoices,
   retiredSkillReferences,
   retiredSkillsWorkflowMessage,
+  stepHasTestPolicy,
   UnknownTrackError,
   workflowPlanSnapshot,
 } from '@tenon/kernel'
@@ -368,7 +369,7 @@ export async function cmdInit(
           }
         }
         deps.io.err(`[INIT] ${created}`)
-        wants.catalog = plan.workflow.steps.some((step) => step.test_policy !== undefined)
+        wants.catalog = plan.workflow.steps.some((step) => stepHasTestPolicy(step))
         return 0
       } catch (e) {
         deps.io.err(`ERROR: ${errMsg(e)}`)

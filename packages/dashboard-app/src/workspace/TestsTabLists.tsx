@@ -11,10 +11,13 @@ import { COUNT_BADGE, SUBGRID_ROW, TABLE_HEAD, TABLE_ROW, contentTable, gridRow 
 import type { PolicyReport, TestBlocker, TestNotice, TraceRow } from '../api/testSystemTypes'
 import { traceLabel, traceNeedsMapping, traceRows, type FileRow } from './testsTabModel'
 
-/** 文件 · 套件 · 阻塞短标签（按内容定宽，中英文各取各的）· 修复命令；文件路径与命令吃剩余宽度并截断。 */
+/** 文件 · 套件 · 状态短标签（按内容定宽，中英文各取各的）· 修复命令；文件路径与命令吃剩余宽度并截断。 */
 const FILE_COLUMNS = 'grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_auto_minmax(0,2fr)]'
 
-/** 未登记文件：置顶于矩阵之上；每行带阻塞短标签与登记命令（孤儿文件没有命令）。 */
+/**
+ * 本任务改动的测试文件：置顶于矩阵之上。套件的 files glob 认领的文件标「自动认领」（中性，不需要任何动作）；
+ * 没有套件认领的孤儿标阻塞短标签，并带一条 `--auto` 认领命令。
+ */
 export function TestsTabFiles({ rows }: { rows: readonly FileRow[] }): JSX.Element | null {
   const { t, lang } = useT()
   if (rows.length === 0) return null
@@ -24,16 +27,20 @@ export function TestsTabFiles({ rows }: { rows: readonly FileRow[] }): JSX.Eleme
         <div className={`${SUBGRID_ROW} ${TABLE_HEAD}`} role="row">
           <span role="columnheader">{t('tests.word.file')}</span>
           <span role="columnheader">{t('tests.word.suite')}</span>
-          <span role="columnheader">{t('tests.task.blockers.label')}</span>
+          <span role="columnheader">{t('tests.task.files.status')}</span>
           <span role="columnheader">{t('tests.task.blockers.fix')}</span>
         </div>
         {rows.map((row) => (
           <div key={row.path} className={`${SUBGRID_ROW} ${TABLE_ROW}`} role="row" data-testid={`tests-file-${row.path}`} data-orphan={row.orphan}>
             <span className="truncate font-mono text-text" role="cell" title={row.path}>{row.path}</span>
             <span className="truncate font-mono text-text-2" role="cell" title={row.suites.join(', ')}>{row.suites.length === 0 ? '—' : row.suites.join(', ')}</span>
-            <span className="truncate font-semibold text-red-d" role="cell" title={row.blocker === undefined ? t('tests.task.files.orphan_hint') : dataMessage(row.blocker)}>
-              {blockerLabel(row.blocker?.code ?? (row.orphan ? 'test-file-orphan' : 'test-file-unregistered'), lang)}
-            </span>
+            {row.orphan
+              ? (
+                <span className="truncate font-semibold text-red-d" role="cell" title={row.blocker === undefined ? t('tests.task.files.orphan_hint') : dataMessage(row.blocker)} data-testid="tests-file-status">
+                  {blockerLabel('test-file-orphan', lang)}
+                </span>
+              )
+              : <span className="truncate text-text-2" role="cell" data-testid="tests-file-status">{t('tests.task.files.claimed')}</span>}
             <span className="min-w-0" role="cell">
               {row.blocker?.fix === undefined ? <span className="text-text-3">—</span> : <FixCommand command={row.blocker.fix} testId={`tests-file-fix-${row.path}`} />}
             </span>
@@ -138,12 +145,13 @@ function TraceLine({ report, row, stageLabelOf }: { report: PolicyReport; row: T
 /**
  * 场景/任务追溯：场景或任务条目 · 映射的用例 · 结果。失败排最前；没有映射也不要求映射的骨架任务
  * 合并成表尾一行「N 可选」，点开才逐条列出（默认收起，不用七行一样的「将本阶段目标拆成…」占满页面）。
+ * 档位不要求映射（scenarios: off）时没映射的行不逐条列出，合并成表尾一行「N 未映射」，只有统计、不能展开。
  */
 export function TestsTabTrace({ report, stageLabelOf }: { report: PolicyReport; stageLabelOf: (stage: string) => string }): JSX.Element | null {
   const { t } = useT()
   const [showOptional, setShowOptional] = useState(false)
   if (report.trace.length === 0) return null
-  const { shown, optional } = traceRows(report)
+  const { shown, optional, unmapped } = traceRows(report)
   const Chevron = showOptional ? ChevronDown : ChevronRight
   return (
     <TestSection title={t('tests.task.section.trace')} count={report.trace.length} testId="tests-trace">
@@ -154,6 +162,13 @@ export function TestsTabTrace({ report, stageLabelOf }: { report: PolicyReport; 
           <span role="columnheader">{t('tests.word.result')}</span>
         </div>
         {shown.map((row) => <TraceLine key={row.covers} report={report} row={row} stageLabelOf={stageLabelOf} />)}
+        {unmapped > 0 && (
+          <div role="row" className={`${TABLE_ROW} flex min-w-0 items-center whitespace-nowrap`} data-testid="tests-trace-unmapped">
+            <span role="cell" className="min-w-0 truncate tabular-nums text-text-2" title={t('tests.task.trace.unmapped_hint')}>
+              <CountRoll value={unmapped} /> {t('tests.task.trace.unmapped')}
+            </span>
+          </div>
+        )}
         {optional.length > 0 && (
           <div role="row" className={TABLE_ROW} data-testid="tests-trace-optional">
             <div role="cell">

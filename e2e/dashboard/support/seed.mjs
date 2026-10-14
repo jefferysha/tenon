@@ -76,22 +76,21 @@ test('${FAILING_CASE}', () => {
 `
 
 /**
- * 演示项目自己的 default 工作流：内置默认只强制 unit（其余种类项目里有才跑），而「测试」页签要展示的
- * 豁免待批准、缺测试种类都出在被强制的种类上。所以这个项目像一个要求更严的团队那样，在 backend 的验证步骤
- * 多要 integration（策略 + 内联测试）和 e2e——这是项目级覆盖（.pipeline/workflows/default.yaml），内置模板不变。
+ * 演示项目自己的 default 工作流：内置默认的 backend 验证步骤是 `test: full`，档位的含义在项目测试目录的 levels（见 CATALOG）。
+ * 「测试」页签要展示的豁免待批准、缺测试类都出在被强制的类上，所以这个项目像一个要求更严的团队那样，
+ * 在 levels.full 里多要 integration 和 e2e 两类，并在验证步骤多挂一条 integration 内联测试——
+ * 这是项目级覆盖（.pipeline/workflows/default.yaml + .tenon/tests/catalog.yaml），内置模板不变。
  * 另外让 architecture 评审者要求在 codex 上跑（跨厂商评审）：它还没有运行，运行抽屉里只有「要求的宿主」那一行。
  */
 function strictDefaultWorkflow() {
   const source = readFileSync(fileURLToPath(new URL('../../../templates/workflows/default.yaml', import.meta.url)), 'utf8')
-  const policy = '          run: [unit]\n          run_if_registered: [integration, regression, benchmark]\n'
-  if (!source.includes(policy)) throw new Error('seed: templates/workflows/default.yaml 的 backend 验证策略变了，请同步这里')
   const reviewer = '            - agent: architecture\n              required: false\n              block_at: high\n'
   const reviewerAt = source.indexOf(reviewer, source.indexOf('\n  backend:\n'))
   if (reviewerAt < 0) throw new Error('seed: templates/workflows/default.yaml 的 backend architecture 评审者变了，请同步这里')
-  const withHost = `${source.slice(0, reviewerAt + reviewer.length)}              host: codex\n${source.slice(reviewerAt + reviewer.length)}`
-  const strict = withHost.replace(policy, '          run: [unit, integration, e2e]\n          run_if_registered: [benchmark]\n')
+  const strict = `${source.slice(0, reviewerAt + reviewer.length)}              host: codex\n${source.slice(reviewerAt + reviewer.length)}`
   const backend = strict.indexOf('\n  backend:\n')
   const tests = strict.indexOf('        tests:\n', strict.indexOf('      - id: verify', backend))
+  if (tests < 0) throw new Error('seed: templates/workflows/default.yaml 的 backend 验证步骤不再有内联 tests，请同步这里')
   const at = tests + '        tests:\n'.length
   const inline = [
     '          - id: integration', '            direction: integration', '            command: npm run test:integration',
@@ -101,6 +100,10 @@ function strictDefaultWorkflow() {
 }
 
 const CATALOG = `schema: tenon-test-catalog/v1
+levels:
+  full:
+    required: [unit, integration, e2e]
+    touched: [static, benchmark]
 suites:
   - id: ${UNIT_SUITE}
     label: Demo unit

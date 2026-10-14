@@ -26,6 +26,8 @@ import type {
   WorkflowInteractionPolicyV1,
 } from './types.js'
 import type { TrackPredicate } from './predicates.js'
+import type { TestLevel } from './test-level.js'
+import type { ResolvedLevel } from '../test-system/levels.js'
 import type { CoverageMetric, TestKind } from '../test-system/vocabulary.js'
 import type {
   BuildRevisionAssessment, BuildRevisionAssessmentRequest, BuildRevisionBlocker,
@@ -225,6 +227,11 @@ export interface StepTestPolicyIR {
   readonly flaky?: { readonly max: number; readonly fail_on_new: boolean }
   readonly benchmark: { readonly require_baseline: boolean }
   readonly browsers: readonly string[]
+  /**
+   * 只出现在档位（`test: changed|full|plan`）派生的策略上，由 `resolveStepTestPolicy` 在求值时现算，不进冻结的工作流 IR。
+   * 带它的策略 kinds / run / run_if_registered 恒为空，运行集与必需类来自档位定义；缺席 = 旧 `test_policy`。
+   */
+  readonly level?: ResolvedLevel
 }
 
 /** 转换边的 IR 形态：edge 级 guards（该边专属前置）+ actions（走该边的副作用）。
@@ -255,6 +262,8 @@ export interface StepIR {
   readonly tests?: readonly StepTestIR[]
   /** 本步的测试策略；只在声明时出现。 */
   readonly test_policy?: StepTestPolicyIR
+  /** 本步的测试档位名；只在声明时出现（含显式 `none`），与 `test_policy` 互斥。档位含义在求值时读项目测试目录。 */
+  readonly test?: TestLevel
   /** 本步的执行者与评审者；只在声明了任一身份时出现。agent 内容冻结在 Change 的边车里，不进指纹。 */
   readonly agents?: StepAgentsDef
   readonly transitions: readonly StepTransitionIR[]

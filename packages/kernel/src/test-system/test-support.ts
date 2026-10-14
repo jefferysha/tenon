@@ -6,12 +6,13 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, relative } from 'node:path'
 import { userSlug, type RecordActor } from '../users/user.js'
 import type { EffectiveWorkflowPlan } from '../workflow/effective-plan-types.js'
-import { loadDeltaScenarios, loadTaskItems } from './load.js'
+import { loadCatalogInput, loadDeltaScenarios, loadTaskItems } from './load.js'
 import { testSystemPaths } from './paths.js'
 import { readTestPlanState, writeTestPlan } from './plan-ledger.js'
 import { emptyTestPlan, type PlanWaiver } from './plan.js'
 import { protectedFileDigest } from './protected-files.js'
 import { policyRequiredKinds } from './policy.js'
+import { resolveStepTestPolicy, stepHasTestPolicy } from './resolve-policy.js'
 import { recordV2Digest } from './record-chain.js'
 import { updateTestSeal } from './seal.js'
 import { repoGlob } from './globs.js'
@@ -37,13 +38,17 @@ export async function seedApprovedTestPolicyWaivers(input: {
   readonly actor: RecordActor
   readonly recordedAt: string
 }): Promise<boolean> {
-  const policy = input.plan.workflow.steps.find((step) => step.id === input.stepId)?.test_policy
-  if (policy === undefined) return false
+  const stepDef = input.plan.workflow.steps.find((step) => step.id === input.stepId)
+  if (stepDef === undefined || !stepHasTestPolicy(stepDef)) return false
   const catalogPath = testSystemPaths(input.repoRoot).catalog
   await mkdir(dirname(catalogPath), { recursive: true })
   await writeFile(catalogPath, EMPTY_TEST_CATALOG, { flag: 'wx' }).catch((error: NodeJS.ErrnoException) => {
     if (error.code !== 'EEXIST') throw error
   })
+  // 档位策略按目录（刚写的空目录，或已有的）求值：必需类就是要豁免的种类。
+  const catalogInput = await loadCatalogInput(input.repoRoot)
+  const policy = resolveStepTestPolicy(stepDef, catalogInput.state === 'ok' ? catalogInput.catalog : undefined)
+  if (policy === undefined) return false
   const catalogRel = relative(input.repoRoot, catalogPath)
   const catalogDigest = await protectedFileDigest(input.repoRoot, catalogRel)
   if (catalogDigest !== 'unreadable') {
@@ -57,7 +62,8 @@ export async function seedApprovedTestPolicyWaivers(input: {
   }
   const current = await readTestPlanState(input.changeDir, input.changeName)
   const plan = current.state === 'ok' ? current.plan : emptyTestPlan(input.changeName)
-  const kinds: TestKind[] = [...policyRequiredKinds(policy), ...(policy.coverage === undefined ? [] : ['coverage' as const])]
+  const required: readonly TestKind[] = policy.level === undefined ? policyRequiredKinds(policy) : policy.level.required
+  const kinds: TestKind[] = [...required, ...(policy.coverage === undefined ? [] : ['coverage' as const])]
   const scenarios = policy.scenarios === 'off' ? [] : await loadDeltaScenarios(input.changeDir)
   const stages = input.plan.workflow.steps.map((step) => ({ id: step.id, label: step.label }))
   const tasks = policy.scenarios === 'off' ? [] : (await loadTaskItems(input.changeDir, stages)).filter((task) => task.required)

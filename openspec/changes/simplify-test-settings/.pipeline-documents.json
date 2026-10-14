@@ -1,0 +1,724 @@
+{
+  "version": 1,
+  "contract": "openspec-v1",
+  "createdAt": "2026-10-12T00:37:56Z",
+  "records": [
+    {
+      "kind": "delta-spec",
+      "path": "openspec/changes/simplify-test-settings/specs/step-test-waiver/spec.md",
+      "sha256": "a57003a3473e6bcaf082b112cd9c1a15bec982d37d28a7a1064a49ef0b82becf",
+      "producer": "openspec-propose",
+      "recordedAt": "2026-10-13T11:06:56Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-dd2df3bc23ffe01fc5248fedd91a174e088305a9f1e9c6a886ab59cfbcc86edc",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "c6279f4b-c76a-441d-8407-28a39aef3839",
+          "transitionSequence": 14
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "a57003a3473e6bcaf082b112cd9c1a15bec982d37d28a7a1064a49ef0b82becf",
+          "readAt": "2026-10-13T14:51:16Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",15]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "a57003a3473e6bcaf082b112cd9c1a15bec982d37d28a7a1064a49ef0b82becf",
+          "readAt": "2026-10-13T15:02:44Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",16]"
+        },
+        {
+          "phase": "build",
+          "sha256": "a57003a3473e6bcaf082b112cd9c1a15bec982d37d28a7a1064a49ef0b82becf",
+          "readAt": "2026-10-13T18:50:42Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",17]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "a57003a3473e6bcaf082b112cd9c1a15bec982d37d28a7a1064a49ef0b82becf",
+          "readAt": "2026-10-13T19:04:06Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",18]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "a57003a3473e6bcaf082b112cd9c1a15bec982d37d28a7a1064a49ef0b82becf",
+          "readAt": "2026-10-14T00:31:39Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",19]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-simplify-test-settings-4890ea6ea9f6:0f6254f0e822a0cd0291a060eea9a7c1",
+        "namespace": "change-simplify-test-settings-4890ea6ea9f6",
+        "version": "sha256:a57003a3473e6bcaf082b112cd9c1a15bec982d37d28a7a1064a49ef0b82becf",
+        "projection": "document",
+        "content_digest": "sha256:a57003a3473e6bcaf082b112cd9c1a15bec982d37d28a7a1064a49ef0b82becf",
+        "source": {
+          "path": "openspec/changes/simplify-test-settings/specs/step-test-waiver/spec.md",
+          "document_kind": "delta-spec"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "proposal",
+      "path": "openspec/changes/simplify-test-settings/proposal.md",
+      "sha256": "dd4e49b4ce199587222a3cc67b674d0b37e72bb29bd7378be5330b153c37ec87",
+      "producer": "tenon",
+      "recordedAt": "2026-10-13T11:06:56Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-49b3a951b077d20b5214add9f0ce67b35822a82c6aa9fafced9cc56c6d3c0eb1",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "c6279f4b-c76a-441d-8407-28a39aef3839",
+          "transitionSequence": 14
+        }
+      },
+      "reads": [
+        {
+          "phase": "spec",
+          "sha256": "dd4e49b4ce199587222a3cc67b674d0b37e72bb29bd7378be5330b153c37ec87",
+          "readAt": "2026-10-13T11:07:18Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",14]"
+        },
+        {
+          "phase": "build",
+          "sha256": "dd4e49b4ce199587222a3cc67b674d0b37e72bb29bd7378be5330b153c37ec87",
+          "readAt": "2026-10-13T14:51:16Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",15]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "dd4e49b4ce199587222a3cc67b674d0b37e72bb29bd7378be5330b153c37ec87",
+          "readAt": "2026-10-13T15:02:44Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",16]"
+        },
+        {
+          "phase": "build",
+          "sha256": "dd4e49b4ce199587222a3cc67b674d0b37e72bb29bd7378be5330b153c37ec87",
+          "readAt": "2026-10-13T18:50:42Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",17]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "dd4e49b4ce199587222a3cc67b674d0b37e72bb29bd7378be5330b153c37ec87",
+          "readAt": "2026-10-13T19:04:06Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",18]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "dd4e49b4ce199587222a3cc67b674d0b37e72bb29bd7378be5330b153c37ec87",
+          "readAt": "2026-10-14T00:31:39Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",19]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-simplify-test-settings-4890ea6ea9f6:0a01c417c29f876999f7717980920fb0",
+        "namespace": "change-simplify-test-settings-4890ea6ea9f6",
+        "version": "sha256:dd4e49b4ce199587222a3cc67b674d0b37e72bb29bd7378be5330b153c37ec87",
+        "projection": "document",
+        "content_digest": "sha256:dd4e49b4ce199587222a3cc67b674d0b37e72bb29bd7378be5330b153c37ec87",
+        "source": {
+          "path": "openspec/changes/simplify-test-settings/proposal.md",
+          "document_kind": "proposal"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "openspec-design",
+      "path": "openspec/changes/simplify-test-settings/design.md",
+      "sha256": "aa69d3d6e50cdaed10ff89c370900095e10aed49a011af36985536bc58d5907d",
+      "producer": "tenon",
+      "recordedAt": "2026-10-13T11:06:56Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-49b3a951b077d20b5214add9f0ce67b35822a82c6aa9fafced9cc56c6d3c0eb1",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "c6279f4b-c76a-441d-8407-28a39aef3839",
+          "transitionSequence": 14
+        }
+      },
+      "reads": [
+        {
+          "phase": "spec",
+          "sha256": "aa69d3d6e50cdaed10ff89c370900095e10aed49a011af36985536bc58d5907d",
+          "readAt": "2026-10-13T11:07:18Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",14]"
+        },
+        {
+          "phase": "build",
+          "sha256": "aa69d3d6e50cdaed10ff89c370900095e10aed49a011af36985536bc58d5907d",
+          "readAt": "2026-10-13T14:51:16Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",15]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "aa69d3d6e50cdaed10ff89c370900095e10aed49a011af36985536bc58d5907d",
+          "readAt": "2026-10-13T15:02:44Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",16]"
+        },
+        {
+          "phase": "build",
+          "sha256": "aa69d3d6e50cdaed10ff89c370900095e10aed49a011af36985536bc58d5907d",
+          "readAt": "2026-10-13T18:50:42Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",17]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "aa69d3d6e50cdaed10ff89c370900095e10aed49a011af36985536bc58d5907d",
+          "readAt": "2026-10-13T19:04:06Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",18]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "aa69d3d6e50cdaed10ff89c370900095e10aed49a011af36985536bc58d5907d",
+          "readAt": "2026-10-14T00:31:39Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",19]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-simplify-test-settings-4890ea6ea9f6:e5afdc4a426e32bccbaed74ef68312a7",
+        "namespace": "change-simplify-test-settings-4890ea6ea9f6",
+        "version": "sha256:aa69d3d6e50cdaed10ff89c370900095e10aed49a011af36985536bc58d5907d",
+        "projection": "document",
+        "content_digest": "sha256:aa69d3d6e50cdaed10ff89c370900095e10aed49a011af36985536bc58d5907d",
+        "source": {
+          "path": "openspec/changes/simplify-test-settings/design.md",
+          "document_kind": "openspec-design"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "superpower-design",
+      "path": "docs/superpowers/specs/simplify-test-settings-design.md",
+      "sha256": "d1aede553533d3628004beab008e8fedf3cad9be7d9365f5185e2d741582e017",
+      "producer": "tenon",
+      "recordedAt": "2026-10-13T11:06:57Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-49b3a951b077d20b5214add9f0ce67b35822a82c6aa9fafced9cc56c6d3c0eb1",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "c6279f4b-c76a-441d-8407-28a39aef3839",
+          "transitionSequence": 14
+        }
+      },
+      "reads": [
+        {
+          "phase": "spec",
+          "sha256": "d1aede553533d3628004beab008e8fedf3cad9be7d9365f5185e2d741582e017",
+          "readAt": "2026-10-13T11:07:18Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",14]"
+        },
+        {
+          "phase": "build",
+          "sha256": "d1aede553533d3628004beab008e8fedf3cad9be7d9365f5185e2d741582e017",
+          "readAt": "2026-10-13T14:51:16Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",15]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "d1aede553533d3628004beab008e8fedf3cad9be7d9365f5185e2d741582e017",
+          "readAt": "2026-10-13T15:02:44Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",16]"
+        },
+        {
+          "phase": "build",
+          "sha256": "d1aede553533d3628004beab008e8fedf3cad9be7d9365f5185e2d741582e017",
+          "readAt": "2026-10-13T18:50:42Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",17]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "d1aede553533d3628004beab008e8fedf3cad9be7d9365f5185e2d741582e017",
+          "readAt": "2026-10-13T19:04:06Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",18]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "d1aede553533d3628004beab008e8fedf3cad9be7d9365f5185e2d741582e017",
+          "readAt": "2026-10-14T00:31:39Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",19]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-simplify-test-settings-4890ea6ea9f6:fd4a03469c28a94846be263ff3319dff",
+        "namespace": "change-simplify-test-settings-4890ea6ea9f6",
+        "version": "sha256:d1aede553533d3628004beab008e8fedf3cad9be7d9365f5185e2d741582e017",
+        "projection": "document",
+        "content_digest": "sha256:d1aede553533d3628004beab008e8fedf3cad9be7d9365f5185e2d741582e017",
+        "source": {
+          "path": "docs/superpowers/specs/simplify-test-settings-design.md",
+          "document_kind": "superpower-design"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "adr",
+      "path": "docs/adr/simplify-test-settings.md",
+      "sha256": "78abf34ad6912ddb49e3b82cc4d7fd7925813e0a2a8894d375ff5dba6f1efe4f",
+      "producer": "tenon",
+      "recordedAt": "2026-10-13T11:06:57Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-49b3a951b077d20b5214add9f0ce67b35822a82c6aa9fafced9cc56c6d3c0eb1",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "c6279f4b-c76a-441d-8407-28a39aef3839",
+          "transitionSequence": 14
+        }
+      },
+      "reads": [
+        {
+          "phase": "spec",
+          "sha256": "78abf34ad6912ddb49e3b82cc4d7fd7925813e0a2a8894d375ff5dba6f1efe4f",
+          "readAt": "2026-10-13T11:07:18Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",14]"
+        },
+        {
+          "phase": "build",
+          "sha256": "78abf34ad6912ddb49e3b82cc4d7fd7925813e0a2a8894d375ff5dba6f1efe4f",
+          "readAt": "2026-10-13T14:51:16Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",15]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "78abf34ad6912ddb49e3b82cc4d7fd7925813e0a2a8894d375ff5dba6f1efe4f",
+          "readAt": "2026-10-13T15:02:44Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",16]"
+        },
+        {
+          "phase": "build",
+          "sha256": "78abf34ad6912ddb49e3b82cc4d7fd7925813e0a2a8894d375ff5dba6f1efe4f",
+          "readAt": "2026-10-13T18:50:42Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",17]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "78abf34ad6912ddb49e3b82cc4d7fd7925813e0a2a8894d375ff5dba6f1efe4f",
+          "readAt": "2026-10-13T19:04:06Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",18]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "78abf34ad6912ddb49e3b82cc4d7fd7925813e0a2a8894d375ff5dba6f1efe4f",
+          "readAt": "2026-10-14T00:31:39Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",19]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-simplify-test-settings-4890ea6ea9f6:48d7d1b4e24be3c5dd100df35e3b07cd",
+        "namespace": "change-simplify-test-settings-4890ea6ea9f6",
+        "version": "sha256:78abf34ad6912ddb49e3b82cc4d7fd7925813e0a2a8894d375ff5dba6f1efe4f",
+        "projection": "document",
+        "content_digest": "sha256:78abf34ad6912ddb49e3b82cc4d7fd7925813e0a2a8894d375ff5dba6f1efe4f",
+        "source": {
+          "path": "docs/adr/simplify-test-settings.md",
+          "document_kind": "adr"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "delta-spec",
+      "path": "openspec/changes/simplify-test-settings/specs/workspace-verification-integrity/spec.md",
+      "sha256": "45fb9b7844240b7aa905808096b0303fd44273db667acebef1dc3b2d241f5b8e",
+      "producer": "openspec-propose",
+      "recordedAt": "2026-10-13T11:10:52Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-dd2df3bc23ffe01fc5248fedd91a174e088305a9f1e9c6a886ab59cfbcc86edc",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "c6279f4b-c76a-441d-8407-28a39aef3839",
+          "transitionSequence": 14
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "45fb9b7844240b7aa905808096b0303fd44273db667acebef1dc3b2d241f5b8e",
+          "readAt": "2026-10-13T05:40:33Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",7]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "45fb9b7844240b7aa905808096b0303fd44273db667acebef1dc3b2d241f5b8e",
+          "readAt": "2026-10-13T05:52:18Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",8]"
+        },
+        {
+          "phase": "build",
+          "sha256": "45fb9b7844240b7aa905808096b0303fd44273db667acebef1dc3b2d241f5b8e",
+          "readAt": "2026-10-13T07:46:23Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",9]"
+        },
+        {
+          "phase": "build",
+          "sha256": "45fb9b7844240b7aa905808096b0303fd44273db667acebef1dc3b2d241f5b8e",
+          "readAt": "2026-10-13T10:14:42Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",11]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "45fb9b7844240b7aa905808096b0303fd44273db667acebef1dc3b2d241f5b8e",
+          "readAt": "2026-10-13T10:36:50Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",12]"
+        },
+        {
+          "phase": "build",
+          "sha256": "45fb9b7844240b7aa905808096b0303fd44273db667acebef1dc3b2d241f5b8e",
+          "readAt": "2026-10-13T11:03:08Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",13]"
+        },
+        {
+          "phase": "build",
+          "sha256": "45fb9b7844240b7aa905808096b0303fd44273db667acebef1dc3b2d241f5b8e",
+          "readAt": "2026-10-13T14:51:16Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",15]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "45fb9b7844240b7aa905808096b0303fd44273db667acebef1dc3b2d241f5b8e",
+          "readAt": "2026-10-13T15:02:44Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",16]"
+        },
+        {
+          "phase": "build",
+          "sha256": "45fb9b7844240b7aa905808096b0303fd44273db667acebef1dc3b2d241f5b8e",
+          "readAt": "2026-10-13T18:50:42Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",17]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "45fb9b7844240b7aa905808096b0303fd44273db667acebef1dc3b2d241f5b8e",
+          "readAt": "2026-10-13T19:04:06Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",18]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "45fb9b7844240b7aa905808096b0303fd44273db667acebef1dc3b2d241f5b8e",
+          "readAt": "2026-10-14T00:31:39Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",19]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-simplify-test-settings-4890ea6ea9f6:0f6254f0e822a0cd0291a060eea9a7c1",
+        "namespace": "change-simplify-test-settings-4890ea6ea9f6",
+        "version": "sha256:45fb9b7844240b7aa905808096b0303fd44273db667acebef1dc3b2d241f5b8e",
+        "projection": "document",
+        "content_digest": "sha256:45fb9b7844240b7aa905808096b0303fd44273db667acebef1dc3b2d241f5b8e",
+        "source": {
+          "path": "openspec/changes/simplify-test-settings/specs/workspace-verification-integrity/spec.md",
+          "document_kind": "delta-spec"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "superpower-plan",
+      "path": "docs/superpowers/plans/simplify-test-settings.md",
+      "sha256": "5d1bf3104f3b3e246d06d0fd0e86f2b6ebfdef5571729b6493f14cde3db368de",
+      "producer": "writing-plans",
+      "recordedAt": "2026-10-13T11:10:52Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-c5423ebec4df9b9354d7c443349429f8732e00979c6b1df4d646986049ab6260",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "c6279f4b-c76a-441d-8407-28a39aef3839",
+          "transitionSequence": 14
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "5d1bf3104f3b3e246d06d0fd0e86f2b6ebfdef5571729b6493f14cde3db368de",
+          "readAt": "2026-10-13T14:51:16Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",15]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "5d1bf3104f3b3e246d06d0fd0e86f2b6ebfdef5571729b6493f14cde3db368de",
+          "readAt": "2026-10-13T15:02:44Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",16]"
+        },
+        {
+          "phase": "build",
+          "sha256": "5d1bf3104f3b3e246d06d0fd0e86f2b6ebfdef5571729b6493f14cde3db368de",
+          "readAt": "2026-10-13T18:50:42Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",17]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "5d1bf3104f3b3e246d06d0fd0e86f2b6ebfdef5571729b6493f14cde3db368de",
+          "readAt": "2026-10-13T19:04:06Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",18]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "5d1bf3104f3b3e246d06d0fd0e86f2b6ebfdef5571729b6493f14cde3db368de",
+          "readAt": "2026-10-14T00:31:39Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",19]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-simplify-test-settings-4890ea6ea9f6:36524fc4c3358245a3c73ea2a6f824a0",
+        "namespace": "change-simplify-test-settings-4890ea6ea9f6",
+        "version": "sha256:5d1bf3104f3b3e246d06d0fd0e86f2b6ebfdef5571729b6493f14cde3db368de",
+        "projection": "document",
+        "content_digest": "sha256:5d1bf3104f3b3e246d06d0fd0e86f2b6ebfdef5571729b6493f14cde3db368de",
+        "source": {
+          "path": "docs/superpowers/plans/simplify-test-settings.md",
+          "document_kind": "superpower-plan"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "plan",
+      "path": "docs/superpowers/plans/simplify-test-settings.md",
+      "sha256": "5d1bf3104f3b3e246d06d0fd0e86f2b6ebfdef5571729b6493f14cde3db368de",
+      "producer": "writing-plans",
+      "recordedAt": "2026-10-13T11:10:52Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-c5423ebec4df9b9354d7c443349429f8732e00979c6b1df4d646986049ab6260",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "c6279f4b-c76a-441d-8407-28a39aef3839",
+          "transitionSequence": 14
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "5d1bf3104f3b3e246d06d0fd0e86f2b6ebfdef5571729b6493f14cde3db368de",
+          "readAt": "2026-10-13T14:51:16Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",15]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "5d1bf3104f3b3e246d06d0fd0e86f2b6ebfdef5571729b6493f14cde3db368de",
+          "readAt": "2026-10-13T15:02:44Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",16]"
+        },
+        {
+          "phase": "build",
+          "sha256": "5d1bf3104f3b3e246d06d0fd0e86f2b6ebfdef5571729b6493f14cde3db368de",
+          "readAt": "2026-10-13T18:50:42Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",17]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "5d1bf3104f3b3e246d06d0fd0e86f2b6ebfdef5571729b6493f14cde3db368de",
+          "readAt": "2026-10-13T19:04:06Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",18]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "5d1bf3104f3b3e246d06d0fd0e86f2b6ebfdef5571729b6493f14cde3db368de",
+          "readAt": "2026-10-14T00:31:39Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",19]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-simplify-test-settings-4890ea6ea9f6:36524fc4c3358245a3c73ea2a6f824a0",
+        "namespace": "change-simplify-test-settings-4890ea6ea9f6",
+        "version": "sha256:5d1bf3104f3b3e246d06d0fd0e86f2b6ebfdef5571729b6493f14cde3db368de",
+        "projection": "document",
+        "content_digest": "sha256:5d1bf3104f3b3e246d06d0fd0e86f2b6ebfdef5571729b6493f14cde3db368de",
+        "source": {
+          "path": "docs/superpowers/plans/simplify-test-settings.md",
+          "document_kind": "plan"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "delta-spec",
+      "path": "openspec/changes/simplify-test-settings/specs/test-settings/spec.md",
+      "sha256": "da6874e003f44010a023a86da6ee890a2789d004d506ec729d9439c3791d9d25",
+      "producer": "openspec-propose",
+      "recordedAt": "2026-10-13T11:10:59Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-dd2df3bc23ffe01fc5248fedd91a174e088305a9f1e9c6a886ab59cfbcc86edc",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "c6279f4b-c76a-441d-8407-28a39aef3839",
+          "transitionSequence": 14
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "da6874e003f44010a023a86da6ee890a2789d004d506ec729d9439c3791d9d25",
+          "readAt": "2026-10-13T14:51:16Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",15]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "da6874e003f44010a023a86da6ee890a2789d004d506ec729d9439c3791d9d25",
+          "readAt": "2026-10-13T15:02:44Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",16]"
+        },
+        {
+          "phase": "build",
+          "sha256": "da6874e003f44010a023a86da6ee890a2789d004d506ec729d9439c3791d9d25",
+          "readAt": "2026-10-13T18:50:42Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",17]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "da6874e003f44010a023a86da6ee890a2789d004d506ec729d9439c3791d9d25",
+          "readAt": "2026-10-13T19:04:06Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",18]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "da6874e003f44010a023a86da6ee890a2789d004d506ec729d9439c3791d9d25",
+          "readAt": "2026-10-14T00:31:39Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",19]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-simplify-test-settings-4890ea6ea9f6:0f6254f0e822a0cd0291a060eea9a7c1",
+        "namespace": "change-simplify-test-settings-4890ea6ea9f6",
+        "version": "sha256:da6874e003f44010a023a86da6ee890a2789d004d506ec729d9439c3791d9d25",
+        "projection": "document",
+        "content_digest": "sha256:da6874e003f44010a023a86da6ee890a2789d004d506ec729d9439c3791d9d25",
+        "source": {
+          "path": "openspec/changes/simplify-test-settings/specs/test-settings/spec.md",
+          "document_kind": "delta-spec"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "tasks",
+      "path": "openspec/changes/simplify-test-settings/tasks.md",
+      "sha256": "e6069a38099f363b58f56b0c1badb3f7d1dd584adf104879ff7a98f13833585b",
+      "producer": "tenon",
+      "recordedAt": "2026-10-13T18:50:29Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-6ecb3d9088cf9a8b8344908dadd7e05eb78c8e125d36121ed1fdcc805530b8e6",
+        "evidenceScope": "build",
+        "stepVisit": {
+          "runId": "c6279f4b-c76a-441d-8407-28a39aef3839",
+          "transitionSequence": 17
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "e6069a38099f363b58f56b0c1badb3f7d1dd584adf104879ff7a98f13833585b",
+          "readAt": "2026-10-13T18:50:42Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",17]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "e6069a38099f363b58f56b0c1badb3f7d1dd584adf104879ff7a98f13833585b",
+          "readAt": "2026-10-13T19:04:06Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",18]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "e6069a38099f363b58f56b0c1badb3f7d1dd584adf104879ff7a98f13833585b",
+          "readAt": "2026-10-14T00:31:39Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",19]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-simplify-test-settings-4890ea6ea9f6:72f7b9962b9ee335cdc13ac451708474",
+        "namespace": "change-simplify-test-settings-4890ea6ea9f6",
+        "version": "sha256:e6069a38099f363b58f56b0c1badb3f7d1dd584adf104879ff7a98f13833585b",
+        "projection": "document",
+        "content_digest": "sha256:e6069a38099f363b58f56b0c1badb3f7d1dd584adf104879ff7a98f13833585b",
+        "source": {
+          "path": "openspec/changes/simplify-test-settings/tasks.md",
+          "document_kind": "tasks"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "verification-report",
+      "path": "docs/superpowers/reports/simplify-test-settings-verify.md",
+      "sha256": "e32825c413fe13dce527416fa57822b99a57e2fc7f299828a281e3c85b5e5de2",
+      "producer": "verification-before-completion",
+      "recordedAt": "2026-10-13T19:17:45Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-f5e2326288ce99972ab72e76e46ae7832e07dce7f4b2b67b67117b4434ccdf91",
+        "evidenceScope": "verify",
+        "stepVisit": {
+          "runId": "c6279f4b-c76a-441d-8407-28a39aef3839",
+          "transitionSequence": 18
+        }
+      },
+      "reads": [
+        {
+          "phase": "ship",
+          "sha256": "e32825c413fe13dce527416fa57822b99a57e2fc7f299828a281e3c85b5e5de2",
+          "readAt": "2026-10-14T00:31:39Z",
+          "visitId": "[\"c6279f4b-c76a-441d-8407-28a39aef3839\",19]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-simplify-test-settings-4890ea6ea9f6:518dfb855bfb6ab851c330cd2285f28f",
+        "namespace": "change-simplify-test-settings-4890ea6ea9f6",
+        "version": "sha256:e32825c413fe13dce527416fa57822b99a57e2fc7f299828a281e3c85b5e5de2",
+        "projection": "document",
+        "content_digest": "sha256:e32825c413fe13dce527416fa57822b99a57e2fc7f299828a281e3c85b5e5de2",
+        "source": {
+          "path": "docs/superpowers/reports/simplify-test-settings-verify.md",
+          "document_kind": "verification-report"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    }
+  ]
+}

@@ -22,12 +22,13 @@ describe('测试方向文件', () => {
     }
   })
 
-  test('基准方向带指标文件与必需输出；code-size 带指标阈值', async () => {
+  test('基准方向带指标文件与必需输出；code-size 不带指标阈值（代码规模无缺省上限）', async () => {
     const benchmark = parseTestDirection(await readFile(join(TEMPLATES, 'benchmark.yaml'), 'utf8'))
     expect(benchmark.metrics_path).toBe('test-results/benchmark.json')
     expect(benchmark.outputs).toEqual([{ path: 'test-results/benchmark.json', kind: 'metrics', required: true }])
     const codeSize = parseTestDirection(await readFile(join(TEMPLATES, 'code-size.yaml'), 'utf8'))
-    expect(codeSize.pass?.metrics).toEqual([{ name: 'lines_added', max: 2000 }])
+    expect(codeSize.pass).toBeUndefined()
+    expect(codeSize.command).toBe('tenon test code-size --json')
   })
 
   test('testFromDirection 抄进步骤、必需为真、id 冲突追加后缀', () => {

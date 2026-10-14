@@ -40,7 +40,7 @@ function fakeEditor(step: WbStepDef, overrides: Partial<WorkflowEditor> = {}): W
     skillRegistry: REGISTRY,
     agents: AGENTS,
     setAgents: vi.fn(),
-    setTestPolicy: vi.fn(),
+    setTestLevel: vi.fn(),
     renameStep: vi.fn(), removeStage: vi.fn(), setGate: vi.fn(), setSkills: vi.fn(), save: vi.fn(), discardDraft: vi.fn(), reloadDefinition: vi.fn(),
     setStageBack: vi.fn(),
     ...overrides,
@@ -436,7 +436,7 @@ describe('StageEditorPane · 测试', () => {
     expect(screen.queryByTestId('wb-test-command')).toBeNull()
   })
 
-  it('没有独立的测试段：测试策略在门禁段里，顺序 门禁 → 退回 → 测试策略', () => {
+  it('没有独立的测试段：测试档位在门禁段里，顺序 门禁 → 退回 → 测试档位', () => {
     renderPane(STEP_WITH_TESTS, { def: { ...DEF, steps: [EXPLORE, STEP_WITH_TESTS] } })
     expect(screen.getAllByTestId('stage-tests')).toHaveLength(1)
     const gate = screen.getByTestId('stage-gate')
@@ -448,10 +448,11 @@ describe('StageEditorPane · 测试', () => {
     expect(sections).toEqual(['stage-skills', 'stage-gate'])
   })
 
-  it('策略表单改动经 setTestPolicy 回草稿；旧步骤测试是只读行，只给转成目录套件的命令', async () => {
+  it('选档位经 setTestLevel 回草稿；旧策略只读显示摘要，旧步骤测试是只读行，只给转成目录套件的命令', async () => {
     const editor = renderPane(STEP_WITH_TESTS, { def: { ...DEF, steps: [EXPLORE, STEP_WITH_TESTS] } })
-    await userEvent.click(screen.getByTestId('wb-policy-scope-changed'))
-    expect(editor.setTestPolicy).toHaveBeenLastCalledWith('spec', { plan: 'required', run: ['unit'], scope: 'changed' })
+    expect(screen.getByTestId('wb-policy-legacy')).toHaveTextContent('单测')
+    await userEvent.click(screen.getByTestId('wb-test-level-changed'))
+    expect(editor.setTestLevel).toHaveBeenLastCalledWith('spec', 'changed')
 
     expect(screen.getByTestId('wb-test-unit')).toBeInTheDocument()
     await userEvent.click(screen.getByTestId('wb-test-unit'))
@@ -459,17 +460,18 @@ describe('StageEditorPane · 测试', () => {
     expect(screen.getByTestId('wb-test-convert-unit-text')).toHaveTextContent('tenon test catalog add --from unit')
   })
 
-  it('没有策略的阶段：测试子块有「策略」添加动作，点它写入 { plan: required }', async () => {
+  it('没有声明的阶段：「不要求」被选中，没有添加 / 移除动作；选另一档经 setTestLevel 写入', async () => {
     const editor = renderPane(EXPLORE)
-    expect(screen.queryByTestId('wb-policy')).toBeNull()
-    await userEvent.click(screen.getByTestId('wb-policy-add'))
-    expect(editor.setTestPolicy).toHaveBeenCalledWith('explore', { plan: 'required' })
-  })
-
-  it('无写入凭证：策略表单只读，没有添加 / 移除动作', () => {
-    renderPane(STEP_WITH_TESTS, { canWrite: false, def: { ...DEF, steps: [EXPLORE, STEP_WITH_TESTS] } })
+    expect(screen.getByTestId('wb-test-level-none')).toHaveAttribute('aria-checked', 'true')
     expect(screen.queryByTestId('wb-policy-add')).toBeNull()
     expect(screen.queryByTestId('wb-policy-remove')).toBeNull()
-    expect(screen.getByTestId('wb-policy-scope-changed')).toBeDisabled()
+    await userEvent.click(screen.getByTestId('wb-test-level-full'))
+    expect(editor.setTestLevel).toHaveBeenCalledWith('explore', 'full')
+  })
+
+  it('无写入凭证：档位单选只读', () => {
+    renderPane(STEP_WITH_TESTS, { canWrite: false, def: { ...DEF, steps: [EXPLORE, STEP_WITH_TESTS] } })
+    expect(screen.getByTestId('wb-test-level-changed')).toBeDisabled()
+    expect(screen.getByTestId('wb-test-level-full')).toBeDisabled()
   })
 })

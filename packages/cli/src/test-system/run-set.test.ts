@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { parseTestCatalog, emptyTestPlan, type StepTestPolicyIR, type TestCatalog, type TestPlan } from '@tenon/kernel'
+import {
+  parseTestCatalog, emptyTestPlan, resolveStepTestPolicy, stageRunSet, type StepTestPolicyIR, type TestCatalog, type TestPlan,
+} from '@tenon/kernel'
 import { planRunSet, type RunFlags } from './run-set.js'
 
 const CATALOG_TEXT = `schema: tenon-test-catalog/v1
@@ -70,7 +72,7 @@ describe('planRunSet', () => {
 
   it('阶段运行集缺前提时给出可执行的提示', () => {
     expect(ids(planRunSet({ catalog: CATALOG, plan: undefined, policy: POLICY, flags: FLAGS, stepId: 'build', change: 'demo' }))[0]).toContain('tenon test plan demo --seed')
-    expect(ids(planRunSet({ catalog: CATALOG, plan: PLAN, policy: undefined, flags: FLAGS, stepId: 'build', change: 'demo' }))[0]).toContain('没有 test_policy')
+    expect(ids(planRunSet({ catalog: CATALOG, plan: PLAN, policy: undefined, flags: FLAGS, stepId: 'build', change: 'demo' }))[0]).toContain('没有测试档位')
     expect(ids(planRunSet({ catalog: CATALOG, plan: emptyTestPlan('demo'), policy: POLICY, flags: FLAGS, stepId: 'build', change: 'demo' }))[0]).toContain('tenon test register demo --suite')
   })
 
@@ -78,5 +80,81 @@ describe('planRunSet', () => {
     const optional = { ...POLICY, run: [], run_if_registered: ['playwright'] } satisfies StepTestPolicyIR
     expect(planRunSet({ catalog: CATALOG, plan: emptyTestPlan('demo'), policy: optional, flags: FLAGS, stepId: 'ship', change: 'demo' })).toEqual({ items: [] })
     expect(planRunSet({ catalog: CATALOG, plan: emptyTestPlan('demo'), policy: { ...optional, run_if_registered: [] }, flags: FLAGS, stepId: 'spec', change: 'demo' })).toEqual({ items: [] })
+  })
+})
+
+describe('planRunSet —— 档位策略与 stageRunSet 同一份运行集', () => {
+  const LEVEL_CATALOG_TEXT = `schema: tenon-test-catalog/v1
+suites:
+  - { id: unit, kind: unit, runner: vitest, command: "npx vitest run", files: ["src/**/*.test.ts"], covers: ["src/**"], report: { format: vitest-json, path: test-results/v.json } }
+  - { id: docs-unit, kind: unit, runner: vitest, command: "npx vitest run docs", files: ["docs/**/*.test.ts"], covers: ["docs/**"], report: { format: vitest-json, path: test-results/d.json } }
+  - { id: hooks, kind: integration, runner: custom, command: "bash hooks/test.sh", files: ["hooks/**/*.test.sh"], covers: ["hooks/**"], report: { format: junit, path: test-results/h.xml } }
+  - { id: tsc, kind: typecheck, runner: tsc, command: "npx tsc", covers: ["tsconfig.json"], report: { format: exit-code } }
+`
+  const parsedLevels = parseTestCatalog(LEVEL_CATALOG_TEXT)
+  if (!parsedLevels.ok) throw new Error('fixture level catalog')
+  const LEVELS: TestCatalog = parsedLevels.catalog
+
+  function level(test: 'plan' | 'changed' | 'full', catalog: TestCatalog = LEVELS): StepTestPolicyIR {
+    const policy = resolveStepTestPolicy({ test }, catalog)
+    if (policy === undefined) throw new Error('policy')
+    return policy
+  }
+
+  /** CLI 运行集条目 → 与 StageRunItem 同形，便于逐项比较（why 与 reason 同值，explicit 不会出现）。 */
+  function shapeOf(result: ReturnType<typeof planRunSet>) {
+    if (!('items' in result)) throw new Error(result.error)
+    return result.items.map((item) => ({ id: item.suite.id, scope: item.scope, reason: item.why, pattern: item.pattern, files: item.files }))
+  }
+
+  const scenarios: ReadonlyArray<readonly [string, StepTestPolicyIR, TestPlan, readonly string[] | undefined]> = [
+    ['changed，只改 src', level('changed'), emptyTestPlan('demo'), ['src/a.ts']],
+    ['changed，只改 README', level('changed'), emptyTestPlan('demo'), ['README.md']],
+    ['changed，改了 tsconfig（静态类被碰到）', level('changed'), emptyTestPlan('demo'), ['tsconfig.json', 'docs/x.md']],
+    ['changed，读不到改动', level('changed'), { ...emptyTestPlan('demo'), suites: [{ suite: 'hooks', scope: 'grep', pattern: '@gate' }] }, undefined],
+    ['full，没碰 hooks', level('full'), emptyTestPlan('demo'), ['README.md']],
+    ['full，碰了 hooks', level('full'), { ...emptyTestPlan('demo'), suites: [{ suite: 'docs-unit', scope: 'changed' }] }, ['hooks/gate.sh']],
+    ['full，读不到改动', level('full'), emptyTestPlan('demo'), undefined],
+    ['plan', level('plan'), emptyTestPlan('demo'), ['src/a.ts']],
+    ['旧策略 files: registered', { ...POLICY, files: 'registered' }, { ...emptyTestPlan('demo'), suites: [{ suite: 'unit', scope: 'changed' }] }, ['src/a.test.ts', 'docs/a.test.ts']],
+  ]
+
+  it.each(scenarios)('--stage 与 stageRunSet 给出同一组套件与范围：%s', (_name, policy, plan, changedFiles) => {
+    const cli = planRunSet({ catalog: LEVELS, plan, policy, flags: { ...FLAGS, stage: true }, stepId: 'build', change: 'demo', changedFiles })
+    const kernel = stageRunSet({ policy, catalog: LEVELS, plan, changedFiles })
+    expect(shapeOf(cli)).toEqual(kernel.items.map((item) => ({
+      id: item.suite.id, scope: item.scope, reason: item.reason, pattern: item.pattern, files: item.files,
+    })))
+  })
+
+  it('跑改动：只跑被碰到的套件（unit，范围 changed）', () => {
+    expect(ids(planRunSet({ catalog: LEVELS, plan: emptyTestPlan('demo'), policy: level('changed'), flags: FLAGS, stepId: 'build', change: 'demo', changedFiles: ['src/a.ts'] })))
+      .toEqual(['unit:changed:run'])
+  })
+
+  it('改动没碰到任何套件：空运行集不是错误（{ items: [] }）', () => {
+    expect(planRunSet({ catalog: LEVELS, plan: emptyTestPlan('demo'), policy: level('changed'), flags: FLAGS, stepId: 'build', change: 'demo', changedFiles: ['README.md'] }))
+      .toEqual({ items: [] })
+    expect(planRunSet({ catalog: LEVELS, plan: emptyTestPlan('demo'), policy: level('plan'), flags: FLAGS, stepId: 'spec', change: 'demo', changedFiles: ['src/a.ts'] }))
+      .toEqual({ items: [] })
+  })
+
+  it('计划缺失仍提示先生成计划；步骤没有测试声明时错误里说明档位与 test_policy', () => {
+    expect(ids(planRunSet({ catalog: LEVELS, plan: undefined, policy: level('changed'), flags: FLAGS, stepId: 'build', change: 'demo', changedFiles: [] }))[0])
+      .toContain('tenon test plan demo --seed')
+    expect(ids(planRunSet({ catalog: LEVELS, plan: emptyTestPlan('demo'), policy: undefined, flags: FLAGS, stepId: 'build', change: 'demo' }))[0])
+      .toContain('test_policy')
+  })
+
+  it('--changed 把档位推出的范围压成 changed；点名套件仍然优先', () => {
+    expect(ids(planRunSet({ catalog: LEVELS, plan: emptyTestPlan('demo'), policy: level('full'), flags: { ...FLAGS, changed: true }, stepId: 'verify', change: 'demo', changedFiles: [] })))
+      .toEqual(['unit:changed:run', 'docs-unit:changed:run'])
+    expect(ids(planRunSet({ catalog: LEVELS, plan: emptyTestPlan('demo'), policy: level('changed'), flags: { ...FLAGS, suites: ['hooks'] }, stepId: 'build', change: 'demo', changedFiles: [] })))
+      .toEqual(['hooks:full:explicit'])
+  })
+
+  it('旧策略 run 非空却没有套件时仍报原来的错误，档位策略不报', () => {
+    expect(ids(planRunSet({ catalog: CATALOG, plan: emptyTestPlan('demo'), policy: POLICY, flags: FLAGS, stepId: 'build', change: 'demo' }))[0]).toContain('tenon test register demo --suite')
+    expect(planRunSet({ catalog: LEVELS, plan: emptyTestPlan('demo'), policy: level('changed'), flags: FLAGS, stepId: 'build', change: 'demo', changedFiles: [] })).toEqual({ items: [] })
   })
 })

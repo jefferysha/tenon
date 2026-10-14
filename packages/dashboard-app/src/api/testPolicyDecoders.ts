@@ -1,9 +1,21 @@
 /** 步骤策略判定与计划概要的严格解码（快照 `testPolicy[]` / `testPlan`）。 */
+import { TEST_CLASSES, type TestClass } from '@tenon/kernel/test-system/vocabulary'
 import type {
-  BenchmarkVerdict, IntegrityReport, NotApplicableKind, PolicyReport, StaleBinding, SuiteVerdict, TestBlocker, TestCoverage, TestNotice, TestPlanBrief,
-  TestPolicyView, TestTotals, TraceCaseStatus, TraceRow,
+  BenchmarkVerdict, IntegrityReport, LevelName, NotApplicableKind, PolicyLevel, PolicyReport, StaleBinding, SuiteVerdict, TestBlocker,
+  TestCoverage, TestNotice, TestPlanBrief, TestPolicyView, TestTotals, TraceCaseStatus, TraceRow,
 } from './testSystemTypes'
 import { arr, bad, bool, guard, int, maybe, nnum, num, oneOf, opt, rec, str, strs } from './strictReader'
+
+const LEVEL_NAMES: readonly LevelName[] = ['plan', 'changed', 'full']
+
+export function readLevelName(value: unknown): LevelName {
+  return oneOf(value, LEVEL_NAMES)
+}
+
+/** 测试类列表（档位的必需类 / 碰到才跑的类）：每一项都必须是闭集里的类。 */
+export function readClasses(value: unknown): TestClass[] {
+  return arr(value, (item) => oneOf(item, TEST_CLASSES))
+}
 
 export function readCoverage(value: unknown): TestCoverage {
   const item = rec(value)
@@ -22,6 +34,16 @@ export function readTotals(value: unknown): TestTotals {
   return {
     cases: int(item.cases), pass: int(item.pass), fail: int(item.fail), skip: int(item.skip),
     flaky: int(item.flaky), knownFail: int(item.knownFail),
+  }
+}
+
+function readPolicyLevel(value: unknown): PolicyLevel {
+  const item = rec(value)
+  return {
+    name: readLevelName(item.name),
+    required: readClasses(item.required),
+    touched: readClasses(item.touched),
+    source: oneOf(item.source, ['catalog', 'default']),
   }
 }
 
@@ -45,6 +67,7 @@ function readPolicy(value: unknown): TestPolicyView {
     ...maybe('flaky', flaky),
     requireBaseline: bool(item.requireBaseline),
     browsers: strs(item.browsers),
+    ...maybe('level', opt(item.level, readPolicyLevel)),
   }
 }
 
@@ -163,7 +186,7 @@ function readReport(value: unknown): PolicyReport {
     trace: arr(item.trace, readTrace),
     files: {
       checked: bool(files.checked),
-      unregistered: arr(files.unregistered, (raw) => {
+      claimed: arr(files.claimed, (raw) => {
         const file = rec(raw)
         return { path: str(file.path), suites: strs(file.suites) }
       }),

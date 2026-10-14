@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # protected-writes.sh — source-only. The "does this tool call write something Tenon owns" recognition of hooks/gate.sh:
-# test records, the local seal and its key, the task test plan and its ledger, the frozen review list, the shared baselines and
-# known-failures.yaml, plus the two decisions only the user may take (`tenon test trust`, `TENON_TEST_TRUST=`).
+# test records, the local seal and its key, the user-level test-trust store (any path with a `/test-trust/` segment), the task
+# test plan and its ledger, the frozen review list, the shared baselines and known-failures.yaml, plus the two decisions only
+# the user may take (`tenon test trust`, `TENON_TEST_TRUST=`) and the guard that keeps the agent from re-pointing Tenon's state
+# directory (the two `TENON_RUNTIME_*` root variables, and `HOME=` / `XDG_STATE_HOME=` ahead of a `tenon` call).
+# Recognising the trust decisions and the state-directory guard lives in lib/trust-command.sh, sourced only for a segment naming one of its words.
 #
 # gate.sh sources this file only when the raw tool input contains a word the recognition could care about (see the
 # pre-filter in gate.sh), so a call that mentions none of them never pays for it.  The rules and the 13 shell write shapes are
@@ -12,7 +15,7 @@
 
 pipeline_mentions_protected() { # $1=text → 0 when it names something the record rules protect
   case "${1:-}" in
-    *test-plan*|*.tenon*|*known-failures*|*review-waivers*|*baselines*|*test-seal*|*env.key*) return 0 ;;
+    *test-plan*|*.tenon*|*known-failures*|*review-waivers*|*baselines*|*test-seal*|*env.key*|*test-trust*) return 0 ;;
   esac
   return 1
 }
@@ -22,6 +25,9 @@ pipeline_test_record_path() { # $1=target path, $2=cwd → 0 when it is a Tenon-
   case "$path" in /*) ;; *) path="${2:-.}/$path" ;; esac
   # bash 3.2 keeps a backslash-escaped `/` literally in a replacement, so both sides are variables.
   while :; do case "$path" in *//*) path="${path//$double/$single}" ;; *) break ;; esac; done
+  # 用户级测试信任存储 `<stateRoot>/test-trust/<user>.json|.key`：stateRoot 因机器与环境而异，所以不认前缀，
+  # 任何路径里含 `/test-trust/` 的写入目标都按受保护处理（信任只能由用户本人经 `tenon test trust` 写入）。
+  case "$path" in */test-trust/*|*/test-trust) return 0 ;; esac
   # `.` / `..` 段落不猜它最终指向哪里：路径里提到受保护的名字就按记录路径拒绝。
   case "$path" in
     */../*|*/./*|*/..|*/.)
@@ -78,7 +84,7 @@ pipeline_patch_targets() { # $1=patch text → 每个补丁头的目标路径一
 PIPELINE_PY='pyth''on'
 PIPELINE_SHELL_VARS=''
 PIPELINE_SHELL_CWD='.'
-PIPELINE_REFUSE_KIND=record # 拒绝原因：record = 写受保护路径，trust = 替用户做信任决定
+PIPELINE_REFUSE_KIND=record # 拒绝原因：record = 写受保护路径，trust = 替用户做信任决定，state = 改写 Tenon 的状态目录，lib = trust-command.sh 缺失
 PIPELINE_DANGLING=0         # 上一段以裸 `>` 结尾（目标在下一段的命令替换里）
 PIPELINE_CMD_MENTIONS=0     # 整条命令名了受保护路径（展开不了的变量目标据此按写入拒）
 PIPELINE_EXPANDED=''
@@ -150,45 +156,27 @@ pipeline_absorb_assignments() { # $1=raw segment
   if [ "$consumed" = 1 ]; then PIPELINE_SEG_REST="$rest"; else PIPELINE_SEG_REST="${1:-}"; fi
 }
 
-# 信任决定只能由用户给（R6）：`tenon test trust`（含 node …/tenon.mjs test trust）与前缀赋值 TENON_TEST_TRUST=。
-# 只在命令位置匹配——`grep "tenon test trust" docs/`、`git commit -m "…TENON_TEST_TRUST…"` 不是信任决定。
-pipeline_segment_takes_trust() { # $1=raw segment
-  case "${1:-}" in *trust*|*TRUST*) ;; *) return 1 ;; esac
-  local segment="${1:-}" token ch head='' seen_head=0 exporting=0 step=0 trust_seen=0 IFS=$' \t'
-  local -a toks
-  for ch in '"' "'" '(' ')' '{' '}' '`'; do segment="${segment//$ch/ }"; done
-  read -r -a toks <<< "$segment" || true
-  [ "${#toks[@]}" -gt 0 ] || return 1
-  for token in "${toks[@]}"; do
-    if [ "$seen_head" = 0 ]; then
-      case "$token" in
-        TENON_TEST_TRUST=*) return 0 ;;
-        export|declare|typeset|readonly|setenv) exporting=1; continue ;;
-        [A-Za-z_]*=*|sudo|command|env|exec|nohup|time|nice|builtin|then|do|else|'!'|-*|npx|pnpm|yarn|bunx|dlx) continue ;;
-      esac
-      if [ "$exporting" = 1 ]; then
-        case "$token" in TENON_TEST_TRUST*) return 0 ;; esac
-        continue
-      fi
-      seen_head=1
-      head="${token##*/}"
-      case "$head" in
-        tenon|tenon.mjs) step=1 ;;
-        node|nodejs|bash|sh|zsh|dash) step=0 ;;
-        *) return 1 ;;
-      esac
-      continue
-    fi
-    case "$token" in -*) continue ;; esac
-    case "$step" in
-      0) case "${token##*/}" in tenon|tenon.mjs) step=1 ;; *) return 1 ;; esac ;;
-      1) [ "$token" = test ] && step=2 || return 1 ;;
-      2) [ "$token" = trust ] && { trust_seen=1; break; } || return 1 ;;
-    esac
-  done
-  # `tenon test trust --status` 只是看一眼是否已信任，不是信任决定。
-  [ "$trust_seen" = 1 ] && case " ${toks[*]} " in *' --status '*) return 1 ;; *) return 0 ;; esac
+# 信任决定与状态目录改写的识别（`tenon test trust`、`TENON_TEST_TRUST=`、两个 `TENON_RUNTIME_*` 根目录变量、`HOME=` 等）在 lib/trust-command.sh：
+# 命令段里出现下面这些字样才加载它（一次），其余命令段不付这份成本。库缺失是安装缺陷，而放行信任决定是危险的方向，所以出现这些字样的
+# 命令段按失败关闭拒绝（PIPELINE_REFUSE_KIND=lib；缺库时 grep 文档里的 `trust` 之类也会被拒，装好即恢复）。
+# 这两张字样表同时是 lib/trust-command.sh 里 pipeline_segment_takes_trust / pipeline_command_inline_takes_trust 的入口条件：新增识别的字样要加在这里。
+PIPELINE_TRUST_LIB="${BASH_SOURCE[0]%/*}/trust-command.sh"
+PIPELINE_TRUST_LIB_LOADED=0
+pipeline_segment_may_take_trust() { # $1=raw segment → 0 when it names a word the trust recognition cares about
+  case "${1:-}" in *trust*|*TRUST*|*RUNTIME_HOME*|*RUNTIME_ROOTS*|*HOME=*) return 0 ;; esac
   return 1
+}
+pipeline_command_may_inline_trust() { # $1=decoded command → 0 when it names an inline-code interpreter and a trust / state-directory word
+  case "${1:-}" in *node*|*ruby*|*perl*|*php*|*lua*|*deno*|*bun*|*Rscript*|*osascript*|*"$PIPELINE_PY"*) ;; *) return 1 ;; esac
+  case "$1" in *TEST_TRUST*|*RUNTIME_HOME*|*RUNTIME_ROOTS*|*XDG_STATE_HOME*) return 0 ;; *tenon*) case "$1" in *trust*|*HOME*) return 0 ;; esac ;; esac
+  return 1
+}
+pipeline_load_trust_lib() { # → 0 = lib/trust-command.sh 已加载（只加载一次）；1 = 缺失
+  [ "$PIPELINE_TRUST_LIB_LOADED" = 1 ] && return 0
+  [ -r "$PIPELINE_TRUST_LIB" ] || return 1
+  # shellcheck source=trust-command.sh
+  . "$PIPELINE_TRUST_LIB"
+  PIPELINE_TRUST_LIB_LOADED=1
 }
 
 # 补丁文件是否在头部行点名受保护路径（形态 6；大文件不扫）。
@@ -197,19 +185,21 @@ pipeline_patch_file_names_protected() { # $1=file
   case "$file" in /*) ;; *) file="$PIPELINE_SHELL_CWD/$file" ;; esac
   [ -f "$file" ] && [ -r "$file" ] || return 1
   [ "$(wc -c < "$file" 2>/dev/null | tr -d ' ')" -le 2097152 ] 2>/dev/null || return 1
-  grep -E -q '^(\+\+\+|---|diff --git|rename (to|from)|copy (to|from)) .*(test-plan|\.tenon|known-failures|review-waivers|test-seal|env\.key)' "$file" 2>/dev/null
+  grep -E -q '^(\+\+\+|---|diff --git|rename (to|from)|copy (to|from)) .*(test-plan|\.tenon|known-failures|review-waivers|test-seal|env\.key|test-trust)' "$file" 2>/dev/null
 }
-# 脚本文件是否点名受保护路径且不是干净的 git 跟踪文件（形态 8）。被 git 跟踪且没改动的脚本是项目维护的代码
-# （本仓自己的 tools/test-hooks.sh 就点名这些路径）；新写的、改过的、仓库外的脚本按「刚被 agent 写出来」处理。
+# 脚本文件是否点名受保护路径（拒绝原因 record），或含信任决定的字样 TEST_TRUST / test trust（拒绝原因 trust），且不是干净的 git 跟踪文件（形态 8）。
+# 被 git 跟踪且没改动的脚本是项目维护的代码（本仓自己的 tools/test-hooks.sh 就点名这些路径）；新写的、改过的、仓库外的脚本按「刚被 agent 写出来」处理。
+# 状态目录变量（RUNTIME_HOME / RUNTIME_ROOTS / HOME=）不扫：测试隔离脚本合法地设置它们，扫了会误拦正常开发。
 pipeline_script_names_protected() { # $1=script path
-  local file="${1:-}" dir="$PIPELINE_SHELL_CWD"
+  local file="${1:-}" dir="$PIPELINE_SHELL_CWD" kind=record
   case "$file" in /*) ;; *) file="$dir/$file" ;; esac
   [ -f "$file" ] && [ -r "$file" ] || return 1
   [ "$(wc -c < "$file" 2>/dev/null | tr -d ' ')" -le 2097152 ] 2>/dev/null || return 1
-  grep -q -e test-plan -e '\.tenon' -e known-failures -e review-waivers -e test-seal -e 'env\.key' "$file" 2>/dev/null || return 1
+  grep -q -e test-plan -e '\.tenon' -e known-failures -e review-waivers -e test-seal -e 'env\.key' -e test-trust "$file" 2>/dev/null || { kind=trust; grep -q -e TEST_TRUST -e 'test trust' "$file" 2>/dev/null || return 1; }
   if ( cd "$dir" 2>/dev/null && git ls-files --error-unmatch -- "$file" >/dev/null 2>&1 && git diff --quiet HEAD -- "$file" >/dev/null 2>&1 ); then
     return 1
   fi
+  PIPELINE_REFUSE_KIND=$kind
   return 0
 }
 
@@ -453,7 +443,10 @@ pipeline_segment_writes_record() { # $1=segment → 0 = writes a protected path 
   local -a tokens args
   PIPELINE_DANGLING=0
   PIPELINE_REFUSE_KIND=record
-  if pipeline_segment_takes_trust "$raw"; then PIPELINE_REFUSE_KIND=trust; return 0; fi
+  if pipeline_segment_may_take_trust "$raw"; then
+    pipeline_load_trust_lib || { PIPELINE_REFUSE_KIND=lib; return 0; }
+    if pipeline_segment_takes_trust "$raw"; then [ "$PIPELINE_REFUSE_KIND" = state ] || PIPELINE_REFUSE_KIND=trust; return 0; fi
+  fi
   pipeline_absorb_assignments "$segment"
   pipeline_expand_vars "$PIPELINE_SEG_REST"
   segment="$PIPELINE_EXPANDED"
@@ -499,8 +492,8 @@ pipeline_segment_writes_record() { # $1=segment → 0 = writes a protected path 
   fi
   [ "${tokens[$((n - 1))]}" = '>' ] && PIPELINE_DANGLING=1
   # 命令段里没有任何相关字样，且当前目录也不在受保护区域：需要「命名了受保护路径」的规则整段跳过。
-  case "$segment" in *test-plan*|*.tenon*|*known-failures*|*review-waivers*|*baselines*|*tests*|*test-seal*|*env.key*) relevant=1 ;; esac
-  case "$PIPELINE_SHELL_CWD" in */.tenon|*/.tenon/*|*/openspec/changes/*) relevant=1 ;; esac
+  case "$segment" in *test-plan*|*.tenon*|*known-failures*|*review-waivers*|*baselines*|*tests*|*test-seal*|*env.key*|*test-trust*) relevant=1 ;; esac
+  case "$PIPELINE_SHELL_CWD" in */.tenon|*/.tenon/*|*/openspec/changes/*|*/test-trust|*/test-trust/*) relevant=1 ;; esac
   # 展开不了的变量出现在名了受保护路径的命令里：它多半就指向受保护路径（形态 7）。
   case "$segment" in *'$'*) [ "$PIPELINE_CMD_MENTIONS" = 1 ] && relevant=1 ;; esac
 
@@ -611,8 +604,12 @@ pipeline_scan_shell_commands() {
 }
 pipeline_shell_writes_record() { # $1=decoded command, $2=cwd → 0 when it writes a protected path or takes the trust decision
   local command="${1:-}" skip_bodies rc
-  pipeline_mentions_protected "$command" || case "$command" in *trust*|*TRUST*|*bash*|*sh\ *|*zsh*|*"$PIPELINE_PY"*|*node*|*ruby*|*perl*|*php*|*deno*|*bun*|*source*|*apply*|*patch*|./*|*\ ./*|*\;./*) ;; *) return 1 ;; esac
+  pipeline_mentions_protected "$command" || case "$command" in *trust*|*TRUST*|*RUNTIME_HOME*|*RUNTIME_ROOTS*|*HOME=*|*XDG_STATE_HOME*|*bash*|*sh\ *|*zsh*|*"$PIPELINE_PY"*|*node*|*ruby*|*perl*|*php*|*deno*|*bun*|*source*|*apply*|*patch*|./*|*\ ./*|*\;./*) ;; *) return 1 ;; esac
   command="$(pipeline_unwrap_shell_wrapper "$command")"
+  if pipeline_command_may_inline_trust "$command"; then
+    pipeline_load_trust_lib || { PIPELINE_REFUSE_KIND=lib; return 0; }
+    pipeline_command_inline_takes_trust "$command" && return 0
+  fi
   PIPELINE_CMD_MENTIONS=0
   pipeline_mentions_protected "$command" && PIPELINE_CMD_MENTIONS=1
   for skip_bodies in 1 0; do
@@ -623,10 +620,20 @@ pipeline_shell_writes_record() { # $1=decoded command, $2=cwd → 0 when it writ
   return 1
 }
 pipeline_refuse_test_record_write() {
-  if [ "${PIPELINE_REFUSE_KIND:-record}" = trust ]; then
-    printf '测试命令的信任只能由你本人在自己的终端里给出（tenon test trust）；CI 由运行器设置 TENON_TEST_TRUST=1，agent 不能替你确认\n' >&2
-  else
-    printf '测试记录与基线只能由 tenon test run / tenon test baseline 写入；测试计划、已知失败清单与豁免只能经 tenon test plan|register|waive|known 与 tenon review 写入\n' >&2
-  fi
+  case "${PIPELINE_REFUSE_KIND:-record}" in
+    trust)
+      printf '测试命令的信任只能由你本人在自己的终端里给出（tenon test trust）；CI 由运行器设置 TENON_TEST_TRUST=1，agent 不能替你确认\n' >&2
+      ;;
+    state)
+      # 只有 lib/trust-command.sh 会把拒绝原因设成 state，提示文案（点名那几个变量）也由它给出。
+      printf '%s\n' "$PIPELINE_STATE_REFUSAL" >&2
+      ;;
+    lib)
+      printf '【Tenon 门】hooks/lib/trust-command.sh 缺失（%s），无法核实这条命令是否在替你做测试信任决定或改写 Tenon 的状态目录，按失败关闭拒绝。请重新安装或更新 Tenon 插件（tenon update），让 hooks/lib/ 随插件一起安装。\n' "$PIPELINE_TRUST_LIB" >&2
+      ;;
+    *)
+      printf '测试记录与基线只能由 tenon test run / tenon test baseline 写入；测试计划、已知失败清单与豁免只能经 tenon test plan|register|waive|known 与 tenon review 写入\n' >&2
+      ;;
+  esac
   exit 2
 }

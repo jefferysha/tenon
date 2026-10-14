@@ -2,6 +2,7 @@
  * 测试体系的闭集词表：种类、runner、报告格式、覆盖率格式、范围，以及它们之间的合法组合。
  * 目录校验、计划校验、工作流策略编译与判定共用这一份，避免多处白名单漂移。
  */
+import { hasTestSourceExtension } from './test-paths.js'
 
 /**
  * `tenon test run` 提供带 file 的 node:test JUnit reporter 时使用的环境变量名（值是 reporter 的 file URL）。
@@ -11,9 +12,42 @@ export const NODE_TEST_REPORTER_ENV = 'TENON_NODE_TEST_REPORTER'
 
 export const TEST_KINDS = [
   'unit', 'integration', 'regression', 'e2e', 'playwright', 'browser', 'benchmark', 'typecheck', 'lint',
-  'coverage', 'a11y', 'visual', 'contract', 'smoke', 'code-size', 'design-system', 'custom',
+  'coverage', 'a11y', 'visual', 'contract', 'smoke', 'code-size', 'design-system', 'static', 'custom',
 ] as const
 export type TestKind = (typeof TEST_KINDS)[number]
+
+/**
+ * 测试类：档位按类选套件。目录里套件的 `kind` 既可写类名（`static` 同时也是种类），也可写旧种类名，
+ * 旧种类名按 `testClassOf` 归类；运行器 / 报告格式的组合校验仍按种类名本身。
+ */
+export const TEST_CLASSES = ['unit', 'integration', 'e2e', 'static', 'benchmark', 'custom'] as const
+export type TestClass = (typeof TEST_CLASSES)[number]
+
+const CLASS_OF_KIND: Readonly<Record<TestKind, TestClass>> = {
+  unit: 'unit',
+  coverage: 'unit',
+  integration: 'integration',
+  regression: 'integration',
+  contract: 'integration',
+  smoke: 'integration',
+  e2e: 'e2e',
+  playwright: 'e2e',
+  browser: 'e2e',
+  a11y: 'e2e',
+  visual: 'e2e',
+  typecheck: 'static',
+  lint: 'static',
+  'code-size': 'static',
+  'design-system': 'static',
+  static: 'static',
+  benchmark: 'benchmark',
+  custom: 'custom',
+}
+
+/** 种类 → 类；只用于档位匹配，旧 `test_policy` 仍按种类名逐字匹配。 */
+export function testClassOf(kind: TestKind): TestClass {
+  return CLASS_OF_KIND[kind]
+}
 
 export const TEST_RUNNERS = [
   'vitest', 'jest', 'mocha', 'node-test', 'pytest', 'go', 'cargo', 'playwright', 'cypress', 'vitest-bench',
@@ -58,7 +92,7 @@ export const BROWSER_PROJECT_RE = /^[A-Za-z0-9][A-Za-z0-9 _.-]{0,63}$/
 export const METRIC_NAME_RE = /^[A-Za-z0-9_.-]{1,128}$/
 
 /** 只有这些种类可以不产出报告、只看退出码；其余种类必须有可解析的报告（0 用例、伪通过都能被识破）。 */
-export const EXIT_CODE_KINDS: ReadonlySet<TestKind> = new Set<TestKind>(['typecheck', 'lint', 'code-size', 'custom'])
+export const EXIT_CODE_KINDS: ReadonlySet<TestKind> = new Set<TestKind>(['typecheck', 'lint', 'code-size', 'static', 'custom'])
 
 const BENCHMARK_FORMATS: ReadonlySet<ReportFormat> = new Set<ReportFormat>(['benchmark-json', 'k6-summary', 'lighthouse-json'])
 const CASE_FORMATS: ReadonlySet<ReportFormat> = new Set<ReportFormat>([
@@ -93,8 +127,8 @@ const RUNNER_KINDS: Partial<Readonly<Record<TestRunner, readonly TestKind[]>>> =
   hyperfine: ['benchmark'],
   k6: ['benchmark'],
   lighthouse: ['benchmark', 'a11y'],
-  tsc: ['typecheck', 'custom'],
-  eslint: ['lint', 'a11y', 'custom'],
+  tsc: ['typecheck', 'static', 'custom'],
+  eslint: ['lint', 'static', 'a11y', 'custom'],
 }
 
 function member<T extends string>(values: readonly T[]): (value: unknown) => value is T {
@@ -103,6 +137,7 @@ function member<T extends string>(values: readonly T[]): (value: unknown) => val
 }
 
 export const isTestKind = member(TEST_KINDS)
+export const isTestClass = member(TEST_CLASSES)
 export const isTestRunner = member(TEST_RUNNERS)
 export const isReportFormat = member(REPORT_FORMATS)
 export const isCoverageFormat = member(COVERAGE_FORMATS)
@@ -151,7 +186,7 @@ export function isCaseReportFormat(format: ReportFormat): boolean {
   return CASE_FORMATS.has(format)
 }
 
-/** 看起来像测试脚本、却没有任何目录套件认领的文件（孤儿）判定用的模式。 */
+/** 看起来像测试脚本、却没有任何目录套件认领的文件（孤儿）判定用的命名模式；还要再过 `hasTestSourceExtension`。 */
 export const TEST_FILE_LIKE_PATTERNS: readonly RegExp[] = [
   /(?:^|\/)[^/]+\.test\.[^/]+$/,
   /(?:^|\/)[^/]+\.spec\.[^/]+$/,
@@ -161,8 +196,9 @@ export const TEST_FILE_LIKE_PATTERNS: readonly RegExp[] = [
   /(?:^|\/)e2e\//,
 ]
 
+/** 命名像测试、且扩展名是源码：`.spec.report`、`.spec.json`、`e2e/fixtures/seed.json` 这类证据 / 数据文件不算。 */
 export function looksLikeTestFile(path: string): boolean {
-  return TEST_FILE_LIKE_PATTERNS.some((pattern) => pattern.test(path))
+  return hasTestSourceExtension(path) && TEST_FILE_LIKE_PATTERNS.some((pattern) => pattern.test(path))
 }
 
 /** 旧测试方向 id → 种类；方向是创作模板，未知方向归 custom。 */

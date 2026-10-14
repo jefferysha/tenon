@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import { sha256Hex } from '../sha256.js'
 import {
-  catalogDigest, catalogSuitesDigest, formatCatalogIssues, parseTestCatalog, serializeTestCatalog, suiteFileGlobs,
+  catalogDigest, catalogExecDigest, catalogSuitesDigest, formatCatalogIssues, parseTestCatalog, serializeTestCatalog,
+  suiteFileGlobs,
 } from './catalog.js'
 import type { TestCatalog } from './catalog-types.js'
 import { DESIGN_CATALOG } from './test-support.js'
@@ -144,6 +146,130 @@ describe('parseTestCatalog', () => {
     ['服务未知键', 'schema: tenon-test-catalog/v1\nservices:\n  - { id: web, start: x, ready: { log: a }, host: y }\n', /不认识键 'host'/],
   ])('%s → 拒绝', (_name, text, pattern) => {
     expect(issues(text).join('\n')).toMatch(pattern)
+  })
+})
+
+describe('static 种类', () => {
+  it('kind: static 搭配 tsc + exit-code 可解码，写出再读回同一份', () => {
+    const catalog = ok(suite('kind: static\nrunner: tsc\ncommand: npx tsc --noEmit\nreport: { format: exit-code }'))
+    expect(catalog.suites[0]).toMatchObject({ kind: 'static', runner: 'tsc', report: { format: 'exit-code' } })
+    expect(ok(serializeTestCatalog(catalog))).toEqual(catalog)
+  })
+
+  it('省略 report 时 tsc 的默认报告格式就是 exit-code', () => {
+    expect(ok(suite('kind: static\nrunner: tsc\ncommand: npx tsc --noEmit')).suites[0]?.report).toEqual({ format: 'exit-code' })
+  })
+
+  it('kind: static 也可用 eslint 与 custom runner 只看退出码', () => {
+    expect(ok(suite('kind: static\nrunner: eslint\ncommand: npx eslint .')).suites[0]?.report).toEqual({ format: 'exit-code' })
+    expect(ok(suite('kind: static\nrunner: custom\ncommand: ./check.sh\nreport: { format: exit-code }')).suites[0]?.kind).toBe('static')
+  })
+
+  it('不放行 typecheck 与 lint 都不放行的组合', () => {
+    expect(issues(suite('kind: static\nrunner: playwright\ncommand: x\nreport: { format: junit, path: test-results/a.xml }')).join('\n'))
+      .toMatch(/不能承载种类 'static'/)
+    expect(issues(suite('kind: static\nrunner: custom\ncommand: x\nreport: { format: benchmark-json, path: test-results/b.json }')).join('\n'))
+      .toMatch(/只用于 benchmark/)
+  })
+})
+
+/** 本仓 `.tenon/tests/catalog.yaml` 的前 60 行原文（注释、profile: coarse、两个套件），复制于引入 levels 之前。 */
+const REAL_CATALOG_EXCERPT = [
+  '# Tenon 仓库自己的测试目录：`tenon test discover` 起草，再按仓库真实的验收入口细化。',
+  '# 报告、覆盖率与产物只写 test-results/、playwright-report/、coverage/（目录校验强制；这样跑测试不会让候选版本失效）。',
+  '# 种类：unit / integration / regression / smoke / typecheck / lint / playwright / benchmark 计入默认策略；',
+  '# custom 与带 slow 标签的套件不在默认 verify 里，需要时用 --suite 点名运行。',
+  '# 单测命令不自己清环境：根与 dashboard-app 的 vitest 隔离脚本（tools/vitest.isolate-runtime-home.mjs）对每个测试文件保存并覆盖',
+  '# TENON_USER / TENON_USER_NAME / TENON_RUNTIME_HOME / TENON_RUNTIME_ROOTS / TENON_BASE_BRANCH / TENON_CHANGE_NAME，',
+  '# 所以在 Tenon 会话里、或经 tenon test run（它会注入 TENON_BASE_BRANCH / TENON_CHANGE_NAME）跑，与手敲 npm test 结果一致。',
+  '# tools-node 与 oracle-unit 不经过该脚本，它们本就不读这些变量（在带这些变量的环境里跑过，结果与干净环境一致）。',
+  '# oracle-unit 用 --pool=threads：harness 用例长时间同步等子进程，默认的 forks 池会在 vitest 与 worker 的 RPC 上超时（用例全过、进程退出码却是 1）。',
+  'schema: tenon-test-catalog/v1',
+  '# 机器画像口径 coarse = OS + 架构 + 核数 + Node 主版本 + profiles_env（CPU 型号与内存档位不参与）：CI 上同规格的托管运行器',
+  '# 会落在不同代的 CPU 上，细口径下每换一代就是一个新画像，已提交的基线永远对不上；粗口径让它们共用 .tenon/tests/baselines/ 里的一份。',
+  '# 开发机的画像因此也带核数（如 darwin-arm64-14c-node24-…），仍与 CI 的画像（CI 变量不同）互不比较。',
+  'profile: coarse',
+  'profiles_env:',
+  '  - CI',
+  'suites:',
+  '  # ── 单测 ────────────────────────────────────────────────────────────',
+  '  - id: unit',
+  '    label: 单测 · packages',
+  '    kind: unit',
+  '    runner: vitest',
+  '    command: npm test -- --reporter=default --reporter=json --outputFile.json=test-results/vitest.json',
+  '    timeout_s: 3600',
+  '    files:',
+  '      - packages/*/src/**/*.test.ts',
+  '    covers:',
+  '      - packages/*/src/**',
+  '      - templates/**',
+  '    select:',
+  '      files: "npx vitest run {files} --reporter=default --reporter=json --outputFile.json=test-results/vitest.json"',
+  '      grep: "npx vitest run -t {pattern} --reporter=default --reporter=json --outputFile.json=test-results/vitest.json"',
+  '    report:',
+  '      format: vitest-json',
+  '      path: test-results/vitest.json',
+  '    artifacts:',
+  '      - test-results/vitest.json',
+  '    tags:',
+  '      - vitest',
+  '  - id: dashboard-app-unit',
+  '    label: 单测 · dashboard-app',
+  '    kind: unit',
+  '    runner: vitest',
+  '    command: npx vitest run --config packages/dashboard-app/vitest.config.ts --reporter=default --reporter=json --outputFile.json=test-results/vitest.json',
+  '    timeout_s: 1800',
+  '    files:',
+  '      - packages/dashboard-app/src/**/*.test.tsx',
+  '    covers:',
+  '      - packages/dashboard-app/src/**',
+  '    select:',
+  '      files: "npx vitest run --config packages/dashboard-app/vitest.config.ts {files} --reporter=default --reporter=json --outputFile.json=test-results/vitest.json"',
+  '      grep: "npx vitest run --config packages/dashboard-app/vitest.config.ts -t {pattern} --reporter=default --reporter=json --outputFile.json=test-results/vitest.json"',
+  '    report:',
+  '      format: vitest-json',
+  '      path: packages/dashboard-app/test-results/vitest.json',
+  '    artifacts:',
+  '      - packages/dashboard-app/test-results/vitest.json',
+  '    tags:',
+  '      - vitest',
+  '      - web',
+  '',
+].join('\n')
+
+describe('没写 levels 的目录：摘要与引入 levels 之前逐字相同', () => {
+  // 下面的常量在引入 levels 之前的代码上取得（同一份文本、同一个解析与摘要函数）。
+  it('真实目录原文', () => {
+    const catalog = ok(REAL_CATALOG_EXCERPT)
+    expect(Object.hasOwn(catalog, 'levels')).toBe(false)
+    expect(catalogDigest(catalog)).toBe('sha256:779dd94a91c4aeba370bf63c5a4a8b3380563dfd37cddeaba985f85292ad8178')
+    expect(catalogSuitesDigest(catalog, ['unit', 'dashboard-app-unit']))
+      .toBe('sha256:cfc8377b0740a681a054ad8a36f96d7aa2136cb2bb49864a3d4092eaafb74c1b')
+    expect(sha256Hex(serializeTestCatalog(catalog))).toBe('12d113620348f7cb5430403a2809f84bdfea24c04b074709dc7e75220a08bfcc')
+  })
+
+  it('设计样例目录', () => {
+    const catalog = ok(DESIGN_CATALOG)
+    expect(catalogDigest(catalog)).toBe('sha256:57ce1c7b4ee7cbe042ee488e502da8e7550c811179764319fb5fe4bac1251627')
+    expect(catalogSuitesDigest(catalog, ['web-unit']))
+      .toBe('sha256:99ffa6b4fe828d8f975d08e6eafbe118fddb2cdff12f70632ffc85a805290752')
+    expect(sha256Hex(serializeTestCatalog(catalog))).toBe('e7f6e0d0d57aab79ab82218d84e1bbd47c216722a5259078a1c5b232fa79d560')
+  })
+
+  it('写了 levels 后摘要改变，写出再读回的摘要稳定', () => {
+    const base = ok(REAL_CATALOG_EXCERPT)
+    const withLevels = ok(`${REAL_CATALOG_EXCERPT}levels:\n  full:\n    coverage: { lines: 80 }\n`)
+    expect(withLevels.levels).toEqual({ full: { coverage: { lines: 80 } } })
+    expect(catalogDigest(withLevels)).not.toBe(catalogDigest(base))
+    expect(catalogSuitesDigest(withLevels, ['unit'])).not.toBe(catalogSuitesDigest(base, ['unit']))
+    expect(catalogDigest(ok(serializeTestCatalog(withLevels)))).toBe(catalogDigest(withLevels))
+  })
+
+  it('套件的可执行摘要不受 levels 影响（档位定义不是会被执行的文字）', () => {
+    const base = ok(REAL_CATALOG_EXCERPT)
+    const withLevels = ok(`${REAL_CATALOG_EXCERPT}levels:\n  full:\n    coverage: { lines: 80 }\n`)
+    expect(catalogExecDigest(withLevels)).toBe(catalogExecDigest(base))
   })
 })
 

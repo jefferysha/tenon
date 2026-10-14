@@ -4,6 +4,12 @@
  * 缺省键不写，coverage / flaky / benchmark 写单行 `{ k: v }`。
  */
 import type { StepTestPolicyDef } from './types.js'
+import type { TestLevel } from './test-level.js'
+
+/** 步骤档位行 `test: <档位>`；没声明不写（定义里显式的 `none` 如实写出，往返保真）。 */
+export function serializeStepTestLevel(level: TestLevel | undefined): string[] {
+  return level === undefined ? [] : [`    test: ${level}`]
+}
 
 function inlineMap(value: Readonly<Record<string, unknown>>): string {
   const entries = Object.entries(value).filter(([, item]) => item !== undefined).map(([key, item]) => `${key}: ${String(item)}`)
