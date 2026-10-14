@@ -3,10 +3,10 @@
 开始本教程前，先一次安装不可变的 Codex 预构建发布包：
 
 ```bash
-/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.3.3/install.sh | /bin/bash -s -- --codex
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.3.4/install.sh | /bin/bash -s -- --codex
 ```
 
-该命令不 clone 仓库，也不从源码编译；它会安装打包好的 `v0.3.3`、启动并验证 Dashboard，
+该命令不 clone 仓库，也不从源码编译；它会安装打包好的 `v0.3.4`、启动并验证 Dashboard，
 然后打印本机 URL 和 `tenon dashboard --open`。管道安装不会自动打开浏览器。安装完成后，
 日常更新只需一条 `tenon update --codex`，并始终绑定稳定 release tag。
 
@@ -107,7 +107,7 @@ tenon document status <change>
 - 当前目录本身已经是一个 linked worktree；
 - 你传了 `--in-place`（确实要原地时才用；用户不要求时 `tenon` 技能不会传），或设置了 `TENON_INIT_IN_PLACE=1`（Tenon 自己的测试工装用它，不打印原因）。
 
-从 Dashboard 或 AFK 分诊建的 Change 一律原地建立。
+AFK 分诊建的 Change 一律原地建立。
 
 **切进去。** 文本输出时 stdout 为空，stderr 的最后两行是 `worktree: <绝对路径>` 和切进去的做法。加 `--json` 时 stdout 只有一行：
 

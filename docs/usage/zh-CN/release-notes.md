@@ -12,6 +12,107 @@ Tenon 的发布说明用于回答三个问题：这一版改变了什么、用�
 
 面向用户的解释、影响与操作步骤默认使用中文。
 
+## v0.3.4 · 2026-10-14
+
+v0.3.4 让任务的 agent 更可靠，也让同一仓库里的多个任务可以并排进行。Tenon 的 agent 在终端里一次性装成用户级的宿主子代理，会话里的第一个任务不再撞上「找不到子代理」。新任务建在自己的 Git worktree 里，决定哪些改动算本任务的那个起点，在建任务时记下并跟随上游。终端里有一行显示任务走到了哪一步，从某一步回退也不再要求先启动一个 agent。升级项目前先读「行为变化与升级影响」。
+
+### 终端里安装宿主子代理
+
+- `tenon agent install [--host claude|codex]` 把适用于该宿主的官方与自定义 agent 写成用户级子代理文件：Claude Code 是 `<Claude 配置目录>/agents/tenon-<name>.md`，Codex 是 `<Codex 配置目录>/agents/tenon-<name>.toml`。配置目录取 `$CLAUDE_CONFIG_DIR`（Claude Code）或 `$CODEX_HOME`（Codex），变量值是绝对路径时才采用，否则是 `~/.claude` 或 `~/.codex`。`--host` 缺省取进程环境判出的宿主，普通终端里是 `claude`。完成时退出码 `0`（必须原样不动的文件是 `WARN` 行，也算完成），用法错误、agent 库未装配或有文件写失败时退出码 `1`。
+- 以前 `tenon init` 与 `tenon agent prompt` 在会话里把 `.claude/agents/tenon-<name>.md` 写进项目，而会话中途新增的子代理文件什么时候被宿主加载没有保证，所以会话里建的第一个任务可能派发出一个「找不到」的子代理。只有会话启动前就存在的文件才可靠，所以会话里运行的 Tenon 命令一概不再写它们。
+- 什么时候执行。`tenon setup --claude|--codex` 与 `tenon update --claude|--codex` 成功后会执行同一套安装（`update` 发现已是最新版时也执行），并打印写了哪些文件。安装失败只给 WARN：`setup` / `update` 的退出码不变，你可以自己再执行 `tenon agent install --host <host>`。`--dry-run` 不安装，适配器宿主没有子代理目录因而跳过这一步，每天一次的自动更新（`--auto`）只在安装失败时出声。`tenon agent new|add|copy|rm` 只改库，只打印提醒：执行 `tenon agent install` 并开新会话。
+- 所有权。按文件记内容摘要，存在 `<config>/agents/host-owned.json`，按写入的目录分组：在一个配置目录上安装或卸载，不会删除、改写或认领另一个目录里 Tenon 写的文件。文件只在安全时才写：它还不存在；内容已经和渲染结果完全一样（Tenon 补记它归自己）；或 Tenon 之前写过、此后没人改过。同名但归你的文件、或你改过的文件原样不动，列成 `WARN`；目标文件本身是符号链接则拒绝写（父目录是符号链接，例如 dotfiles 管理的 `~/.claude`，没有问题）。agent 已不在库里时，它的文件如果是 Tenon 写的且没被改过就删除。`host-owned.json` 解析不了时，已有文件一律不改不删，只写还不存在的文件。
+- `tenon agent uninstall [--host claude|codex]` 删除 Tenon 写入且没被改过的文件；改过的保留，在结果里列为 `modified`。`tenon uninstall` 作用于项目的 `.pipeline-owned.json`，不碰这些文件，想清掉它们请先执行 `tenon agent uninstall --host <host>`。
+- 项目层 agent（`.tenon/agents/`）从不安装，所以在哪个目录执行安装结果都一样。项目层 agent 一律走宿主的通用子代理，它的工具限制只剩正文里的指令。
+- `tenon agent prompt` 不写任何宿主文件。带 `--json` 时，只有已安装的文件与任务冻结的定义为该宿主渲染出的内容逐字节一致、并且项目里没有内容不同的同名文件（`.claude/agents/tenon-<name>.md`、`.codex/agents/tenon-<name>.toml`）把它遮住时，才返回 `subagent_type: tenon-<name>` 与 `native: true`。其余情况返回宿主的通用子代理（Claude Code 是 `general-purpose`，Codex 是 `default`），`native: false`，并带 `reason`（`not-installed`、`definition-mismatch`、`shadowed` 或 `project-agent`）与一行 `hint`；`hint` 一律是中文，并点出它检查的目录。任务沿用它冻结的定义，所以冻结了旧版本 agent 的任务会留在通用子代理上，而不是悄悄换成新版本。
+- `tenon agent record <change> <run-id> --subagent none` 记下没有派发任何子代理的运行（`reason: not-dispatched`）。没用专属子代理的运行，原因存在运行旁注 `.pipeline-agent-run-meta.jsonl` 的 `subagent_reason` 里，台账行里的 `subagent` 仍是三个键。
+- 旧版本写进项目的文件优先级高于用户级的，所以 Tenon 会清理它们：`tenon init` 时，以及任务完结、终止或删除时（CLI 与 Dashboard 都一样）。项目的 `.pipeline-owned.json` 记着该文件且内容仍与记录的摘要一致的，或者内容与当前库为该 agent 渲染的结果完全一致的，会被删除。其余一律保留（被改过的、两条规则都不符合的、读不了的），并用 `WARN` 点名文件；清理失败从不改变退出码。
+- 装完要开新会话：宿主在会话启动时加载子代理文件。要在宿主启动时的环境里安装。如果你的 Claude Code 或 Codex 是带着 `CLAUDE_CONFIG_DIR` 或 `CODEX_HOME` 启动的，安装也要在带同样变量的环境里执行，否则文件落到 `~/.claude/agents`，宿主看不到。输出第一行 `目标目录：<dir>` 告诉你装到了哪里，在会话里执行 `! tenon agent install --host claude` 用的就是会话的环境。见[宿主子代理与安装命令](agents.md#宿主子代理与安装命令)。
+
+### 终端里的步骤清单
+
+- `tenon init`、`tenon session activate`、`tenon transition` 或 `tenon step run <name>` 成功后，PostToolUse hook `step-progress` 打印一行，数据来自任务冻结的计划：已过的步骤是 `✓`，当前是 `●`，没到的是 `○`，任务归档后全是 `✓`。步骤之间用 ` → ` 连接，标签就是工作流声明的标签（`立项 ✓ → 调研 ● → 规格 ○ → …`）。遇到回退边（例如 `verify-fail` 回到实现）时，后面的步骤会重新显示为 `○`。
+- `tenon workflow progress <name>` 打印同一行，在主检出里也能找到住在 worktree 里的任务。读不了任务（名字非法、状态读不了、没有计划、没有步骤）时退出码 `1` 且 stdout 为空。
+- 这一行不依赖宿主的 Todo 工具（较新的 Claude Code 模型默认不提供）；宿主有 Todo 工具时，`tenon` 技能还会按 `tenon workflow plan <name> --json` 建 Todo。hook 只在宿主报告命令成功之后运行，所以失败的命令不会打印；hook 出任何问题都只是不打印而不是报错。它只认由小写字母、数字和连字符组成的任务名，别的名字请自己执行 `tenon workflow progress <name>`。见[终端里的步骤清单](quickstart.md#终端里的步骤清单)。
+
+### 每个新任务建在自己的 worktree
+
+- 在 Git 仓库的主检出里，`tenon init` 把任务建在 `<项目>/.worktrees/<change>`，分支是新建的 `tenon/<change>`，从当前 `HEAD` 分出，不跟踪任何上游。任务里记下 `base_branch`（你出发时所在的分支）、`start_sha`（那个 `HEAD`）和 `isolation=worktree`。同一个仓库里的多个任务并排进行，谁也看不到别的任务改了哪些文件、登记了哪些测试，构建指纹也互不相干。没有任何忽略规则覆盖 `.worktrees/` 时，它会被追加进 `.git/info/exclude`，所以主检出的 `git status` 不变。创建要么全成要么全不成：`init` 失败时 worktree 与分支会被撤掉，同名路径或分支已存在时 `init` 退出码 `1` 且什么都不改。
+- 改为原地建立。下面这些情形里 `tenon init` 像以前一样把任务建在当前目录，并在 stderr 说明原因：当前目录不是 Git 仓库（或不是仓库根目录）、仓库还没有任何提交、`HEAD` 处于分离状态、当前目录本身已经是 linked worktree，或者你传了 `--in-place`（确实要原地时才用；用户不要求时 `tenon` 技能不会传）。`TENON_INIT_IN_PLACE=1` 效果相同但不打印原因，是给 Tenon 自己的测试和脚本用的。AFK 分诊建的任务一律原地建立，升级前创建的任务留在它原来的检出里。
+- 输出。文本输出时 stdout 为空，stderr 的最后两行是 `worktree: <绝对路径>` 和切进去的做法。`--json` 时 stdout 只有一行，带 `change`、`path`、`worktree`（绝对路径或 `null`）和 `worktree_reason`（建了 worktree 时是 `null`，否则是 `not-git`、`no-commits`、`detached-head`、`linked-worktree`、`requested` 之一）。
+- 切进去与恢复。Claude Code 里 `tenon` 技能用 `EnterWorktree` 切进 worktree，再执行 `tenon session activate`；此后的命令、评审确认与 hook 都以该 worktree 为项目根。Codex 没有对应能力：技能请你在该目录开新会话，并结束本轮。恢复同理：路由器解析到的点名任务只存在于 `.worktrees/` 下时，dispatch 会带 `worktree_path`。在主检出里泛泛说「继续」、而能继续的只有 worktree 任务时，dispatch 把它们连同路径列出来（`change_candidate`），请你点名一个。worktree 任务不计入路由器判断「新建还是选择」时的在途任务数。
+- 再次找到任务。`tenon list` 末尾有 `WORKTREE` 列（当前根自己的任务是 `-`），`--json` 的每一行带 `worktree`；在主检出里执行时，它还会列出 `.worktrees/` 下未归档的任务。在主检出里按名字读取住在 worktree 里的任务的命令（`status`、`get`、`check`、`workflow plan`）以退出码 `1` 失败，报错点出 worktree 路径。
+- 准备 worktree。新 worktree 里没有装好的依赖，也没有构建产物。测试目录（`.tenon/tests/catalog.yaml`）可以声明一个顶层的 `setup` 字符串，例如 `npm ci`，这条命令已受信任时，`tenon init` 会在新 worktree 里执行它，输出转到 stderr。信任按用户、仓库、单条命令记录，同一仓库的所有 worktree 共享：这条 `setup` 你已经信任过就立即执行；还没信任的**不会**执行，`init` 打印该命令，并请你自己运行 `tenon test trust` 确认（agent 不能替你确认），再手动执行它。worktree 里是已提交的目录，主检出里对 `setup` 的未提交改动不算。`setup` 失败只给 WARN 和重跑的命令，`init` 的退出码仍是 `0`；没有目录、目录无效或没有 `setup` 键，都会说明并跳过。`tenon test trust` 把 `setup` 连同各套件一起列出，`tenon test run` 既不执行也不校验它。`setup` 可能要几分钟：执行 init 的 shell 调用要给足超时（技能用 600000 ms）；超时只会中断 `setup`，任务已经建好。
+- 完结。交付与完结都在 `tenon/<change>` 分支上进行。任务归档后，Tenon 把 worktree 与分支留在原处，只报告移除它们的命令，字段是 `cleanup`，出现在 `finish-change` 动作和 `code: finished` 的 `stop` 里：`git worktree remove '<路径>' && git branch -d 'tenon/<change>'`。要自己在主检出里执行（不能在要删的 worktree 里执行）；`git branch -d` 会拒绝还没合并的分支，所以不会丢提交。`finish-change` 恒有这一键（原地建立的任务为 `null`），`stop` 只在 worktree 任务上才有。
+- worktree 任务的构建版本和原地任务一样绑工作区内容指纹，因为任务 worktree 里的实现在 Build 出口时通常还没提交，Build 也从不要求提交；只有 `isolation=branch` 绑 Git 对象。身份仍绑定物理 repository 与物理 worktree，所以在别的检出里验证一个 worktree 任务会得到 `worktree-mismatch`，token 类别与任务的 `isolation` 不符则得到 `isolation-mismatch`。两者都是回 Build 重新捕获。
+- 每个新任务多一个 worktree、一个分支和一次依赖安装，Codex 要开新会话。Dashboard 把每个 worktree 登记为单独的项目，没有跨 worktree 的统一视图。见[任务在哪里](quickstart.md#任务在哪里任务-worktree)。
+
+### 记录下来的任务起点
+
+- `tenon init` 把检出时的 `HEAD` 写进任务字段 `start_sha`（AFK 分诊同样写；仓库还没有提交时不写）。「自任务开始以来改动了哪些文件」的起点取三个候选里最新的一个：`start_sha`（当它是 `HEAD` 的祖先、且提交时间不晚于任务 `created_at` 加 60 秒时）、`HEAD` 与 `base_branch` 上游的 merge-base、`HEAD` 与 `base_branch` 的 merge-base（不等于 `HEAD` 本身时）。候选不成链时退到它们的共同祖先，所以清单可能多算，但不会少算；一个候选都没有时，仍取 `created_at` 之前的最后一个提交。不读提交信息，也不读作者。
+- 你会看到的变化：别人合入基线分支、你又拉取进来的提交，不再被算成本任务的改动，不再冒出一堆继承来的测试文件和被改过的目录。测试文件的登记与同步、改动文件清单、受保护测试配置的批准、测试完整性报告、`diff-risk` 探针、按 `attach_on` 挂载的评审者、改动行覆盖率、证据导出、流转门（CLI 与 HTTP）、Dashboard 快照和 `tenon verify --ci`，比对的都是这同一个起点。在 CI 检出里，`tenon verify --ci` 的基线优先取 `origin/<base>`，它不存在才取本地分支。
+- `start_sha`、`base_branch`、`created_at` 只由 `tenon init` 写入：`tenon set`、`set-many`、`cas` 拒写（退出码 `1`，状态不变）。`base_branch` 与 `created_at` 以前可以被改写。
+- `start_sha` 存在任务状态旁的一份记录里（`.pipeline-run/start-sha/`），不写进 `.pipeline.yaml`。这份记录不在状态摘要的保护范围里，所以才要拿它的提交时间对照 `created_at`：它被改写或删除，起点只会前移、清单只会多出文件，不会少。
+- 限制。上游是本地引用，没有 `git fetch` 时可能偏旧，那只会多算文件。原地任务在基线分支上提交了自己的改动并推送到它的上游之后，起点会前移过这些提交，它们不再算本任务的改动；worktree 任务不受影响。伪造了早于 `created_at` 的提交时间的提交能通过时间校验。见[任务起点](default-workflow.md#任务起点)。
+
+### 修复
+
+- 从某一步回退不再要求先启动 agent。回退边（例如实现步的 `requirements-changed`、验证步的 `verify-fail`）不再要求本步声明的 agent 的技能：这些技能只能在 agent 运行期间加载，所以实现步的 `requirements-changed` 以前要先开始一次 builder 运行。主线自己加载的技能在回退边上仍然要求，前进边照旧要求全部。`tenon status`、`tenon check`、`tenon transition` 与 Dashboard 的流转用的是同一条规则。
+- 未被跟踪的 `.claude/worktrees/` 不再让工作区指纹变化，构建版本和评审结论绑的就是这个指纹。Claude Code 为它的子代理与会话在那里建检出，同一仓库的另一个会话随时在改它，它还可能非常大：主检出里的任务因此变成 `revision-stale`，每次算指纹（也就是每次 `tenon status`）都很慢。遍历现在不再进入这个目录。其中被 git 跟踪的文件照算，所以 PR 不能把代码藏进去。测试记录绑的指纹本来就不含它。
+
+### 行为变化与升级影响
+
+- **`tenon init` 在 Git 仓库的主检出里建 worktree。** 先 `tenon init`、再留在同一个目录里继续工作的脚本和 CI，要加 `--in-place`（本仓库 CI 的基准步骤就是这样），或者切到 `--json` 返回的路径里。按名字读取任务的命令要在任务自己的根里执行。
+- **专属子代理需要 `tenon agent install`。** 在你执行它并开新会话之前，`tenon agent prompt` 返回带 `reason: "not-installed"` 和安装提示的通用子代理，agent 在没有它自己的 `tools` 白名单与 `model` 的情况下运行。
+- **已信任的 `setup` 不再询问就执行。** 信任绑定的是命令文本，不绑定命令执行时读取的仓库文件，例如 `package.json` 的生命周期脚本、它们调用的脚本，与测试套件相同。`setup` 一旦被信任，之后的提交改了这些文件，`tenon init` 会在新 worktree 里执行改过的版本。不想这样，就用 `tenon init --in-place` 建任务，或从目录里去掉 `setup`。
+- **`tenon set`、`set-many`、`cas` 拒写 `start_sha`、`base_branch`、`created_at`**（退出码 `1`）。写过 `base_branch` 或 `created_at` 的脚本现在会失败。
+- **`tenon list` 末尾多了一列 `WORKTREE`，** `--json` 的每一行多了 `worktree` 键。按列位置读表或逐字比对行的脚本要更新。
+- **`tenon uninstall` 不碰用户级子代理文件。** 想清掉它们，先执行 `tenon agent uninstall --host <host>`。
+
+### 开发
+
+- Trellis 已从 Tenon 自己的仓库删除：它的项目 hook 用相对路径指向被 git 忽略的目录，在 git worktree 里会失败并拦住提示。对用户没有影响。
+- 在临时 git 仓库里执行 `tenon init` 并期望任务建在该目录的测试或脚本，必须导出 `TENON_INIT_IN_PLACE=1`；不能碰宿主配置的夹具要去掉 `CLAUDE_CONFIG_DIR` 和 `CODEX_HOME`：用户级子代理与 `AGENTS.md` 都据它们解析。本仓库的 vitest 全局 setup 与 shell 测试脚本两件事都做了。
+- 本仓库的 `.tenon/tests/catalog.yaml` 声明了 `setup: npm ci && npm run build:packages`。
+
+### 升级动作
+
+运行 `tenon update --claude`（或 `--codex`），然后：
+
+1. 在终端里执行 `tenon agent install --host claude`（或 `--codex`）安装宿主子代理，再新开宿主会话。你刚运行的 `tenon update` 是升级前那个版本的代码，没有安装这一步；之后的 `tenon setup` 与 `tenon update` 会自己执行它，现在再运行一次 `tenon update` 也能装上。如果 Claude Code 或 Codex 是带着 `CLAUDE_CONFIG_DIR` 或 `CODEX_HOME` 启动的，安装要在带同样变量的环境里执行（会话里用 `! tenon agent install --host claude`），并核对 `目标目录：<dir>` 那一行。新增、修改或删除自定义 agent 之后也要再执行一次。
+2. 先 `tenon init`、再在同一个目录里继续工作的脚本和 CI：加 `--in-place`，或者从 `--json` 读 `worktree`。
+3. 想让新 worktree 自动做好准备，就在 `.tenon/tests/catalog.yaml` 里声明 `setup`（例如 `npm ci`），并在自己的终端里运行一次 `tenon test trust`。不声明的话新 worktree 里没有装好的依赖，测试跑不起来（`tenon init` 会提示）。
+4. 用 `tenon set` 写过 `base_branch` 或 `created_at` 的脚本，去掉这些写入。
+5. 项目里有未跟踪的 `.claude/worktrees/` 的机器上，在途任务第一次校验可能出现一次 `revision-stale`：回到实现步重新捕获当前版本，并重新运行评审者（见「兼容性」）。
+6. 建在 worktree 里的任务完结后，在主检出里执行 `step.next` 报告的 `cleanup` 命令。
+7. Codex：hook 文件变了，Codex 可能要求你重新信任。运行 `/hooks`，信任 `tenon`，再新开会话（见[安装](installation.md)）。
+8. 回滚到更早的版本之前，先完结或终止建在 worktree 里的任务，以及有运行落在通用子代理上的任务，把 `setup` 从 `.tenon/tests/catalog.yaml` 里删掉；想清掉用户级子代理文件就先执行 `tenon agent uninstall --host <host>`（见「兼容性」）。
+
+### 兼容性
+
+N-1 是 v0.3.3。N-1 兼容门禁（`tools/test-bundle.sh`）每次运行都在两个方向上让它与本版本互相读写。
+
+- 门禁交叉读写测试记录链、agent 运行台账及其旁注、测试计划、`discover --write` 写的目录、被 `TENON_RECORD_RETENTION` 清理过的记录链，以及旁边有未跟踪的 `.claude/settings.local.json` 时写下的记录。它的任务都是原地建立的（`TENON_INIT_IN_PLACE=1`）。下面其余的限制是已知的，门禁没有交叉测。
+- v0.3.3 读不了目录的 `setup` 键：读带顶层 `setup` 的目录会报未知键。回滚之前，先把 `setup` 从 `.tenon/tests/catalog.yaml` 里删掉。
+- `tenon init` 建在 worktree 里的任务带 `isolation=worktree`。v0.3.3 对这个值绑 Git 对象，本版本绑工作区指纹，所以一个版本捕获的构建版本，在验证步会被另一个版本拒绝（`isolation-mismatch`）。回滚之前先完结或终止建在 worktree 里的任务（见[更新、恢复与卸载](updates-recovery-and-uninstall.md)）。v0.3.3 也不认识 `.worktrees/`：在主检出里它的 `tenon list` 不列这些任务，按名字读取它们的命令报 `change not found`，要在 worktree 里执行。
+- v0.3.3 读不了没用专属子代理的运行的旁注：那一行带 `subagent_reason`，v0.3.3 不认识，于是把该任务的 agent 运行台账判为损坏（`runs-corrupt`）。这包括派发到通用子代理的运行（原因 `not-installed`、`definition-mismatch`、`shadowed`、`project-agent`）和用 `--subagent none` 登记的运行。回滚之前先完结或终止这样的任务。
+- `start_sha` 存在伴随记录里，所以 v0.3.3 读得了带它的任务，也续写得了。这份记录不会带进 v0.3.3 写下的 revision：回到本版本后，那个任务的起点只由上游与基线分支两个候选算出，与字段出现之前创建的任务一样。
+- v0.3.3 不认识用户级子代理文件和 `host-owned.json`。在宿主会话里它会把项目级的 `tenon-<name>` 文件重新写出来（`tenon init`、`tenon agent prompt --host`），而项目级文件的优先级高于同名的用户级文件；本版本会在 `tenon init` 和任务结束时再把它们清掉。
+- 指纹规则变化：项目里有未跟踪的 `.claude/worktrees/` 的机器上，v0.3.3 把这个目录算进构建版本和评审结论绑的指纹，本版本不算。跨过升级（或跨过回滚）的在途任务，第一次校验可能出现一次 `revision-stale`，评审者也要重新运行。按冻结版本过期的惯常办法处理：回到实现步重新捕获当前版本。测试记录绑的指纹从来不含这个目录，不受影响，项目里没有这个目录的任务也不受影响。
+- 新增的命令与选项：`tenon agent install` 与 `uninstall`、`tenon workflow progress`、`tenon init --in-place` 与 `--json`、`tenon agent record --subagent none`、`tenon list` 的 `WORKTREE` 列和 `--json` 行里的 `worktree`、`tenon agent prompt --json` 里的 `reason` 与 `hint`、`finish-change` 动作的 `cleanup` 键、目录的 `setup` 键。有变化的：`tenon set`、`set-many`、`cas` 拒写 `start_sha`、`base_branch`、`created_at`。已删除：`tenon init` 与 `tenon agent prompt` 写进项目的宿主 agent 文件。
+
+### 验证
+
+```bash
+tenon --version
+tenon doctor
+tenon runtime status
+tenon agent install --host claude
+tenon list --json
+```
+
+`tenon --version` 打印 `0.3.4`。`tenon doctor` 里 `identity:release` 列出宿主插件、runtime 和 Dashboard server 都是 0.3.4。`tenon runtime status` 显示当前 release 为 `valid=yes`。`tenon agent install` 首行打印 `目标目录：<dir>` 并退出码 `0`；重复执行时每个文件都报「未变化」。新会话里，对任务当前步骤里的 agent 执行 `tenon agent prompt <change> <agent> --host claude --json`，返回 `subagent_type: tenon-<agent>` 与 `native: true`。`tenon list --json` 的每一行都有 `worktree` 键，值是 worktree 的绝对路径，当前根自己的任务为 `null`。
+
 ## v0.3.3 · 2026-10-14
 
 v0.3.3 让任务更轻地创建、配置和确认。内建工作流只剩两个：`default`，它的轨道是轻量（`lite`）、产品（`pm`）、前端（`frontend`）、后端（`backend`），以及平铺的 `design-system`。工作流不再声明每一步的文档，Tenon 改为记录每一步实际写出了什么。步骤用一个档位声明测试要求，默认的 `code-size` 测试没有行数上限。轮次内的回退边和只读组合命令不再等待确认，同一项目里并行的会话也不再互相拦截。升级项目前先读「行为变化与升级影响」。

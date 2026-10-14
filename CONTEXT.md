@@ -101,7 +101,7 @@
   `cleanup` 命令清理，Tenon 不自己删。
   _Avoid_：隔离分支、沙箱（AFK 的 Docker worktree 是另一回事）
 - **原地建立**：任务不建 worktree、直接建在当前检出里。原因是非 Git 仓库、没有提交、HEAD 分离、当前目录已是 linked worktree，或用户指定
-  `--in-place`；原地任务的 `isolation` 没有预设，由 build 步骤再填 `in-place`。Dashboard 建任务与 AFK 分诊物化的任务一律原地。
+  `--in-place`；原地任务的 `isolation` 没有预设，由 build 步骤再填 `in-place`。AFK 分诊物化的任务一律原地。
 - **准备命令（`setup`）**：测试目录的可选顶层字段，`tenon init` 在新 worktree 里受信任时执行它（如 `npm ci`）。信任按命令摘要继承自主检出的
   本机封存；未受信任时跳过并提示，失败只警告。
   _Avoid_：post-create hook

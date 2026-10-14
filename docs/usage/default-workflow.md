@@ -317,7 +317,7 @@ against the same start commit. Tenon records it when the task is created and
 lets it follow upstream.
 
 - `tenon init` writes the `HEAD` of the checkout as the task field `start_sha`
-  (Dashboard task creation and AFK triage do the same). It is left out when the
+  (AFK triage does the same). It is left out when the
   repository has no commit or is not a Git repository. The value is kept in a
   small record next to the task state (`.pipeline-run/start-sha/`), not in
   `.pipeline.yaml`, so the release before this field existed still reads and
@@ -360,7 +360,7 @@ lets it follow upstream.
   without trouble. If that older runtime then writes to the task (for example
   after a rollback), the newer runtime reads an empty `start_sha` afterwards and
   the start falls back to the upstream and base-branch candidates, exactly as for
-  a task created before the field existed (see [CONTRACT](../CONTRACT.md)).
+  a task created before the field existed (see `docs/CONTRACT.md` in the repository).
 
 New tasks are created in their own worktree, which is also what keeps two tasks
 in one repository from sharing a start; see
@@ -507,7 +507,7 @@ token on a `worktree` task, left by an older task whose `isolation` was set to
 `worktree` by hand) gives `isolation-mismatch`. Both mean: return to Build and
 capture again. The CLI, the Dashboard transition and the Dashboard snapshot take
 the kind from the same function (`expectedBuildRevisionKind`), so they cannot
-disagree. See [CONTRACT](../CONTRACT.md).
+disagree. See `docs/CONTRACT.md` in the repository.
 
 ## Common failures
 

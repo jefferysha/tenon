@@ -66,7 +66,7 @@ token 绑定什么取决于任务的 `isolation`：`branch` 绑 Git 对象；`wo
 pipeline 控制文件和测试缓存），因为任务 worktree 里的实现在 Build 出口时通常还没提交，Build 也从不要求提交。身份仍绑定物理 repository 与物理 worktree，
 所以在别的检出里验证一个 worktree 任务会得到 `worktree-mismatch`；token 类别与任务的 `isolation` 不符（例如 `worktree` 任务带着 Git 对象类 token，
 来自升级前手动把 `isolation` 设成 `worktree` 的旧任务）得到 `isolation-mismatch`。两者都是回 Build 重新捕获。CLI、Dashboard 流转和 Dashboard 快照
-都从同一个函数（`expectedBuildRevisionKind`）取类别，不会各说各话。详见 [CONTRACT](../../CONTRACT.md)。
+都从同一个函数（`expectedBuildRevisionKind`）取类别，不会各说各话。详见仓库里的 `docs/CONTRACT.md`。
 
 `pre_verify_review_result=pass` 是 Build 的通过结论，`tenon set` 写入前核对本步声明的就绪证据。
 每条重型轨道的 Build 都声明了可核对的证据：frontend、backend 要求项目测试目录里的单测类套件通过（Build 的
@@ -244,7 +244,7 @@ agent 不会自行调高上限，也不会绕过它。命令、`step.rounds` 和
 `attach_on` 挂载的评审者、改动行覆盖率、证据导出、流转门（CLI 与 HTTP）、Dashboard 快照和 `tenon verify --ci`，比对的都是同一个起点提交。Tenon 在建任务时记下它，
 并让它跟随上游。
 
-- `tenon init` 把检出时的 `HEAD` 写进任务字段 `start_sha`（Dashboard 建任务与 AFK 分诊同样写）。仓库还没有提交、或不是 Git 仓库时不写。值存在任务状态旁的一份小记录里
+- `tenon init` 把检出时的 `HEAD` 写进任务字段 `start_sha`（AFK 分诊同样写）。仓库还没有提交、或不是 Git 仓库时不写。值存在任务状态旁的一份小记录里
   （`.pipeline-run/start-sha/`），不写进 `.pipeline.yaml`，所以这个字段出现之前发布的版本仍读得了、也续写得了这个任务。
 - 起点取下面这些候选里最新的一个：
   1. `start_sha`，当它是 `HEAD` 的祖先、且提交者时间不晚于任务 `created_at` 加 60 秒时（真实的值是建任务时的 `HEAD`，提交时间不可能更晚；
@@ -262,7 +262,7 @@ agent 不会自行调高上限，也不会绕过它。命令、`step.rounds` 和
 - 限制。上游是本地引用，没有 `git fetch` 时可能偏旧，那只会多算文件。原地任务在基线分支上提交了自己的改动并推送到它的上游之后，起点会前移过这些提交，它们不再算本任务的
   改动。worktree 任务不受影响：它的 `base_branch` 是出发的分支，任务分支的提交在合并前不在那个分支的上游里。
 - 兼容。没有 `start_sha` 又没有上游的任务行为不变。这个字段出现之前发布的运行时读得了带 `start_sha` 的任务；如果那个旧运行时之后又往任务里写了内容（例如回滚之后），
-  新版本再读到的 `start_sha` 是空值，起点退回上游和基线分支候选，与「字段出现之前创建的任务」完全一样（见 [CONTRACT](../../CONTRACT.md)）。
+  新版本再读到的 `start_sha` 是空值，起点退回上游和基线分支候选，与「字段出现之前创建的任务」完全一样（见仓库里的 `docs/CONTRACT.md`）。
 
 新任务建在自己的 worktree 里，也正是这点避免了两个任务共用一个起点，见[任务在哪里](./quickstart.md#任务在哪里任务-worktree)。
 

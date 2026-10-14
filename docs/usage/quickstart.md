@@ -3,11 +3,11 @@
 Install the immutable prebuilt Codex release once before starting this tutorial:
 
 ```bash
-/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.3.3/install.sh | /bin/bash -s -- --codex
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.3.4/install.sh | /bin/bash -s -- --codex
 ```
 
 This command does not clone the repository or compile source code. It installs
-the packaged `v0.3.3` release, starts and verifies the Dashboard, and prints the
+the packaged `v0.3.4` release, starts and verifies the Dashboard, and prints the
 local URL plus `tenon dashboard --open`; piped installation does not open a
 browser automatically. Afterward, routine upgrades are one
 `tenon update --codex` command and remain bound to stable release tags.
@@ -135,7 +135,7 @@ and `tenon init` says why on stderr (`[INIT] 原地建立任务，不建 worktre
   only if you ask) or set `TENON_INIT_IN_PLACE=1`, which Tenon's own test
   harness uses and which prints no reason.
 
-Changes created from the Dashboard or by AFK triage are always created in place.
+Changes created by AFK triage are always created in place.
 
 **Switching in.** Text output keeps stdout empty. Its last two lines on stderr are
 `worktree: <absolute path>` and how to switch in. With `--json` stdout is one line:
