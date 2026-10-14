@@ -2,7 +2,6 @@
 
 ## Purpose
 工作流步骤声明验证轮次上限（默认 2，任务可覆盖），按进入次数计、回到规格重新计数；用完后停止自动回退，由用户接受剩余阻断或另选出路。
-
 ## Requirements
 ### Requirement: 工作流 SHALL 能声明步骤的验证轮次上限，任务可以覆盖
 
@@ -69,26 +68,27 @@
   - 两种情况都 SHALL 说明另外三条出路：用户决定调高上限后回退修复、经 `requirements-changed` 回到规格、终止任务。
   - 当前步骤没有直达规格的边时（`default` 的 verify 只有 `verify-pass` 与 `verify-fail`），回到规格这条出路 SHALL 写明真实路径：先由用户调高上限，经回退边回到回退目标步骤，再在那一步执行回到规格的事件。
 - 回退边的 `tenon review request --event <事件>` 与 `tenon transition <事件>` SHALL 拒绝，并写出已用轮次、上限，以及调高上限的命令。
-- 上限调高到高于当前轮次之后，回退边恢复可用；调到等于当前轮次仍算用完。
-- 未达到上限时，行为 SHALL 与修改前一致。
+- 上限调高到高于当前轮次之后，回退边恢复可用，并且同样不需要评审回执；调到等于当前轮次仍算用完。
+- 未达到上限时，回退边 SHALL 按「轮次内回退 SHALL 不需要评审回执」处理，其余行为与修改前一致。
 
 #### Scenario: 第二轮仍不通过
 
 - **GIVEN** verify 步上限是 2，当前是第 2 轮
 - **WHEN** 一个必需评审者在当前候选上不通过
-- **THEN** `next` 不再给出 `verify-fail` 的评审请求，而是给出接受剩余阻断的评审请求，并列出其他出路
+- **THEN** `next` 不再给出 `verify-fail` 的评审请求或转换，而是给出接受剩余阻断的评审请求，并列出其他出路
 
 #### Scenario: 上限用完时回退被拒
 
 - **GIVEN** 同上
-- **WHEN** 执行 `tenon review request <change> --event verify-fail`
+- **WHEN** 执行 `tenon review request <change> --event verify-fail` 或 `tenon transition <change> verify-fail`
 - **THEN** 命令拒绝，写出「已用 2 轮 / 上限 2」与 `tenon set <change> max_rounds <N>`
 
 #### Scenario: 调高上限后可以回退
 
 - **GIVEN** 同上，用户让 agent 执行 `tenon set <change> max_rounds 3`
 - **WHEN** 重新读 `next`
-- **THEN** `next` 恢复给出 `verify-fail` 的评审请求
+- **THEN** `next` 恢复给出 `transition verify-fail`
+- **AND** 执行它不需要评审回执
 
 #### Scenario: 还有未登记豁免的失败测试
 
@@ -133,5 +133,34 @@
 
 - **GIVEN** verify 步上限是 2，当前是第 1 轮
 - **WHEN** 必需评审者不通过时执行 `tenon review request <change> --event verify-pass`
-- **THEN** 请求照旧被拒，`next` 照旧给出 `verify-fail` 的评审请求
+- **THEN** 请求照旧被拒，`next` 给出 `transition verify-fail`
+
+### Requirement: 轮次内回退 SHALL 不需要评审回执
+
+受轮次上限约束的步骤（设了评审门且至少有一条回退边）上，当前轮次还没达到上限时，离开这一步的回退边 SHALL 不需要已批准的评审回执即可转换。
+
+- 回退边指既不是前进边、也不是放弃边（如 `scope-expanded`）的出边。前进边、放弃边的人工确认要求不变。
+- 判定 SHALL 在 CLI 与 Dashboard 共用的转换用例里、同一把 Change 锁内完成，与「上限用完后回退被拒」读同一份轮次。宿主没有提供轮次读取时，回退边 SHALL 照旧要求评审回执。
+- `next` SHALL 对唯一的回退边直接给出 `transition`，不再给出它的评审请求或等待；有多条回退边时仍给出选择。
+- 在轮次内对回退边执行 `tenon review request --event <回退事件>` SHALL 仍然被接受（兼容已有流程），但 `next` 不再给出它。
+- 这次转换没有人工确认发生，SHALL NOT 记录「评审确认」类的交互效果。
+
+#### Scenario: 第一轮验证不通过直接回到实现
+
+- **GIVEN** `default` 工作流的 verify 步上限是 2，当前是第 1 轮
+- **WHEN** 一个必需评审者在当前候选上不通过，读取 `tenon status <change> --json`
+- **THEN** `next` 是 `transition verify-fail`
+- **AND** 执行 `tenon transition <change> verify-fail` 成功回到 build，期间不需要评审请求与用户确认
+
+#### Scenario: 前进边仍要确认
+
+- **GIVEN** 同上，但所有必需测试与评审者都通过
+- **WHEN** 没有已批准回执时执行 `tenon transition <change> verify-pass`
+- **THEN** 转换被拒，要求先发起 `verify-pass` 的评审请求并由用户确认
+
+#### Scenario: 宿主没有接线轮次读取
+
+- **GIVEN** 一个调用转换用例却没有提供轮次读取的宿主
+- **WHEN** 对受约束步骤的回退边发起转换且没有已批准回执
+- **THEN** 转换被拒，要求评审回执
 

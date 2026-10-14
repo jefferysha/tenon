@@ -2,7 +2,7 @@
  * 验证轮次用完后「回到规格重新规划」的真实路径（纯函数，只读计划）。
  *
  * 受约束步骤（评审门且有回退边）自己没有一条会让轮次清零的边：它声明的每条回退边本身都是它的回退目标，轮次只在落到
- * **早于所有回退目标**的步骤时清零（kernel `currentRound`），而用完之后这些回退边也都被拒（`rejectOnRoundsExhausted`）。
+ * **早于所有回退目标**的步骤时清零（kernel `currentRound`），而用完之后这些回退边也都被拒（`backEdgeRounds` 的 `exhausted`）。
  * 所以出路是两步：用户先调高上限，经回退边回到回退目标步骤，再在**那一步**上执行落到更早步骤的边。default 里就是
  * verify 经 `verify-fail` 回 build，再在 build 上用 `requirements-changed` 回 spec。
  */

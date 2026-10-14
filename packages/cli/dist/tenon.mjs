@@ -26433,7 +26433,7 @@ var PROJECT_CLIENTS_MAX_BYTES = 16 * 1024;
 var KNOWN = new Set(INSTRUCTION_HOSTS.map((host) => host.id));
 
 // packages/kernel/dist/instructions/codex-agents-block.generated.js
-var CODEX_AGENTS_BLOCK = "<!-- PIPELINE:CODEX:START -->\n## Tenon Workflow\uFF08Codex \u9759\u6001\u5C42\uFF09\n\n\u6B63\u5E38\u5F00\u53D1\u5BF9\u8BDD\u5148\u8C03\u7528 `tenon:tenon`\uFF1A\u5B83\u521B\u5EFA\u6216\u6062\u590D Change\uFF0C\u6309\u4EFB\u52A1\u51BB\u7ED3\u7684\u5DE5\u4F5C\u6D41\u9010\u6B65\u6267\u884C\u2014\u2014\u6BCF\u4E00\u6B65\u505A\u4EC0\u4E48\n\u53EA\u770B `tenon status <change> --json` \u7684 `step.next`\uFF0C\u6CA1\u6709\u53E6\u5916\u7684\u9636\u6BB5\u6280\u80FD\u8981\u5206\u6D3E\u3002\nTodo \u7528 `tenon workflow plan <change> --json` \u7684\u6B65\u9AA4\u6807\u7B7E\u5EFA\u7ACB\uFF0C\u5F53\u524D\u9879\u53D6 `current_step`\uFF1B\n\u4E0D\u5F97\u5148\u751F\u6210\u8131\u79BB\u5DE5\u4F5C\u6D41\u6B65\u9AA4\u7684\u901A\u7528 Todo\u3002\n\n\u72B6\u6001\u64CD\u4F5C\u4E00\u5F8B\u8D70 `tenon status` / `tenon get` / `tenon set` /\n`tenon transition` / `tenon check`\uFF0C\u52FF\u624B\u6539 canonical state \u6216 `.pipeline.yaml` \u6295\u5F71\u3002\n\u5DF2\u767B\u8BB0\u7684\u89C4\u683C\u6587\u6863\u9700\u6C42\u8BED\u4E49\u53D8\u4E86\uFF0C\u8D70 `requirements-changed` \u56DE\u5230\u89C4\u683C\u6B65\u91CD\u65B0\u767B\u8BB0\uFF0C\u4E0D\u5728\u5B9E\u73B0\u6B65\u8986\u76D6\u3002\n\n\u672C\u4EFB\u52A1\u7528\u5230\u4E0E\u65B0\u589E\u7684\u5168\u90E8\u6D4B\u8BD5\u811A\u672C\uFF08\u5355\u6D4B\u3001\u96C6\u6210\u3001e2e\u3001\u57FA\u51C6\u2026\uFF09\u90FD\u8981\u767B\u8BB0\u8FDB\u4EFB\u52A1\u7684\u6D4B\u8BD5\u8BA1\u5212\uFF1A\u767B\u8BB0\u3001\u8FD0\u884C\u4E0E\u8FFD\u6EAF\u62A5\u544A\n\u7167 `step.next` \u7684 `test-*` / `run-tests` \u52A8\u4F5C\u505A\uFF1B\u6D4B\u8BD5\u8BA1\u5212\u3001\u57FA\u7EBF\u3001\u5DF2\u77E5\u5931\u8D25\u6E05\u5355\u548C\u8FD0\u884C\u8BB0\u5F55\u53EA\u7ECF\n`tenon test \u2026` \u5199\u5165\uFF0C\u52FF\u624B\u6539\uFF08hook \u4F1A\u62D2\u7EDD\uFF09\u3002\n\n\u8BC4\u5BA1\u95E8\uFF08`gate: review`\uFF09\u79BB\u5F00\u524D\u987B\u5BF9\u786E\u5207 transition event \u53D6\u5F97\u4EBA\u7C7B\u663E\u5F0F\u786E\u8BA4\uFF1A\u5148\u8FD0\u884C\n`tenon review request <change> --event <event>`\uFF1B\u7528\u6237\u660E\u786E\u56DE\u590D\u300C\u786E\u8BA4\u7EE7\u7EED\u300D\u300C\u7EE7\u7EED\u6267\u884C\u300D\u7B49\u653E\u884C\u8BED\u540E\n\u7531 hook \u5199\u5165\u56DE\u6267\uFF0C\u518D\u7167 `step.next` \u6267\u884C\u3002\u4E0D\u80FD\u5220\u9664 marker \u7ED5\u8FC7 review-gate\uFF1Bverify-fail \u4E0E\nverify-pass \u7684\u786E\u8BA4\u4E0D\u53EF\u4E92\u7528\u3002\u8BA1\u5212\u91CC\u5F85\u6279\u51C6\u7684\u6D4B\u8BD5\u8C41\u514D\u968F request \u5217\u51FA\uFF0C\u7528\u6237\u7684\u786E\u8BA4\u4E00\u5E76\u6279\u51C6\u5B83\u4EEC\u3002\n<!-- PIPELINE:CODEX:END -->\n";
+var CODEX_AGENTS_BLOCK = "<!-- PIPELINE:CODEX:START -->\n## Tenon Workflow\uFF08Codex \u9759\u6001\u5C42\uFF09\n\n\u6B63\u5E38\u5F00\u53D1\u5BF9\u8BDD\u5148\u8C03\u7528 `tenon:tenon`\uFF1A\u5B83\u521B\u5EFA\u6216\u6062\u590D Change\uFF0C\u6309\u4EFB\u52A1\u51BB\u7ED3\u7684\u5DE5\u4F5C\u6D41\u9010\u6B65\u6267\u884C\u2014\u2014\u6BCF\u4E00\u6B65\u505A\u4EC0\u4E48\n\u53EA\u770B `tenon status <change> --json` \u7684 `step.next`\uFF0C\u6CA1\u6709\u53E6\u5916\u7684\u9636\u6BB5\u6280\u80FD\u8981\u5206\u6D3E\u3002\nTodo \u7528 `tenon workflow plan <change> --json` \u7684\u6B65\u9AA4\u6807\u7B7E\u5EFA\u7ACB\uFF0C\u5F53\u524D\u9879\u53D6 `current_step`\uFF1B\n\u4E0D\u5F97\u5148\u751F\u6210\u8131\u79BB\u5DE5\u4F5C\u6D41\u6B65\u9AA4\u7684\u901A\u7528 Todo\u3002\n\n\u72B6\u6001\u64CD\u4F5C\u4E00\u5F8B\u8D70 `tenon status` / `tenon get` / `tenon set` /\n`tenon transition` / `tenon check`\uFF0C\u52FF\u624B\u6539 canonical state \u6216 `.pipeline.yaml` \u6295\u5F71\u3002\n\u5DF2\u767B\u8BB0\u7684\u89C4\u683C\u6587\u6863\u9700\u6C42\u8BED\u4E49\u53D8\u4E86\uFF0C\u8D70 `requirements-changed` \u56DE\u5230\u89C4\u683C\u6B65\u91CD\u65B0\u767B\u8BB0\uFF0C\u4E0D\u5728\u5B9E\u73B0\u6B65\u8986\u76D6\u3002\n\n\u672C\u4EFB\u52A1\u7528\u5230\u4E0E\u65B0\u589E\u7684\u5168\u90E8\u6D4B\u8BD5\u811A\u672C\uFF08\u5355\u6D4B\u3001\u96C6\u6210\u3001e2e\u3001\u57FA\u51C6\u2026\uFF09\u90FD\u8981\u767B\u8BB0\u8FDB\u4EFB\u52A1\u7684\u6D4B\u8BD5\u8BA1\u5212\uFF1A\u767B\u8BB0\u3001\u8FD0\u884C\u4E0E\u8FFD\u6EAF\u62A5\u544A\n\u7167 `step.next` \u7684 `test-*` / `run-tests` \u52A8\u4F5C\u505A\uFF1B\u6D4B\u8BD5\u8BA1\u5212\u3001\u57FA\u7EBF\u3001\u5DF2\u77E5\u5931\u8D25\u6E05\u5355\u548C\u8FD0\u884C\u8BB0\u5F55\u53EA\u7ECF\n`tenon test \u2026` \u5199\u5165\uFF0C\u52FF\u624B\u6539\uFF08hook \u4F1A\u62D2\u7EDD\uFF09\u3002\n\n\u8BC4\u5BA1\u95E8\uFF08`gate: review`\uFF09\u79BB\u5F00\u524D\u987B\u5BF9\u786E\u5207 transition event \u53D6\u5F97\u4EBA\u7C7B\u663E\u5F0F\u786E\u8BA4\uFF08\u53D7\u8F6E\u6B21\u4E0A\u9650\u7EA6\u675F\u7684\u6B65\u9AA4\u4E0A\uFF0C\n\u8F6E\u6B21\u5185\u7684\u56DE\u9000\u8FB9\u9664\u5916\uFF1A\u76F4\u63A5 transition\uFF09\uFF1A\u5148\u8FD0\u884C\n`tenon review request <change> --event <event>`\uFF1B\u7528\u6237\u660E\u786E\u56DE\u590D\u300C\u786E\u8BA4\u7EE7\u7EED\u300D\u300C\u7EE7\u7EED\u6267\u884C\u300D\u7B49\u653E\u884C\u8BED\u540E\n\u7531 hook \u5199\u5165\u56DE\u6267\uFF0C\u518D\u7167 `step.next` \u6267\u884C\u3002\u4E0D\u80FD\u5220\u9664 marker \u7ED5\u8FC7 review-gate\uFF1Bverify-fail \u4E0E\nverify-pass \u7684\u786E\u8BA4\u4E0D\u53EF\u4E92\u7528\u3002\u8BA1\u5212\u91CC\u5F85\u6279\u51C6\u7684\u6D4B\u8BD5\u8C41\u514D\u968F request \u5217\u51FA\uFF0C\u7528\u6237\u7684\u786E\u8BA4\u4E00\u5E76\u6279\u51C6\u5B83\u4EEC\u3002\n<!-- PIPELINE:CODEX:END -->\n";
 
 // packages/kernel/dist/resources/parse.js
 var ResourceParseError = class extends Error {
@@ -47665,6 +47665,35 @@ function roundsExhausted(rounds) {
   return rounds !== null && rounds !== void 0 && rounds.current >= rounds.max;
 }
 
+// packages/kernel/dist/workflow/transition-rounds-gate.js
+function backEdgeSkipsReview(input2) {
+  return input2.back && !isAbandonEvent(input2.event) && input2.rounds !== null && input2.rounds !== void 0 && !roundsExhausted(input2.rounds);
+}
+async function backEdgeRounds(input2) {
+  const { deps, plan, from, event } = input2;
+  if (deps.roundsOf === void 0 || isAbandonEvent(event))
+    return { kind: "not-limited" };
+  if (isForwardExit(plan, from, input2.to, event) || !isRoundsLimited(plan, from))
+    return { kind: "not-limited" };
+  const rounds = await deps.roundsOf({ changeDir: input2.changeDir, plan, state: input2.state, stepId: from });
+  if (rounds === null)
+    return { kind: "not-limited" };
+  if (backEdgeSkipsReview({ event, back: true, rounds }))
+    return { kind: "within-budget" };
+  return {
+    kind: "exhausted",
+    rejection: {
+      kind: "rounds-exhausted",
+      workflowName: input2.workflowName,
+      stepId: from,
+      event,
+      current: rounds.current,
+      max: rounds.max,
+      source: rounds.source
+    }
+  };
+}
+
 // packages/kernel/dist/workflow/agent-scope.js
 function unattachedReviewers(reviewers, attachOnOf, touched) {
   if (touched === void 0)
@@ -48857,27 +48886,6 @@ async function rejectOnStepGates(input2) {
   return void 0;
 }
 
-// packages/kernel/dist/workflow/transition-rounds-gate.js
-async function rejectOnRoundsExhausted(input2) {
-  const { deps, plan, from, event } = input2;
-  if (deps.roundsOf === void 0 || isAbandonEvent(event))
-    return void 0;
-  if (isForwardExit(plan, from, input2.to, event) || !isRoundsLimited(plan, from))
-    return void 0;
-  const rounds = await deps.roundsOf({ changeDir: input2.changeDir, plan, state: input2.state, stepId: from });
-  if (rounds === null || !roundsExhausted(rounds))
-    return void 0;
-  return {
-    kind: "rounds-exhausted",
-    workflowName: input2.workflowName,
-    stepId: from,
-    event,
-    current: rounds.current,
-    max: rounds.max,
-    source: rounds.source
-  };
-}
-
 // packages/kernel/dist/workflow/transition-step-outputs.js
 async function rejectOnUnreadInputs(input2) {
   if (isAbandonEvent(input2.event))
@@ -48958,7 +48966,7 @@ function createTransitionApplication(deps) {
         });
         if (isRejection(prepared))
           return prepared;
-        const exhausted = await rejectOnRoundsExhausted({
+        const backEdge = await backEdgeRounds({
           deps,
           changeDir: command2.changeDir,
           workflowName,
@@ -48968,8 +48976,9 @@ function createTransitionApplication(deps) {
           to: prepared.to,
           event: command2.event
         });
-        if (exhausted !== void 0)
-          return exhausted;
+        if (backEdge.kind === "exhausted")
+          return backEdge.rejection;
+        const requiresReviewApproval = prepared.requiresReviewApproval && backEdge.kind !== "within-budget";
         const gated = await rejectOnStepGates({
           deps,
           changeDir: command2.changeDir,
@@ -49041,7 +49050,7 @@ function createTransitionApplication(deps) {
           return testRejection;
         const receiptApproved = reviewGateApprovedFor(tx.state, prepared.from, command2.event);
         let bindingApproved = false;
-        if (prepared.requiresReviewApproval && receiptApproved) {
+        if (requiresReviewApproval && receiptApproved) {
           bindingApproved = await deps.reviewGateBinding({
             changeDir: command2.changeDir,
             state: tx.state,
@@ -49049,7 +49058,7 @@ function createTransitionApplication(deps) {
             event: command2.event
           });
         }
-        if (prepared.requiresReviewApproval && !bindingApproved) {
+        if (requiresReviewApproval && !bindingApproved) {
           const pendingEvent = reviewGatePendingFor(tx.state, prepared.from) ? reviewGateEvent(tx.state) : "";
           return {
             kind: "review-approval-required",
@@ -49107,6 +49116,11 @@ function createTransitionApplication(deps) {
               cause: error2
             });
           }
+        }
+        try {
+          await clearReviewMarkerOfChange(command2.root, command2.changeName);
+        } catch (error2) {
+          warnings.push({ kind: "projection-write-failed", projection: "review-marker", cause: error2 });
         }
         if (prepared.governedDocumentContract) {
           const breadcrumbTail = await applyBreadcrumbTail(deps.breadcrumb, { changeDir: command2.changeDir, name: command2.changeName, to: prepared.to });
@@ -72108,12 +72122,15 @@ function requiredEvidenceFailed(input2) {
 function gatedBackActions(input2, back) {
   const choose = { action: "choose-exit", exits: back.map((exit) => exit.event) };
   if (input2.gate !== "review") return [choose];
+  const only = back.length === 1 ? back[0] : void 0;
+  if (only !== void 0 && backEdgeSkipsReview({ event: only.event, back: only.direction === "back", rounds: input2.rounds })) {
+    return [{ action: "transition", event: only.event }];
+  }
   const bound = back.find((exit) => exit.event === input2.review.event);
   if (bound !== void 0) {
     if (input2.review.status === "pending") return [{ action: "await-review", event: bound.event }];
     if (input2.review.status === "approved") return [{ action: "transition", event: bound.event }];
   }
-  const only = back.length === 1 ? back[0] : void 0;
   return only === void 0 ? [choose] : [{ action: "request-review", event: only.event }];
 }
 function strandedBlocker(change, waiver) {
@@ -72152,6 +72169,9 @@ function exitActions(input2, flow) {
   if (input2.gate === "review") {
     if (review.status === "pending") {
       const pendingExit = input2.exits.find((candidate2) => candidate2.event === review.event);
+      if (pendingExit !== void 0 && backEdgeSkipsReview({ event: pendingExit.event, back: pendingExit.direction === "back", rounds: input2.rounds })) {
+        return [{ action: "transition", event: pendingExit.event }];
+      }
       if (flow?.refreshRequest === true && review.event !== null && pendingExit?.direction !== "back") {
         return [requestReviewAction(review.event, flow.waivers.map((waiver) => waiver.subject), offer)];
       }
@@ -74614,6 +74634,9 @@ async function cmdTransition(deps, name2, event) {
                   break;
                 case "interaction":
                   deps.io.err(`WARN: ${w.code} interaction projection \u5199\u5165\u5931\u8D25\uFF08canonical \u5DF2\u63D0\u4EA4\uFF09: ${errMsg(w.cause)}`);
+                  break;
+                case "review-marker":
+                  deps.io.err(`WARN: \u8BC4\u5BA1\u5F85\u5904\u7406\u6807\u8BB0\u6E05\u9664\u5931\u8D25\uFF08\u8F6C\u6362\u5DF2\u63D0\u4EA4\uFF0C\u6807\u8BB0\u4F1A\u5728 30 \u5206\u949F\u540E\u5931\u6548\uFF09: ${errMsg(w.cause)}`);
                   break;
               }
               break;

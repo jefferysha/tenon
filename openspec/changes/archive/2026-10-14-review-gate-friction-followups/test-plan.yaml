@@ -1,0 +1,49 @@
+schema: tenon-test-plan/v1
+change: review-gate-friction-followups
+suites:
+  - suite: adapters
+    scope: changed
+  - suite: bench-snapshot
+    scope: changed
+  - suite: bench-snapshot-large
+    scope: changed
+  - suite: bench-status
+    scope: changed
+  - suite: bundle
+    scope: changed
+  - suite: dashboard-e2e
+    scope: full
+  - suite: dashboard-e2e-chromium
+    scope: full
+  - suite: docs-smoke
+    scope: changed
+  - suite: hooks
+    scope: changed
+  - suite: lint-architecture
+    scope: changed
+  - suite: lint-comments
+    scope: changed
+  - suite: lint-docs
+    scope: changed
+  - suite: lint-openspec
+    scope: changed
+  - suite: migration-cas
+    scope: full
+  - suite: oracle
+    scope: changed
+  - suite: tools-node
+    scope: changed
+  - suite: typecheck-e2e
+    scope: full
+  - suite: typecheck-packages
+    scope: changed
+  - suite: typecheck-web
+    scope: changed
+  - suite: unit
+    scope: changed
+files:
+  - path: tools/test-hooks.sh
+    suite: hooks
+    kind: integration
+cases: []
+waivers: []

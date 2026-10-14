@@ -232,25 +232,25 @@ describe('照着 next 做事的运行器：open → 完结', { timeout: 120_000 
   })
 
   /**
-   * D6：评审门上的回退边同样要人工确认。评审者打回之后，`next` 必须自己发
-   * request-review → await-review → transition，而不是直接让人去跑一条会被
-   * 「尚未取得人工确认」拒掉的 transition。
+   * 受轮次上限约束的评审步上，轮次内的回退边不需要评审回执：评审者打回之后，`next` 直接发
+   * transition verify-fail（内核同一判定放行），不再经 request-review → await-review。
    */
-  test('评审者打回一次：走完回退边的人工确认链，再一路做到完结', async () => {
+  test('评审者打回一次：next 直接给回退边的 transition，再一路做到完结', async () => {
     runner.failOnce = 'security'
     const { seen, actions } = await walk({ editAt: 'explore' })
     expect(runner.failOnce, '用例必须真的让一个评审者打回过').toBeUndefined()
     // verify → build → verify：build 出现过两次。
     expect(seen.filter((id, index) => id === 'build' && seen[index - 1] === 'verify')).toHaveLength(1)
-    const failRequest = actions.findIndex(({ step, action }) => step === 'verify'
-      && action.action === 'request-review' && action.event === 'verify-fail')
-    expect(failRequest).toBeGreaterThan(-1)
+    const failTransition = actions.findIndex(({ step, action }) => step === 'verify'
+      && action.action === 'transition' && action.event === 'verify-fail')
+    expect(failTransition).toBeGreaterThan(-1)
     // D2：评审者打回的那次访问里，next 不要结果字段——回退边之前一条 set-field 都没有。
     const firstVerify = actions.findIndex(({ step }) => step === 'verify')
-    expect(actions.slice(firstVerify, failRequest)
+    expect(actions.slice(firstVerify, failTransition)
       .filter(({ action }) => action.action === 'set-field')).toEqual([])
-    expect(actions.some(({ step, action }) => step === 'verify'
-      && action.action === 'await-review' && action.event === 'verify-fail')).toBe(true)
+    // 回退边不走人工确认链：没有 verify-fail 的评审请求，也没有等它的确认。
+    expect(actions.some(({ action }) => (action.action === 'request-review' || action.action === 'await-review')
+      && action.event === 'verify-fail')).toBe(false)
     // 第二次进入 verify：上一次访问登记的 verification-report 不算，next 让它的 producer 在本次访问
     // 重新登记——台账上那份仍是 recorded，按台账状态派的写入分支一条都不会发。
     expect(actions.filter(({ step, action }) => step === 'verify'

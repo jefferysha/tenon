@@ -259,7 +259,7 @@ claims them all) → `run-tests`
 (`tenon test run <change> --stage`) → `test-report` (writes the traceability matrix
 into the verification report). They come after the step's documents and before its reviewers;
 a run that finished but misses the policy becomes a `fix` — or, on a review gate, the
-rollback edge. Waivers and catalog `not_applicable` entries need a human: `tenon review
+rollback edge (taken directly with `tenon transition` while rounds remain). Waivers and catalog `not_applicable` entries need a human: `tenon review
 request` lists the pending ones, and the user's confirmation (`tenon review acknowledge`,
 not `--delegated`) approves exactly those. The plan, baselines, known failures and run records are
 written only through `tenon test …`; the write gate refuses direct edits and shell
@@ -284,6 +284,8 @@ Change, input receipt, delta, target path, and final digest. Both `tenon check` 
 ## Verification round limit
 
 Verify gets at most two rounds. The Verify step of every track declares `max_rounds: 2` in `templates/workflows/default.yaml`. A round is one entry into the step: the first entry is round 1, and every `verify-fail` back to Build followed by `build-complete` enters Verify again.
+
+While rounds remain, the back edge is cheap: when a required test or a required reviewer fails, `step.next` gives `transition verify-fail` directly, and `tenon transition <change> verify-fail` succeeds without a review request or a user confirmation (the agent tells the user in one sentence why it goes back). Forward edges, residual blockers and test waivers still need a human confirmation.
 
 When round 2 still ends with a required test or a required reviewer failing, Tenon stops going back by itself. `step.next` no longer offers the `verify-fail` edge: it either stops with `rounds-exhausted` or asks the user to accept the remaining blockers, and `tenon transition <change> verify-fail` is refused. The decision then belongs to the user:
 
@@ -332,6 +334,10 @@ unmet guards or leave conditions, all of them listed at once. Check does not tra
 
 ### 4. Handle a review exit
 
+This is the path for forward edges. On a step limited by verification rounds (a review gate with a
+back edge), taking the back edge while rounds remain needs no review receipt: run
+`tenon transition` directly (see [step 5](#5-use-return-edges-honestly)).
+
 Bind the request to the exact event:
 
 ```bash
@@ -369,17 +375,25 @@ tenon transition <change-name> requirements-changed
 
 Revise and review in Spec. Do not overwrite an old digest in Build.
 
-If verification fails:
+If verification fails and a round is still left:
 
 ```bash
-tenon review request <change-name> --event verify-fail
-# after the user confirms, in one of the three ways above:
 tenon transition <change-name> verify-fail
 ```
 
-Fix in Build, freeze a new baseline, and verify again. A `verify-pass` receipt
-cannot approve `verify-fail`, or vice versa. Verify is limited to two rounds; once they
-are used up this edge is refused (see [Verification round limit](#verification-round-limit)).
+On a step limited by verification rounds (a review gate with a back edge), taking the back edge
+while rounds remain needs no review receipt: `step.next` hands you `transition` directly, and no
+user confirmation is needed. Forward edges, residual blockers and test waivers still need a human
+confirmation.
+
+Fix in Build, freeze a new baseline, and verify again. A receipt is bound to one exact phase and
+event: a `verify-pass` receipt cannot approve another forward event, and it is cleared by any
+successful transition. Verify is limited to two rounds; once they are used up this edge is refused
+(see [Verification round limit](#verification-round-limit)).
+
+If a `verify-pass` review is waiting for confirmation and the user asks to go back and change
+something, run `tenon transition <change-name> verify-fail` the same way. The transition clears the
+stale review marker, so the gate stops blocking writes.
 
 ### 6. Finish the task
 

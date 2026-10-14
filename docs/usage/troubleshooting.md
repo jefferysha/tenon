@@ -135,6 +135,16 @@ Waiting can be:
 Inspect status, document status, AFK status, and Dashboard detail. Re-request an
 expired review through the CLI; do not delete a marker to fabricate approval.
 
+While a review waits, the write gate blocks writes but not read-only work: read-only
+command chains such as `git status --short | grep x` or `cd sub && ls` go through, and
+so does exactly `tenon transition <change> <event>` for the task that owns the marker (the CLI still refuses a forward edge
+without its approved receipt). The block message depends on the marker kind: a review block
+names the task and the event and lists the approval phrases and the Dashboard confirmation.
+On a step limited by verification rounds (a review gate with a back edge), taking the back edge
+while rounds remain needs no review receipt: run `tenon transition <change> verify-fail`
+directly, even while a `verify-pass` review is waiting; the transition also clears the stale
+review marker.
+
 ### UI says waiting while work is running
 
 Check the bound host-session identity and recent terminal/worker activity. A
@@ -381,7 +391,10 @@ health identity changed for the intended reason.
 - treating a yellow optional doctor light as a core installation failure;
 - deleting pending markers;
 - hand-editing `.pipeline.yaml`, the document ledger or the step-output records;
-- using `verify-pass` approval for `verify-fail`;
+- using the approval of one forward event (for example `verify-pass`) for another event;
+- waiting for a review confirmation before a back edge that is still within the round limit
+  (run `tenon transition <change> verify-fail` directly; only a forward edge, residual
+  blockers, and test waivers need a human confirmation);
 - assuming a port listener is the correct release;
 - sharing tokens, CA material, prompts, or raw traces in a public Issue.
 

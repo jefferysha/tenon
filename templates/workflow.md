@@ -13,6 +13,8 @@
   UserPromptSubmit hook 时，由**用户本人**在自己的终端运行 `tenon review acknowledge <name>`。
   agent 不得自己运行不带 `--delegated` 的 `tenon review acknowledge`（gate 会拒绝）。
   `transition` 只认当前步骤该 event 的 approved receipt，删 marker 绕过一律不算确认。
+  受轮次上限约束的步骤（评审门且有回退边）上，轮次还没用完时走回退边不需要评审回执，直接
+  `tenon transition`；前进边、剩余阻断与测试豁免仍只认人工确认。
 - **三门 marker** 是短时 hook 投影：confirm 5 分钟，review / interaction 30 分钟。
 - **有分歧就问**：gap、模糊点、硬取舍用 AskUserQuestion 批量问（一次 ≤4 问，推荐值放首项），
   答完重扫，清零才算这一步做完。「可选」不等于可以自行跳过。
@@ -21,7 +23,8 @@
   在真实证据与 guard 都过之后用 `tenon review acknowledge <change> --delegated` 留委托回执，
   不跳过任何评审、证据、guard，不批准待批准的测试豁免，也不授权发布或外部副作用。
 - **验证轮次有上限**：带回退边的评审步（default 的 verify）最多验证 `max_rounds` 轮（缺省 2）。
-  用完后 `next` 不再给回退边，只会 `stop`（`rounds-exhausted`）或请求用户接受剩余阻断。
+  轮次内 `next` 直接给回退边的 `transition`（不需要评审回执）；用完后 `next` 不再给回退边，
+  只会 `stop`（`rounds-exhausted`）或请求用户接受剩余阻断。
   agent 不得自行 `tenon set <name> max_rounds`、不得绕过上限（换事件、改状态、删 marker）：
   把出路（调高上限、回到规格、终止任务）摆给用户，等用户决定。
 - **tasks.md 是唯一 Todo 源**：每步只勾自己的任务；出口只校验截至当前步骤的未完成项。

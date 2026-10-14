@@ -209,6 +209,10 @@ if [ -f "$HOOKS_JSON" ]; then
   N_PATH=$((N_PATH + 1))
   [ -f "$ROOT/hooks/lib/ack-command.sh" ] \
     || add_fail "缺失 hook 辅助脚本: hooks/lib/ack-command.sh" "hooks/gate.sh" "把 hooks/lib/ack-command.sh 纳入发布包"
+  # gate.sh 在待处理标记拦住命令类工具时才加载的只读命令判定：缺了它，门把所有 shell 命令都当非只读拦（失败关闭，包括 ls / git status）。
+  N_PATH=$((N_PATH + 1))
+  [ -f "$ROOT/hooks/lib/read-only-command.sh" ] \
+    || add_fail "缺失 hook 辅助脚本: hooks/lib/read-only-command.sh" "hooks/gate.sh" "把 hooks/lib/read-only-command.sh 纳入发布包"
   # protected-writes.sh 在命令段里出现信任 / 状态目录字样时才加载的识别（tenon test trust、TENON_TEST_TRUST=、改写状态目录）：
   # 缺了它，门对出现这些字样的命令段一律失败关闭拒绝。
   N_PATH=$((N_PATH + 1))

@@ -27,7 +27,7 @@ Tenon 是面向 Codex、Claude Code 等 Agent 宿主的本地优先交付工作�
 open → explore → spec ⇄ build ⇄ verify → ship → archive
 ```
 
-`explore`、`spec`、`verify` 的出口需要精确 review receipt。Build 发现需求变化时走 `requirements-changed` 回到 Spec；Verify 不通过时走 `verify-fail` 回到 Build。Pipeline 不允许通过手改状态文件跳过这些边界。
+`explore`、`spec`、`verify` 的前进出口需要精确 review receipt。Build 发现需求变化时走 `requirements-changed` 回到 Spec；Verify 不通过时走 `verify-fail` 回到 Build——验证轮次还没用完时这条回退边不需要 review receipt，直接 `tenon transition`，用完后被拒。Pipeline 不允许通过手改状态文件跳过这些边界。
 
 ## 你会在仓库中看到什么
 

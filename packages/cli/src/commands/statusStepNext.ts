@@ -86,8 +86,9 @@ export interface StepNextInput {
   /** 改动风险探针不过（statusStepEscalation.ts）：只剩放弃边这一条路；缺席 = 没有升级信号。 */
   readonly escalation?: StepEscalation | null
   /**
-   * 验证轮次（受上限约束的步骤：评审门且有回退边）；缺席 / null = 不受约束。用完（current >= max）后 `next` 不再
-   * 给出回退边的评审请求，改发前进边的剩余阻断评审请求或 stop（statusStepRoundsActions.ts）。
+   * 验证轮次（受上限约束的步骤：评审门且有回退边）；缺席 / null = 不受约束。轮次内唯一的回退边直接 transition
+   * （statusStepExits.ts）；用完（current >= max）后 `next` 不再给出回退边，改发前进边的剩余阻断评审请求或 stop
+   * （statusStepRoundsActions.ts）。
    */
   readonly rounds?: StepRounds | null
   /** 用完后「回到规格」的真实路径（statusStepRoundsRoute.ts，来自计划）；缺席 = 回退边取自 exits、回规格的事件不点名。 */

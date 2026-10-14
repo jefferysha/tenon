@@ -1,0 +1,730 @@
+{
+  "version": 1,
+  "contract": "openspec-v1",
+  "createdAt": "2026-10-13T11:19:45Z",
+  "records": [
+    {
+      "kind": "adr",
+      "path": "docs/adr/reduce-review-gate-friction.md",
+      "sha256": "e7c0ad3f3f6db6e916b5e9c1758707eb9c04f323e158ab37d67d90938f770f56",
+      "producer": "brainstorming",
+      "recordedAt": "2026-10-13T11:37:38Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-aa206940b08d0653264c46e3c47636a9853b70b71f5314b9e1ca584248d22746",
+        "evidenceScope": "explore",
+        "stepVisit": {
+          "runId": "f8b9ca23-48ee-4d1e-992c-ae1b2142df37",
+          "transitionSequence": 1
+        }
+      },
+      "reads": [
+        {
+          "phase": "spec",
+          "sha256": "e7c0ad3f3f6db6e916b5e9c1758707eb9c04f323e158ab37d67d90938f770f56",
+          "readAt": "2026-10-13T12:27:06Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",2]"
+        },
+        {
+          "phase": "build",
+          "sha256": "e7c0ad3f3f6db6e916b5e9c1758707eb9c04f323e158ab37d67d90938f770f56",
+          "readAt": "2026-10-13T13:36:06Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",3]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "e7c0ad3f3f6db6e916b5e9c1758707eb9c04f323e158ab37d67d90938f770f56",
+          "readAt": "2026-10-13T13:48:55Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",4]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "e7c0ad3f3f6db6e916b5e9c1758707eb9c04f323e158ab37d67d90938f770f56",
+          "readAt": "2026-10-13T15:06:34Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",5]"
+        },
+        {
+          "phase": "archive",
+          "sha256": "e7c0ad3f3f6db6e916b5e9c1758707eb9c04f323e158ab37d67d90938f770f56",
+          "readAt": "2026-10-13T15:07:22Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",6]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-reduce-review-gate-friction-b6bd7e6e5c2a:ba8082f20c541cbcbe54ac32ec692be1",
+        "namespace": "change-reduce-review-gate-friction-b6bd7e6e5c2a",
+        "version": "sha256:e7c0ad3f3f6db6e916b5e9c1758707eb9c04f323e158ab37d67d90938f770f56",
+        "projection": "document",
+        "content_digest": "sha256:e7c0ad3f3f6db6e916b5e9c1758707eb9c04f323e158ab37d67d90938f770f56",
+        "source": {
+          "path": "docs/adr/reduce-review-gate-friction.md",
+          "document_kind": "adr"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "proposal",
+      "path": "openspec/changes/reduce-review-gate-friction/proposal.md",
+      "sha256": "027e31dc0fda5e466c00e32795bba3fb0686a5a0c1a8655094c6830f434ee384",
+      "producer": "tenon",
+      "recordedAt": "2026-10-13T11:39:43Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-5c475b9f2682cf1827165c0b4faea2d5f62f9138225abd10116f3e130da72ceb",
+        "evidenceScope": "explore",
+        "stepVisit": {
+          "runId": "f8b9ca23-48ee-4d1e-992c-ae1b2142df37",
+          "transitionSequence": 1
+        }
+      },
+      "reads": [
+        {
+          "phase": "explore",
+          "sha256": "027e31dc0fda5e466c00e32795bba3fb0686a5a0c1a8655094c6830f434ee384",
+          "readAt": "2026-10-13T11:39:51Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",1]"
+        },
+        {
+          "phase": "spec",
+          "sha256": "027e31dc0fda5e466c00e32795bba3fb0686a5a0c1a8655094c6830f434ee384",
+          "readAt": "2026-10-13T12:27:06Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",2]"
+        },
+        {
+          "phase": "build",
+          "sha256": "027e31dc0fda5e466c00e32795bba3fb0686a5a0c1a8655094c6830f434ee384",
+          "readAt": "2026-10-13T13:36:06Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",3]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "027e31dc0fda5e466c00e32795bba3fb0686a5a0c1a8655094c6830f434ee384",
+          "readAt": "2026-10-13T13:48:55Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",4]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "027e31dc0fda5e466c00e32795bba3fb0686a5a0c1a8655094c6830f434ee384",
+          "readAt": "2026-10-13T15:06:34Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",5]"
+        },
+        {
+          "phase": "archive",
+          "sha256": "027e31dc0fda5e466c00e32795bba3fb0686a5a0c1a8655094c6830f434ee384",
+          "readAt": "2026-10-13T15:07:22Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",6]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-reduce-review-gate-friction-b6bd7e6e5c2a:2ad10b743070c41345f7b47eb265a12b",
+        "namespace": "change-reduce-review-gate-friction-b6bd7e6e5c2a",
+        "version": "sha256:027e31dc0fda5e466c00e32795bba3fb0686a5a0c1a8655094c6830f434ee384",
+        "projection": "document",
+        "content_digest": "sha256:027e31dc0fda5e466c00e32795bba3fb0686a5a0c1a8655094c6830f434ee384",
+        "source": {
+          "path": "openspec/changes/reduce-review-gate-friction/proposal.md",
+          "document_kind": "proposal"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "delta-spec",
+      "path": "openspec/changes/reduce-review-gate-friction/specs/verify-round-limit/spec.md",
+      "sha256": "8df6a497215aa3f7a1f2084589d4912928534714df7cdb7b2e26f5f36106d0c5",
+      "producer": "openspec-propose",
+      "recordedAt": "2026-10-13T12:17:44Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-337e670dc3e9b1af6513444d1e261cbaef9f1d49bfea43c5d1d447815785ed89",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "f8b9ca23-48ee-4d1e-992c-ae1b2142df37",
+          "transitionSequence": 2
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "8df6a497215aa3f7a1f2084589d4912928534714df7cdb7b2e26f5f36106d0c5",
+          "readAt": "2026-10-13T13:36:06Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",3]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "8df6a497215aa3f7a1f2084589d4912928534714df7cdb7b2e26f5f36106d0c5",
+          "readAt": "2026-10-13T13:48:55Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",4]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "8df6a497215aa3f7a1f2084589d4912928534714df7cdb7b2e26f5f36106d0c5",
+          "readAt": "2026-10-13T15:06:34Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",5]"
+        },
+        {
+          "phase": "archive",
+          "sha256": "8df6a497215aa3f7a1f2084589d4912928534714df7cdb7b2e26f5f36106d0c5",
+          "readAt": "2026-10-13T15:07:22Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",6]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-reduce-review-gate-friction-b6bd7e6e5c2a:c0130e4415a0d456edd0052194260251",
+        "namespace": "change-reduce-review-gate-friction-b6bd7e6e5c2a",
+        "version": "sha256:8df6a497215aa3f7a1f2084589d4912928534714df7cdb7b2e26f5f36106d0c5",
+        "projection": "document",
+        "content_digest": "sha256:8df6a497215aa3f7a1f2084589d4912928534714df7cdb7b2e26f5f36106d0c5",
+        "source": {
+          "path": "openspec/changes/reduce-review-gate-friction/specs/verify-round-limit/spec.md",
+          "document_kind": "delta-spec"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "delta-spec",
+      "path": "openspec/changes/reduce-review-gate-friction/specs/interaction-and-skill-provenance/spec.md",
+      "sha256": "81bd5bd67d33132cfc49ce043a48058337a1b6ed1ee244987bc188032ae0a426",
+      "producer": "openspec-propose",
+      "recordedAt": "2026-10-13T12:17:48Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-337e670dc3e9b1af6513444d1e261cbaef9f1d49bfea43c5d1d447815785ed89",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "f8b9ca23-48ee-4d1e-992c-ae1b2142df37",
+          "transitionSequence": 2
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "81bd5bd67d33132cfc49ce043a48058337a1b6ed1ee244987bc188032ae0a426",
+          "readAt": "2026-10-13T13:36:06Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",3]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "81bd5bd67d33132cfc49ce043a48058337a1b6ed1ee244987bc188032ae0a426",
+          "readAt": "2026-10-13T13:48:55Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",4]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "81bd5bd67d33132cfc49ce043a48058337a1b6ed1ee244987bc188032ae0a426",
+          "readAt": "2026-10-13T15:06:34Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",5]"
+        },
+        {
+          "phase": "archive",
+          "sha256": "81bd5bd67d33132cfc49ce043a48058337a1b6ed1ee244987bc188032ae0a426",
+          "readAt": "2026-10-13T15:07:22Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",6]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-reduce-review-gate-friction-b6bd7e6e5c2a:c0130e4415a0d456edd0052194260251",
+        "namespace": "change-reduce-review-gate-friction-b6bd7e6e5c2a",
+        "version": "sha256:81bd5bd67d33132cfc49ce043a48058337a1b6ed1ee244987bc188032ae0a426",
+        "projection": "document",
+        "content_digest": "sha256:81bd5bd67d33132cfc49ce043a48058337a1b6ed1ee244987bc188032ae0a426",
+        "source": {
+          "path": "openspec/changes/reduce-review-gate-friction/specs/interaction-and-skill-provenance/spec.md",
+          "document_kind": "delta-spec"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "delta-spec",
+      "path": "openspec/changes/reduce-review-gate-friction/specs/document-evidence-contract/spec.md",
+      "sha256": "80fe78f0d0f0a8bd0f24a857984d2c4a87e1bb8f2470d5b5aff760ed43f8850e",
+      "producer": "openspec-propose",
+      "recordedAt": "2026-10-13T12:17:49Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-337e670dc3e9b1af6513444d1e261cbaef9f1d49bfea43c5d1d447815785ed89",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "f8b9ca23-48ee-4d1e-992c-ae1b2142df37",
+          "transitionSequence": 2
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "80fe78f0d0f0a8bd0f24a857984d2c4a87e1bb8f2470d5b5aff760ed43f8850e",
+          "readAt": "2026-10-13T13:36:06Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",3]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "80fe78f0d0f0a8bd0f24a857984d2c4a87e1bb8f2470d5b5aff760ed43f8850e",
+          "readAt": "2026-10-13T13:48:55Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",4]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "80fe78f0d0f0a8bd0f24a857984d2c4a87e1bb8f2470d5b5aff760ed43f8850e",
+          "readAt": "2026-10-13T15:06:34Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",5]"
+        },
+        {
+          "phase": "archive",
+          "sha256": "80fe78f0d0f0a8bd0f24a857984d2c4a87e1bb8f2470d5b5aff760ed43f8850e",
+          "readAt": "2026-10-13T15:07:22Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",6]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-reduce-review-gate-friction-b6bd7e6e5c2a:c0130e4415a0d456edd0052194260251",
+        "namespace": "change-reduce-review-gate-friction-b6bd7e6e5c2a",
+        "version": "sha256:80fe78f0d0f0a8bd0f24a857984d2c4a87e1bb8f2470d5b5aff760ed43f8850e",
+        "projection": "document",
+        "content_digest": "sha256:80fe78f0d0f0a8bd0f24a857984d2c4a87e1bb8f2470d5b5aff760ed43f8850e",
+        "source": {
+          "path": "openspec/changes/reduce-review-gate-friction/specs/document-evidence-contract/spec.md",
+          "document_kind": "delta-spec"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "delta-spec",
+      "path": "openspec/changes/reduce-review-gate-friction/specs/plugin-runtime/spec.md",
+      "sha256": "a49d1f20934c228b6754f89a64308fb42ad86b23728e2ce8662757c97341f11b",
+      "producer": "openspec-propose",
+      "recordedAt": "2026-10-13T12:17:51Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-337e670dc3e9b1af6513444d1e261cbaef9f1d49bfea43c5d1d447815785ed89",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "f8b9ca23-48ee-4d1e-992c-ae1b2142df37",
+          "transitionSequence": 2
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "a49d1f20934c228b6754f89a64308fb42ad86b23728e2ce8662757c97341f11b",
+          "readAt": "2026-10-13T13:36:06Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",3]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "a49d1f20934c228b6754f89a64308fb42ad86b23728e2ce8662757c97341f11b",
+          "readAt": "2026-10-13T13:48:55Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",4]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "a49d1f20934c228b6754f89a64308fb42ad86b23728e2ce8662757c97341f11b",
+          "readAt": "2026-10-13T15:06:34Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",5]"
+        },
+        {
+          "phase": "archive",
+          "sha256": "a49d1f20934c228b6754f89a64308fb42ad86b23728e2ce8662757c97341f11b",
+          "readAt": "2026-10-13T15:07:22Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",6]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-reduce-review-gate-friction-b6bd7e6e5c2a:c0130e4415a0d456edd0052194260251",
+        "namespace": "change-reduce-review-gate-friction-b6bd7e6e5c2a",
+        "version": "sha256:a49d1f20934c228b6754f89a64308fb42ad86b23728e2ce8662757c97341f11b",
+        "projection": "document",
+        "content_digest": "sha256:a49d1f20934c228b6754f89a64308fb42ad86b23728e2ce8662757c97341f11b",
+        "source": {
+          "path": "openspec/changes/reduce-review-gate-friction/specs/plugin-runtime/spec.md",
+          "document_kind": "delta-spec"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "superpower-plan",
+      "path": "docs/superpowers/plans/reduce-review-gate-friction.md",
+      "sha256": "0cb0f5d78b183db966aa701c755cb417c1679413b59d48f4a0b2832acb71b6aa",
+      "producer": "writing-plans",
+      "recordedAt": "2026-10-13T12:26:11Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-208b8d0755e632b6b0a1b71a40fb6f88105a11dd2392e2823633cee8f0ce85ae",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "f8b9ca23-48ee-4d1e-992c-ae1b2142df37",
+          "transitionSequence": 2
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "0cb0f5d78b183db966aa701c755cb417c1679413b59d48f4a0b2832acb71b6aa",
+          "readAt": "2026-10-13T13:36:06Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",3]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "0cb0f5d78b183db966aa701c755cb417c1679413b59d48f4a0b2832acb71b6aa",
+          "readAt": "2026-10-13T13:48:55Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",4]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "0cb0f5d78b183db966aa701c755cb417c1679413b59d48f4a0b2832acb71b6aa",
+          "readAt": "2026-10-13T15:06:34Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",5]"
+        },
+        {
+          "phase": "archive",
+          "sha256": "0cb0f5d78b183db966aa701c755cb417c1679413b59d48f4a0b2832acb71b6aa",
+          "readAt": "2026-10-13T15:07:22Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",6]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-reduce-review-gate-friction-b6bd7e6e5c2a:c024f82c1d40c2cefe8b88718712a97b",
+        "namespace": "change-reduce-review-gate-friction-b6bd7e6e5c2a",
+        "version": "sha256:0cb0f5d78b183db966aa701c755cb417c1679413b59d48f4a0b2832acb71b6aa",
+        "projection": "document",
+        "content_digest": "sha256:0cb0f5d78b183db966aa701c755cb417c1679413b59d48f4a0b2832acb71b6aa",
+        "source": {
+          "path": "docs/superpowers/plans/reduce-review-gate-friction.md",
+          "document_kind": "superpower-plan"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "plan",
+      "path": "docs/superpowers/plans/reduce-review-gate-friction.md",
+      "sha256": "0cb0f5d78b183db966aa701c755cb417c1679413b59d48f4a0b2832acb71b6aa",
+      "producer": "writing-plans",
+      "recordedAt": "2026-10-13T12:26:11Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-208b8d0755e632b6b0a1b71a40fb6f88105a11dd2392e2823633cee8f0ce85ae",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "f8b9ca23-48ee-4d1e-992c-ae1b2142df37",
+          "transitionSequence": 2
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "0cb0f5d78b183db966aa701c755cb417c1679413b59d48f4a0b2832acb71b6aa",
+          "readAt": "2026-10-13T13:36:06Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",3]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "0cb0f5d78b183db966aa701c755cb417c1679413b59d48f4a0b2832acb71b6aa",
+          "readAt": "2026-10-13T13:48:55Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",4]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "0cb0f5d78b183db966aa701c755cb417c1679413b59d48f4a0b2832acb71b6aa",
+          "readAt": "2026-10-13T15:06:34Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",5]"
+        },
+        {
+          "phase": "archive",
+          "sha256": "0cb0f5d78b183db966aa701c755cb417c1679413b59d48f4a0b2832acb71b6aa",
+          "readAt": "2026-10-13T15:07:22Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",6]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-reduce-review-gate-friction-b6bd7e6e5c2a:c024f82c1d40c2cefe8b88718712a97b",
+        "namespace": "change-reduce-review-gate-friction-b6bd7e6e5c2a",
+        "version": "sha256:0cb0f5d78b183db966aa701c755cb417c1679413b59d48f4a0b2832acb71b6aa",
+        "projection": "document",
+        "content_digest": "sha256:0cb0f5d78b183db966aa701c755cb417c1679413b59d48f4a0b2832acb71b6aa",
+        "source": {
+          "path": "docs/superpowers/plans/reduce-review-gate-friction.md",
+          "document_kind": "plan"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "openspec-design",
+      "path": "openspec/changes/reduce-review-gate-friction/design.md",
+      "sha256": "949044dd3f2f795fd695ed3ee271118e439a249f6ac6607ac89647bf38df23cb",
+      "producer": "tenon",
+      "recordedAt": "2026-10-13T12:26:12Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-8f67c311048d143e51d9ded3252b624eea5fbbe0df6167b5860060ef30016264",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "f8b9ca23-48ee-4d1e-992c-ae1b2142df37",
+          "transitionSequence": 2
+        }
+      },
+      "reads": [
+        {
+          "phase": "spec",
+          "sha256": "949044dd3f2f795fd695ed3ee271118e439a249f6ac6607ac89647bf38df23cb",
+          "readAt": "2026-10-13T12:27:06Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",2]"
+        },
+        {
+          "phase": "build",
+          "sha256": "949044dd3f2f795fd695ed3ee271118e439a249f6ac6607ac89647bf38df23cb",
+          "readAt": "2026-10-13T13:36:06Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",3]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "949044dd3f2f795fd695ed3ee271118e439a249f6ac6607ac89647bf38df23cb",
+          "readAt": "2026-10-13T13:48:55Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",4]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "949044dd3f2f795fd695ed3ee271118e439a249f6ac6607ac89647bf38df23cb",
+          "readAt": "2026-10-13T15:06:34Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",5]"
+        },
+        {
+          "phase": "archive",
+          "sha256": "949044dd3f2f795fd695ed3ee271118e439a249f6ac6607ac89647bf38df23cb",
+          "readAt": "2026-10-13T15:07:22Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",6]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-reduce-review-gate-friction-b6bd7e6e5c2a:07de31a67c2812c492d827e578027ef2",
+        "namespace": "change-reduce-review-gate-friction-b6bd7e6e5c2a",
+        "version": "sha256:949044dd3f2f795fd695ed3ee271118e439a249f6ac6607ac89647bf38df23cb",
+        "projection": "document",
+        "content_digest": "sha256:949044dd3f2f795fd695ed3ee271118e439a249f6ac6607ac89647bf38df23cb",
+        "source": {
+          "path": "openspec/changes/reduce-review-gate-friction/design.md",
+          "document_kind": "openspec-design"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "superpower-design",
+      "path": "docs/superpowers/specs/reduce-review-gate-friction-design.md",
+      "sha256": "5df3c29c08c682c54bfeaad08f1e2eadbc5638f6cb17e5fa45b072f5ce43ac05",
+      "producer": "tenon",
+      "recordedAt": "2026-10-13T12:27:02Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-8f67c311048d143e51d9ded3252b624eea5fbbe0df6167b5860060ef30016264",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "f8b9ca23-48ee-4d1e-992c-ae1b2142df37",
+          "transitionSequence": 2
+        }
+      },
+      "reads": [
+        {
+          "phase": "spec",
+          "sha256": "5df3c29c08c682c54bfeaad08f1e2eadbc5638f6cb17e5fa45b072f5ce43ac05",
+          "readAt": "2026-10-13T12:27:06Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",2]"
+        },
+        {
+          "phase": "build",
+          "sha256": "5df3c29c08c682c54bfeaad08f1e2eadbc5638f6cb17e5fa45b072f5ce43ac05",
+          "readAt": "2026-10-13T13:36:06Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",3]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "5df3c29c08c682c54bfeaad08f1e2eadbc5638f6cb17e5fa45b072f5ce43ac05",
+          "readAt": "2026-10-13T13:48:55Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",4]"
+        },
+        {
+          "phase": "ship",
+          "sha256": "5df3c29c08c682c54bfeaad08f1e2eadbc5638f6cb17e5fa45b072f5ce43ac05",
+          "readAt": "2026-10-13T15:06:34Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",5]"
+        },
+        {
+          "phase": "archive",
+          "sha256": "5df3c29c08c682c54bfeaad08f1e2eadbc5638f6cb17e5fa45b072f5ce43ac05",
+          "readAt": "2026-10-13T15:07:22Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",6]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-reduce-review-gate-friction-b6bd7e6e5c2a:10e519788265b7e9df8d6fd640176dcf",
+        "namespace": "change-reduce-review-gate-friction-b6bd7e6e5c2a",
+        "version": "sha256:5df3c29c08c682c54bfeaad08f1e2eadbc5638f6cb17e5fa45b072f5ce43ac05",
+        "projection": "document",
+        "content_digest": "sha256:5df3c29c08c682c54bfeaad08f1e2eadbc5638f6cb17e5fa45b072f5ce43ac05",
+        "source": {
+          "path": "docs/superpowers/specs/reduce-review-gate-friction-design.md",
+          "document_kind": "superpower-design"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "verification-report",
+      "path": "docs/superpowers/reports/reduce-review-gate-friction-verify.md",
+      "sha256": "7703f6cebc350d66265aceb11d1e9165fe1714fe43d758da713354b86202a617",
+      "producer": "verification-before-completion",
+      "recordedAt": "2026-10-13T14:14:18Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-e04cb6750cf1b6fa543c98769bd499c899ad30a9d0ff86e5242d82c4eb0394c2",
+        "evidenceScope": "verify",
+        "stepVisit": {
+          "runId": "f8b9ca23-48ee-4d1e-992c-ae1b2142df37",
+          "transitionSequence": 4
+        }
+      },
+      "reads": [
+        {
+          "phase": "ship",
+          "sha256": "7703f6cebc350d66265aceb11d1e9165fe1714fe43d758da713354b86202a617",
+          "readAt": "2026-10-13T15:06:34Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",5]"
+        },
+        {
+          "phase": "archive",
+          "sha256": "7703f6cebc350d66265aceb11d1e9165fe1714fe43d758da713354b86202a617",
+          "readAt": "2026-10-13T15:07:22Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",6]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-reduce-review-gate-friction-b6bd7e6e5c2a:1aa8358e650d38756d1ed31ad4301ced",
+        "namespace": "change-reduce-review-gate-friction-b6bd7e6e5c2a",
+        "version": "sha256:7703f6cebc350d66265aceb11d1e9165fe1714fe43d758da713354b86202a617",
+        "projection": "document",
+        "content_digest": "sha256:7703f6cebc350d66265aceb11d1e9165fe1714fe43d758da713354b86202a617",
+        "source": {
+          "path": "docs/superpowers/reports/reduce-review-gate-friction-verify.md",
+          "document_kind": "verification-report"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "applied-spec",
+      "path": "openspec/changes/reduce-review-gate-friction/applied-spec.md",
+      "sha256": "61fd0ffeb1d0ea3c173ea59dd4d926274a7adf126f3097887855b74fc01fe295",
+      "producer": "tenon",
+      "recordedAt": "2026-10-13T15:06:32Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-fe225f50b3ec1b15b92204687c5c033767e40b97648efeada960a16d0dab3e59",
+        "evidenceScope": "ship",
+        "stepVisit": {
+          "runId": "f8b9ca23-48ee-4d1e-992c-ae1b2142df37",
+          "transitionSequence": 5
+        }
+      },
+      "reads": [
+        {
+          "phase": "archive",
+          "sha256": "61fd0ffeb1d0ea3c173ea59dd4d926274a7adf126f3097887855b74fc01fe295",
+          "readAt": "2026-10-13T15:07:22Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",6]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-reduce-review-gate-friction-b6bd7e6e5c2a:0ef015e52159e626e313397621b66443",
+        "namespace": "change-reduce-review-gate-friction-b6bd7e6e5c2a",
+        "version": "sha256:61fd0ffeb1d0ea3c173ea59dd4d926274a7adf126f3097887855b74fc01fe295",
+        "projection": "document",
+        "content_digest": "sha256:61fd0ffeb1d0ea3c173ea59dd4d926274a7adf126f3097887855b74fc01fe295",
+        "source": {
+          "path": "openspec/changes/reduce-review-gate-friction/applied-spec.md",
+          "document_kind": "applied-spec"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "tasks",
+      "path": "openspec/changes/reduce-review-gate-friction/tasks.md",
+      "sha256": "9f5de0fad335761de4357831bc094699f3e2cf7562ccb1e9cc5eae9cb1abacde",
+      "producer": "tenon",
+      "recordedAt": "2026-10-13T15:07:22Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-da5b990a8a47b0694ad328ede0e1275b2834e11b83f5b1cc8c06381dbcfbfe89",
+        "evidenceScope": "archive",
+        "stepVisit": {
+          "runId": "f8b9ca23-48ee-4d1e-992c-ae1b2142df37",
+          "transitionSequence": 6
+        }
+      },
+      "reads": [
+        {
+          "phase": "archive",
+          "sha256": "9f5de0fad335761de4357831bc094699f3e2cf7562ccb1e9cc5eae9cb1abacde",
+          "readAt": "2026-10-13T15:07:22Z",
+          "visitId": "[\"f8b9ca23-48ee-4d1e-992c-ae1b2142df37\",6]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-reduce-review-gate-friction-b6bd7e6e5c2a:927181636d24856f3811cc680dfda8ea",
+        "namespace": "change-reduce-review-gate-friction-b6bd7e6e5c2a",
+        "version": "sha256:9f5de0fad335761de4357831bc094699f3e2cf7562ccb1e9cc5eae9cb1abacde",
+        "projection": "document",
+        "content_digest": "sha256:9f5de0fad335761de4357831bc094699f3e2cf7562ccb1e9cc5eae9cb1abacde",
+        "source": {
+          "path": "openspec/changes/reduce-review-gate-friction/tasks.md",
+          "document_kind": "tasks"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    }
+  ]
+}

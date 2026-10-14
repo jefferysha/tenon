@@ -242,7 +242,7 @@ workspace fingerprint；任一瞬时漂移 SHALL 使该轨失败，MUST NOT 通�
 - **WHEN** Reviewer 先返回一个 High finding
 - **THEN** 主流程继续等待其他适用轨完成
 - **AND** verification report 一次性包含全部轨的 findings
-- **AND** 之后才请求 exact `verify-fail` review。
+- **AND** 之后才走 `verify-fail`：轮次未用完时直接转换，不再请求评审；轮次用完时按验证轮次上限的出路交给用户。
 
 #### Scenario: Verify-fail 修复后重试
 
