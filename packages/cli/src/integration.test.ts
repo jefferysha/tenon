@@ -153,7 +153,7 @@ describe('真实 e2e —— 全命令驱动真 kernel + 真 fs（GOAL C9）', ()
     // build 出口：build_mode + isolation 必设；full+direct 须显式 direct_override=true（老仓 L144-151）
     await h.run([
       'set-many', 'demo',
-      'build_mode=direct', 'isolation=worktree', 'direct_override=true',
+      'build_mode=direct', 'isolation=branch', 'direct_override=true',
     ])
     // default 的 backend 轨在 build 声明了必需测试：像真实用户那样先跑它们（真记录，不是旁路）。
     await h.satisfyStepTests('demo', 'build')

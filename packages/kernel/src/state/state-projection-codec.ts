@@ -4,6 +4,7 @@ import {
   REVIEW_ACKNOWLEDGED_VIA_FIELD,
   type PipelineState,
 } from '../types.js'
+import { START_SHA_FIELD } from '../review-gate-fields.js'
 import { serializePipeline } from './parse.js'
 import {
   rollbackCompatibleState,
@@ -28,13 +29,13 @@ export function projectionContent(revision: RunRevision): string {
 
 /**
  * Projection shape emitted before the rollback-compatible companion migration. The review channel
- * field did not exist in that release line, so the shape never contains it.
+ * field and `start_sha` did not exist in that release line, so the shape never contains them.
  */
 export function priorLogicalProjectionContent(revision: RunRevision): string {
   return serializePipeline({
     ...structuredClone(revision.state),
     projectionMetadata: metadataFor(revision),
-  }, { omitFields: [REVIEW_ACKNOWLEDGED_VIA_FIELD] })
+  }, { omitFields: [REVIEW_ACKNOWLEDGED_VIA_FIELD, START_SHA_FIELD] })
 }
 
 /** True when `raw` is byte-identical to a projection shape some runtime writes for `revision`. */
@@ -42,6 +43,7 @@ export function matchesKnownProjection(raw: string, revision: RunRevision): bool
   return raw === projectionContent(revision)
     || raw === priorLogicalProjectionContent(revision)
     || raw === legacyChannelProjectionContent(revision)
+    || raw === legacyStartShaProjectionContent(revision)
 }
 
 /**
@@ -59,4 +61,21 @@ export function legacyChannelProjectionContent(revision: RunRevision): string {
     },
     projectionMetadata: metadataFor(revision),
   }, { omitFields: [PRE_VERIFY_REVIEW_FIELD] })
+}
+
+/**
+ * Projection shape of unreleased development builds that still kept `start_sha` in the wire
+ * closure: identical to `projectionContent` except that a recorded start point also writes the
+ * `start_sha` line. Accepted as a current/stale adapter only; never written.
+ */
+export function legacyStartShaProjectionContent(revision: RunRevision): string {
+  const wire = rollbackCompatibleState(revision)
+  return serializePipeline({
+    ...wire,
+    fields: {
+      ...wire.fields,
+      [START_SHA_FIELD]: revision.state.fields[START_SHA_FIELD],
+    },
+    projectionMetadata: metadataFor(revision),
+  }, { omitFields: COMPANION_BACKED_FIELDS.filter((field) => field !== START_SHA_FIELD) })
 }

@@ -6,8 +6,11 @@ import type { FieldName } from '../types.js'
  * 没设置过它的任务因此逐字节不变——revision digest、review gate 绑定摘要（对序列化后的整份状态求哈希）、
  * 旧窄解析器与 N-1 读者都不受升级影响，在途任务不会因为字段表多了一项被判成投影漂移。只有显式设置了值的
  * 任务才出现这个键。
+ *
+ * `start_sha` 同在这里是为了逻辑序列化（评审绑定摘要、开发版投影比对）里空值不写；它的物理值由伴随文件承载
+ * （state/start-sha-store.ts），有值时也不进 wire 与 YAML 投影，所以没有 `max_rounds` 那条 N-1 读不了的限制。
  */
-export const OMIT_WHEN_EMPTY_FIELDS = ['max_rounds', 'task_result', 'domain'] as const satisfies readonly FieldName[]
+export const OMIT_WHEN_EMPTY_FIELDS = ['max_rounds', 'task_result', 'domain', 'start_sha'] as const satisfies readonly FieldName[]
 
 const OMIT_WHEN_EMPTY: ReadonlySet<string> = new Set(OMIT_WHEN_EMPTY_FIELDS)
 

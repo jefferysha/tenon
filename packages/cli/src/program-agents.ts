@@ -1,6 +1,6 @@
 /**
  * `tenon agent` 子命令注册。
- * 库：list / show / new / add / validate / copy / rm / export；任务里的运行：next / prompt / record。
+ * 库：list / show / new / add / validate / copy / rm / export；终端安装：install / uninstall；任务里的运行：next / prompt / record。
  */
 import type { Command } from 'commander'
 import type { CliDeps } from './deps.js'
@@ -8,6 +8,7 @@ import { cmdAgentNext, cmdAgentPrompt, cmdAgentRecord } from './commands/agent.j
 import {
   cmdAgentAdd, cmdAgentCopy, cmdAgentExport, cmdAgentList, cmdAgentRm, cmdAgentShow, cmdAgentValidate,
 } from './commands/agent-library.js'
+import { cmdAgentInstall, cmdAgentUninstall } from './commands/agent-install.js'
 import { cmdAgentNew, type AgentNewOpts } from './commands/agent-new.js'
 import { bail } from './program-exit.js'
 
@@ -62,14 +63,24 @@ function registerLibraryCommands(agent: Command, deps: CliDeps): void {
     .description('打印 agent 的宿主原生文件（Claude .md / Codex .toml）')
     .option('--host <host>', 'claude | codex')
     .action(async (name: string, opts: { host?: string }) => bail(await cmdAgentExport(deps, name, opts.host)))
+  agent
+    .command('install')
+    .description('在终端把官方与自定义 agent 写成用户级宿主子代理文件（<配置目录>/agents：默认 ~/.claude、~/.codex，设了 CLAUDE_CONFIG_DIR / CODEX_HOME 时跟随它们），开新会话后生效；项目层 agent 不安装')
+    .option('--host <host>', 'claude | codex（缺省 claude；在 Codex 会话里缺省 codex）')
+    .action(async (opts: { host?: string }) => bail(await cmdAgentInstall(deps, opts)))
+  agent
+    .command('uninstall')
+    .description('删除 Tenon 写入且未改动的用户级宿主子代理文件；改过的保留并列出')
+    .option('--host <host>', 'claude | codex（缺省同 install）')
+    .action(async (opts: { host?: string }) => bail(await cmdAgentUninstall(deps, opts)))
 }
 
 export function registerAgentCommands(program: Command, deps: CliDeps): void {
   const agent = program
     .command('agent')
-    .description('agent：库（list / show / new / add / validate / copy / rm / export）与任务里的运行（next / prompt / record）')
+    .description('agent：库（list / show / new / add / validate / copy / rm / export）、终端安装（install / uninstall）与任务里的运行（next / prompt / record）')
     .action(() => {
-      deps.io.err('用法：tenon agent list|show|new|add|validate|copy|rm|export|next|prompt|record ...')
+      deps.io.err('用法：tenon agent list|show|new|add|validate|copy|rm|export|install|uninstall|next|prompt|record ...')
       bail(1)
     })
   registerLibraryCommands(agent, deps)
@@ -81,10 +92,10 @@ export function registerAgentCommands(program: Command, deps: CliDeps): void {
       bail(await cmdAgentNext(deps, change, opts.json === true)))
   agent
     .command('prompt <change> <agent>')
-    .description('开始（或续跑）一个 agent 并打印交接内容；为宿主生成 tenon-<name> 子代理文件；未轮到 / 宿主不支持 exit 2')
-    .option('--host <id>', '宿主 id（claude / codex 时生成专属子代理文件）；agent 声明了 hosts 时据此校验；评审者要求在另一个宿主上跑时，据此给出确切的运行命令')
+    .description('开始（或续跑）一个 agent 并打印交接内容；不写宿主文件：用户级已装的 tenon-<name> 与冻结定义一致才返回专属子代理，否则返回通用子代理并带 reason 与安装提示；未轮到 / 宿主不支持 exit 2')
+    .option('--host <id>', '宿主 id（claude / codex 决定检查哪份已装的子代理文件）；agent 声明了 hosts 时据此校验；评审者要求在另一个宿主上跑时，据此给出确切的运行命令')
     .option('--rerun-reason <text>', '评审者在同一份代码（同一候选）上已有结论时再跑一次必须写明原因；原因随运行留痕，没有原因的重跑取最严结论')
-    .option('--json', 'JSON 输出（run_id / subagent_type / native / model / tools / skills / host / report_path / prompt）')
+    .option('--json', 'JSON 输出（run_id / subagent_type / native / reason / hint / model / tools / skills / host / report_path / prompt）')
     .action(async (change: string, agentName: string, opts: { host?: string; json?: boolean; rerunReason?: string }) =>
       bail(await cmdAgentPrompt(deps, change, agentName, {
         ...(opts.host === undefined ? {} : { host: opts.host }),
@@ -94,7 +105,7 @@ export function registerAgentCommands(program: Command, deps: CliDeps): void {
   agent
     .command('record <change> <run-id>')
     .description('读报告末尾的 tenon-result 块登记结论，并记下登记时的宿主；报告无效 exit 1，候选已变或宿主不符 exit 2')
-    .option('--subagent <type>', '实际用的子代理类型（专属子代理不可用、退回通用子代理时写明）')
+    .option('--subagent <type>', '实际用的子代理类型（专属子代理不可用、退回通用子代理时写明）；写 none = 这次运行开始后没有派发任何子代理，如实记 not-dispatched')
     .option('--host <id>', '这次运行实际所在的宿主（claude / codex …）；缺省取进程环境判出的宿主。跨厂商评审在另一个宿主上跑完、由原宿主登记时用它声明')
     .option('--json', 'JSON 输出（记录全文）')
     .action(async (change: string, runId: string, opts: { json?: boolean; subagent?: string; host?: string }) =>

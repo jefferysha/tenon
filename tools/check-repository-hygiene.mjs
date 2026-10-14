@@ -76,6 +76,15 @@ const CANONICAL_VERSION_REFERENCE_IDENTITIES = new Set(FORBIDDEN_REFERENCE_IDENT
 const CANONICAL_VERSION_REFERENCE_DOCS = new Set([
   'docs/superpowers/specs/2026-07-30-canonical-state-version-status-upstream-research.md',
 ])
+// setup-host-agents-step-progress 调研步的 researcher 报告在 Tenon 台账里绑了内容摘要，
+// 不能改写；报告正文引用了第一个身份作为事实上下文，所以只对这一份报告、只放行第一个身份。
+// 同一 Change 目录下的其它文件（含其它报告）以及其余身份仍然禁止；路径同时覆盖在途与归档两种位置。
+const SETUP_HOST_AGENTS_RESEARCH_REFERENCE_IDENTITIES = new Set(FORBIDDEN_REFERENCE_IDENTITIES.slice(0, 1))
+const SETUP_HOST_AGENTS_RESEARCH_REFERENCE_FILES = new Set([
+  '.pipeline-agent-reports/10167049-5af1-4624-bd94-53b2548a9153.md',
+])
+const SETUP_HOST_AGENTS_CHANGE_PATH =
+  /^openspec\/changes\/(?:setup-host-agents-step-progress|archive\/\d{4}-\d{2}-\d{2}-setup-host-agents-step-progress)\/(.+)$/
 const FORBIDDEN_TEST_PROJECT_IDENTITIES = [
   String.fromCharCode(
     112, 101, 116, 45, 97, 100, 111, 112, 116, 105, 111, 110,
@@ -224,6 +233,15 @@ function allowedCanonicalVersionReference(rel, identity) {
   )
 }
 
+function allowedSetupHostAgentsResearchReference(rel, identity) {
+  const changeMatch = rel.match(SETUP_HOST_AGENTS_CHANGE_PATH)
+  return (
+    SETUP_HOST_AGENTS_RESEARCH_REFERENCE_IDENTITIES.has(identity)
+    && changeMatch !== null
+    && SETUP_HOST_AGENTS_RESEARCH_REFERENCE_FILES.has(changeMatch[1] ?? '')
+  )
+}
+
 function allowedDesignResourceReference(rel, identity) {
   return (
     identity === FORBIDDEN_REFERENCE_IDENTITIES[2]
@@ -244,6 +262,7 @@ function disallowedReferenceIdentity(rel, value) {
       && !allowedReviewHandshakeReference(rel, identity)
       && !allowedOrchestrationGraphReference(rel, identity)
       && !allowedCanonicalVersionReference(rel, identity)
+      && !allowedSetupHostAgentsResearchReference(rel, identity)
       && !allowedDesignResourceReference(rel, identity)
     ),
   )

@@ -151,7 +151,7 @@ export const GUARD_HANDLERS: GuardHandlerRegistry = Object.freeze({
   /** Verify-like success barrier：只消费由 Build capture 写入的 canonical `build:v1` token。
    *  assessor 缺失、输入不可信、物理 identity/provenance/evaluation 任一失败都返回 typed
    *  `verify-build-revision-untrusted` blocker；不得把旧裸 SHA、workspace baseline 或缺能力
-   *  降级成 skipped/pass。in-place 仍通过 workspace assessor 求值，不读取 Git HEAD。 */
+   *  降级成 skipped/pass。worktree / in-place 通过 workspace assessor 求值，不读取 Git HEAD。 */
   'build-head-unchanged': async (config, input) => {
     // Default guard views normalize legacy scalar fields (including arrays) before dispatch.
     // Preserve the canonical candidate at the GuardInput boundary so an array build_sha remains

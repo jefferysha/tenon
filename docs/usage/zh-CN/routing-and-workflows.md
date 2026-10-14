@@ -144,6 +144,11 @@ Change。后续在该对话中说“继续执行”时，路由器先读取这�
 Change 的指令优先级仍然最高。绑定文件只负责会话身份和运行态观察，不参与 canonical guard
 或 transition。
 
+建在任务 worktree 里的任务要从 worktree 里恢复：路由器解析到的点名 Change 只存在于 `.worktrees/` 下时，dispatch 会带 `worktree_path`，`tenon` 技能先切进该目录
+（Claude Code 用 `EnterWorktree`；Codex 请你在那里开新会话），再执行 `tenon session activate`。在主检出里泛泛说“继续”、而能继续的只有 worktree 任务时，dispatch 把它们
+连同路径作为候选（`change_candidate`）列出，请你点名一个。worktree 任务不计入路由器判断“新建还是选择”的在途任务数。worktree 的结构见
+[任务在哪里](./quickstart.md#任务在哪里任务-worktree)。
+
 升级之前创建的 Change 按它冻结的工作流快照走完，包括旧的 `standard`、`simple`、对话和自由任务：它们沿用开工时的规则。
 
 ## 判断表

@@ -13,6 +13,7 @@ import {
   bindNativeHostCommand,
   freezeTrustedLifecycleCommands,
 } from './native-host-command-binding.js'
+import { installHostAgentsAfterSuccess } from './host-agent-install-step.js'
 import {
   hostFlag,
   isNativePipelineHost,
@@ -126,7 +127,7 @@ export function cmdUpdate(
       for (const line of decision.message) deps.io.err(line)
       return 1
     }
-    return runNativeUpdate({
+    const code = await runNativeUpdate({
       deps,
       env: lifecycleEnv,
       installer,
@@ -143,5 +144,8 @@ export function cmdUpdate(
       auto: opts.auto === true,
       fromDev: decision.fromDev,
     })
+    // 唯一的成功出口：runNativeUpdate 的每条返回 0 的路径（含「已是最新版」与收敛恢复）都到这里；安装幂等。
+    if (code === 0) installHostAgentsAfterSuccess(deps, lifecycleEnv, host, { quiet: opts.auto === true })
+    return code
   })()
 }

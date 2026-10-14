@@ -17,6 +17,7 @@ import { writeReadyDesignSystem } from '@tenon/kernel/design-system/test-support
 import {
   clearReviewMarkerFor,
   createBuildRevisionToken,
+  expectedBuildRevisionKind,
   createEffectiveSkillResolver,
   completedWorkflowSkillsSinceStepEntry,
   createFlowEngine,
@@ -40,6 +41,7 @@ import {
   resolveTenonUser,
   actorOf,
   isTenonUser,
+  listTaskWorktrees,
   stateStorageExistsSync,
   withProjectCoordinationLock,
   type BuildRevisionIdentity,
@@ -71,6 +73,7 @@ import { gitRemoteNames } from './gitRemotes.js'
 import { seedStepTestPolicy } from './integration-test-policy-support.js'
 import { agentPromptResult, agentWave, pendingRequiredTestIds } from './integration-harness-json.js'
 import { probeGitFinish } from './gitWorkspace.js'
+import { execGit } from './commands/init-worktree.js'
 import { harnessAgentDeps } from './integration-harness-agents.js'
 import { ensureCodeSizeProbeOnPath } from './integration-harness-probe.js'
 import { loadTestDirections } from './test-system/directions.js'
@@ -243,6 +246,7 @@ export function realDeps(cwd: string, out: string[], err: string[], env: NodeJS.
     // 真跑 `git remote`：临时项目不是 git 仓，与真机「本地仓库没有远端」同一口径。
     gitRemotes: () => gitRemoteNames(cwd),
     gitFinishProbe: (change) => probeGitFinish(cwd, change),
+    taskWorktrees: () => listTaskWorktrees({ repoRoot: cwd, git: execGit }),
     workspaceFingerprint: () => candidateFingerprint(cwd),
     // 临时项目不是 git 仓：登记检查的 diff 来源定桩为「没有改动」。专测全量登记强制的用例在项目里 git init，
     // 并用 TENON_TEST_REAL_DIFF=1 走真实的 git 提供者。
@@ -254,11 +258,12 @@ export function realDeps(cwd: string, out: string[], err: string[], env: NodeJS.
       diffChanges: async () => { throw new Error('临时项目读不出改动') },
     }),
     buildRevisionIdentity: async () => TEST_BUILD_REVISION_IDENTITY,
-    captureBuildRevision: async (isolation) => createBuildRevisionToken(
-      isolation === 'in-place' ? 'workspace' : 'git',
-      isolation === 'in-place' ? await candidateFingerprint(cwd) : TEST_GIT_HEAD,
-      TEST_BUILD_REVISION_IDENTITY,
-    ).value,
+    captureBuildRevision: async (isolation) => {
+      const kind = expectedBuildRevisionKind(isolation)
+      return createBuildRevisionToken(
+        kind, kind === 'workspace' ? await candidateFingerprint(cwd) : TEST_GIT_HEAD, TEST_BUILD_REVISION_IDENTITY,
+      ).value
+    },
     writeReviewMarker: (content) => writeFile(join(cwd, '.pipeline-pending-review'), content, 'utf8'),
     clearReviewMarker: (change, event) => clearReviewMarkerFor(cwd, change, event),
     pluginVersion: '0.1.0',

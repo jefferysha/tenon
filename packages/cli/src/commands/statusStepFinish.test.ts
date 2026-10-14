@@ -33,6 +33,7 @@ describe('finishActions —— 收尾提交的形状', () => {
         untrack: [],
         message: 'chore(openspec): archive demo',
       },
+      cleanup: null,
     }])
   })
 

@@ -4,14 +4,20 @@
  * refusal is asserted to leave the Change directory untouched. There is no "hide" any more.
  */
 import { execFile } from 'node:child_process'
-import { mkdir, readFile, readdir, rename, rm, stat } from 'node:fs/promises'
-import { join } from 'node:path'
+import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 import { promisify } from 'node:util'
 import { afterEach, describe, expect, it } from 'vitest'
-import { ensureHostAgentFiles, readTaskResult, type TenonUserResolution } from '@tenon/kernel'
+import {
+  effectiveAgent, hostAgentPath, loadAgentLibrary, readTaskResult, renderHostAgent,
+  type AgentDefinition, type TenonUserResolution,
+} from '@tenon/kernel'
 import { resolveServerPaths } from './paths.js'
+import { repoRootForSkills } from './serverSupport.js'
 import { createTestDashboardServer } from './test-server.js'
-import { initChange, makeProject, makeTempHome, newStore, reqDelete, reqGet, reqPost, testFlow } from './test-support.js'
+import {
+  initChange, makeProject, makeTempHome, newStore, reqDelete, reqGet, reqPost, testFlow, writeLegacyHostAgent,
+} from './test-support.js'
 import type { DashboardServer } from './types.js'
 
 const execFileAsync = promisify(execFile)
@@ -35,6 +41,7 @@ afterEach(async () => {
 
 interface Started {
   port: number
+  home: string
   root: string
   store: ReturnType<typeof newStore>
   /** Every change handed to the `openspec archive` stand-in. */
@@ -67,7 +74,7 @@ async function start(
   })
   servers.push(srv)
   const { port } = await srv.listen(0, '127.0.0.1')
-  return { port, root, store, openspecCalls }
+  return { port, home, root, store, openspecCalls }
 }
 
 async function commitAll(root: string): Promise<void> {
@@ -338,26 +345,47 @@ describe('DELETE /api/change/:name', () => {
     expect(await exists(join(h.root, 'openspec', 'changes', 'feat'))).toBe(false)
   })
 
-  it('delete and terminate also reclaim the generated host agent files nobody else uses (P2)', async () => {
+  it('delete and terminate also clean the host agent files an older version left in the project', async () => {
     const h = await start(['feat', 'other'])
-    await ensureHostAgentFiles({
-      repoRoot: h.root, host: 'claude',
-      agents: [{ name: 'x', definition: { name: 'x', description: 'd', role: 'reviewer', skills: [], tools: ['Read'], body: '\n正文\n' } }],
-    })
-    const file = join(h.root, '.claude', 'agents', 'tenon-x.md')
+    const file = join(h.root, await writeLegacyHostAgent(h.root, 'x'))
     expect(await exists(file)).toBe(true)
     const terminated = await reqPost(h.port, '/api/change/feat/terminate', { root: h.root, acknowledged: [] }, { headers: AUTH })
     expect(terminated.status).toBe(200)
     expect(await exists(file)).toBe(false)
     expect(await exists(join(h.root, '.claude'))).toBe(false)
+    expect(await exists(join(h.root, '.pipeline-owned.json'))).toBe(false)
 
-    await ensureHostAgentFiles({
-      repoRoot: h.root, host: 'claude',
-      agents: [{ name: 'y', definition: { name: 'y', description: 'd', role: 'reviewer', skills: [], tools: ['Read'], body: '\n正文\n' } }],
-    })
+    const second = join(h.root, await writeLegacyHostAgent(h.root, 'y'))
     const deleted = await reqDelete(h.port, `/api/change/other?root=${encodeURIComponent(h.root)}`, { headers: AUTH })
     expect(deleted.status).toBe(200)
-    expect(await exists(join(h.root, '.claude', 'agents', 'tenon-y.md'))).toBe(false)
+    expect(await exists(second)).toBe(false)
+  })
+
+  it('terminate removes an unlisted host agent file identical to the current library rendering, and keeps an edited one', async () => {
+    const h = await start(['feat', 'other'])
+    // 清单丢了这两项：只有「内容与当前库对应 agent 的渲染结果一致」这条依据能认出旧版本写的那个。
+    const library = await loadAgentLibrary({
+      payloadRoot: repoRootForSkills(), configRoot: resolveServerPaths({ home: h.home, env: {} }).configRoot, projectRoot: h.root,
+    })
+    const builder = effectiveAgent(library, 'builder')?.definition
+    expect(builder).toBeDefined()
+    const same = join(h.root, hostAgentPath('claude', 'builder'))
+    const edited = join(h.root, hostAgentPath('claude', 'security'))
+    await mkdir(dirname(same), { recursive: true })
+    await writeFile(same, renderHostAgent('claude', builder as AgentDefinition), 'utf8')
+    await writeFile(edited, '用户改过\n', 'utf8')
+    const terminated = await reqPost(h.port, '/api/change/feat/terminate', { root: h.root, acknowledged: [] }, { headers: AUTH })
+    expect(terminated.status).toBe(200)
+    expect(await exists(same)).toBe(false)
+    expect(await readFile(edited, 'utf8')).toBe('用户改过\n')
+  })
+
+  it('a host agent file the user edited is kept and the delete still succeeds', async () => {
+    const h = await start(['feat'])
+    const file = join(h.root, await writeLegacyHostAgent(h.root, 'x', '用户改过\n'))
+    const deleted = await reqDelete(h.port, `/api/change/feat?root=${encodeURIComponent(h.root)}`, { headers: AUTH })
+    expect(deleted.status).toBe(200)
+    expect(await readFile(file, 'utf8')).toBe('用户改过\n')
   })
 
   it('refuses an unacknowledged confirmation and a blocker without touching the directory', async () => {

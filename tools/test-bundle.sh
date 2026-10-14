@@ -18,6 +18,11 @@ set -uo pipefail
 # 经 `tenon test run` 启动时，启动器把本机真实的运行时根导出给了本脚本；它们优先于下面各处的 TENON_RUNTIME_HOME，
 # 带着它们跑 init 会把临时项目登记进真实的 projects.json。
 unset TENON_RUNTIME_ROOTS TENON_RUNTIME_DATA_ROOT TENON_RUNTIME_STATE_ROOT TENON_RUNTIME_CONFIG_ROOT
+# 在本机 Claude / Codex 会话里执行时会继承真实的宿主配置目录；用户级子代理与 AGENTS.md 都据它解析，夹具不得读写它。
+unset CLAUDE_CONFIG_DIR CODEX_HOME
+# 新任务默认建在自己的 git worktree 里；本脚本在临时目录里执行 tenon init 并断言原地的路径，统一要求原地
+# （冻结的 N-1 CLI 不认识这个变量，本来就原地建立）。
+export TENON_INIT_IN_PLACE=1
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUNDLE="$ROOT/packages/cli/dist/tenon.mjs"
 DASHBOARD_SERVER="$ROOT/packages/server/dist/dashboard.mjs"

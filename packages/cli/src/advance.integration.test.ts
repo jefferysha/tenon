@@ -89,7 +89,7 @@ describe('真实 e2e —— advance auto-transition 中间档（HITL 红线：�
     // document ledger 会正确判为 stale，掩盖本用例要覆盖的 advance 行为。
     await h.run([
       'set-many', name,
-      'build_mode=direct', 'isolation=worktree', 'direct_override=true',
+      'build_mode=direct', 'isolation=branch', 'direct_override=true',
     ])
     await armStepTests(name, 'build')
     await h.satisfyStepAgents(name)

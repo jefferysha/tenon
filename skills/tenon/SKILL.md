@@ -54,8 +54,11 @@ text(result);
 
 1. `command -v tenon`，没有就停下并给出重装提示。
 2. dispatch `intent: new` → 起一个 kebab-case 名；`intent: select` 或 `selection_required: true`
-   → 要用户给出**一对**确切的候选（名字 + 工作流），然后结束回合；`intent: resume` → 只接手
-   点名的那个任务。没有 dispatch 的手动 `/tenon`：`tenon list --json`，多于一个就问。
+   → 要用户给出**一对**确切的候选（名字 + 工作流），然后结束回合；dispatch 带 `change_candidate:` 行
+   （候选任务各建在自己的 worktree 里，`change=<名字>;worktree_path=<路径>`）时，把这些任务连同路径列给用户，
+   请用户点名其中一个，然后结束回合；`intent: resume` → 只接手点名的那个任务，dispatch 带
+   `worktree_path` 说明它建在那个 worktree 里（见第 3 步）。没有 dispatch 的手动 `/tenon`：
+   `tenon list --json`，多于一个就问（每个任务的 `worktree` 是它所在 worktree 的路径，`null` 表示就在当前目录）。
    选通道以 dispatch 为准，不自己按关键词定轻重：`track_basis: user-named` 表示 `track` 是用户在消息里
    点名的轨道，建任务时照用，不评估；`score` 是按内容评分的推测，用户另有说法以用户为准。
    dispatch 带 `assess: required` 时，`candidate: workflow=<w>;track=<t>` 各行是可选的轨道（轻量一条、
@@ -72,13 +75,21 @@ text(result);
    项目自定义的工作流只在用户点名时用，不要自己挑一个。
 3. 新建：`tenon init <c> --workflow <w> --track <t> --preset full`（用户可以点别的 preset；dispatch 的
    `track` 与 `workflow` 同名时是平铺工作流，省略 `--track`）；
-   随后 `tenon session activate <c> --host-session <host_session_id> [--continuous]`。恢复只跑同一条
+   `tenon init` 会为新任务建自己的 worktree，输出里给出它的绝对路径（文本最后两行的 `worktree: <路径>`，
+   `--json` 的 `worktree`）。先切进该路径，再 `tenon session activate <c> --host-session <host_session_id> [--continuous]`：
+   Claude Code 用 `EnterWorktree` 的 `path` 切进去，之后的命令、评审确认与 hook 都以该 worktree 为项目根；
+   Codex 没有对应能力，告诉用户在该路径开新会话继续，然后结束回合。输出里没有 worktree 路径（原地建立，
+   输出会说明原因）就直接 activate。恢复：dispatch 带 `worktree_path` 时同样先切进去（Claude Code 用
+   `EnterWorktree` 的 `path`；Codex 请用户在该路径开新会话并结束回合），再跑同一条 activate；没有就直接
    activate。`<host_session_id>` 取 dispatch 里的 `host_session_id`；dispatch 带了它就必须传，
    否则下一轮的「确认继续」认不出本会话的任务，会被当成新任务。dispatch 没有它时才省略该参数。
+   `tenon init` 可能执行测试目录声明的 `setup`（如 `npm ci`），耗时可达数分钟：执行 init 的 Bash 调用要给足
+   超时（例如 600000 ms）。超时中断的只是 `setup`，任务已经建好，用 `tenon status <c>` 确认（任务建在
+   worktree 里时，在主检出执行它的报错会给出 worktree 路径）。
    activate 会生成 `.pipeline/.gitignore`、`.tenon/.gitignore`（带 `--host-session` 时还有
    `openspec/.gitignore`）：它们只把本机状态挡在 git 外，本身是项目文件，随本任务的第一次提交一起入库。
 4. 新建或恢复之后立即重新加载 tenon（这是新的步骤访问）：第一次读 `next` 时就不会只剩一条 `load-tenon`。
-5. 用 `tenon workflow plan <c> --json` 的步骤标签建 Todo，当前项取 `current_step`。
+5. 宿主提供 Todo 工具（TaskCreate / TodoWrite）时用 `tenon workflow plan <c> --json` 的步骤标签建 Todo，当前项取 `current_step`；没有就跳过——终端步骤清单由 hook 打印。
 6. 进入循环。
 
 ## 循环
@@ -101,10 +112,10 @@ repeat:
 
 | `action` | 做什么 |
 | --- | --- |
-| `stop` | 报告 `message` 后结束。`code: rounds-exhausted`（验证轮次用完，必需测试仍失败）时，把失败的测试、剩余阻断与 `message` 里的出路摆给用户，结束回合等用户决定，不要自行选一条出路。 |
+| `stop` | 报告 `message` 后结束。`code: rounds-exhausted`（验证轮次用完，必需测试仍失败）时，把失败的测试、剩余阻断与 `message` 里的出路摆给用户，结束回合等用户决定，不要自行选一条出路。`code: finished` 且带非空 `cleanup` 时，同 `finish-change` 的 `cleanup`：原样转告用户，不要自己执行。 |
 | `load-tenon` | 重新加载本技能（Claude 用 Skill 工具；Codex 按上面的读取规则整读一次）。 |
 | `read-documents` | 逐个读完 `documents` 列出的文件，把内容读进上下文（不得丢弃输出：`cat … >/dev/null` 这类读取不算读过），再 `tenon document read <c> all`。新任务里它们是直接上游步骤的产出：本步可以改，改动会记为本步产出；升级前创建的任务里它们是已登记的输入，只有 `editable` 里的 kind 本步可以改（改完照 `next` 重新登记），需求语义变了走 `requirements-changed` 回到规格步。tasks.md 只勾当前步骤标题下的复选框。 |
-| `run-agent` | 逐项：`tenon agent prompt <c> <agent> --host <host> --json`（`<host>` 是本宿主 id：Claude Code 用 `claude`，Codex 用 `codex`；agent 声明了 `hosts` 且不含本宿主时 exit 2，照报错告诉用户，不换宿主硬跑）→ 用返回的 `subagent_type` 派发子代理跑返回的 `prompt`（Claude 用 Agent 工具；Codex 用子任务或 `codex exec`；没有子代理的宿主就在主线顺序跑）→ 把报告写到返回的 `report_path`（正文末尾一个 `tenon-result` 代码块）→ `tenon agent record <c> <run_id>`。`subagent_type` 是 `tenon-<agent>` 时，Claude Code 按该 agent 的 `tools` 白名单执行；Codex 没有按 agent 的工具白名单，只在工具里没有写或执行能力时设只读沙箱，其余限制就是 agent 正文里的指令；宿主说找不到这个子代理（会话中途才生成的），改用通用子代理跑同一份提示词，登记时加 `--subagent <实际用的类型>`。返回的 `host.run_on` 非空（`action` 里带 `host` 的评审者）时，这个评审者必须在另一个宿主上跑（跨厂商评审：Claude 写、Codex 审）：不要在本宿主里自己审；从仓库根目录执行 `run_on.command`（它读 `run_on.prompt_file`；这是另一家的 CLI，由你执行，Tenon 不会替你起），评审写完报告并登记后继续；对方登记不了 Tenon 状态时，在本宿主执行 `run_on.record`（带 `--host`）。在不符的宿主上登记会被拒（exit 2），台账里宿主不符的结论无效。`host.run_on` 为空照常派发。同一波并行。执行者的正文只做「一个 task」（如 `builder`）时，本步未勾的独立任务各起一个同类型子代理并行，提示词后面写明各自的任务；全部回来后主线合成一份报告写到 `report_path`，只 record 一次。带 `status: running` 与 `run_id` 的项是已经开始的那次运行：不要重新 prompt，等它跑完把报告写到给出的 `report_path`，再 `tenon agent record <c> <run_id>`。评审者在同一份代码（候选没变）上已经有结论时，不能靠重跑换结论：`prompt` 会 exit 2——改代码换候选后再跑；确有需要（例如上一轮提示缺上下文）加 `--rerun-reason <原因>`，原因与重跑次数会展示给用户，没写原因的同候选重跑按最严结论判定。子代理还在跑的时候，主线不要去加载会向用户提问的技能（`brainstorming`、`grilling`、`domain-modeling` 等）：它们落下的待处理交互会让主线停下等用户回复；等执行者返回、报告登记之后再加载。 |
+| `run-agent` | 逐项：`tenon agent prompt <c> <agent> --host <host> --json`（`<host>` 是本宿主 id：Claude Code 用 `claude`，Codex 用 `codex`；agent 声明了 `hosts` 且不含本宿主时 exit 2，照报错告诉用户，不换宿主硬跑）→ 用返回的 `subagent_type` 派发子代理跑返回的 `prompt`（Claude 用 Agent 工具；Codex 用子任务或 `codex exec`；没有子代理的宿主就在主线顺序跑）→ 把报告写到返回的 `report_path`（正文末尾一个 `tenon-result` 代码块）→ `tenon agent record <c> <run_id>`。`subagent_type` 是 `tenon-<agent>` 时，Claude Code 按该 agent 的 `tools` 白名单执行；Codex 没有按 agent 的工具白名单，只在工具里没有写或执行能力时设只读沙箱，其余限制就是 agent 正文里的指令；`subagent_type` 是通用类型时返回里带 `reason` 与 `hint`，照用即可并把 `hint` 转告用户；派发仍报找不到时改用通用子代理跑同一份提示词，登记时加 `--subagent <实际用的类型>`；完全没有派发、在主线顺序跑的，登记时加 `--subagent none`。返回的 `host.run_on` 非空（`action` 里带 `host` 的评审者）时，这个评审者必须在另一个宿主上跑（跨厂商评审：Claude 写、Codex 审）：不要在本宿主里自己审；从仓库根目录执行 `run_on.command`（它读 `run_on.prompt_file`；这是另一家的 CLI，由你执行，Tenon 不会替你起），评审写完报告并登记后继续；对方登记不了 Tenon 状态时，在本宿主执行 `run_on.record`（带 `--host`）。在不符的宿主上登记会被拒（exit 2），台账里宿主不符的结论无效。`host.run_on` 为空照常派发。同一波并行。执行者的正文只做「一个 task」（如 `builder`）时，本步未勾的独立任务各起一个同类型子代理并行，提示词后面写明各自的任务；全部回来后主线合成一份报告写到 `report_path`，只 record 一次。带 `status: running` 与 `run_id` 的项是已经开始的那次运行：不要重新 prompt，等它跑完把报告写到给出的 `report_path`，再 `tenon agent record <c> <run_id>`。评审者在同一份代码（候选没变）上已经有结论时，不能靠重跑换结论：`prompt` 会 exit 2——改代码换候选后再跑；确有需要（例如上一轮提示缺上下文）加 `--rerun-reason <原因>`，原因与重跑次数会展示给用户，没写原因的同候选重跑按最严结论判定。子代理还在跑的时候，主线不要去加载会向用户提问的技能（`brainstorming`、`grilling`、`domain-modeling` 等）：它们落下的待处理交互会让主线停下等用户回复；等执行者返回、报告登记之后再加载。 |
 | `load-skill` | 加载本波每个技能，按下面的「上游技能怎么用」执行。带 `review_bar` 时按下面的「下一步评审口径」审查。 |
 | `scaffold-document` | 只出现在升级前创建的任务：文件不存在时先 `tenon document scaffold <c> <kind> [--capability <cap>]`，再动笔写内容：骨架里的 `[待填写…]` / `[pending…]` 占位要全部替换成真内容，留着占位符登记会被拒。`tenon step run <c>` 会替你铺。 |
 | `record-document` | 只出现在升级前创建的任务：`tenon document record <c> <kind> <path> --producer <producer>`；本步有好几份文档都写好了，用 `tenon document record <c> --all` 一次登记（没写完的它会列出并跳过）。 |
@@ -126,7 +137,7 @@ repeat:
 | `choose-exit` | 按下面的「出口」挑一条边。 |
 | `transition` | `tenon transition <c> <event>`。带 `escalate` 的 `transition`（`event: scope-expanded`）是风险升级：改动风险探针没通过，`escalate.reasons` 是被突破的阈值——照做这条转换（它不要求其余证据），然后照 `escalate.then` 新建重型轨道任务并 `tenon set <新任务> depends_on <本任务>`（`then` 直接给出 `tenon init …` 命令；它没有领域、只列出可选轨道时，把可选项摆给用户选一个再建）；不要为了让探针通过去拆改动或藏文件。当 `next` 里只剩这一条 `transition` 时直接执行，不问用户，interactive 也一样（不等「继续」，不给「升级 / 调探针阈值 / 不走流程」这类选择题）：执行前用一句话告诉用户为什么升级（`escalate.reasons`）、接下来要做什么，然后动手。 |
 | `complete` | `tenon transition <c> <event>`——走完终态自边，状态机到此结束。归档由下一条 `finish-change` 单独下发，不要在这里抢跑 `tenon task finish`。 |
-| `finish-change` | `command` 不是 `null` 时照原样跑（`tenon task finish <c>`）：Tenon 把 change 目录搬进 `openspec/changes/archive/` 并记下任务结果，不要自己执行 `openspec` 命令。`commit` 不是 `null` 时再提交：`git add -A -- <commit.paths…>`；`commit.untrack` 非空时接着 `git rm --cached -q --ignore-unmatch -- <commit.untrack…>`；最后 `git commit -m "<commit.message>"`。paths / untrack 原样用、不增不减（宿主不让写 `.git` 时如实告诉用户这一步留给他，不要说已提交）；`commit` 为 `null`（不是 git 仓）就不提交。 |
+| `finish-change` | `command` 不是 `null` 时照原样跑（`tenon task finish <c>`）：Tenon 把 change 目录搬进 `openspec/changes/archive/` 并记下任务结果，不要自己执行 `openspec` 命令。`commit` 不是 `null` 时再提交：`git add -A -- <commit.paths…>`；`commit.untrack` 非空时接着 `git rm --cached -q --ignore-unmatch -- <commit.untrack…>`；最后 `git commit -m "<commit.message>"`。paths / untrack 原样用、不增不减（宿主不让写 `.git` 时如实告诉用户这一步留给他，不要说已提交）；`commit` 为 `null`（不是 git 仓）就不提交。`cleanup` 不是 `null`（任务建在 worktree 里）时，把它原样转告用户：这是清理 worktree 与分支的命令，要在主检出里执行（不能在要删的 worktree 里执行），由用户自己决定何时执行，不要自己执行。 |
 
 ## 决定、字段、出口
 
@@ -144,8 +155,12 @@ repeat:
   提交入库）；不干净就照实列出。`transition` 自己还会改 change 目录里的状态文件（`.pipeline.yaml`、
   `.pipeline-history.jsonl` 等），之后暂停时说「只剩流转写下的状态文件未提交，完结时由 `finish-change`
   提交」——不要说工作区是干净的。
-- 不要自己建分支或 worktree。提交只照 `next` 的 `commit` / `finish-change` 做（交付步在交付值之前
-  点名提交交付物，完结后点名提交归档），`next` 没点名就不提交；技能自带的提交步骤同样不做。
+- worktree 由 `tenon init` 建，不要自己另建分支或 worktree；用户明确要求原地时才给 `tenon init` 传
+  `--in-place`。worktree 任务的 `isolation` 已由 init 设为 `worktree`；原地建立的任务（`tenon init`
+  输出说明了原地原因，或用户要求 `--in-place`）`isolation` 没有预设，build 问到 `isolation` 时设
+  `in-place`，不要设 `worktree` 或 `branch`。提交只照 `next` 的
+  `commit` / `finish-change` 做（交付步在交付值之前点名提交交付物，完结后点名提交归档），`next` 没点名
+  就不提交；技能自带的提交步骤同样不做。
 - 出口：`ready` 的前进边直接走；回退边只在它的含义成立时走（必需测试或评审者不通过 → 回到实现
   的那条边；已确认的需求变了 → 回到规格的那条边）。受轮次上限约束的评审步（评审门且有回退边）上，
   轮次还没用完时走回退边不需要评审回执：`next` 会直接给 `transition`，任何模式都直接走，用一句话

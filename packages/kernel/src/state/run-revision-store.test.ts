@@ -256,6 +256,48 @@ describe('G1 canonical revision 对抗校验', () => {
     expect(await store.get(dir, 'max_rounds')).toBe('')
   })
 
+  test('start_sha 没记录时不进 canonical wire 与 YAML projection：升级前的任务逐字节不变，缺这个键的历史 wire 读成空串', async () => {
+    const { dir } = await fresh()
+    const store = createStateStore()
+    const currentPath = join(dir, '.pipeline-run', 'current.json')
+    const before = await readFile(currentPath, 'utf8')
+    const current = JSON.parse(before) as { state: { fields: Record<string, unknown> } }
+    expect(current.state.fields).not.toHaveProperty('start_sha')
+    expect(await readFile(join(dir, '.pipeline.yaml'), 'utf8')).not.toContain('start_sha')
+
+    expect((await store.read(dir)).fields.start_sha).toBe('')
+    expect(parseRunRevision(before, 'current').state.fields.start_sha).toBe('')
+    expect(await store.inspectProjection(dir)).toMatchObject({ status: 'current' })
+
+    await store.set(dir, 'scope', 'unrelated')
+    const after = JSON.parse(await readFile(currentPath, 'utf8')) as { state: { fields: Record<string, unknown> } }
+    expect(after.state.fields).not.toHaveProperty('start_sha')
+    expect(await readFile(join(dir, '.pipeline.yaml'), 'utf8')).not.toContain('start_sha')
+  })
+
+  test('建任务时记下 start_sha：逻辑值读回一致，物理值在伴随文件里——不进 canonical wire 与 YAML projection，后续无关写入不丢', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'pl-run-revision-'))
+    roots.push(root)
+    const sha = 'ab'.repeat(20)
+    const store = createStateStore()
+    const dir = await store.init({
+      repoRoot: root, name: 'demo', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock,
+      runId: 'run-1', startSha: sha,
+    })
+    const currentPath = join(dir, '.pipeline-run', 'current.json')
+    const wire = JSON.parse(await readFile(currentPath, 'utf8')) as { state: { fields: Record<string, unknown> } }
+    expect(wire.state.fields).not.toHaveProperty('start_sha')
+    expect(await readFile(join(dir, '.pipeline.yaml'), 'utf8')).not.toContain('start_sha')
+    expect(await readdir(join(dir, '.pipeline-run', 'start-sha'))).toHaveLength(1)
+    expect(await store.inspectProjection(dir)).toMatchObject({ status: 'current' })
+    expect(await store.get(dir, 'start_sha')).toBe(sha)
+
+    await store.set(dir, 'scope', 'unrelated')
+    expect((await store.read(dir)).fields.start_sha).toBe(sha)
+    expect(await readdir(join(dir, '.pipeline-run', 'start-sha'))).toHaveLength(2)
+    expect(await store.inspectProjection(dir)).toMatchObject({ status: 'current' })
+  })
+
   test('domain 随 init 的独占创建一次写入 canonical wire 与 YAML projection（FIELD_ORDER 末尾）；没给时两处都没有这个键', async () => {
     const withDomain = await createStateStore().init({
       repoRoot: (await fresh()).root, name: 'lite-task', track: 'lite', domain: 'backend', reviewSeed: 'pending',

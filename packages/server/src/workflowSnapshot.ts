@@ -4,6 +4,7 @@ import {
   compileWorkflow,
   evaluateWorkflowAction,
   evaluateSpecMigrationEvidence,
+  expectedBuildRevisionKind,
   loadWorkflow,
   readinessByTransition,
   stepExitTransitions,
@@ -289,7 +290,7 @@ export async function snapshotWorkflowExecution(
   const assessBuildRevision = deps.assessBuildRevision ?? (async (request) => {
     const identity = await probeBuildRevisionIdentity(deps.childProcessRoot ?? root)
     const observe = async () => {
-      const kind = request.isolation === 'in-place' ? 'workspace' as const : 'git' as const
+      const kind = expectedBuildRevisionKind(request.isolation)
       const revision = kind === 'workspace'
         ? await workspaceFingerprint?.(root, changeName) ?? ''
         : await gitHeadSha?.(root) ?? ''

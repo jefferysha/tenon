@@ -74,30 +74,99 @@ tenon agent export <name> --host claude|codex
 - 官方这一层在文字输出和 `--source official` 里叫「官方 / official」；`--json` 与 `GET /api/agents` 里机器可读的值是
   `source: "builtin"`（`--source builtin` 作为别名同样接受）。脚本请按 `builtin` 比较。
 - `rm` 拒绝删除官方智能体和仍被工作流步骤引用的智能体，并列出这些步骤（exit 2）。
+- `new`、`add`、`copy`、`rm` 只改库，不写任何宿主子代理文件，只打印提醒：执行 `tenon agent install` 并开新会话；见
+  [宿主子代理与安装命令](#宿主子代理与安装命令)。
 - 在 Claude Code 或 Codex 里，`tenon:agent-author` 技能按你的描述起草正文（职责、只做与不做、方法、
   自检、带 `tenon-result` 块的报告格式），校验草稿后用 `tenon agent add` 登记；它不写任何 Tenon 状态。
 
-## 宿主原生文件
+## 宿主子代理与安装命令
 
-任务冻结智能体时（`tenon init`，或第一次 `tenon agent prompt --host <host>`），Tenon 为当前宿主生成
-原生子代理文件：
+任务把自己的智能体当作宿主子代理来跑。专属的 `tenon-<name>` 子代理文件只在终端里写一次、写到用户级目录；会话里运行的
+Tenon 命令一概不写它们。会话中途新增的子代理文件什么时候被宿主加载没有保证，只有会话启动前就存在的文件才可靠。
+
+```text
+tenon agent install [--host claude|codex]
+tenon agent uninstall [--host claude|codex]
+```
 
 | 宿主 | 文件 | 字段 |
 | --- | --- | --- |
-| Claude Code | `.claude/agents/tenon-<name>.md` | name、description、tools、model |
-| Codex | `.codex/agents/tenon-<name>.toml` | name、description、developer_instructions、model；工具既不能写也不能跑命令时加 `sandbox_mode = "read-only"` |
+| Claude Code | `<Claude 配置目录>/agents/tenon-<name>.md` | name、description、tools、model |
+| Codex | `<Codex 配置目录>/agents/tenon-<name>.toml` | name、description、developer_instructions、model；工具既不能写也不能跑命令时加 `sandbox_mode = "read-only"` |
 
-- `tenon agent prompt <change> <agent> --host claude|codex --json` 返回 `subagent_type: tenon-<name>`，
-  宿主用这个专属子代理执行。Claude Code 强制执行 `tools` 白名单；Codex 的自定义智能体没有按 agent 的工具白名单，
-  Tenon 只在 agent 的工具里没有写文件或执行命令的能力时设 `sandbox_mode = "read-only"`，其余限制只是 agent 正文里的
-  指令。宿主不提供的工具（例如部分无头运行里的 `Grep`）会回答 `No such tool available`，agent 改用 shell 里的等价命令。
-  宿主不认识的型号别名直接省略。
-- 生成不了时（同名文件不是 Tenon 写的、文件被你改过、路径是符号链接），宿主退回通用子代理，运行记录里
-  写明。宿主加载不了给它的子代理时，用 `tenon agent record <change> <run-id> --subagent <type>` 记下实际
-  用的类型。
-- 每条运行记录都带 `subagent: { host, type, native }`。
-- 这些文件连同内容摘要记在项目的 `.pipeline-owned.json`。任务走到终点时，Tenon 删除其它在途任务都不再
-  使用的文件；`tenon uninstall` 只删它生成且你没改过的文件。它们不进交付提交，也不改变评审候选。
+配置目录：Claude Code 取 `$CLAUDE_CONFIG_DIR`、Codex 取 `$CODEX_HOME`，值是绝对路径时才采用（首尾空白与末尾斜杠会去掉；相对路径或空值不采用）；
+没设时分别是 `~/.claude`、`~/.codex`。宿主只读自己配置目录下的子代理，所以安装、卸载与 `tenon agent prompt` 的判定都按执行该命令的进程环境
+用同一个方式解析出这个目录。
+
+- **在宿主启动时的环境里安装。** 如果你的 Claude Code / Codex 是带着 `CLAUDE_CONFIG_DIR` / `CODEX_HOME` 启动的，安装也要在带同样变量的环境里执行，
+  否则文件落到 `~/.claude/agents`，宿主看不到。`tenon agent install` 与 `uninstall` 输出的第一行 `目标目录：<dir>` 告诉你装到了哪里；
+  在会话里可以用 `!` 前缀执行，例如 `! tenon agent install --host claude`，它用的就是会话的环境。
+- 所有权按目标子代理目录分别记录：在一个配置目录上安装或卸载，不会删除、改写或认领另一个目录里 Tenon 写的文件
+  （例如同一台机器上的 `~/.claude/agents` 与 `$CLAUDE_CONFIG_DIR/agents`）。
+- `tenon agent install` 把适用于该宿主的全部官方与自定义智能体渲染成上面的文件（`hosts` 列表不含该宿主的智能体跳过）。
+  项目层智能体（`.tenon/agents/`）从不安装，所以在哪个目录执行结果都一样。`--host` 缺省取进程环境判出的宿主，
+  普通终端里是 `claude`。
+- `tenon setup --claude|--codex` 与 `tenon update --claude|--codex` 成功后会执行同一套安装（`update` 发现已是最新版时也执行，
+  安装是幂等的），并把写了哪些文件打印出来。安装失败只给 WARN：`setup` / `update` 的退出码不变，你可以自己再执行
+  `tenon agent install --host <host>`。`--dry-run` 不安装；每天一次的自动更新（`--auto`）只在安装失败时出声。
+- **装完要开新会话。** 宿主在会话启动时加载子代理文件；安装命令和 `tenon agent new|add|copy|rm` 都会提醒这一点。这四条库命令
+  只改库、不写任何宿主文件，只打印「执行 `tenon agent install` 并开新会话」的提示（项目层智能体另说明它不安装宿主文件）。
+- 文件只在安全时才写：它还不存在；内容已经和渲染结果完全一样（Tenon 补记它归自己）；或 Tenon 之前写过、此后没人改过。同名但归你的文件、
+  或你改过的文件原样不动，列成 `WARN`；目标文件本身是符号链接则拒绝写（父目录是符号链接，例如 dotfiles 管理的 `~/.claude`，没有问题）。
+  智能体已不在库里时，它的文件如果是 Tenon 写的且没被改过就删除；条目还在库里、只是加载不了（文件解析失败或读不出来）的不算「已删除」，
+  它已装的文件既不改写也不删除；库里一个可用的智能体都没有（库读不出来）时，一个文件也不删，并给 `WARN` 说明。所有权按文件记内容摘要，存在 `<config>/agents/host-owned.json`，按写入的子代理目录分组；
+  这个文件解析不了时，已有文件一律不改不删，只写还不存在的文件，并在输出里说明。
+- `tenon agent uninstall [--host claude|codex]` 删除 Tenon 写入且没被改过的用户级文件；改过的保留，在结果里列为 `modified`。
+  `tenon uninstall` 作用于项目的 `.pipeline-owned.json`，不碰这些用户级文件，想清掉它们请先执行
+  `tenon agent uninstall --host <host>`。
+
+### 派发：`tenon agent prompt` 返回什么
+
+`tenon agent prompt <change> <agent> --host claude|codex --json` 不写任何宿主文件。它按任务冻结的定义为该宿主渲染期望内容，
+与已安装的文件比较；只有用户级文件存在且逐字节一致、并且项目里没有内容不同的同名文件（`.claude/agents/tenon-<name>.md` 或
+`.codex/agents/tenon-<name>.toml`）时，才返回 `subagent_type: tenon-<name>` 与 `native: true`——项目级文件的优先级高于用户级，
+会把它遮住。在任务 worktree 里判定时，当前根与主检出两处都会检查，因为从主检出启动的会话会加载留在那里的文件。
+
+专属子代理里，Claude Code 强制执行 `tools` 白名单；Codex 的自定义智能体没有按 agent 的工具白名单，Tenon 只在 agent 的工具里没有写文件或
+执行命令的能力时设 `sandbox_mode = "read-only"`，其余限制只是 agent 正文里的指令。宿主不提供的工具（例如部分无头运行里的 `Grep`）会回答
+`No such tool available`，agent 改用 shell 里的等价命令。宿主不认识的型号别名直接省略。
+
+其余情况返回宿主的通用子代理（Claude Code 是 `general-purpose`，Codex 是 `default`），`native: false`，并带 `reason` 与 `hint`；
+专属子代理、或检测不到宿主时这两项都是 `null`。
+
+| `reason` | 含义 | 怎么办 |
+| --- | --- | --- |
+| `not-installed` | 这个智能体没有用户级文件 | `tenon agent install --host <host>`，再开新会话 |
+| `definition-mismatch` | 文件存在但与任务冻结的定义不一致：文件安装之后库或智能体变了，或你改过文件 | 重新安装并开新会话（你改过的文件会被保留并列出，删掉它安装才会重写）。任务沿用它冻结的定义，所以冻结了旧版本的任务会留在通用子代理上，而不是悄悄换成新版本 |
+| `shadowed` | 项目里有内容不同的同名 `tenon-<name>` 文件，优先级高于用户级文件 | 移除或修正项目里的那个文件（多半是旧版本留下的，见[旧版本留在项目里的文件](#旧版本留在项目里的文件)） |
+| `project-agent` | 智能体来自项目层（`.tenon/agents/`），Tenon 不为它安装宿主文件 | 无需处理：项目层智能体一律走通用子代理 |
+
+`hint` 是一行中文，不随 `TENON_LANG` 变化：`执行 tenon agent install --host <host> 后开新会话生效（目标目录 <dir>；设了 CLAUDE_CONFIG_DIR / CODEX_HOME 时要在带同样变量的环境里执行，例如会话里用 ! 前缀）`。
+其中 `<dir>` 是 `prompt` 检查的用户级子代理目录，按会话环境里的 `CLAUDE_CONFIG_DIR` / `CODEX_HOME` 解析；它与你安装的位置不同，就是 `not-installed` 的原因。
+四个原因给出的是同一句；`shadowed` 与 `project-agent` 时安装并不会改变结果。
+
+`tenon` 技能照返回的 `subagent_type` 派发，并把 `hint` 转告你。宿主仍报找不到该子代理（例如就在这个会话里刚装的），技能改用通用子代理跑同一份
+提示词，并用 `tenon agent record <change> <run-id> --subagent <type>` 记下实际用的类型。完全没有派发子代理、工作在主线里跑完时，登记用
+`--subagent none`，运行记录随之读作 `subagent: { host, type: "none", native: false, reason: "not-dispatched" }`。`not-dispatched` 是只在登记时出现的
+原因，由登记者如实写下，`agent prompt` 永远不会返回它。
+
+- 每条运行记录都带 `subagent: { host, type, native }`，没有用专属子代理时另有 `reason`。`--subagent <type>` 对通用类型保留 `prompt` 给出的
+  `reason`，实际用的是专属 `tenon-<name>` 时则去掉。
+- `reason` 存放在台账旁边的运行旁注 `.pipeline-agent-run-meta.jsonl` 里（字段 `subagent_reason`），读取记录时再合并回来。台账行本身的 `subagent` 仍是
+  三个键，所以本次变更之前发布的运行时照常读得了台账。
+
+### 旧版本留在项目里的文件
+
+旧版本在任务冻结智能体时，会把 `.claude/agents/tenon-<name>.md` 和 `.codex/agents/tenon-<name>.toml` 写进项目。项目级文件的优先级高于
+用户级，留下的旧文件会遮住你新装的那份，所以 Tenon 会清理它们，并且不再写新的：
+
+- 什么时候：`tenon init` 时，以及任务完结（`archived`）、终止或删除时（CLI 与 Dashboard 都一样）；
+- 删哪些：项目的 `.pipeline-owned.json` 记着该文件且内容仍与记录的摘要一致的，或者内容与当前库为该智能体渲染的结果完全一致的
+  （CLI 与 Dashboard 用同样两条规则）。读不到库时给一条 `WARN`，只按第一条规则删。同时移除 `.pipeline-owned.json` 里对应的条目；
+  路径上有符号链接的不删；
+- 其余一律保留，并用 `WARN` 点名文件：被改过的、两条规则都不符合的、读不了的。确认不需要之后请自己手动删除；
+- 在任务 worktree 里执行时，清理的对象是主检出，旧文件与 `.pipeline-owned.json` 都在那里；
+- 清理尽力而为：失败只给 WARN，不改变 `init`、完结、终止、删除的退出码。
 
 ## 在工作流里使用
 
@@ -123,6 +192,10 @@ agents:
 `files_changed`、`lines_added`、`lines_deleted`、`largest_added_lines` 的实测值，按数值和改动性质判断规模是否合理（生成产物、批量迁移本来就大）；
 默认测试不设行数上限，项目在工作流里给该测试写了 `pass.metrics` 上限时以它为准。见
 [默认工作流](default-workflow.md) 与 [自定义工作流](custom-workflows-and-tracks.md)。
+
+智能体声明的技能（它文件里的 `skills:`）只能在该智能体运行期间加载。所以退回边——用来回头修问题的那条路，例如验证的 `verify-fail`、
+实现的 `requirements-changed`——不要求本步声明的智能体的技能，你不必为了退回去先开始一次 builder。主线自己加载的技能在退回边上仍然要求，
+前进边则照旧要求全部。`tenon status`、`tenon check` 与 Dashboard 的流转用的是同一条规则。
 
 ## 跨厂商评审
 

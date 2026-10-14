@@ -15,6 +15,7 @@ import {
   enqueueAfkRun,
   retryAfkRun,
 } from './afk.js'
+import { hostAgentLibraryReaderOf } from './hostAgentPrune.js'
 import { validateSecretWriteBody, writeSecret } from './secrets.js'
 import { resolveTrackPolicyFor } from './trackPolicy.js'
 import { performTransition } from './transition.js'
@@ -231,6 +232,7 @@ export async function handlePostExecutionRoutes(
         history,
         breadcrumb,
         resolveUser: deps.resolveUser,
+        hostAgentLibrary: hostAgentLibraryReaderOf(paths),
         // 规格完成后是否自动入队，读任务自己冻结的快照里该轨道的 automation 设置（旧引擎的 default 任务
         // 按旧策略表），不靠 track id 写死 PM；转换里的轨道也由内核按同一份快照解析，宿主无需注入。
         resolveTrackPolicy: await resolveTrackPolicyFor(store, root, name),

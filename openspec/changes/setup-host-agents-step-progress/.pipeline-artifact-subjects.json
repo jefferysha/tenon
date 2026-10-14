@@ -1,0 +1,248 @@
+{
+  "version": 1,
+  "records": [
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-setup-host-agents-step-progress-0e9cdb86801b:71a461ba875898ce7a5faa0c37dcd38b",
+        "namespace": "change-setup-host-agents-step-progress-0e9cdb86801b",
+        "version": "sha256:836ab8ec710725f7378bccf5640a48a13a10de6b4d4a143c63a1fb36b80c3e8e",
+        "projection": "field",
+        "content_digest": "sha256:836ab8ec710725f7378bccf5640a48a13a10de6b4d4a143c63a1fb36b80c3e8e",
+        "source": {
+          "path": "../../../docs/superpowers/specs/setup-host-agents-step-progress-design.md",
+          "document_kind": "superpower-design",
+          "field": "design_doc"
+        }
+      },
+      "logicalKey": "field:design_doc",
+      "projection": "field",
+      "path": "../../../docs/superpowers/specs/setup-host-agents-step-progress-design.md",
+      "field": "design_doc",
+      "status": "committed",
+      "receiptId": "submission:change-setup-host-agents-step-progress-0e9cdb86801b:field:2c70108e623d859f84d45e38e0780238",
+      "recordedAt": "2026-10-07T10:19:11.905Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-setup-host-agents-step-progress-0e9cdb86801b:7b88c50b7f7600be65dd21069826837f",
+        "namespace": "change-setup-host-agents-step-progress-0e9cdb86801b",
+        "version": "sha256:a02a3710e0144ddd2e01085600b29b0b3de98988f74b5d3009cba63ac52ffbf2",
+        "projection": "field",
+        "content_digest": "sha256:a02a3710e0144ddd2e01085600b29b0b3de98988f74b5d3009cba63ac52ffbf2",
+        "source": {
+          "path": "../../../docs/superpowers/plans/setup-host-agents-step-progress.md",
+          "document_kind": "superpower-plan",
+          "field": "plan"
+        }
+      },
+      "logicalKey": "field:plan",
+      "projection": "field",
+      "path": "../../../docs/superpowers/plans/setup-host-agents-step-progress.md",
+      "field": "plan",
+      "status": "committed",
+      "receiptId": "submission:change-setup-host-agents-step-progress-0e9cdb86801b:field:bcefee8c4f7c9991a0a59b6103c71a72",
+      "recordedAt": "2026-10-07T10:26:00.540Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-setup-host-agents-step-progress-0e9cdb86801b:5cb5769ae096238f40a276996749fdd6",
+        "namespace": "change-setup-host-agents-step-progress-0e9cdb86801b",
+        "version": "sha256:12eea6f0e7cd3e8d9462ce6d14746c1f2ec49063372ffd28466530cee84bb11b",
+        "projection": "field",
+        "content_digest": "sha256:12eea6f0e7cd3e8d9462ce6d14746c1f2ec49063372ffd28466530cee84bb11b",
+        "source": {
+          "path": "../../../docs/superpowers/reports/setup-host-agents-step-progress-verify.md",
+          "document_kind": "verification-report",
+          "field": "verification_report"
+        }
+      },
+      "logicalKey": "field:verification_report",
+      "projection": "field",
+      "path": "../../../docs/superpowers/reports/setup-host-agents-step-progress-verify.md",
+      "field": "verification_report",
+      "status": "committed",
+      "receiptId": "submission:change-setup-host-agents-step-progress-0e9cdb86801b:field:7babd00243187fc2a41eb9d24274beff",
+      "recordedAt": "2026-10-11T08:32:47.282Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-setup-host-agents-step-progress-0e9cdb86801b:7e0423e5a6d886e7c07d0bee44059e17",
+        "namespace": "change-setup-host-agents-step-progress-0e9cdb86801b",
+        "version": "sha256:dbb92d63fcd17dd120da56ed4de192947895ab560cd3c39cf25fabae72d3fdc7",
+        "projection": "document",
+        "content_digest": "sha256:dbb92d63fcd17dd120da56ed4de192947895ab560cd3c39cf25fabae72d3fdc7",
+        "source": {
+          "path": "specs/effective-workflow-plan/spec.md",
+          "document_kind": "delta-spec"
+        }
+      },
+      "logicalKey": "document:delta-spec",
+      "projection": "document",
+      "path": "specs/effective-workflow-plan/spec.md",
+      "documentKind": "delta-spec",
+      "status": "committed",
+      "receiptId": "submission:change-setup-host-agents-step-progress-0e9cdb86801b:document:cb588cb769d8f3e42aeeb8baadc0003e",
+      "recordedAt": "2026-10-11T16:06:08Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-setup-host-agents-step-progress-0e9cdb86801b:7b88c50b7f7600be65dd21069826837f",
+        "namespace": "change-setup-host-agents-step-progress-0e9cdb86801b",
+        "version": "sha256:d8f7e6e91e93aa2364b8da3cd84aca0949aa3d9885f5c9f5e7547900b42cd961",
+        "projection": "document",
+        "content_digest": "sha256:d8f7e6e91e93aa2364b8da3cd84aca0949aa3d9885f5c9f5e7547900b42cd961",
+        "source": {
+          "path": "../../../docs/superpowers/plans/setup-host-agents-step-progress.md",
+          "document_kind": "superpower-plan"
+        }
+      },
+      "logicalKey": "document:superpower-plan",
+      "projection": "document",
+      "path": "../../../docs/superpowers/plans/setup-host-agents-step-progress.md",
+      "documentKind": "superpower-plan",
+      "status": "committed",
+      "receiptId": "submission:change-setup-host-agents-step-progress-0e9cdb86801b:document:660e74b73695a0d42d9c7999cd671555",
+      "recordedAt": "2026-10-11T16:07:49Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-setup-host-agents-step-progress-0e9cdb86801b:7b88c50b7f7600be65dd21069826837f",
+        "namespace": "change-setup-host-agents-step-progress-0e9cdb86801b",
+        "version": "sha256:d8f7e6e91e93aa2364b8da3cd84aca0949aa3d9885f5c9f5e7547900b42cd961",
+        "projection": "document",
+        "content_digest": "sha256:d8f7e6e91e93aa2364b8da3cd84aca0949aa3d9885f5c9f5e7547900b42cd961",
+        "source": {
+          "path": "../../../docs/superpowers/plans/setup-host-agents-step-progress.md",
+          "document_kind": "plan"
+        }
+      },
+      "logicalKey": "document:plan",
+      "projection": "document",
+      "path": "../../../docs/superpowers/plans/setup-host-agents-step-progress.md",
+      "documentKind": "plan",
+      "status": "committed",
+      "receiptId": "submission:change-setup-host-agents-step-progress-0e9cdb86801b:document:cdd727d4071a9df9cf9775191595ae0f",
+      "recordedAt": "2026-10-11T16:07:49Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-setup-host-agents-step-progress-0e9cdb86801b:dc3bb4b811a4bdc1240ece1aa40d178c",
+        "namespace": "change-setup-host-agents-step-progress-0e9cdb86801b",
+        "version": "sha256:635c3d620d34e0e6adb2485d850ad4180c66eb7a7d9026f09b39d05f97f354d8",
+        "projection": "document",
+        "content_digest": "sha256:635c3d620d34e0e6adb2485d850ad4180c66eb7a7d9026f09b39d05f97f354d8",
+        "source": {
+          "path": "proposal.md",
+          "document_kind": "proposal"
+        }
+      },
+      "logicalKey": "document:proposal",
+      "projection": "document",
+      "path": "proposal.md",
+      "documentKind": "proposal",
+      "status": "committed",
+      "receiptId": "submission:change-setup-host-agents-step-progress-0e9cdb86801b:document:bf15fc96d8e686217eb1f36fe69612f7",
+      "recordedAt": "2026-10-11T16:07:51Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-setup-host-agents-step-progress-0e9cdb86801b:eded7b3b065515df4758671b55e2b4cb",
+        "namespace": "change-setup-host-agents-step-progress-0e9cdb86801b",
+        "version": "sha256:23e109d662c38b5ac53bb437588576fae207de490d49fa4704d9d4fd840c574f",
+        "projection": "document",
+        "content_digest": "sha256:23e109d662c38b5ac53bb437588576fae207de490d49fa4704d9d4fd840c574f",
+        "source": {
+          "path": "design.md",
+          "document_kind": "openspec-design"
+        }
+      },
+      "logicalKey": "document:openspec-design",
+      "projection": "document",
+      "path": "design.md",
+      "documentKind": "openspec-design",
+      "status": "committed",
+      "receiptId": "submission:change-setup-host-agents-step-progress-0e9cdb86801b:document:6551d8927377ff88e8d8b7cb9d700ba9",
+      "recordedAt": "2026-10-11T16:07:51Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-setup-host-agents-step-progress-0e9cdb86801b:71a461ba875898ce7a5faa0c37dcd38b",
+        "namespace": "change-setup-host-agents-step-progress-0e9cdb86801b",
+        "version": "sha256:6cda3006daa5384347e0c32072fc567fc1421685cbb42efdf39b48a7c733ac1e",
+        "projection": "document",
+        "content_digest": "sha256:6cda3006daa5384347e0c32072fc567fc1421685cbb42efdf39b48a7c733ac1e",
+        "source": {
+          "path": "../../../docs/superpowers/specs/setup-host-agents-step-progress-design.md",
+          "document_kind": "superpower-design"
+        }
+      },
+      "logicalKey": "document:superpower-design",
+      "projection": "document",
+      "path": "../../../docs/superpowers/specs/setup-host-agents-step-progress-design.md",
+      "documentKind": "superpower-design",
+      "status": "committed",
+      "receiptId": "submission:change-setup-host-agents-step-progress-0e9cdb86801b:document:1093f5c4c0dd7d9ee196c15fd0f2c11d",
+      "recordedAt": "2026-10-11T16:07:52Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-setup-host-agents-step-progress-0e9cdb86801b:9fe4e854b801695af018910ef9aee7c9",
+        "namespace": "change-setup-host-agents-step-progress-0e9cdb86801b",
+        "version": "sha256:8c63b2bb7db72dfd067c8d03695ec9a0c2a8782f200146df08e0803dd89fba7d",
+        "projection": "document",
+        "content_digest": "sha256:8c63b2bb7db72dfd067c8d03695ec9a0c2a8782f200146df08e0803dd89fba7d",
+        "source": {
+          "path": "../../../docs/adr/setup-host-agents-step-progress.md",
+          "document_kind": "adr"
+        }
+      },
+      "logicalKey": "document:adr",
+      "projection": "document",
+      "path": "../../../docs/adr/setup-host-agents-step-progress.md",
+      "documentKind": "adr",
+      "status": "committed",
+      "receiptId": "submission:change-setup-host-agents-step-progress-0e9cdb86801b:document:bcd2a546a518cf153c7c47d14d10be29",
+      "recordedAt": "2026-10-11T16:07:53Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-setup-host-agents-step-progress-0e9cdb86801b:d412e9352f9a59ced1309032a5ce8ee8",
+        "namespace": "change-setup-host-agents-step-progress-0e9cdb86801b",
+        "version": "sha256:52b21aab36cfb5ba808bd7674889302e7617d1914cee8e80e8f5390c106c595d",
+        "projection": "document",
+        "content_digest": "sha256:52b21aab36cfb5ba808bd7674889302e7617d1914cee8e80e8f5390c106c595d",
+        "source": {
+          "path": "tasks.md",
+          "document_kind": "tasks"
+        }
+      },
+      "logicalKey": "document:tasks",
+      "projection": "document",
+      "path": "tasks.md",
+      "documentKind": "tasks",
+      "status": "committed",
+      "receiptId": "submission:change-setup-host-agents-step-progress-0e9cdb86801b:document:9fd98c78c1d6b051ab64938608074984",
+      "recordedAt": "2026-10-12T00:28:55Z"
+    },
+    {
+      "subjectRef": {
+        "subject_id": "subject:change-setup-host-agents-step-progress-0e9cdb86801b:5cb5769ae096238f40a276996749fdd6",
+        "namespace": "change-setup-host-agents-step-progress-0e9cdb86801b",
+        "version": "sha256:b51e353df95d07b4a93b1c330dc4c3282243b0133397f51b53940332afe3a1e0",
+        "projection": "document",
+        "content_digest": "sha256:b51e353df95d07b4a93b1c330dc4c3282243b0133397f51b53940332afe3a1e0",
+        "source": {
+          "path": "../../../docs/superpowers/reports/setup-host-agents-step-progress-verify.md",
+          "document_kind": "verification-report"
+        }
+      },
+      "logicalKey": "document:verification-report",
+      "projection": "document",
+      "path": "../../../docs/superpowers/reports/setup-host-agents-step-progress-verify.md",
+      "documentKind": "verification-report",
+      "status": "committed",
+      "receiptId": "submission:change-setup-host-agents-step-progress-0e9cdb86801b:document:81e88e6e6b98d0cfeff42ce5ca67d3cd",
+      "recordedAt": "2026-10-12T01:02:28Z"
+    }
+  ]
+}

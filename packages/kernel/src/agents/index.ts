@@ -7,8 +7,8 @@ export { hostRunValid, reviewerHostRequirement } from './reviewer-host.js'
 export { officialAttachOn, withAttachOnLine, withOfficialAttachOn } from './official-scope.js'
 export type { ReviewerHostRequirement } from './reviewer-host.js'
 export {
-  CLAUDE_AGENT_TOOLS, HOST_AGENT_FALLBACK, HOST_AGENT_HOSTS, HOST_AGENT_PREFIX, HOST_SKILL_NAMESPACE, claudeAgentModel, codexAgentModel,
-  hostAgentName, hostAgentPath, parseHostAgentPath, qualifySkillReferences, renderHostAgent,
+  CLAUDE_AGENT_TOOLS, HOST_AGENT_FALLBACK, HOST_AGENT_HOSTS, HOST_AGENT_PREFIX, HOST_SKILL_NAMESPACE, HOST_SUBAGENT_REASONS,
+  claudeAgentModel, codexAgentModel, hostAgentName, hostAgentPath, parseHostAgentPath, qualifySkillReferences, renderHostAgent,
 } from './host-native.js'
-export type { HostAgentHost } from './host-native.js'
+export type { HostAgentHost, HostSubagentReason } from './host-native.js'
 export type { AgentDefinition, AgentRole, AgentSource, ReviewerHost } from './types.js'

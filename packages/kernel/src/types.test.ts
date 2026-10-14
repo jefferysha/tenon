@@ -10,7 +10,7 @@ import { emptyFields } from './state/parse.js'
 
 describe('workflow 字段', () => {
   it('workflow 在 automation_current_phase 之前（历次「末尾追加」的历史序钉死）', () => {
-    expect(FIELD_ORDER[FIELD_ORDER.length - 13]).toBe('workflow')
+    expect(FIELD_ORDER[FIELD_ORDER.length - 14]).toBe('workflow')
   })
   it('emptyFields() 里 workflow 缺省值是 default', () => {
     expect(emptyFields().workflow).toBe('default')
@@ -19,7 +19,7 @@ describe('workflow 字段', () => {
 
 describe('automation_current_phase 字段（v5 T4 决策 G）', () => {
   it('automation_current_phase 在 automation_cause 之前（末尾追加历史序钉死）', () => {
-    expect(FIELD_ORDER[FIELD_ORDER.length - 12]).toBe('automation_current_phase')
+    expect(FIELD_ORDER[FIELD_ORDER.length - 13]).toBe('automation_current_phase')
   })
   it('emptyFields() 缺省空串（run 外无沙箱内阶段）', () => {
     expect(emptyFields().automation_current_phase).toBe('')
@@ -28,7 +28,7 @@ describe('automation_current_phase 字段（v5 T4 决策 G）', () => {
 
 describe('automation_cause 字段（F-b 失败成因结构化落盘）', () => {
   it('新字段必须追加在 FIELD_ORDER 末尾（老窄解析器把它当尾部不透明行逐字保留，混版本读写无损）', () => {
-    expect(FIELD_ORDER[FIELD_ORDER.length - 11]).toBe('automation_cause')
+    expect(FIELD_ORDER[FIELD_ORDER.length - 12]).toBe('automation_cause')
   })
   it('emptyFields() 缺省空串（空串=未知成因，读取端 fallback regex 分类）', () => {
     expect(emptyFields().automation_cause).toBe('')
@@ -37,8 +37,8 @@ describe('automation_cause 字段（F-b 失败成因结构化落盘）', () => {
 
 describe('review-gate v2 字段（出口收据）', () => {
   it('review_acknowledged_via 追加在 FIELD_ORDER 末尾，保持旧窄解析器的末尾兼容性', () => {
-    expect(FIELD_ORDER.at(-4)).toBe('review_acknowledged_via')
-    expect(FIELD_ORDER.slice(-10, -4)).toEqual([...REVIEW_GATE_FIELDS.slice(0, -1), 'pre_verify_review_result'])
+    expect(FIELD_ORDER.at(-5)).toBe('review_acknowledged_via')
+    expect(FIELD_ORDER.slice(-11, -5)).toEqual([...REVIEW_GATE_FIELDS.slice(0, -1), 'pre_verify_review_result'])
   })
   it('emptyFields() 给出完整的 canonical 空收据', () => {
     const fields = emptyFields()
@@ -48,7 +48,7 @@ describe('review-gate v2 字段（出口收据）', () => {
 
 describe('pre-Verify 全量收敛字段', () => {
   it('新字段位于 FIELD_ORDER 最末尾，旧窄解析器只把这一行保留为 opaque tail', () => {
-    expect(FIELD_ORDER.at(-5)).toBe('pre_verify_review_result')
+    expect(FIELD_ORDER.at(-6)).toBe('pre_verify_review_result')
   })
   it('emptyFields() 缺省 pending，Build 不得继承不存在的 pass', () => {
     expect(emptyFields().pre_verify_review_result).toBe('pending')
@@ -56,9 +56,9 @@ describe('pre-Verify 全量收敛字段', () => {
 })
 
 describe('max_rounds 字段（任务级验证轮次上限覆盖）', () => {
-  it('追加在 review_acknowledged_via 之后（之后只有更晚追加的 task_result、domain），旧窄解析器只把这些行连同其后元数据保留为 opaque tail', () => {
-    expect(FIELD_ORDER.at(-3)).toBe('max_rounds')
-    expect(FIELD_ORDER.at(-4)).toBe('review_acknowledged_via')
+  it('追加在 review_acknowledged_via 之后（之后只有更晚追加的 task_result、domain、start_sha），旧窄解析器只把这些行连同其后元数据保留为 opaque tail', () => {
+    expect(FIELD_ORDER.at(-4)).toBe('max_rounds')
+    expect(FIELD_ORDER.at(-5)).toBe('review_acknowledged_via')
   })
   it('emptyFields() 缺省空串（没设置 = 沿用工作流声明的上限）', () => {
     expect(emptyFields().max_rounds).toBe('')
@@ -66,9 +66,9 @@ describe('max_rounds 字段（任务级验证轮次上限覆盖）', () => {
 })
 
 describe('task_result 字段（任务结果：完结 / 已升级 / 已终止）', () => {
-  it('追加在 max_rounds 之后（之后只有更晚追加的 domain），旧窄解析器只把这一行连同其后元数据保留为 opaque tail', () => {
-    expect(FIELD_ORDER.at(-2)).toBe('task_result')
-    expect(FIELD_ORDER.at(-3)).toBe('max_rounds')
+  it('追加在 max_rounds 之后（之后只有更晚追加的 domain、start_sha），旧窄解析器只把这一行连同其后元数据保留为 opaque tail', () => {
+    expect(FIELD_ORDER.at(-3)).toBe('task_result')
+    expect(FIELD_ORDER.at(-4)).toBe('max_rounds')
   })
   it('emptyFields() 缺省空串（任务还没有结束）', () => {
     expect(emptyFields().task_result).toBe('')
@@ -76,12 +76,22 @@ describe('task_result 字段（任务结果：完结 / 已升级 / 已终止）'
 })
 
 describe('domain 字段（轻量任务创建时记下的领域轨道）', () => {
-  it('追加在 FIELD_ORDER 最末尾（task_result 之后），旧窄解析器只把这一行连同其后元数据保留为 opaque tail', () => {
-    expect(FIELD_ORDER.at(-1)).toBe('domain')
-    expect(FIELD_ORDER.at(-2)).toBe('task_result')
+  it('追加在 task_result 之后（之后只有更晚追加的 start_sha），旧窄解析器只把这一行连同其后元数据保留为 opaque tail', () => {
+    expect(FIELD_ORDER.at(-2)).toBe('domain')
+    expect(FIELD_ORDER.at(-3)).toBe('task_result')
   })
   it('emptyFields() 缺省空串（没记领域 = 升级时让用户选）', () => {
     expect(emptyFields().domain).toBe('')
+  })
+})
+
+describe('start_sha 字段（任务起点：建任务时检出的 HEAD）', () => {
+  it('追加在 FIELD_ORDER 最末尾（domain 之后），旧窄解析器只把这一行连同其后元数据保留为 opaque tail', () => {
+    expect(FIELD_ORDER.at(-1)).toBe('start_sha')
+    expect(FIELD_ORDER.at(-2)).toBe('domain')
+  })
+  it('emptyFields() 缺省空串（没有记录 = 退回上游 / 创建时间推算起点）', () => {
+    expect(emptyFields().start_sha).toBe('')
   })
 })
 

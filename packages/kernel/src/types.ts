@@ -6,6 +6,7 @@ import type { AutomationPolicySnapshot } from './loops/automation-policy.js'
 import type { WorkflowPlanSnapshot } from './workflow/effective-plan.js'
 import { PRE_VERIFY_REVIEW_FIELD } from './review-gate-fields.js'
 import type { RecordActor } from './users/user.js'
+import type { InitStartOptions } from './workspace/change-start.js'
 export {
   COMPANION_BACKED_FIELDS,
   PRE_VERIFY_REVIEW_DEFAULT,
@@ -55,6 +56,7 @@ export const FIELD_ORDER = [
   'max_rounds',
   'task_result',
   'domain',
+  'start_sha', // 任务起点（建任务时的 HEAD）：末尾追加的逻辑字段，物理值在伴随文件（state/start-sha-store.ts），不进 wire 与 YAML 投影；tenon set|set-many|cas 拒写
 ] as const
 export type FieldName = (typeof FIELD_ORDER)[number]
 
@@ -195,7 +197,7 @@ export interface PipelineState {
   opaqueTail: string
 }
 
-export interface InitOptions {
+export interface InitOptions extends InitStartOptions {
   repoRoot: string
   name: string
   /** 调用方已按所选工作流的分支声明校验过的轨道 id；store.init 只负责落盘，不判断它是否存在。 */

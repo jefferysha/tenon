@@ -5,7 +5,7 @@
  */
 import type { TaskResult } from '@tenon/kernel'
 import { firstDeliveryMessage, WORKSPACE_COMMIT_PATHS, type GitFinishProbe } from '../gitWorkspace.js'
-import { stop, type StepAction } from './statusStepAction.js'
+import type { StepAction } from './statusStepAction.js'
 
 /** 提交动作的载荷：`git add -A -- <paths…>` → 可选 `git rm --cached …` → `git commit -m <message>`。 */
 export interface StepCommit {
@@ -59,12 +59,55 @@ export interface StepFinishFacts {
    * 冻结计划仍走 OpenSpec 的设计体系任务（它们的收尾只提交 archive/ 与 housekeeping，设计文件要单独点名）。
    */
   readonly designSystem?: boolean
+  /**
+   * `isolation=worktree` 的任务所在的 worktree（路径与分支）；原地任务缺省。完结后 worktree 与分支还在，
+   * `finish-change` 与 `stop finished` 据此附带 `cleanup`——Tenon 只提示，不自己删。
+   */
+  readonly worktree?: TaskWorktreeFacts
 }
 
-/** 已结束、没有可做的事了：目录已移进 archive/，所有轨道同一形态。 */
-export function finishedStop(change: string, result: TaskResult = 'finished'): readonly StepAction[] {
+/** worktree 任务的位置：路径取当前项目根，分支固定为 `tenon/<任务名>`（`createTaskWorktree` 的命名）。 */
+export interface TaskWorktreeFacts {
+  readonly path: string
+  readonly branch: string
+}
+
+/** `isolation=worktree` 时给出该任务的 worktree 事实，其余为 undefined。`root` 是命令所在的项目根（就是该 worktree）。 */
+export function taskWorktreeFacts(isolation: string, root: string, change: string): TaskWorktreeFacts | undefined {
+  return isolation === 'worktree' ? { path: root, branch: `tenon/${change}` } : undefined
+}
+
+/** shell 单引号字面量：内部的单引号写成 `'\''`。 */
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`
+}
+
+/**
+ * 清理命令（在主检出里执行，不能在要删的 worktree 里执行）：先移除 worktree，再删分支。
+ * 分支用 `-d`：还没合并时 git 会拒绝，不会丢提交。原地任务没有可清理的，返回 null。
+ */
+export function worktreeCleanup(worktree: TaskWorktreeFacts | undefined): string | null {
+  if (worktree === undefined) return null
+  return `git worktree remove ${shellQuote(worktree.path)} && git branch -d ${shellQuote(worktree.branch)}`
+}
+
+/**
+ * 已结束、没有可做的事了：目录已移进 archive/，所有轨道同一形态。`cleanup` 是 worktree 任务留下的清理命令
+ * （原地任务没有这一键）：用户最后看到的就是这条 stop，清理提示不能只挂在 finish-change 上。
+ */
+export function finishedStop(
+  change: string,
+  result: TaskResult = 'finished',
+  worktree?: TaskWorktreeFacts,
+): readonly StepAction[] {
   const text = result === 'terminated' ? '已终止' : result === 'escalated' ? '已升级' : '已完结'
-  return stop('finished', `任务 '${change}' ${text}，没有要做的事了`)
+  const cleanup = worktreeCleanup(worktree)
+  return [{
+    action: 'stop',
+    code: 'finished',
+    message: `任务 '${change}' ${text}，没有要做的事了`,
+    ...(cleanup === null ? {} : { cleanup }),
+  }]
 }
 
 /**
@@ -95,12 +138,13 @@ export function finishActions(
   finish: StepFinishFacts,
 ): readonly StepAction[] {
   const git = finish.git
+  const cleanup = worktreeCleanup(finish.worktree)
   const command = `tenon task finish ${change}`
   if (!governedOpenspec) {
     const commit = finish.verified && git !== null
       ? { paths: WORKSPACE_COMMIT_PATHS, untrack: git.untrack, message: `chore(tenon): finish ${change}` }
       : null
-    return [{ action: 'finish-change', change, command, commit }]
+    return [{ action: 'finish-change', change, command, commit, cleanup }]
   }
   const commit = git === null
     ? null
@@ -114,5 +158,5 @@ export function finishActions(
         untrack: git.untrack,
         message: `chore(openspec): archive ${change}`,
       }
-  return [{ action: 'finish-change', change, command, commit }]
+  return [{ action: 'finish-change', change, command, commit, cleanup }]
 }

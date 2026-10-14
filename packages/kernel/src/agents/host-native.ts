@@ -18,6 +18,16 @@ export const HOST_AGENT_FALLBACK: Readonly<Record<HostAgentHost, string>> = {
   codex: 'default',
 }
 
+/**
+ * 派发时没用专属子代理的原因（台账 `subagent.reason` 的闭集，只此一处定义）：用户级文件不存在 / 内容与冻结定义不一致 /
+ * 被内容不同的项目级同名文件遮住 / agent 来自项目层 / 运行开始后根本没有派发子代理（`tenon agent record --subagent none`，
+ * 只由登记者如实写下，派发判定 resolveHostSubagent 永远不会给出它）。
+ */
+export const HOST_SUBAGENT_REASONS = ['not-installed', 'definition-mismatch', 'shadowed', 'project-agent', 'not-dispatched'] as const
+export type HostSubagentReason = (typeof HOST_SUBAGENT_REASONS)[number]
+export const isHostSubagentReason = (value: unknown): value is HostSubagentReason =>
+  typeof value === 'string' && (HOST_SUBAGENT_REASONS as readonly string[]).includes(value)
+
 /** Claude Code 子代理 `tools` 里合法的内置工具名；`mcp__<server>__<tool>` 另按前缀放行。 */
 export const CLAUDE_AGENT_TOOLS: ReadonlySet<string> = new Set([
   'Agent', 'Bash', 'BashOutput', 'Edit', 'ExitPlanMode', 'Glob', 'Grep', 'KillShell', 'LS', 'MultiEdit',

@@ -1,0 +1,48 @@
+track: standard
+preset: full
+created_by: jefferySha <710227704@qq.com>
+assignee: jefferySha <710227704@qq.com>
+phase: done
+phase_status: done
+design_doc: null
+plan: null
+verification_report: null
+build_mode: null
+isolation: null
+build_sha: null
+agent_review_result: pending
+codex_review_result: pending
+verify_result: pass
+branch_status: pending
+direct_override: false
+prd_path: null
+pr_url: null
+automation: off
+automation_queued_at: ""
+automation_sandbox: ""
+automation_worktree: ""
+automation_attempts: 0
+automation_last_error: ""
+automation_preserved_path: ""
+branch: null
+base_branch: main
+scope: null
+related_files: null
+spec_scope: null
+depends_on: null
+created_at: 2026-10-10T03:01:39Z
+updated_at: 2026-10-10T07:57:06Z
+verified_at: 2026-10-10T07:57:06Z
+archived_at: 2026-10-10T07:57:06Z
+archived: true
+workflow: standard
+automation_current_phase: ""
+automation_cause: ""
+pipeline_run_id: 3ad8603c-5b08-4d7b-9d2d-215246cde282
+pipeline_transition_sequence: 3
+pipeline_transition_head: 65317174-919e-4abf-8420-cfe59f334d90
+pipeline_state_revision: 5
+pipeline_state_revision_id: 35eb40a9-2e1b-45b1-9881-b93f93a2082a
+pipeline_state_digest: 7c12e10fb3917efd6349da8ac0272f86f1aa7a3569a114b27d4a027a4acebbfe
+# tenon-internal-pre-verify-review-v1: eyJzY2hlbWFWZXJzaW9uIjoxLCJyZXZpc2lvbiI6NSwicmV2aXNpb25JZCI6IjM1ZWI0MGE5LTJlMWItNDViMS05ODgxLWI5M2Y5M2EyMDgyYSIsInBheWxvYWREaWdlc3QiOiI2NmYwMWU0ZjIyYzUyY2JlZDMxNjgyMmYxNDMwMzBlNTEwMWZmMmFlZDYxOGRlYTQxOGNhYzJjNTM4MjgzNzBlIn0
+# tenon-internal-transition-head-v1: eyJzY2hlbWFWZXJzaW9uIjoxLCJydW5JZCI6IjNhZDg2MDNjLTViMDgtNGQ3Yi05ZDJkLTIxNTI0NmNkZTI4MiIsInNlcXVlbmNlIjozLCJyZWNvcmRJZCI6IjY1MzE3MTc0LTkxOWUtNGFiZi04NDIwLWNmZTU5ZjMzNGQ5MCIsInJlY29yZERpZ2VzdCI6IjJiMWI4YTg4OGQwMjk2NTRmYWJhNzFiMzkzZWNkNTRlYWNiODRhMDMwZThmNjJmOWJiMTI1MWFlYWU1ZDU4ZjQifQ

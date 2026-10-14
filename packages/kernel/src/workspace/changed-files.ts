@@ -2,10 +2,9 @@
  * 「自任务起点以来改动的文件」：测试文件认领与运行集（档位 changed / full、旧 test_policy.files: registered）与 changed 范围选择读它，
  * CLI 与 server 快照共用同一份口径。
  *
- * 起点（任务开始时代码所在的提交）：
- *   1. 任务分支与基线分支分叉时，取 merge-base(HEAD, base_branch)——分支上的所有提交与工作区改动都算；
- *   2. 直接在基线分支上做（HEAD 就是 merge-base，或没有基线分支）时，取任务创建时刻之前的最后一个提交；
- *   3. 仓库在任务创建前没有任何提交，取空树——当前所有文件都算新增。
+ * 起点（任务开始时代码所在的提交）：先按 start_sha（提交时间不得晚于 created_at + 60 秒）、基线分支上游的 merge-base、
+ * 基线分支的 merge-base 收集候选并取最新的一个（规则见 change-start.ts）；没有任何候选时退回：取任务创建时刻之前的最后一个提交；
+ * 仓库在任务创建前没有任何提交，取空树——当前所有文件都算新增。
  * 改动文件 = 起点提交与工作区的差异中新增 / 修改 / 重命名后的路径（含暂存与未暂存），加上未忽略的未跟踪文件。
  *
  * 读不出来（不是 git 仓库、git 跑不起来、超时、起点定不出来）一律抛 ChangedFilesUnavailableError，
@@ -14,7 +13,7 @@
  * 批量读取：`createChangedFilesSession` 把同一个仓库的 git 调用合并成一次会话——相同参数的命令只跑一次
  * （repo 探针与 HEAD 合成一次 rev-parse，未跟踪文件表、merge-base、每个起点的 diff 各一次），创建时间落在
  * 最近一段历史里的多个任务共用一次 `rev-list --timestamp`。一个仓库有 N 个任务时，逐任务读取要 6N 个 git 子进程，
- * 会话只要 O(项目) 个。任何一次 git 超时都会让会话里后续未缓存的命令直接以同一原因失败，而不是每个任务再等一遍超时。
+ * 会话只要 O(项目) 个（再加每个互不相同的 start_sha 各一两次祖先判定）。任何一次 git 超时都会让会话里后续未缓存的命令直接以同一原因失败，而不是每个任务再等一遍超时。
  *
  * 未跟踪文件上限：单个仓库只读前 UNTRACKED_FILE_LIMIT 个未跟踪路径，超出部分不再检查；这在结果里显式带出
  * `untrackedTruncated`，调用方据此给出提示，而不是悄悄截断。
@@ -23,6 +22,7 @@ import { execFile } from 'node:child_process'
 import { lstat, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
+import { EMPTY_TREE, startFromCandidates, usableBase, usableSha } from './change-start.js'
 import { readFileDiffs, type FileDiffsResult } from './file-diffs.js'
 
 export type { FileDiffEntry, FileDiffsResult } from './file-diffs.js'
@@ -35,14 +35,14 @@ const MAX_UNTRACKED_BYTES = 1024 * 1024
 export const UNTRACKED_FILE_LIMIT = 20_000
 /** 一次 `rev-list --timestamp` 覆盖的最近提交数；更早的创建时间退回逐个 `rev-list -1 --before`。 */
 const HISTORY_WINDOW = 2_000
-/** git 的空树对象 id：与它比较等于「所有文件都是新增」。 */
-const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904'
 
 export interface ChangeStartInput {
   /** state 的 base_branch 字段；空串或 'null' 表示未记录。 */
   readonly baseBranch: string
-  /** state 的 created_at（ISO 时间）；缺失时只能依赖基线分支。 */
+  /** state 的 created_at（ISO 时间）；缺失时 start_sha 无法校验提交时间而不入选，只能依赖基线分支。 */
   readonly createdAt: string
+  /** state 的 start_sha：建任务时检出的 HEAD 提交；缺失或不是合法提交 id 时忽略。 */
+  readonly startSha?: string
 }
 
 export class ChangedFilesUnavailableError extends Error {
@@ -50,11 +50,6 @@ export class ChangedFilesUnavailableError extends Error {
     super(reason)
     this.name = 'ChangedFilesUnavailableError'
   }
-}
-
-function usableBase(value: string): string | undefined {
-  const base = value.trim()
-  return base === '' || base === 'null' || base.startsWith('-') ? undefined : base
 }
 
 function usableTime(value: string): string | undefined {
@@ -162,6 +157,14 @@ export function createChangedFilesSession(repoRoot: string, options: ChangedFile
     return undefined
   }
 
+  /** 按退出码判定（`merge-base --is-ancestor` 的 0 / 非 0）；超时抛错——绝不把超时当成「不是祖先」。 */
+  async function gitOk(args: readonly string[]): Promise<boolean> {
+    const outcome = await git(args)
+    if (outcome.ok) return true
+    if (outcome.timedOut) throw new ChangedFilesUnavailableError(timeoutReason(args[0] ?? ''))
+    return false
+  }
+
   let repo: Promise<{ readonly head: string | undefined }> | undefined
   function repository(): Promise<{ readonly head: string | undefined }> {
     repo ??= (async () => {
@@ -211,13 +214,11 @@ export function createChangedFilesSession(repoRoot: string, options: ChangedFile
   async function computeStart(input: ChangeStartInput): Promise<string> {
     const { head } = await repository()
     if (head === undefined) return EMPTY_TREE
-    const base = usableBase(input.baseBranch)
-    if (base !== undefined) {
-      const mergeBase = (await gitText(['merge-base', 'HEAD', base]))?.trim()
-      if (mergeBase !== undefined && mergeBase !== '' && mergeBase !== head) return mergeBase
-    }
+    const candidate = await startFromCandidates({ text: gitText, ok: gitOk }, input, head)
+    if (candidate !== undefined) return candidate
     const since = usableTime(input.createdAt)
     if (since === undefined) {
+      const base = usableBase(input.baseBranch)
       if (base !== undefined) {
         const mergeBase = (await gitText(['merge-base', 'HEAD', base]))?.trim()
         if (mergeBase !== undefined && mergeBase !== '') return mergeBase
@@ -229,7 +230,7 @@ export function createChangedFilesSession(repoRoot: string, options: ChangedFile
 
   const starts = new Map<string, Promise<string>>()
   function resolveStart(input: ChangeStartInput): Promise<string> {
-    const key = `${input.baseBranch}\0${input.createdAt}`
+    const key = `${input.baseBranch}\0${input.createdAt}\0${usableSha(input.startSha) ?? ''}`
     let pending = starts.get(key)
     if (pending === undefined) {
       pending = computeStart(input)
@@ -385,15 +386,24 @@ async function lineCount(path: string): Promise<number> {
   }
 }
 
-type StateFields = { readonly base_branch?: string | readonly string[]; readonly created_at?: string | readonly string[] }
+type StateFields = {
+  readonly base_branch?: string | readonly string[]
+  readonly created_at?: string | readonly string[]
+  readonly start_sha?: string | readonly string[]
+}
 
 function scalar(value: string | readonly string[] | undefined): string {
   return value === undefined ? '' : typeof value === 'string' ? value : value.join(',')
 }
 
-/** 任务起点的输入取自 state 的 base_branch 与 created_at（CLI 与 server 快照共用）。 */
+/** 任务起点的输入取自 state 的 base_branch、created_at 与 start_sha（CLI 与 server 快照共用）。 */
 export function changeStartOfFields(fields: StateFields): ChangeStartInput {
-  return { baseBranch: scalar(fields.base_branch), createdAt: scalar(fields.created_at) }
+  const startSha = scalar(fields.start_sha)
+  return {
+    baseBranch: scalar(fields.base_branch),
+    createdAt: scalar(fields.created_at),
+    ...(startSha === '' ? {} : { startSha }),
+  }
 }
 
 export function changedFilesForState(repoRoot: string, state: { readonly fields: StateFields }): Promise<readonly string[]> {

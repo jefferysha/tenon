@@ -1,5 +1,6 @@
 import {
   assessBuildRevisionTrust,
+  expectedBuildRevisionKind,
   probeBuildRevisionIdentity,
   readValidatedTransitionHead,
   safeRevisionHash,
@@ -25,7 +26,7 @@ export function resolveBuildRevisionAssessor(
       ? await probeBuildRevisionIdentity(deps.cwd)
       : await deps.buildRevisionIdentity()
     const observe = async () => {
-      const kind = request.isolation === 'in-place' ? 'workspace' as const : 'git' as const
+      const kind = expectedBuildRevisionKind(request.isolation)
       const revision = kind === 'workspace'
         ? await deps.workspaceFingerprint?.(changeName) ?? ''
         : await deps.gitHeadSha?.() ?? ''

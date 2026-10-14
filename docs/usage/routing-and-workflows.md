@@ -236,6 +236,17 @@ named Change still has the highest priority. This sidecar identifies the
 conversation and powers liveness only; it never participates in canonical
 guards or transitions.
 
+A task that lives in a task worktree is resumed from there. When the router
+resolves a named Change that exists only under `.worktrees/`, its dispatch
+carries `worktree_path`, and the `tenon` skill switches into that directory
+first (Claude Code `EnterWorktree`; Codex asks you to open a new session there)
+and only then runs `tenon session activate`. When you say “continue” in the main
+checkout and only worktree tasks can be continued, the dispatch lists them as
+candidates (`change_candidate`, each with its path) and asks you to pick one.
+Worktree tasks are not counted when the router decides between creating a new
+Change and selecting an existing one. The worktree layout is described in
+[Where the task lives](quickstart.md#where-the-task-lives-the-task-worktree).
+
 A Change created before an upgrade keeps the Workflow snapshot it froze, including an old `standard`,
 `simple`, chat or free Change: it finishes under the rules it started with.
 

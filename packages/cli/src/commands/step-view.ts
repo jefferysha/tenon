@@ -8,7 +8,7 @@
 import type { CliDeps } from '../deps.js'
 import { errMsg } from '../deps.js'
 import { msg } from '../i18n/messages.js'
-import { isValidChangeName, readChangeForDisplay } from '../paths.js'
+import { changeNotFoundMessage, isValidChangeName, readChangeForDisplay } from '../paths.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
 import { buildStatusStep, finishedStatusStep, type StepBlock } from './statusStep.js'
 
@@ -26,7 +26,7 @@ export async function loadStepBlock(deps: CliDeps, name: string): Promise<StepBl
     return await buildStatusStep(deps, name, state, plan)
   } catch (error) {
     const code = typeof error === 'object' && error !== null ? Reflect.get(error, 'code') : undefined
-    return { error: code === 'ENOENT' ? msg(deps, 'change.notFound', { name }) : errMsg(error) }
+    return { error: code === 'ENOENT' ? await changeNotFoundMessage(deps, name) : errMsg(error) }
   }
 }
 

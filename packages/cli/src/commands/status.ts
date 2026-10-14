@@ -3,15 +3,16 @@
  * 人读：对齐宽度的紧凑表 / key-value 块；--json：schema 稳定（键序固定，见测试锚）。
  *   status --json        {"active_changes":[{name,track,phase,phase_status,verify_result,updated_at}]}
  *   status <c> --json    同上 + step；已完结的 change 不在 active_changes，而在 finished_changes（多 archived_at）
- *   list   --json        {"changes":[{name,track,phase,phase_status,owner:{id,name}|null}]}
+ *   list   --json        {"changes":[{name,track,phase,phase_status,owner:{id,name}|null,worktree:<绝对路径>|null}]}
  * 活跃 = openspec/changes/ 下有 .pipeline.yaml 且 archived != true；坏 change 跳过 + WARN。
+ * list 另含建在 `.worktrees/<c>` 里的未归档任务（`worktree` 填该路径；当前根自己的任务为 null）。
  */
-import { ownerOf, stateStorageExistsSync, type PipelineState } from '@tenon/kernel'
+import { ownerOf, stateStorageExistsSync, type PipelineState, type TaskWorktreeEntry } from '@tenon/kernel'
 import { readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { errMsg, type CliDeps } from '../deps.js'
 import {
-  archivedChangesRoot, changeDir, changeNameOfArchivedDir, changesRoot, isValidChangeName,
+  archivedChangesRoot, changeDir, changeNameOfArchivedDir, changeNotFoundMessage, changesRoot, isValidChangeName,
   readChangeForDisplay,
 } from '../paths.js'
 import { display, renderKV, renderTable, str } from '../render.js'
@@ -84,7 +85,7 @@ export async function cmdStatus(
       // 不存在的任务是产品层的一句话，不是一行 `ENOENT ... open '.../.pipeline.yaml'`：那行既点名
       // 了内部存储文件，又不告诉读者该怎么办。`tenon get` 早已是这个口径，这里与它同一句。
       const code = typeof e === 'object' && e !== null ? Reflect.get(e, 'code') : undefined
-      deps.io.err(code === 'ENOENT' ? `ERROR: ${msg(deps, 'change.notFound', { name })}` : `ERROR: ${errMsg(e)}`)
+      deps.io.err(code === 'ENOENT' ? `ERROR: ${await changeNotFoundMessage(deps, name)}` : `ERROR: ${errMsg(e)}`)
       return 1
     }
     const row: Row = { name, state }
@@ -239,8 +240,46 @@ export async function cmdListFinished(deps: CliDeps, opts: { json?: boolean }): 
   return 0
 }
 
+/** 活跃表的一行：`worktree` 是任务所在 worktree 的绝对路径，主检出（或当前根）自己的任务为 null。 */
+interface ListRow extends Row {
+  readonly worktree: string | null
+}
+
+/**
+ * 建在 `.worktrees/` 下的未归档任务（主检出看不到它们的 `openspec/changes`）：与 collectActive 同一口径——
+ * `archived=true` 的不算，读不出状态的 WARN + 跳过。worktree 清单读不出来当作没有，列表照常。
+ */
+async function collectWorktreeRows(deps: CliDeps): Promise<ListRow[]> {
+  let entries: readonly TaskWorktreeEntry[]
+  try {
+    entries = (await deps.taskWorktrees?.()) ?? []
+  } catch {
+    return []
+  }
+  const rows: ListRow[] = []
+  for (const entry of entries) {
+    for (const name of entry.changes) {
+      try {
+        const state = await deps.store.read(changeDir(entry.path, name))
+        if (str(state.fields.archived) === 'true') continue
+        rows.push({ name, state, worktree: entry.path })
+      } catch (e) {
+        deps.io.err(`WARN: ${msg(deps, 'status.skipped', { name, error: errMsg(e) })}`)
+      }
+    }
+  }
+  return rows
+}
+
+/** 主检出自己的活跃任务 + worktree 里的任务，按名排序（同名时主检出的在前）。 */
+async function collectListRows(deps: CliDeps): Promise<ListRow[]> {
+  const own: ListRow[] = (await collectActive(deps)).map((row) => ({ ...row, worktree: null }))
+  const all = [...own, ...await collectWorktreeRows(deps)]
+  return all.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
+}
+
 export async function cmdList(deps: CliDeps, opts: { json?: boolean }): Promise<number> {
-  const rows = await collectActive(deps)
+  const rows = await collectListRows(deps)
   if (opts.json) {
     deps.io.out(
       JSON.stringify({
@@ -251,6 +290,7 @@ export async function cmdList(deps: CliDeps, opts: { json?: boolean }): Promise<
           phase: field(r, 'phase'),
           phase_status: field(r, 'phase_status'),
           owner: ownerView(r),
+          worktree: r.worktree,
         })),
       }),
     )
@@ -261,13 +301,14 @@ export async function cmdList(deps: CliDeps, opts: { json?: boolean }): Promise<
     return 0
   }
   const table = renderTable(
-    ['NAME', 'TRACK', 'PHASE', 'STATUS', 'OWNER'],
+    ['NAME', 'TRACK', 'PHASE', 'STATUS', 'OWNER', 'WORKTREE'],
     rows.map((r) => [
       r.name,
       display(r.state.fields.track),
       display(r.state.fields.phase),
       display(r.state.fields.phase_status),
       ownerView(r)?.name ?? '-',
+      r.worktree ?? '-',
     ]),
   )
   for (const line of table) deps.io.out(line)

@@ -5,7 +5,7 @@
  * 声明了 agent 的步骤失败关闭：冻结内容或台账读不到时拦住并说明原因，绝不放行。
  * 同一波并行的 agent 共享解锁集（hook 无法把一次工具调用归到某个子 agent），这是设计接受的。
  */
-import { currentDocumentStepVisitId, readAgentRuns, readFrozenAgents } from '@tenon/kernel'
+import { agentOwnedSkills, currentDocumentStepVisitId, readAgentRuns, readFrozenAgents } from '@tenon/kernel'
 import type { EffectiveWorkflowPlan, PipelineState } from '@tenon/kernel'
 import { stepAgentsOf } from './agentGate.js'
 import { currentCandidate } from './commands/candidate.js'
@@ -51,9 +51,12 @@ export async function agentSkillDecision(input: AgentSkillGateInput): Promise<Ag
   } catch (error) {
     return { kind: 'block', message: `【Tenon 门】步骤 '${input.stepId}' 的 agent 记录不可读：${errMsg(error)}` }
   }
+  // 「本步声明的 agent 的技能并集」只此一处定义（kernel agentOwnedSkills，退回边的技能门也读它）。
+  if (!agentOwnedSkills({ plan: input.plan, stepId: input.stepId, frozen }).has(input.skillId)) {
+    return { kind: 'not-agent-skill' }
+  }
   const declared = [...step.executors.map((ref) => ref.agent), ...step.reviewers.map((ref) => ref.agent)]
   const owners = declared.filter((agent) => frozen.get(agent)?.definition.skills.includes(input.skillId) === true)
-  if (owners.length === 0) return { kind: 'not-agent-skill' }
   // 候选版本只在真有 running 行时才算——它要遍历实现树，不能挂在每次技能调用上。
   const latestOf = (agent: string) => {
     let latest

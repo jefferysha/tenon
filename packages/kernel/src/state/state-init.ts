@@ -3,6 +3,7 @@ import path from 'node:path'
 import type {
   DocumentProfileId, FieldName, InitOptions, RunMetadata,
 } from '../types.js'
+import { isGitCommitId } from '../workspace/change-start.js'
 import { emptyFields } from './parse.js'
 import {
   documentGovernanceFingerprint as fingerprintOfDocumentPolicy,
@@ -103,7 +104,7 @@ export function initialFields(
   fields.plan = 'null'
   fields.verification_report = 'null'
   fields.build_mode = 'null'
-  fields.isolation = 'null'
+  fields.isolation = opts.isolation ?? 'null'
   fields.build_sha = 'null'
   // 两个评审字段已退役：只保留 canonical 闭集里的槽位（codec 要求逐字完整），不再有任何读者。
   fields.agent_review_result = opts.reviewSeed
@@ -142,5 +143,13 @@ export function initialFields(
   fields.review_requested_at = ''
   fields.review_acknowledged_at = ''
   fields.review_acknowledged_via = 'unknown'
+  fields.start_sha = opts.startSha ?? ''
   return fields
+}
+
+/** 建任务时记下的起点必须是合法提交 id（start_sha 只接受 sha）；写进状态之前拒绝，不留下半成品。 */
+export function assertValidStartSha(startSha: string | undefined): void {
+  if (startSha !== undefined && !isGitCommitId(startSha)) {
+    throw new Error(`init: startSha 必须是 40 或 64 位小写十六进制的提交 id（收到 ${JSON.stringify(startSha)}）`)
+  }
 }

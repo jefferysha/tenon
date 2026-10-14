@@ -10,6 +10,7 @@ import { atomicWriteFile, createStateStore } from '../state/store.js'
 import { readStepOutputLedger, STEP_OUTPUT_LEDGER_FILE } from '../state/step-output-ledger.js'
 import { recordInputReads, stepOutputsContextFor } from '../documents/step-outputs.js'
 import { createTransitionRecordStore } from '../state/transition-record-store.js'
+import { ensureAgentFreeze } from '../state/agent-freeze.js'
 import { createWorkflowRunRepository } from '../state/workflow-run-repository.js'
 import { recordDocument } from '../documents/document-recording.js'
 import { recordDocumentReads } from '../state/document-ledger.js'
@@ -1962,6 +1963,118 @@ describe('步骤测试证据（每步测试登记）', () => {
     })
     await publishPass(root, dir, 'verify', 'e2e')
     await expect(createTransitionApplication(deps).execute(command)).resolves.toMatchObject({ kind: 'applied' })
+  })
+})
+
+describe('退回边的技能门：不要求归属执行者 / 评审者 agent 的技能', () => {
+  type StepDefOf = WorkflowDef['steps'][number]
+  const step = (id: string, overrides: Partial<StepDefOf> = {}): StepDefOf => ({
+    id, label: id, gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [], ...overrides,
+  })
+  const OWNED: WorkflowDef = {
+    name: 'owned',
+    steps: [
+      step('spec', { transitions: [{ event: 'spec-done', to: 'build' }] }),
+      step('build', {
+        // TDD 归执行者 builder，frontend-design 没有 agent 认领（主线技能）。
+        skills: [{ id: 'test-driven-development' }, { id: 'frontend-design' }],
+        agents: { executors: [{ agent: 'builder' }], reviewers: [] },
+        transitions: [{ event: 'build-done', to: 'verify' }, { event: 'requirements-changed', to: 'spec' }],
+      }),
+      step('verify', {
+        skills: [{ id: 'verification-before-completion' }],
+        transitions: [{ event: 'verify-pass', to: 'done' }, { event: 'verify-fail', to: 'build' }],
+      }),
+      step('done'),
+    ],
+  }
+  const load = (name: string): WorkflowIR | null => (name === 'owned' ? compileWorkflow(OWNED) : null)
+  const agentFile = (skills: string): string => [
+    '---', 'name: builder', 'description: builder 说明', 'role: executor', `skills: [${skills}]`, 'tools: [Read]', '---', '', '正文', '',
+  ].join('\n')
+
+  async function initAt(
+    deps: ReturnType<typeof makeDeps>, root: string, phase: string, frozen: boolean,
+  ): Promise<string> {
+    const { changeDir } = await deps.runRepository.initChange({
+      repoRoot: root, name: 'demo', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR,
+      preset: 'full', clock: FIXED_CLOCK, initialWorkflow: { workflow: 'owned', phase },
+    })
+    if (frozen) {
+      const plan = compileEffectiveWorkflowPlan('owned', OWNED)
+      const runId = (await readCurrentRunRevision(changeDir))?.state.runMetadata?.runId
+      if (runId === undefined) throw new Error('fixture run identity missing')
+      await ensureAgentFreeze({
+        changeDir, runId, workflowFingerprint: plan.workflowFingerprint, workflow: plan.workflow,
+        resolve: () => ({ source: 'custom', content: agentFile('test-driven-development') }),
+      })
+    }
+    return changeDir
+  }
+
+  const command = (root: string, changeDir: string, event: string) => ({
+    root, changeDir, changeName: 'demo', actor: TEST_CREATOR, event, context: {}, loadWorkflow: load,
+  })
+
+  /** 与生产适配方同口径：必需技能里没完成的，再按 exclude 剔除。 */
+  const missingWith = (calls: Array<ReadonlySet<string> | undefined>, completed: ReadonlySet<string> = new Set()):
+    TransitionApplicationDeps['missingStepSkills'] => async ({ capability, stepId, exclude }) => {
+      calls.push(exclude)
+      return (capability.steps.find((candidate) => candidate.stepId === stepId)?.requiredSkillIds ?? [])
+        .filter((skillId) => !completed.has(skillId) && exclude?.has(skillId) !== true)
+    }
+
+  test('退回边 requirements-changed：归属 builder 的 TDD 不再拦着，主线技能 frontend-design 仍被要求', async () => {
+    const root = await freshRepoRoot()
+    const calls: Array<ReadonlySet<string> | undefined> = []
+    const deps = makeDeps({ missingStepSkills: missingWith(calls) })
+    const dir = await initAt(deps, root, 'build', true)
+    await expect(createTransitionApplication(deps).execute(command(root, dir, 'requirements-changed'))).resolves.toEqual({
+      kind: 'step-skills-incomplete', workflowName: 'owned', stepId: 'build', missing: ['frontend-design'],
+    })
+    expect([...(calls[0] ?? [])]).toEqual(['test-driven-development'])
+    expect((await createStateStore().read(dir)).fields.phase).toBe('build')
+  })
+
+  test('退回边：主线技能齐了就放行，回到上一步', async () => {
+    const root = await freshRepoRoot()
+    const deps = makeDeps({ missingStepSkills: missingWith([], new Set(['frontend-design'])) })
+    const dir = await initAt(deps, root, 'build', true)
+    await expect(createTransitionApplication(deps).execute(command(root, dir, 'requirements-changed')))
+      .resolves.toMatchObject({ kind: 'applied', from: 'build', to: 'spec' })
+  })
+
+  test('前进边 build-done：不传 exclude，TDD 与主线技能都被要求（行为不变）', async () => {
+    const root = await freshRepoRoot()
+    const calls: Array<ReadonlySet<string> | undefined> = []
+    const deps = makeDeps({ missingStepSkills: missingWith(calls) })
+    const dir = await initAt(deps, root, 'build', true)
+    await expect(createTransitionApplication(deps).execute(command(root, dir, 'build-done'))).resolves.toEqual({
+      kind: 'step-skills-incomplete', workflowName: 'owned', stepId: 'build',
+      missing: ['test-driven-development', 'frontend-design'],
+    })
+    expect(calls).toEqual([undefined])
+  })
+
+  test('没有 agent 的步骤：退回边 verify-fail 仍要求主线技能（不归属任何 agent 的技能不豁免）', async () => {
+    const root = await freshRepoRoot()
+    const calls: Array<ReadonlySet<string> | undefined> = []
+    const deps = makeDeps({ missingStepSkills: missingWith(calls) })
+    const dir = await initAt(deps, root, 'verify', true)
+    await expect(createTransitionApplication(deps).execute(command(root, dir, 'verify-fail'))).resolves.toEqual({
+      kind: 'step-skills-incomplete', workflowName: 'owned', stepId: 'verify', missing: ['verification-before-completion'],
+    })
+    expect(calls.every((exclude) => exclude === undefined || exclude.size === 0)).toBe(true)
+  })
+
+  test('冻结读不到（旧任务）：退回边保持原有要求，不因此多豁免', async () => {
+    const root = await freshRepoRoot()
+    const deps = makeDeps({ missingStepSkills: missingWith([]) })
+    const dir = await initAt(deps, root, 'build', false)
+    await expect(createTransitionApplication(deps).execute(command(root, dir, 'requirements-changed'))).resolves.toEqual({
+      kind: 'step-skills-incomplete', workflowName: 'owned', stepId: 'build',
+      missing: ['test-driven-development', 'frontend-design'],
+    })
   })
 })
 

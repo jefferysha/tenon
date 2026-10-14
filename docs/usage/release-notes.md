@@ -4,6 +4,289 @@ Tenon release notes explain what changed, what users need to do, and how to veri
 
 Only capabilities included in a public distribution belong here. Plans, internal ADRs, and unmerged experiments are not presented as shipped work.
 
+## v0.3.4 · 2026-10-14
+
+v0.3.4 makes the agents of a task dependable and lets several tasks in one repository run side by side. Tenon's agents
+are installed once, from the terminal, as user-level host subagents, so a session no longer meets "subagent not found"
+at its first task. A new task is created in its own Git worktree, and the start point that decides which changes belong
+to it is recorded when the task is created and follows the upstream. A line in the terminal shows which step a task is
+on, and going back from a step no longer needs an agent to be started first. Read "Behaviour changes and upgrade impact"
+before you upgrade a project.
+
+### Host subagents installed from the terminal
+
+- `tenon agent install [--host claude|codex]` writes the official and custom agents that apply to the host as user-level
+  subagent files: `<Claude config dir>/agents/tenon-<name>.md` for Claude Code and
+  `<Codex config dir>/agents/tenon-<name>.toml` for Codex. The config dir is `$CLAUDE_CONFIG_DIR` (Claude Code) or
+  `$CODEX_HOME` (Codex) when that variable is an absolute path, otherwise `~/.claude` or `~/.codex`. `--host` defaults
+  to the host detected from the environment, and to `claude` in a plain terminal. It exits `0` when done (files it must
+  leave alone are `WARN` lines and count as done) and `1` for a usage error, an unassembled library or a failed write.
+- Before, `tenon init` and `tenon agent prompt` wrote `.claude/agents/tenon-<name>.md` into the project from inside the
+  session, and a subagent file added in the middle of a session is picked up at a time the host does not specify, so the
+  first task created in a session could dispatch a subagent that was "not found". Only files that exist before the
+  session starts are dependable, so no Tenon command that runs inside a session writes them any more.
+- When it runs. `tenon setup --claude|--codex` and `tenon update --claude|--codex` run the same install after they
+  succeed (`update` also when it finds the release already current) and print what was written. A failed install only
+  warns: the exit code of `setup` or `update` does not change, and you can run `tenon agent install --host <host>`
+  yourself. `--dry-run` installs nothing, adapter hosts have no subagent directory and skip the step, and the once-a-day
+  automatic update (`--auto`) speaks only when the install fails. `tenon agent new|add|copy|rm` change the library only
+  and print a reminder to run `tenon agent install` and open a new session.
+- Ownership. A content hash per file is kept in `<config>/agents/host-owned.json`, grouped by the directory the files
+  were written to, so installing or uninstalling in one config dir never deletes, rewrites or claims the files Tenon
+  wrote in another. A file is written only when it does not exist yet, already has exactly the rendered content (Tenon
+  then records that it owns it), or Tenon wrote it earlier and nobody has edited it since. A same-named file that is
+  yours, or one you edited, is left alone and listed as a `WARN`; a target file that is itself a symlink is refused (a
+  symlinked parent directory, such as a dotfiles-managed `~/.claude`, is fine). When an agent has left the library, its
+  file is removed if Tenon wrote it and it is unedited. If `host-owned.json` cannot be parsed, no existing file is
+  changed or deleted and only missing files are written.
+- `tenon agent uninstall [--host claude|codex]` deletes the files Tenon wrote that are unedited; edited ones are kept
+  and listed as `modified`. `tenon uninstall` works on the project's `.pipeline-owned.json` and does not touch them, so
+  run `tenon agent uninstall --host <host>` first if you want them gone.
+- Project agents (`.tenon/agents/`) are never installed, so the result is the same in whichever directory you run the
+  install. A project agent always runs as the host's generic subagent, and its tool restriction is only the instruction
+  in its body.
+- `tenon agent prompt` writes no host file. With `--json` it returns `subagent_type: tenon-<name>` and `native: true`
+  only when the installed file is byte-for-byte what the task's frozen definition renders for the host and the project
+  has no different same-named file (`.claude/agents/tenon-<name>.md`, `.codex/agents/tenon-<name>.toml`) that would
+  shadow it. Otherwise it returns the host's generic subagent (`general-purpose` for Claude Code, `default` for Codex)
+  with `native: false`, a `reason` (`not-installed`, `definition-mismatch`, `shadowed` or `project-agent`) and a
+  one-line `hint`, always in Chinese, that names the directory it checked. A task keeps the definition it froze, so a
+  task that froze an older version of an agent stays on the generic subagent instead of silently using a newer one.
+- `tenon agent record <change> <run-id> --subagent none` records a run for which no subagent was dispatched
+  (`reason: not-dispatched`). The reason of a run that did not use the dedicated subagent is kept in the run side note
+  `.pipeline-agent-run-meta.jsonl` as `subagent_reason`, and the ledger row keeps its three `subagent` keys.
+- Files that earlier versions wrote into the project outrank the user-level ones, so Tenon removes them: at
+  `tenon init`, and when a task is finished, terminated or deleted (CLI and Dashboard). A leftover is deleted when the
+  project's `.pipeline-owned.json` lists it and its content still matches the recorded hash, or when its content equals
+  what the current library renders for that agent. Anything else (edited files, files that match neither rule,
+  unreadable ones) is kept and reported as a `WARN` naming the file, and a failure never changes the exit code.
+- Open a new session after installing: the host loads subagent files when a session starts. Install in the environment
+  the host starts in. If your Claude Code or Codex starts with `CLAUDE_CONFIG_DIR` or `CODEX_HOME` set, run the install
+  with the same variable, or the files land in `~/.claude/agents` and the host never sees them. The first line of the
+  output, `目标目录：<dir>`, shows where the files went, and inside a session `! tenon agent install --host claude` uses the
+  session's environment. See [Host subagents and the install command](agents.md#host-subagents-and-the-install-command).
+
+### Step progress in the terminal
+
+- After `tenon init`, `tenon session activate`, `tenon transition` or `tenon step run <name>` succeeds, the PostToolUse
+  hook `step-progress` prints one line taken from the task's frozen plan: `✓` for steps already passed, `●` for the
+  current one, `○` for those not reached, and `✓` everywhere once the task is archived. Steps are joined by ` → ` and
+  labelled as the workflow declares them (`立项 ✓ → 调研 ● → 规格 ○ → …`). After a back edge (for example `verify-fail` to
+  Build) the later steps show `○` again.
+- `tenon workflow progress <name>` prints the same line, and finds a task that lives in a worktree from the main
+  checkout too. When it cannot read the task (invalid name, unreadable state, no plan, no steps) it exits `1` with an
+  empty stdout.
+- The line does not depend on the host's Todo tool, which recent Claude Code models do not offer by default; the `tenon`
+  skill fills the host's Todo list from `tenon workflow plan <name> --json` only when the host has one. The hook runs
+  only after the host reports the command as successful, so a failed command prints no line, and any hook problem prints
+  nothing rather than an error. It recognizes task names made of lowercase letters, digits and hyphens; for another name
+  run `tenon workflow progress <name>` yourself. See
+  [Step progress in the terminal](quickstart.md#step-progress-in-the-terminal).
+
+### Each new task in its own worktree
+
+- In the main checkout of a Git repository, `tenon init` creates the task in `<project>/.worktrees/<change>` on a new
+  branch `tenon/<change>`, cut from the current `HEAD` and tracking nothing. The task records `base_branch` (the branch
+  you were on), `start_sha` (that `HEAD`) and `isolation=worktree`. Tasks in one repository run side by side, and none
+  sees another's changed files, test registrations or build fingerprint. `.worktrees/` is added to `.git/info/exclude`
+  when no ignore rule covers it, so `git status` in the main checkout does not change. Creation is all or nothing: if
+  `init` fails the worktree and the branch are removed again, and an existing path or branch of that name makes `init`
+  exit `1` and changes nothing.
+- In place instead. `tenon init` creates the task in the current directory, as before, and says why on stderr, when the
+  directory is not a Git repository (or not its root), the repository has no commit, `HEAD` is detached, the directory
+  is itself a linked worktree, or you pass `--in-place` (use it only when you want that; the `tenon` skill passes it
+  only if you ask). `TENON_INIT_IN_PLACE=1` has the same effect without printing a reason and exists for Tenon's own
+  tests and scripts. A task created by AFK triage is created in place, and a task created before the upgrade stays in
+  its checkout.
+- Output. Text output keeps stdout empty; its last two stderr lines are `worktree: <absolute path>` and how to switch
+  in. `--json` prints one line on stdout with `change`, `path`, `worktree` (the absolute path, or `null`) and
+  `worktree_reason` (`null` for a worktree, otherwise `not-git`, `no-commits`, `detached-head`, `linked-worktree` or
+  `requested`).
+- Switching in and resuming. In Claude Code the `tenon` skill switches into the worktree with `EnterWorktree` and then
+  runs `tenon session activate`; from then on commands, review confirmations and hooks use the worktree as the project
+  root. Codex has no equivalent: the skill asks you to open a new session in that directory and ends the turn. Resuming
+  works the same way: when the router names a task that exists only under `.worktrees/`, its dispatch carries
+  `worktree_path`. When you say "continue" in the main checkout and only worktree tasks can be continued, the dispatch
+  lists them with their paths (`change_candidate`) and asks you to pick one. Worktree tasks are not counted when the
+  router decides between creating a task and selecting one.
+- Finding the task. `tenon list` has a final `WORKTREE` column (`-` for a task of the current root) and its `--json`
+  rows carry `worktree`; run in the main checkout it also lists the unarchived tasks under `.worktrees/`. A command that
+  reads a task by name in the main checkout (`status`, `get`, `check`, `workflow plan`) exits `1` for a task that lives
+  in a worktree and names the worktree path in the error.
+- Preparing the worktree. A new worktree has no installed dependencies or build output. The test catalog
+  (`.tenon/tests/catalog.yaml`) can declare one top-level `setup` string, such as `npm ci`, and `tenon init` runs it in
+  the new worktree, with its output on stderr, when the command is trusted. Trust is per user, repository and command,
+  so every worktree of the repository shares it: a `setup` you already trusted runs at once, and one that is not trusted
+  yet is not run: `init` prints it and asks you to run `tenon test trust` yourself (an agent cannot confirm it for you),
+  and then to run the command by hand. The worktree holds the committed catalog, so an uncommitted edit of `setup` in
+  the main checkout does not count. A failing `setup` only warns, with the command to rerun it, and `init` still exits
+  `0`; a missing or invalid catalog, or no `setup` key, is reported and skipped. `tenon test trust` lists `setup` with
+  the suites, and `tenon test run` neither runs nor checks it. `setup` can take minutes: give the shell call a generous
+  timeout (the skill uses 600000 ms); a timeout only stops `setup`, and the task already exists.
+- Finishing. Delivery and finishing happen on the `tenon/<change>` branch. When the task is archived Tenon leaves the
+  worktree and the branch in place and only reports the command that removes them, as `cleanup` on the `finish-change`
+  action and on the `stop` with `code: finished`: `git worktree remove '<path>' && git branch -d 'tenon/<change>'`. Run
+  it yourself, in the main checkout and not inside the worktree it removes; `git branch -d` refuses a branch that is not
+  merged, so no commit is lost. `finish-change` always has the key (`null` for a task created in place); the `stop` has
+  it only for a worktree task.
+- The build revision of a worktree task binds a content fingerprint of the workspace, as for an in-place task, because
+  the implementation in a task worktree is usually not committed when Build ends and Build never requires a commit; only
+  `isolation=branch` binds a Git object. The identity stays bound to the physical repository and worktree, so verifying
+  a worktree task from another checkout gives `worktree-mismatch`, and a token of the wrong kind for the task's
+  `isolation` gives `isolation-mismatch`. Both mean: return to Build and capture again.
+- Each new task costs a worktree, a branch and a dependency install, and Codex needs a new session. The Dashboard
+  registers each worktree as its own project and has no view across worktrees. See
+  [Where the task lives](quickstart.md#where-the-task-lives-the-task-worktree).
+
+### A recorded start point
+
+- `tenon init` records the `HEAD` it started from as the task field `start_sha` (AFK triage does the same; nothing is
+  recorded when the repository has no commit). The start of "changed since the task started" is the newest of three
+  candidates: `start_sha` (when it is an ancestor of `HEAD` and committed no later than the task's `created_at` plus 60
+  seconds), the merge-base of `HEAD` and the upstream of `base_branch`, and the merge-base of `HEAD` and `base_branch`
+  (when that is not `HEAD` itself). Candidates that do not form a chain fall back to their common ancestor, so the list
+  can show too much but never too little; with no candidate at all it is the last commit before `created_at`, as before.
+  No commit message or author is read.
+- What you see: commits that others merged into the base branch and that you then fetched or pulled stop counting as
+  this task's changes, instead of appearing as inherited test files and a changed catalog. Test registration and sync,
+  the changed-files list, the approval of protected test configuration, the test-integrity report, the `diff-risk`
+  probe, reviewers scoped by `attach_on`, changed-line coverage, evidence export, the transition gates (CLI and HTTP),
+  the Dashboard snapshot and `tenon verify --ci` all compare against this one start. In a CI checkout
+  `tenon verify --ci` takes `origin/<base>` as the base when that reference exists, and the local branch otherwise.
+- `start_sha`, `base_branch` and `created_at` are written only by `tenon init`: `tenon set`, `set-many` and `cas` refuse
+  them (exit `1`, nothing changes). `base_branch` and `created_at` used to be writable.
+- `start_sha` is kept in a record next to the task state (`.pipeline-run/start-sha/`), not in `.pipeline.yaml`. That
+  record is not covered by the state digest, which is why its commit time is checked against `created_at`: rewriting or
+  deleting it can only move the start earlier and show more files, never fewer.
+- Limits. The upstream is a local reference, so without a `git fetch` it can be stale, which only counts more files. An
+  in-place task that commits on the base branch and pushes to its upstream moves its start past those commits, and they
+  stop counting as its changes; a worktree task is not affected. A commit made with a forged commit time earlier than
+  `created_at` passes the time check. See [Task start point](default-workflow.md#task-start-point).
+
+### Fixed
+
+- Going back from a step no longer requires starting an agent. A back edge (such as `requirements-changed` from Build or
+  `verify-fail` from Verify) no longer asks for the skills of the agents the step declares: those skills can only be
+  loaded while the agent runs, so `requirements-changed` from Build needed a builder run started first. Skills the main
+  thread loads itself are still required on a back edge, and a forward edge requires everything, as before.
+  `tenon status`, `tenon check`, `tenon transition` and the Dashboard transition apply the same rule.
+- An untracked `.claude/worktrees/` no longer moves the workspace fingerprint that build revisions and reviewer verdicts
+  bind. Claude Code creates that directory for the checkouts of its subagents and sessions, another session of the same
+  repository keeps changing it, and it can hold a very large number of files: a task in the main checkout went
+  `revision-stale`, and every fingerprint, so every `tenon status`, was slow. The traversal no longer descends into it.
+  A file in it that git tracks still counts, so a pull request cannot hide code there. Test records already bound a
+  fingerprint that leaves it out.
+
+### Behaviour changes and upgrade impact
+
+- **`tenon init` creates a worktree in the main checkout of a Git repository.** Scripts and CI that run `tenon init` and
+  then keep working in the same directory pass `--in-place` (the CI bench step of this repository does) or change into
+  the path that `--json` returns. A command that reads a task by name runs in the task's own root.
+- **Dedicated subagents need `tenon agent install`.** Until you have run it and opened a new session,
+  `tenon agent prompt` returns the generic subagent with `reason: "not-installed"` and the install hint, and the agent
+  runs without its `tools` allowlist and `model`.
+- **A trusted `setup` runs without asking.** Trust binds the command text, not the repository files the command reads
+  when it runs, such as the `package.json` lifecycle scripts or the scripts they call, the same as for test suites.
+  After `setup` is trusted, a later commit that changes those files makes `tenon init` run the changed version in the
+  new worktree. To avoid that, create the task with `tenon init --in-place` or remove `setup` from the catalog.
+- **`tenon set`, `set-many` and `cas` refuse `start_sha`, `base_branch` and `created_at`** (exit `1`). A script that
+  wrote `base_branch` or `created_at` fails now.
+- **`tenon list` has a new last column, `WORKTREE`,** and its `--json` rows have a `worktree` key. A script that reads
+  the table by column position or compares rows exactly needs an update.
+- **`tenon uninstall` leaves the user-level subagent files.** Run `tenon agent uninstall --host <host>` first if you
+  want them gone.
+
+### Development
+
+- An external task tool used only in Tenon's own repository is removed: its project hooks used relative paths from a
+  gitignored directory, so they failed inside git worktrees and blocked prompts. Nothing changes for users.
+- A test or script that runs `tenon init` in a temporary git repository and expects the task in that directory must
+  export `TENON_INIT_IN_PLACE=1`, and a fixture that must not touch the host configuration must unset
+  `CLAUDE_CONFIG_DIR` and `CODEX_HOME`: the user-level subagents and `AGENTS.md` resolve from them. The vitest global
+  setup and the shell test scripts of this repository do both.
+- This repository's `.tenon/tests/catalog.yaml` declares `setup: npm ci && npm run build:packages`.
+
+### What you need to do
+
+Run `tenon update --claude` (or `--codex`), then:
+
+1. Install the host subagents in the terminal with `tenon agent install --host claude` (or `--codex`), and open a new
+   host session. The `tenon update` you just ran is the code of the release you updated from and has no install step;
+   from now on `tenon setup` and `tenon update` run it, and a second `tenon update` does it now. If Claude Code or Codex
+   starts with `CLAUDE_CONFIG_DIR` or `CODEX_HOME` set, run the install with the same variable (inside a session:
+   `! tenon agent install --host claude`) and check the `目标目录：<dir>` line. Run it again after you add, edit or remove a
+   custom agent.
+2. Scripts and CI that run `tenon init` and then work in the same directory: add `--in-place`, or read `worktree` from
+   `--json`.
+3. To have new worktrees prepared, declare `setup` (for example `npm ci`) in `.tenon/tests/catalog.yaml` and run
+   `tenon test trust` once in your own terminal. Without it a new worktree has no installed dependencies, and the tests
+   do not run there (`tenon init` says so).
+4. Remove writes to `base_branch` and `created_at` from scripts that used `tenon set`.
+5. On a machine whose project has an untracked `.claude/worktrees/`, a task in flight can show `revision-stale` once on
+   its first check: return to Build, capture the current revision again, and run the reviewers again (see
+   Compatibility).
+6. When a task in a worktree is finished, run the `cleanup` command that `step.next` reports, in the main checkout.
+7. Codex: the hook files changed, so Codex may ask you to trust them again. Run `/hooks`, trust `tenon`, and start a new
+   session (see [Codex hook trust](installation.md#codex-hook-trust)).
+8. Before rolling back to an earlier release, finish or terminate the tasks you created in a worktree and the tasks that
+   have a run on a generic subagent, remove `setup` from `.tenon/tests/catalog.yaml`, and run
+   `tenon agent uninstall --host <host>` if you want the user-level subagent files gone (see Compatibility).
+
+### Compatibility
+
+N-1 is v0.3.3. The N-1 gate (`tools/test-bundle.sh`) crosses it with this release in both directions on every run.
+
+- The gate crosses the test record chain, the agent run ledger with its sidecar, the test plan, catalogs written by
+  `discover --write`, chains pruned by `TENON_RECORD_RETENTION`, and records written beside an untracked
+  `.claude/settings.local.json`. It creates its tasks in place (`TENON_INIT_IN_PLACE=1`). The other limits below are
+  known and not crossed by the gate.
+- v0.3.3 cannot read the catalog key `setup`: a catalog with a top-level `setup` is reported with an unknown key. Before
+  rolling back, remove `setup` from `.tenon/tests/catalog.yaml`.
+- A task that `tenon init` created in a worktree has `isolation=worktree`. v0.3.3 binds that value to a Git object where
+  this release binds a workspace fingerprint, so a build revision captured by one version is refused by the other at
+  Verify (`isolation-mismatch`). Finish or terminate the tasks you created in a worktree before rolling back (see
+  [Updates, recovery, and uninstall](updates-recovery-and-uninstall.md)). v0.3.3 does not know `.worktrees/` either: in
+  the main checkout its `tenon list` does not list those tasks, and a command that reads one by name says
+  `change not found`; run it inside the worktree.
+- v0.3.3 cannot read the agent run side note of a run that did not use the dedicated subagent: the row carries
+  `subagent_reason`, which v0.3.3 does not know, so it reports the task's agent run ledger as corrupt (`runs-corrupt`).
+  That covers runs dispatched to a generic subagent (reasons `not-installed`, `definition-mismatch`, `shadowed`,
+  `project-agent`) and runs recorded with `--subagent none`. Finish or terminate such tasks before rolling back.
+- `start_sha` is kept in a companion record, so v0.3.3 reads a task that has one and can continue it. The record is not
+  carried into the revisions v0.3.3 writes: back on this release the start of that task is computed from the upstream
+  and base-branch candidates only, as for a task created before the field existed.
+- v0.3.3 does not know the user-level subagent files or `host-owned.json`. From inside a host session it writes the
+  project-level `tenon-<name>` files again (`tenon init`, `tenon agent prompt --host`), and a project-level file
+  outranks a user-level one of the same name; this release removes them again at `tenon init` and when a task ends.
+- Fingerprint rule change: on a machine whose project has an untracked `.claude/worktrees/`, v0.3.3 counts that
+  directory in the fingerprint that build revisions and reviewer verdicts bind, and this release does not. A task in
+  flight across the upgrade (or across a rollback) can show a one-time `revision-stale` on its first check, and its
+  reviewers have to run again. The remedy is the usual one for a stale build revision: return to Build and capture the
+  current revision again. Test records bind a fingerprint that never counted that directory and are not affected, and
+  neither are tasks in a project without it.
+- Commands and options added: `tenon agent install` and `uninstall`, `tenon workflow progress`, `tenon init --in-place`
+  and `--json`, `tenon agent record --subagent none`, the `WORKTREE` column of `tenon list` and `worktree` in its
+  `--json` rows, `reason` and `hint` in `tenon agent prompt --json`, the `cleanup` key of the `finish-change` action,
+  and the catalog key `setup`. Changed: `tenon set`, `set-many` and `cas` refuse `start_sha`, `base_branch` and
+  `created_at`. Removed: the project-level host agent files that `tenon init` and `tenon agent prompt` wrote.
+
+### Verify
+
+```bash
+tenon --version
+tenon doctor
+tenon runtime status
+tenon agent install --host claude
+tenon list --json
+```
+
+`tenon --version` prints `0.3.4`. In `tenon doctor`, `identity:release` lists 0.3.4 for the host plugin, the runtime and
+the Dashboard server. `tenon runtime status` shows the active release with `valid=yes`. `tenon agent install` prints
+`目标目录：<dir>` first and exits `0`; on a repeated run each file is reported as 未变化 (unchanged). In a new session,
+`tenon agent prompt <change> <agent> --host claude --json` for an agent of the task's current step returns
+`subagent_type: tenon-<agent>` with `native: true`. Every row of `tenon list --json` has a `worktree` key, the absolute
+path of the worktree or `null` for a task of the current root.
+
 ## v0.3.3 · 2026-10-14
 
 v0.3.3 makes a task lighter to start, to configure and to confirm. Only two Workflows are built in now: `default`, whose

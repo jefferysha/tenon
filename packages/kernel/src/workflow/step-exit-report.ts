@@ -11,12 +11,14 @@ import type { TransitionContext } from '../flow/transition-table.js'
 import { unreadInputBlockers } from '../documents/step-input-gate.js'
 import { evaluateDocumentEvidence, type DocumentEvidenceReport } from '../state/document-evidence.js'
 import {
-  documentRecordsInCurrentStepVisit, judgeStepSkillSlots, missingStepSkillMessages, type StepSkillSlotProgress,
+  documentRecordsInCurrentStepVisit, judgeStepSkillSlots, missingStepSkillMessages, slotExcluded,
+  type StepSkillSlotProgress,
 } from '../state/skill-document-binding.js'
 import { evaluateSpecMigrationEvidence } from '../state/spec-migration-evidence.js'
 import { evaluateTestEvidence, type TestEvidenceContext } from '../test-evidence/evaluate.js'
 import type { TestEvidenceReader } from '../test-evidence/transition-gate.js'
 import type { FlowEngine, PipelineState } from '../types.js'
+import { readAgentOwnedSkills } from './agent-owned-skills.js'
 import { isForwardExit, renderAgentBlocker, type AgentBlocker } from './agent-verdict.js'
 import { isDocumentContractPhase, type DocumentContractPhase } from './document-contract-model.js'
 import { isDocumentPolicyStep } from './document-contract.js'
@@ -159,7 +161,9 @@ async function guardBlockers(
 
 /**
  * 一条边的证据面。退回边只要求那条边自己的 guard 与技能门：修问题的路必须一直开着，否则失败的
- * 验证就没有回到实现的通道（同 `tenon check` 与 transition 的既有口径）。
+ * 验证就没有回到实现的通道（同 `tenon check` 与 transition 的既有口径）。退回边的技能门还不要求归属本步
+ * 执行者 / 评审者 agent 的技能（只能在该 agent 运行期间加载），不归属任何 agent 的主线技能照旧要求——
+ * 与 transition 的技能门（transition-step-gates）同一口径。
  */
 export async function evaluateStepExitReport(input: StepExitReportInput): Promise<StepExitReport> {
   const { plan, state } = input
@@ -174,17 +178,23 @@ export async function evaluateStepExitReport(input: StepExitReportInput): Promis
     stepId,
     context: input.testEvidence.context,
   })
-  // 技能门对退回边同样生效（rejectOnStepGates 不分方向），所以它进 perExit 而非 shared。
+  // 技能门对退回边同样生效（rejectOnStepGates 两个方向都查，只是退回边豁免归属 agent 的技能），所以它进 perExit 而非 shared。
   const judgement = await input.skills()
-  // missingStepSkillMessages 按槽位顺序只返回未完成的槽位，所以与 pending 一一对应。
-  const pending = judgement.slots.filter((slot) => !slot.done)
-  const skills = missingStepSkillMessages(judgement.slots).map((message, index) => {
-    const slot = pending[index]
-    return blocker('skill', 'skill-incomplete', `尚未完成声明的 skill：${message}`, slot === undefined ? undefined : {
-      subject: slot.token,
-      state: slot.invoked && slot.pendingDocuments.length > 0 ? 'unrecorded' : 'not-run',
+  // 未完成槽位的阻断；exclude = 这条边不要求的技能（退回边上归属 agent 的技能）。
+  const skillBlockers = (exclude?: ReadonlySet<string>): readonly StepBlocker[] => {
+    // missingStepSkillMessages 按槽位顺序只返回未完成的槽位，所以与 pending 一一对应。
+    const pending = judgement.slots.filter((slot) => !slot.done && !slotExcluded(slot.token, exclude))
+    return missingStepSkillMessages(pending).map((message, index) => {
+      const slot = pending[index]
+      return blocker('skill', 'skill-incomplete', `尚未完成声明的 skill：${message}`, slot === undefined ? undefined : {
+        subject: slot.token,
+        state: slot.invoked && slot.pendingDocuments.length > 0 ? 'unrecorded' : 'not-run',
+      })
     })
-  })
+  }
+  const skills = skillBlockers()
+  // 归属本步 agent 的技能：第一条需要它的退回边才读冻结内容，一次判定只读一次。
+  let owned: Promise<ReadonlySet<string>> | undefined
   const reviewers = (await input.agentBlockers()).map((item) =>
     blocker('reviewer', item.kind, renderAgentBlocker(item, input.changeName), reviewerDetail(item)))
   const migration = stepId === 'ship' && plan.capabilities.documents.governed
@@ -223,9 +233,15 @@ export async function evaluateStepExitReport(input: StepExitReportInput): Promis
       : forward ? 'forward' : 'back'
     const guards = await guardBlockers(input, execution, stepId, transition.event, transition.to)
     // 放弃边只看它自己的守卫：任务要被放弃了，没做完的证据不该拦着它出去。
-    const blockers = isAbandonEvent(transition.event)
-      ? [...guards]
-      : forward ? [...guards, ...skills, ...shared] : [...guards, ...skills, ...inputBlockers]
+    let blockers: readonly StepBlocker[]
+    if (isAbandonEvent(transition.event)) {
+      blockers = [...guards]
+    } else if (forward) {
+      blockers = [...guards, ...skills, ...shared]
+    } else {
+      owned ??= readAgentOwnedSkills({ changeDir: input.changeDir, plan, state, stepId })
+      blockers = [...guards, ...skillBlockers(await owned), ...inputBlockers]
+    }
     exits.push({ event: transition.event, to: transition.to, direction, ready: blockers.length === 0, blockers })
   }
   return {

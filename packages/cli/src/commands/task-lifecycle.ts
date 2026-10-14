@@ -13,7 +13,7 @@ import type {
   TaskResult,
 } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
-import { pruneHostAgents } from './agent-host.js'
+import { cleanupLegacyHostAgentFiles } from './agent-host.js'
 
 const REASON_TEXT: Readonly<Record<TaskLifecycleReasonCode, string>> = {
   'afk-running': 'AFK 运行中',
@@ -39,17 +39,6 @@ function application(deps: CliDeps): TaskLifecycleApplication | null {
   if (deps.taskLifecycle !== undefined) return deps.taskLifecycle
   deps.io.err('ERROR: 任务生命周期能力未装配')
   return null
-}
-
-/**
- * 任务被删除或终止之后，回收不再被任何在途任务引用的宿主 agent 文件（此前只有转换到完结才回收）。
- * 尽力而为：失败只 WARN，任务的删除 / 终止已经成功。
- */
-async function reclaimHostAgents(deps: CliDeps, change: string): Promise<void> {
-  const pruned = await pruneHostAgents(deps, change)
-  if (pruned !== undefined && pruned.removed.length > 0) {
-    deps.io.err(`[AGENT] 已回收宿主 agent 文件：${pruned.removed.join(', ')}`)
-  }
 }
 
 function reportReasons(deps: CliDeps, change: string, reasons: readonly TaskLifecycleReason[]): void {
@@ -120,7 +109,7 @@ export async function cmdTaskDelete(deps: CliDeps, name: string, opts: TaskLifec
   if (refusal !== null) return refusal
   if (outcome.kind !== 'deleted') return 1
   for (const warning of outcome.warnings) deps.io.err(`WARN: ${warning}`)
-  await reclaimHostAgents(deps, name)
+  await cleanupLegacyHostAgentFiles(deps) // 删除 / 归档已成功；旧版本留下的宿主 agent 文件尽力清理，失败只 WARN
   if (opts.json === true) {
     deps.io.out(JSON.stringify({
       change: outcome.change,
@@ -154,7 +143,7 @@ export async function cmdTaskTerminate(deps: CliDeps, name: string, opts: TaskLi
   if (refusal !== null) return refusal
   if (outcome.kind !== 'terminated') return 1
   for (const warning of outcome.warnings) deps.io.err(`WARN: ${warning}`)
-  await reclaimHostAgents(deps, name)
+  await cleanupLegacyHostAgentFiles(deps) // 终止已成功；旧版本留下的宿主 agent 文件尽力清理，失败只 WARN
   if (opts.json === true) {
     deps.io.out(JSON.stringify({
       change: outcome.change,

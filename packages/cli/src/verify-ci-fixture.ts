@@ -265,9 +265,25 @@ export async function ciCheckout(dev: Dev, options: { readonly shallow?: boolean
     commit: (message) => {
       git(dir, ['add', '-A'])
       git(dir, ['commit', '-q', '-m', message, '--allow-empty'], '2026-08-02T00:00:00Z')
+      advanceRemoteTracking(dir)
     },
     cleanup: () => rm(dir, { recursive: true, force: true }),
   }
+}
+
+/**
+ * 真实的 CI 检出里 HEAD 就是被推送的分支头：`origin/<当前分支>` 与 HEAD 同一个提交。夹具里的篡改提交做在克隆上，
+ * 等同于「推送了这个提交」，所以让已有的 `origin/<当前分支>` 跟着走；否则任务起点会停在推送前的头，把交付提交当成基线。
+ */
+function advanceRemoteTracking(dir: string): void {
+  const branch = git(dir, ['rev-parse', '--abbrev-ref', 'HEAD']).trim()
+  const tracking = `refs/remotes/origin/${branch}`
+  try {
+    git(dir, ['rev-parse', '--verify', '-q', tracking])
+  } catch {
+    return
+  }
+  git(dir, ['update-ref', tracking, 'HEAD'])
 }
 
 /** 改一条记录并（可选地）重算它与后续记录的摘要——模拟「改了记录」与「改了记录还重算了整条链」。 */

@@ -169,7 +169,7 @@ export {
 export type { SealApproval, SealRead, SealState, SealTrust, SealWrite, TestSeal } from './seal.js'
 export { TRUST_STORE_MAX_ENTRIES, addTrustEntries, readTrustStore, testTrustPaths } from './trust-store.js'
 export type { TrustEntry } from './trust-store.js'
-export { catalogExecEntries, stepTestExecEntries } from './catalog.js'
+export { catalogExecEntries, catalogSetupEntry, stepTestExecEntries } from './catalog.js'
 export type { ExecEntry } from './catalog.js'
 export { describeProtectedChange } from './protected-summary.js'
 export {

@@ -5,6 +5,7 @@ import {
   ensureAgentFreeze,
   OBSERVE_ACTION_KINDS,
   prepareAgentFreeze,
+  readHeadCommit,
   workflowPlanSnapshot,
   type AgentLibrary,
   type EffectiveWorkflowPlan,
@@ -38,7 +39,7 @@ const CHANGE_NAME_RE = /^[A-Za-z0-9_-]+$/
 
 export type WorkflowRunCreateTrustedInit = Omit<
   InitOptions,
-  'repoRoot' | 'name' | 'runId' | 'initialWorkflow'
+  'repoRoot' | 'name' | 'runId' | 'initialWorkflow' | 'startSha'
 >
 
 export interface WorkflowRunCreateRepositoryDeps {
@@ -352,7 +353,9 @@ export function createWorkflowRunCreateIfAbsentRepository(
         deps.loadAgentLibrary ?? (async () => ({ entries: [], sync: { id: 'agents', state: 'unchanged' as const } })),
       )
       // Explicit projection is intentional: even an unsound host implementation cannot smuggle
-      // repoRoot/name/runId/initialWorkflow through object spread and override request identity.
+      // repoRoot/name/runId/initialWorkflow/startSha through object spread and override request identity.
+      // 任务起点只取仓库当前 HEAD（还没有提交就不记），仍在原目录建立。
+      const startSha = await readHeadCommit(deps.repoRoot)
       const init: InitOptions = {
         repoRoot: deps.repoRoot,
         name: request.changeName,
@@ -371,6 +374,7 @@ export function createWorkflowRunCreateIfAbsentRepository(
           // 带旧文档契约才建文档账本；`governed` 只表示走 OpenSpec 生命周期（新任务没有契约，观察模式）。
           documentContract: plan.capabilities.documents.mode === 'contract',
         },
+        ...(startSha === undefined ? {} : { startSha }),
       }
       let created: { changeDir: string; run: WorkflowRun } | undefined
       try {

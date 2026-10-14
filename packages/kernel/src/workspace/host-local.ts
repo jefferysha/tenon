@@ -1,6 +1,7 @@
 /**
  * Host-local files: per-machine configuration of the coding-agent hosts that is never committed, and which of
- * them the portable workspace fingerprint (`fingerprint.ts`) leaves out.
+ * them the two workspace fingerprints (`fingerprint.ts`) leave out: the portable one leaves out every untracked
+ * host-local path, the full one only the untracked host-local directories (`.claude/worktrees/`).
  */
 import { execFile } from 'node:child_process'
 import { lstat, stat } from 'node:fs/promises'
@@ -17,24 +18,34 @@ import { promisify } from 'node:util'
  *   · `.claude/settings.local.json` — Claude Code's personal project settings (permission allow-lists, hook
  *     logging); Claude Code rewrites it whenever the user answers a permission prompt.
  *   · `CLAUDE.local.md` — Claude Code's personal, uncommitted project memory next to `CLAUDE.md`.
- *   · `.claude/worktrees/` — checkouts of this project that Claude Code creates for its sub-agents; every
- *     file in them is a copy of source that already counts at its real path.
+ *   · `.claude/worktrees/` — checkouts of this project that Claude Code creates for its sub-agents and
+ *     sessions; every file in them is a copy of source that already counts at its real path.  Another session
+ *     of the same repository keeps changing them, so a fingerprint that counted them could not hold still.
  *
  * `.claude/settings.json`, `.claude/commands/`, `.claude/skills/`, `.mcp.json` and `CLAUDE.md` are shared,
  * committed configuration and stay part of the candidate.  Codex needs no entry: `.codex/` and `.agents/`
  * are excluded as a whole.
  *
- * The exclusion is only for files git does not track.  A host-local path that is tracked (committed or
- * staged) is part of the repository, so the portable fingerprint counts it: otherwise a pull request could
- * commit code under one of these paths, point a test at it, and change it later without moving the candidate.
+ * The two fingerprints leave out different parts of the list.  The portable fingerprint leaves out all of it.
+ * The full fingerprint (the one reviewer verdicts and build revisions bind, and the 0.3.0 value on a tree
+ * without `.claude/worktrees/`) leaves out only the directory: it keeps counting the two files, with their raw
+ * content and permission bits.  Skipping the directory also spares the traversal from descending into it.
+ *
+ * The exclusion is only for paths git does not track.  A host-local path that is tracked (committed or
+ * staged) is part of the repository, so both fingerprints count it: otherwise a pull request could commit
+ * code under one of these paths, point a test at it, and change it later without moving the candidate.
  */
 export const HOST_LOCAL_FILES = ['.claude/settings.local.json', 'CLAUDE.local.md'] as const
 export const HOST_LOCAL_DIRS = ['.claude/worktrees'] as const
 
+/** Whether a path is a host-local directory or lies under one (by name only, like `isHostLocalPath`). */
+function isUnderHostLocalDir(relativePath: string): boolean {
+  return HOST_LOCAL_DIRS.some((dir) => relativePath === dir || relativePath.startsWith(`${dir}/`))
+}
+
 /** Whether a path is on the host-local list (by name only; whether git tracks it is a separate question, see `trackedHostLocalPaths`). */
 export function isHostLocalPath(relativePath: string): boolean {
-  return (HOST_LOCAL_FILES as readonly string[]).includes(relativePath)
-    || HOST_LOCAL_DIRS.some((dir) => relativePath === dir || relativePath.startsWith(`${dir}/`))
+  return (HOST_LOCAL_FILES as readonly string[]).includes(relativePath) || isUnderHostLocalDir(relativePath)
 }
 
 /** True when the project has at least one host-local path, i.e. when the two fingerprints can differ. */
@@ -210,7 +221,7 @@ export async function trackedHostLocalPaths(root: string): Promise<ReadonlySet<s
 /** Which paths a fingerprint leaves out in addition to the common exclusions. */
 export type HostLocalSkip = (relativePath: string) => boolean
 
-/** The full fingerprint counts every host-local path. */
+/** Leaves out nothing: what both fingerprints do when git cannot say what it tracks, or when there is no host-local path to ask about. */
 export const SKIP_NOTHING: HostLocalSkip = () => false
 
 /**
@@ -231,4 +242,16 @@ export function skipUntrackedHostLocal(tracked: ReadonlySet<string>, caseInsensi
     const folded = key(relativePath)
     return !trackedKeys.has(folded) && !holdingTracked.has(folded)
   }
+}
+
+/**
+ * The full fingerprint leaves out only the host-local directories' untracked paths: whatever `skipUntrackedHostLocal`
+ * would skip under `.claude/worktrees/` (the directory itself included), and nothing else.  The host-local files
+ * (`.claude/settings.local.json`, `CLAUDE.local.md`) stay counted there, with their raw content and permission bits,
+ * and a tracked path (or a directory holding one) is counted like any source file.  The tracking test is
+ * `skipUntrackedHostLocal`'s, case folding included, so the two fingerprints cannot disagree about it.
+ */
+export function skipUntrackedHostLocalDirs(tracked: ReadonlySet<string>, caseInsensitive = false): HostLocalSkip {
+  const untracked = skipUntrackedHostLocal(tracked, caseInsensitive)
+  return (relativePath) => isUnderHostLocalDir(relativePath) && untracked(relativePath)
 }

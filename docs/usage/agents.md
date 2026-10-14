@@ -99,41 +99,173 @@ tenon agent export <name> --host claude|codex
   asks you to complete it; `validate` fails until you do.
 - `rm` refuses an official agent and any agent a workflow step still uses, and
   lists those steps (exit 2).
+- `new`, `add`, `copy` and `rm` change the library only. They write no host
+  subagent file and print a reminder to run `tenon agent install` and open a new
+  session; see [Host subagents and the install command](#host-subagents-and-the-install-command).
 - In Claude Code or Codex, the `tenon:agent-author` skill drafts the body from
   your description (responsibility, does and does not, method, self-check,
   report with the `tenon-result` block), validates the draft and registers it
   with `tenon agent add`. It writes no Tenon state.
 
-## Host-native agent files
+## Host subagents and the install command
 
-When a task freezes its agents (at `tenon init`, or at the first
-`tenon agent prompt --host <host>`), Tenon generates a native subagent file for
-the current host:
+A task runs its agents as host subagents. The dedicated `tenon-<name>` subagent
+files are written once, in the terminal, at user level; no Tenon command that
+runs inside a session writes them. A subagent file added in the middle of a
+session is picked up at a time the host does not specify, so only files that
+exist before the session starts are dependable.
+
+```text
+tenon agent install [--host claude|codex]
+tenon agent uninstall [--host claude|codex]
+```
 
 | Host | File | Fields |
 | --- | --- | --- |
-| Claude Code | `.claude/agents/tenon-<name>.md` | name, description, tools, model |
-| Codex | `.codex/agents/tenon-<name>.toml` | name, description, developer_instructions, model; `sandbox_mode = "read-only"` when the tools cannot write or run commands |
+| Claude Code | `<Claude config dir>/agents/tenon-<name>.md` | name, description, tools, model |
+| Codex | `<Codex config dir>/agents/tenon-<name>.toml` | name, description, developer_instructions, model; `sandbox_mode = "read-only"` when the tools cannot write or run commands |
 
-- `tenon agent prompt <change> <agent> --host claude|codex --json` returns
-  `subagent_type: tenon-<name>`; the host runs the agent as that subagent. Claude
-  Code enforces the `tools` allowlist. Codex custom agents have no per-agent tool
-  allowlist: Tenon only sets `sandbox_mode = "read-only"` for an agent whose tools
-  cannot write or run commands, and every other restriction is an instruction in
-  the agent body. A tool the host does not provide (for example `Grep` in some
-  headless runs) answers `No such tool available`; the agent uses the shell
-  equivalent. A model alias the host does not know is omitted.
-- If a file cannot be generated (a same-named file that Tenon did not write, a
-  file you edited, a symlinked path), the host falls back to a general subagent
-  and the run record says so. When the host cannot load the subagent it was
-  given, record what actually ran with
-  `tenon agent record <change> <run-id> --subagent <type>`.
-- Every run record carries `subagent: { host, type, native }`.
-- The files are listed with their content hash in the project's
-  `.pipeline-owned.json`. When a task reaches its end, Tenon removes the files
-  no other running task uses; `tenon uninstall` removes only files it generated
-  and you have not edited. They are never part of the delivery commit and never
-  change the review candidate.
+The config dir is `$CLAUDE_CONFIG_DIR` for Claude Code and `$CODEX_HOME` for
+Codex when that variable is set to an absolute path (surrounding spaces and a
+trailing slash are ignored); a relative or empty value is not used. Otherwise it
+is `~/.claude` and `~/.codex`. A host reads subagents only from its own config
+dir, so the install, the uninstall and the `tenon agent prompt` check all resolve
+it the same way, from the environment of the process that runs the command.
+
+- **Install in the environment the host starts in.** If your Claude Code or Codex
+  starts with `CLAUDE_CONFIG_DIR` / `CODEX_HOME` set, run the install with the same
+  variable, or the files land in `~/.claude/agents` and the host never sees them.
+  The first line of `tenon agent install` and `uninstall` output, `目标目录：<dir>`
+  ("target directory"), shows where it went. From inside a session you can run it
+  with the `!` prefix, for example `! tenon agent install --host claude`, which
+  uses the session's environment.
+- Ownership is recorded per target directory, so installing or uninstalling in one
+  config dir never deletes, rewrites or claims the files Tenon wrote in another
+  (for example `~/.claude/agents` and `$CLAUDE_CONFIG_DIR/agents` on the same
+  machine).
+- `tenon agent install` renders every official and custom agent that applies to
+  the host (an agent whose `hosts` list leaves the host out is skipped) into
+  those files. Project agents (`.tenon/agents/`) are never installed, so the
+  result is the same in whichever directory you run it. `--host` defaults to the
+  host detected from the process environment, and to `claude` in a plain
+  terminal.
+- `tenon setup --claude|--codex` and `tenon update --claude|--codex` run the same
+  install after they succeed (`update` also when it finds the release already
+  current; installing is idempotent) and print what was written. A failed
+  install only warns: the exit code of `setup` / `update` does not change, and
+  you can run `tenon agent install --host <host>` yourself. `--dry-run`
+  installs nothing, and the once-a-day automatic update (`--auto`) speaks only
+  when the install fails.
+- **Open a new session afterwards.** The host loads subagent files when a
+  session starts; the install command and `tenon agent new|add|copy|rm` all say
+  so. The four library commands write no host file: they only print the reminder
+  to run `tenon agent install` (for a project agent they add that it is not
+  installed).
+- A file is written only when that is safe: it does not exist yet, it already
+  has exactly the rendered content (Tenon then records that it owns it), or
+  Tenon wrote it earlier and nobody has edited it since. A same-named file that
+  is yours, or one you edited, is left alone and listed as a `WARN`; a target
+  file that is itself a symlink is refused (a symlinked parent directory, such as
+  a dotfiles-managed `~/.claude`, is fine). When an agent has left the library,
+  its file is removed if Tenon wrote it and it is unedited. An agent that is
+  still in the library but cannot be loaded (a file that fails to parse or to
+  read) does not count as removed: its installed file is neither rewritten nor
+  deleted. If the library has no usable agent at all (it could not be read), no
+  file is removed and a `WARN` says so. Ownership is kept as
+  a content hash per file in `<config>/agents/host-owned.json`, grouped by the
+  subagent directory it was written to; if that file
+  cannot be parsed, no existing file is changed or deleted, only missing files
+  are written, and the command says so.
+- `tenon agent uninstall [--host claude|codex]` deletes the user-level files
+  Tenon wrote and that are unedited; edited ones are kept and listed as `modified`.
+  `tenon uninstall` works on the project's `.pipeline-owned.json` and does not
+  touch these user-level files, so run `tenon agent uninstall --host <host>`
+  first if you want them gone.
+
+### Dispatch: what `tenon agent prompt` returns
+
+`tenon agent prompt <change> <agent> --host claude|codex --json` writes no host
+file. It renders the task's frozen definition for the host, compares it with the
+installed file, and returns `subagent_type: tenon-<name>` with `native: true`
+only when the user-level file exists and is byte-for-byte the same, and the
+project has no different same-named file (`.claude/agents/tenon-<name>.md` or
+`.codex/agents/tenon-<name>.toml`): a project-level file outranks the user-level
+one and would shadow it. Inside a task worktree both the current root and the
+main checkout are checked, because a session started from the main checkout
+loads the files that stay there.
+
+Claude Code enforces the `tools` allowlist of a dedicated subagent. Codex custom
+agents have no per-agent tool allowlist: Tenon only sets
+`sandbox_mode = "read-only"` for an agent whose tools cannot write or run
+commands, and every other restriction is an instruction in the agent body. A
+tool the host does not provide (for example `Grep` in some headless runs)
+answers `No such tool available`; the agent uses the shell equivalent. A model
+alias the host does not know is omitted.
+
+Otherwise it returns the host's generic subagent (`general-purpose` for Claude
+Code, `default` for Codex) with `native: false`, a `reason` and a `hint`. Both
+are `null` for a dedicated subagent and when no host is detected.
+
+| `reason` | Meaning | What to do |
+| --- | --- | --- |
+| `not-installed` | no user-level file for this agent | `tenon agent install --host <host>`, then a new session |
+| `definition-mismatch` | the file exists but differs from the task's frozen definition: the library or the agent changed after the file was installed, or you edited the file | install again and start a new session (an edited file is kept and listed; delete it to let install rewrite it). A task keeps the definition it froze, so a task that froze an older version stays on the generic subagent instead of silently using a newer one |
+| `shadowed` | a project-level `tenon-<name>` file with different content outranks the user-level file | remove or fix the project file (usually left by an older version, see [Files left in the project by older versions](#files-left-in-the-project-by-older-versions)) |
+| `project-agent` | the agent comes from the project layer (`.tenon/agents/`); Tenon installs no host file for those | nothing: a project agent always runs as the generic subagent |
+
+`hint` is one line, printed in Chinese whatever `TENON_LANG` says:
+`执行 tenon agent install --host <host> 后开新会话生效（目标目录 <dir>；设了 CLAUDE_CONFIG_DIR / CODEX_HOME 时要在带同样变量的环境里执行，例如会话里用 ! 前缀）`
+(run `tenon agent install --host <host>`, then open a new session; `<dir>` is the
+user-level subagent directory `prompt` checked, resolved from the session's
+`CLAUDE_CONFIG_DIR` / `CODEX_HOME`; run the install in an environment with the same
+variable, for example with the `!` prefix inside a session). If `<dir>` is not
+where you installed, that is why it says `not-installed`. The line is the same for
+all four reasons; for `shadowed` and `project-agent` installing does not change
+the result.
+
+The `tenon` skill dispatches `subagent_type` as returned and passes the `hint`
+on to you. If the host still reports that the subagent cannot be found (for
+example it was installed in this very session), the skill runs the same prompt
+in a generic subagent and records what actually ran with
+`tenon agent record <change> <run-id> --subagent <type>`. When no subagent was
+dispatched at all and the work ran in the main thread, record
+`--subagent none`: the run record then reads
+`subagent: { host, type: "none", native: false, reason: "not-dispatched" }`.
+`not-dispatched` is a registration-only reason, written by whoever records the
+run; `agent prompt` never returns it.
+
+- Every run record carries `subagent: { host, type, native }`, plus `reason`
+  when the run did not use the dedicated subagent. `--subagent <type>` keeps the
+  `reason` that `prompt` gave for a generic type and drops it when the type
+  actually used is the dedicated `tenon-<name>`.
+- The `reason` is kept beside the ledger, in the run side note
+  `.pipeline-agent-run-meta.jsonl` (as `subagent_reason`), and merged back when
+  the record is read. The ledger row itself keeps its three `subagent` keys, so a
+  runtime released before this change still reads the ledger.
+
+### Files left in the project by older versions
+
+Earlier versions wrote `.claude/agents/tenon-<name>.md` and
+`.codex/agents/tenon-<name>.toml` into the project when a task froze its agents.
+Because a project-level file outranks the user-level one, a leftover file would
+shadow the one you install. Tenon therefore cleans them up, and writes no new
+ones:
+
+- when: at `tenon init`, and when a task is finished (`archived`), terminated or
+  deleted (in the CLI and in the Dashboard);
+- which files: a leftover is deleted when the project's `.pipeline-owned.json`
+  lists it and its content still matches the recorded hash, or when its content
+  equals what the current library renders for that agent (the CLI and the
+  Dashboard use the same two rules). If the library cannot be read, a `WARN` says
+  so and only the first rule applies. The `.pipeline-owned.json` entry is removed
+  with the file, and the file is deleted only if no path component is a symlink;
+- everything else is kept and reported as a `WARN` naming the file: edited files,
+  files that match neither rule, unreadable ones. Delete those by hand once you
+  are sure you do not need them;
+- from inside a task worktree the cleanup targets the main checkout, where those
+  files and `.pipeline-owned.json` live;
+- the cleanup is best effort: a failure only warns and never changes the exit
+  code of `init`, finish, terminate or delete.
 
 ## Use agents in a workflow
 
@@ -166,6 +298,15 @@ ceiling, and when the project's workflow gives the test a `pass.metrics` ceiling
 applies. See
 [Default workflow](default-workflow.md) and
 [Custom workflows](custom-workflows-and-tracks.md).
+
+The skills an agent declares (`skills:` in its file) can only be loaded while
+that agent runs. A return edge, the way back to fix something (for example
+`verify-fail` from Verify or `requirements-changed` from Build), therefore does
+not require the skills of the agents the step declares, so you never have to
+start a builder just to go back. Skills the main thread loads itself are still
+required on a return edge, and a forward edge requires everything, as before.
+The same rule applies to `tenon status`, `tenon check` and the Dashboard
+transition.
 
 ## Cross-vendor review
 

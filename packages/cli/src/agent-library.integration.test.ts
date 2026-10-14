@@ -184,4 +184,19 @@ describe('真实 e2e —— tenon agent 库命令', () => {
     expect(h.out.join('\n')).toContain('sandbox_mode = "read-only"')
     expect(await run(['agent', 'export', 'code-size', '--host', 'gemini'])).toBe(1)
   })
+
+  test('install / uninstall：写到测试产品 home 下的用户目录，项目目录不出现宿主文件；new 只提示安装', async () => {
+    const userAgents = join(home, 'home', '.claude', 'agents')
+    expect(await run(['agent', 'new', 'sql-review', '--role', 'reviewer', '--description', 'd'])).toBe(0)
+    expect(h.err.join('\n')).toContain('执行 tenon agent install --host')
+    expect(existsSync(join(home, 'home', '.claude'))).toBe(false)
+
+    expect(await run(['agent', 'install', '--host', 'claude']), h.err.join('\n')).toBe(0)
+    expect(existsSync(join(userAgents, 'tenon-builder.md'))).toBe(true)
+    expect(existsSync(join(userAgents, 'tenon-sql-review.md'))).toBe(true)
+    expect(existsSync(join(h.cwd, '.claude'))).toBe(false)
+
+    expect(await run(['agent', 'uninstall', '--host', 'claude']), h.err.join('\n')).toBe(0)
+    expect(existsSync(join(userAgents, 'tenon-builder.md'))).toBe(false)
+  })
 })

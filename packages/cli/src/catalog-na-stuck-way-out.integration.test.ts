@@ -135,6 +135,9 @@ describe.each(RELEASE_TAGS)('%s 留下的卡死任务：当前版本上的出路
       TENON_USER: 'a@x.io',
       TENON_USER_NAME: 'A',
       TENON_TEST_TRUST: '1',
+      // 这里的环境是显式拼的（不继承 vitest 全局 setup 导出的变量）：当前版本的 init 默认建任务 worktree，
+      // 而本用例的后续命令都在 project 根目录里按名读任务，所以要求原地建立。已发布版本不认识这个变量。
+      TENON_INIT_IN_PLACE: '1',
       GIT_CONFIG_GLOBAL: '/dev/null',
       GIT_CONFIG_NOSYSTEM: '1',
     }

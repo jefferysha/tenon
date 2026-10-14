@@ -1,4 +1,6 @@
+import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
+import { writeFileSync } from 'node:fs'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -30,6 +32,20 @@ async function freshRoot(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), 'pipeline-triage-run-create-'))
   roots.push(root)
   return root
+}
+
+const GIT_ENV = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' }
+
+/** 在临时目录里建一个有一个提交的仓库，返回 HEAD。 */
+function seedGitRepo(root: string): string {
+  const git = (...args: string[]): string => execFileSync('git', [
+    '-c', 'user.email=t@t.test', '-c', 'user.name=t', '-c', 'commit.gpgsign=false', ...args,
+  ], { cwd: root, encoding: 'utf8', env: GIT_ENV })
+  git('init', '-q', '-b', 'main')
+  writeFileSync(join(root, 'README.md'), 'hello\n', 'utf8')
+  git('add', '-A')
+  git('commit', '-q', '-m', 'base')
+  return git('rev-parse', 'HEAD').trim()
 }
 
 const REPO_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..', '..', '..')
@@ -189,6 +205,59 @@ describe('WorkflowRunCreateIfAbsentRepository production adapter', () => {
       workflow: 'incident-response',
       phase: 'assess',
     })
+  })
+
+  it('records the repository HEAD as start_sha (task start point) and still creates in place', async () => {
+    const repoRoot = await freshRoot()
+    const head = seedGitRepo(repoRoot)
+    const store = createStateStore()
+    const repository = createWorkflowRunCreateIfAbsentRepository({
+      ...agentLibraryDeps, repoRoot, store, runRepository: makeRunRepository(store),
+      resolveWorkflowPlan: resolvedPlan, resolveInit: trustedInit,
+    })
+    const input = request()
+
+    await repository.createIfAbsent(input)
+
+    const dir = join(repoRoot, 'openspec', 'changes', input.changeName)
+    const state = await store.read(dir)
+    expect(state.fields.start_sha).toBe(head)
+    // The value lives in a revision-bound companion: the YAML projection keeps the closure the previous release reads.
+    await expect(readFile(join(dir, '.pipeline.yaml'), 'utf8')).resolves.not.toContain('start_sha')
+    await expect(readFile(join(dir, '.pipeline-run', 'current.json'), 'utf8')).resolves.not.toContain('start_sha')
+  })
+
+  it('omits start_sha when the repository has no commit yet or is not a repository', async () => {
+    const unborn = await freshRoot()
+    execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: unborn, env: GIT_ENV })
+    for (const repoRoot of [unborn, await freshRoot()]) {
+      const store = createStateStore()
+      const repository = createWorkflowRunCreateIfAbsentRepository({
+        ...agentLibraryDeps, repoRoot, store, runRepository: makeRunRepository(store),
+        resolveWorkflowPlan: resolvedPlan, resolveInit: trustedInit,
+      })
+      const input = request()
+      await repository.createIfAbsent(input)
+      const dir = join(repoRoot, 'openspec', 'changes', input.changeName)
+      expect((await store.read(dir)).fields.start_sha).toBe('')
+      await expect(readFile(join(dir, '.pipeline.yaml'), 'utf8')).resolves.not.toContain('start_sha')
+    }
+  })
+
+  it('never takes start_sha from host policy: the start point is the repository HEAD or nothing', async () => {
+    const repoRoot = await freshRoot()
+    const head = seedGitRepo(repoRoot)
+    const store = createStateStore()
+    const repository = createWorkflowRunCreateIfAbsentRepository({
+      ...agentLibraryDeps, repoRoot, store, runRepository: makeRunRepository(store),
+      resolveWorkflowPlan: resolvedPlan,
+      resolveInit: () => ({ ...trustedInit(), startSha: 'f'.repeat(40) } as unknown as ReturnType<typeof trustedInit>),
+    })
+    const input = request()
+
+    await repository.createIfAbsent(input)
+
+    expect((await store.read(join(repoRoot, 'openspec', 'changes', input.changeName))).fields.start_sha).toBe(head)
   })
 
   it('linearizes true-fs Promise.all contention: exactly one created and every loser converges to existing', async () => {

@@ -25,6 +25,10 @@ unset TENON_RUNTIME_ROOTS TENON_RUNTIME_DATA_ROOT TENON_RUNTIME_STATE_ROOT TENON
 # 启动器跑 CLI 时还导出 PLUGIN_ROOT（指向本机已装的 release），hook 取插件根时它优先于各用例显式设置的 CLAUDE_PLUGIN_ROOT：
 # 带着它跑，「插件根损坏」这类用例实际用的是已装插件。TENON_HOST_PLUGIN_ROOT / TENON_CODEX_PLUGIN_ROOT 同理。插件根一律由用例自己设。
 unset PLUGIN_ROOT CLAUDE_PLUGIN_ROOT TENON_HOST_PLUGIN_ROOT TENON_CODEX_PLUGIN_ROOT
+# 在本机 Claude / Codex 会话里执行时会继承真实的宿主配置目录；用户级子代理与 AGENTS.md 都据它解析，夹具不得读写它。
+unset CLAUDE_CONFIG_DIR CODEX_HOME
+# 新任务默认建在自己的 git worktree 里；本脚本在临时 git 仓里执行 tenon init 并断言原地的路径，统一要求原地。
+export TENON_INIT_IN_PLACE=1
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TENON_NODE_PATH="$(command -v node 2>/dev/null || true)"
@@ -2410,6 +2414,138 @@ CATALOGFLOW
   [ ! -f "$TMP/NODE_CALLED" ] && ok "router 红线: 命中缓存时零 node spawn（假 node sentinel 未落）" || bad "router 红线: 命中缓存时零 node spawn（假 node sentinel 未落）" "cache-hit 竟 spawn 了 node"
   assert_contains "router: 命中缓存（无 node）仍纯 bash 正确评分 frontend" "$ROUT" "track=frontend"
 
+  # ── 9e. 建在 worktree 里的任务：新任务落在 `<主检出>/.worktrees/<c>`，主检出的 openspec/changes 里没有它 ──
+  # 候选再遍历 $PROOT/.worktrees/*/openspec/changes/*，但它们不计入主检出「新建还是选择」的判定：
+  # 点名恢复 → dispatch 带 worktree_path；主检出没有在途任务时泛泛的「继续」→ select 并列出候选与路径；
+  # 主检出另有在途任务时现有规则不变；新需求不受影响；没有 .worktrees 时输出不变；命中缓存时仍零解释器。
+  wt_cache="$TMP/router-worktree.v6.data"
+  wt_new_task() { # root worktree-dir change phase [archived]
+    mkdir -p "$1/.worktrees/$2/openspec/changes/$3"
+    printf 'track: backend\nphase: %s\nworkflow: default\narchived: %s\n' "$4" "${5:-}" > "$1/.worktrees/$2/openspec/changes/$3/.pipeline.yaml"
+  }
+  wt_main_task() { # root change phase
+    mkdir -p "$1/openspec/changes/$2"
+    printf 'track: backend\nphase: %s\nworkflow: default\narchived: \n' "$3" > "$1/openspec/changes/$2/.pipeline.yaml"
+  }
+  wt_phys() { (cd -P "$1" && pwd); }
+
+  rc_wt="$TMP/router-worktree-only"; mkdir -p "$rc_wt"
+  wt_new_task "$rc_wt" demo demo build
+  rc_wt_phys="$(wt_phys "$rc_wt")"
+  run_router "{\"prompt\":\"继续 demo\",\"cwd\":\"$rc_wt\"}" "$wt_cache"
+  assert_contains "router: 点名的任务只在 worktree → resume" "$ROUT" "intent: resume"
+  assert_contains "router: 点名的任务只在 worktree → dispatch 带 worktree_path 与绝对路径" "$ROUT" "worktree_path: $rc_wt_phys/.worktrees/demo"
+  assert_contains "router: 点名的任务只在 worktree → 绑定该任务" "$ROUT" "change: demo"
+  assert_contains "router: 点名的任务只在 worktree → 保留它的 phase" "$ROUT" "phase: build"
+  assert_contains "router: 点名的任务只在 worktree → 提示先切进 worktree 再恢复" "$ROUT" "先切进该目录"
+  assert_not_contains "router: 点名恢复不是候选选择" "$ROUT" "change_candidate"
+  run_router "{\"prompt\":\"继续 demo\",\"cwd\":\"$rc_wt\",\"session_id\":\"wt-sess\"}" "$wt_cache"
+  assert_contains "router: 宿主给了 session_id，点名的 worktree 任务同样 resume" "$ROUT" "worktree_path: $rc_wt_phys/.worktrees/demo"
+
+  # 泛泛的「继续」：主检出没有自己的在途任务 → select，候选连同路径列出，要求用户点名；不按 mtime 猜
+  run_router "{\"prompt\":\"继续\",\"cwd\":\"$rc_wt\"}" "$wt_cache"
+  assert_contains "router: 主检出无在途任务、泛泛继续 → select" "$ROUT" "intent: select"
+  assert_contains "router: 泛泛继续 → 候选含任务名与 worktree 路径" "$ROUT" "change_candidate: change=demo;worktree_path=$rc_wt_phys/.worktrees/demo"
+  assert_contains "router: 泛泛继续 → 派发 select phase" "$ROUT" "phase: select"
+  assert_not_contains "router: 泛泛继续不替用户绑定 worktree 任务" "$ROUT" "intent: resume"
+  assert_not_contains "router: 泛泛继续不带单个 worktree_path" "$ROUT" "worktree_path: "
+  run_router "{\"prompt\":\"继续\",\"cwd\":\"$rc_wt\",\"session_id\":\"wt-sess-2\"}" "$wt_cache"
+  assert_contains "router: 宿主给了 session_id 的新会话，泛泛继续同样列出 worktree 候选" "$ROUT" "change_candidate: change=demo;worktree_path=$rc_wt_phys/.worktrees/demo"
+
+  # 新需求：worktree 里有任务不构成「新建还是选择」的选择，不出现 select / selection_required / 候选
+  run_router "{\"prompt\":\"帮我写个 React 组件页面 UI\",\"cwd\":\"$rc_wt\"}" "$wt_cache"
+  assert_contains "router: 主检出无在途任务、worktree 有任务，新需求 → new" "$ROUT" "intent: new"
+  assert_not_contains "router: 新需求不出现 selection_required" "$ROUT" "selection_required"
+  assert_not_contains "router: 新需求不出现 worktree 候选" "$ROUT" "change_candidate"
+  assert_not_contains "router: 新需求不带 worktree_path" "$ROUT" "worktree_path"
+  assert_not_contains "router: 新需求不绑定 worktree 里的旧任务" "$ROUT" "change: demo"
+
+  # 主检出另有在途任务 main-task：泛泛继续仍按现有规则把 main-task 当唯一候选（worktree 任务不计数）
+  rc_wt_mixed="$TMP/router-worktree-mixed"; mkdir -p "$rc_wt_mixed"
+  wt_main_task "$rc_wt_mixed" main-task spec
+  wt_new_task "$rc_wt_mixed" demo demo build
+  rc_wt_mixed_phys="$(wt_phys "$rc_wt_mixed")"
+  run_router "{\"prompt\":\"继续\",\"cwd\":\"$rc_wt_mixed\"}" "$wt_cache"
+  assert_contains "router: 主检出另有在途任务，泛泛继续 → resume" "$ROUT" "intent: resume"
+  assert_contains "router: 主检出另有在途任务，泛泛继续 → 唯一候选是 main-task" "$ROUT" "change: main-task"
+  assert_not_contains "router: 主检出另有在途任务，泛泛继续不列 worktree 候选" "$ROUT" "change_candidate"
+  assert_not_contains "router: 主检出另有在途任务，泛泛继续不带 worktree_path" "$ROUT" "worktree_path"
+  run_router "{\"prompt\":\"继续 demo\",\"cwd\":\"$rc_wt_mixed\"}" "$wt_cache"
+  assert_contains "router: 主检出另有在途任务，点名 worktree 里的 demo → 带 worktree_path" "$ROUT" "worktree_path: $rc_wt_mixed_phys/.worktrees/demo"
+  assert_contains "router: 点名 worktree 里的 demo → 绑定 demo 而不是 main-task" "$ROUT" "change: demo"
+  assert_not_contains "router: 点名 worktree 里的 demo 不绑 main-task" "$ROUT" "change: main-task"
+  run_router "{\"prompt\":\"继续 main-task\",\"cwd\":\"$rc_wt_mixed\"}" "$wt_cache"
+  assert_contains "router: 点名主检出自己的任务 → 不带 worktree_path" "$ROUT" "change: main-task"
+  assert_not_contains "router: 点名主检出自己的任务不带 worktree_path" "$ROUT" "worktree_path"
+
+  # 两个 worktree 各一个任务：泛泛继续都列为候选；同一句点名两个 → select
+  rc_wt_two="$TMP/router-worktree-two"; mkdir -p "$rc_wt_two"
+  wt_new_task "$rc_wt_two" alpha alpha build
+  wt_new_task "$rc_wt_two" beta beta spec
+  rc_wt_two_phys="$(wt_phys "$rc_wt_two")"
+  run_router "{\"prompt\":\"继续\",\"cwd\":\"$rc_wt_two\"}" "$wt_cache"
+  assert_contains "router: 多个 worktree 任务 → 候选含 alpha" "$ROUT" "change_candidate: change=alpha;worktree_path=$rc_wt_two_phys/.worktrees/alpha"
+  assert_contains "router: 多个 worktree 任务 → 候选含 beta" "$ROUT" "change_candidate: change=beta;worktree_path=$rc_wt_two_phys/.worktrees/beta"
+  run_router "{\"prompt\":\"继续 alpha 和 beta\",\"cwd\":\"$rc_wt_two\"}" "$wt_cache"
+  assert_contains "router: 同时点名两个 worktree 任务 → select" "$ROUT" "intent: select"
+  assert_not_contains "router: 同时点名两个 worktree 任务不替用户选" "$ROUT" "intent: resume"
+  run_router "{\"prompt\":\"继续 alpha\",\"cwd\":\"$rc_wt_two\"}" "$wt_cache"
+  assert_contains "router: 点名 alpha → 只带 alpha 的路径" "$ROUT" "worktree_path: $rc_wt_two_phys/.worktrees/alpha"
+  assert_not_contains "router: 点名 alpha 不带 beta 的路径" "$ROUT" ".worktrees/beta"
+
+  # 已完结（archived=true）的 worktree 任务不是候选；名字不合法的目录不收
+  rc_wt_done="$TMP/router-worktree-done"; mkdir -p "$rc_wt_done"
+  wt_new_task "$rc_wt_done" done done build true
+  wt_new_task "$rc_wt_done" bad bad.name build
+  run_router "{\"prompt\":\"继续 done\",\"cwd\":\"$rc_wt_done\"}" "$wt_cache"
+  assert_not_contains "router: 已完结的 worktree 任务不恢复" "$ROUT" "worktree_path"
+  run_router "{\"prompt\":\"继续\",\"cwd\":\"$rc_wt_done\"}" "$wt_cache"
+  assert_not_contains "router: 已完结 / 名字非法的 worktree 任务不进候选" "$ROUT" "change_candidate"
+  assert_not_contains "router: 名字非法的目录不被恢复" "$ROUT" "intent: select"
+
+  # worktree 路径含 `;` 或 `=`：`change_candidate: change=<n>;worktree_path=<p>` 是 `;` 分隔的 key=value 串，这样的路径会让
+  # 路径字段被拆开 / 冒充别的键，与换行、尖括号同样直接不收；同一项目里正常的 worktree 任务不受影响。
+  rc_wt_inj="$TMP/router-worktree-inj"; mkdir -p "$rc_wt_inj"
+  wt_new_task "$rc_wt_inj" 'semi;colon' semi build
+  wt_new_task "$rc_wt_inj" 'eq=ual' equal build
+  wt_new_task "$rc_wt_inj" good good build
+  rc_wt_inj_phys="$(wt_phys "$rc_wt_inj")"
+  run_router "{\"prompt\":\"继续\",\"cwd\":\"$rc_wt_inj\"}" "$wt_cache"
+  assert_contains "router: 路径含 ; / = 的 worktree 任务被跳过，正常的 worktree 任务仍是候选" "$ROUT" "change_candidate: change=good;worktree_path=$rc_wt_inj_phys/.worktrees/good"
+  assert_not_contains "router: 路径含 ; 的 worktree 任务不进候选" "$ROUT" "change=semi"
+  assert_not_contains "router: 路径含 = 的 worktree 任务不进候选" "$ROUT" "change=equal"
+  assert_not_contains "router: 候选里不出现含 ; 的路径" "$ROUT" "semi;colon"
+  assert_not_contains "router: 候选里不出现含 = 的路径" "$ROUT" "eq=ual"
+  run_router "{\"prompt\":\"继续 semi\",\"cwd\":\"$rc_wt_inj\"}" "$wt_cache"
+  assert_not_contains "router: 点名路径含 ; 的 worktree 任务 → 不恢复它（无 worktree_path 字段）" "$ROUT" "worktree_path: "
+  assert_not_contains "router: 点名路径含 ; 的 worktree 任务 → 不绑定它" "$ROUT" "change: semi"
+  run_router "{\"prompt\":\"继续 equal\",\"cwd\":\"$rc_wt_inj\"}" "$wt_cache"
+  assert_not_contains "router: 点名路径含 = 的 worktree 任务 → 不恢复它（无 worktree_path 字段）" "$ROUT" "worktree_path: "
+  assert_not_contains "router: 点名路径含 = 的 worktree 任务 → 不绑定它" "$ROUT" "change: equal"
+
+  # 没有 .worktrees 目录：输出与有一个空的 .worktrees 目录时逐字相同，也不含任何 worktree 字段（既有行为不变）
+  rc_wt_none="$TMP/router-worktree-none"; mkdir -p "$rc_wt_none"
+  wt_main_task "$rc_wt_none" solo build
+  run_router "{\"prompt\":\"继续 solo\",\"cwd\":\"$rc_wt_none\"}" "$wt_cache"
+  wt_out_without="$ROUT"
+  mkdir -p "$rc_wt_none/.worktrees"
+  run_router "{\"prompt\":\"继续 solo\",\"cwd\":\"$rc_wt_none\"}" "$wt_cache"
+  [ "$ROUT" = "$wt_out_without" ] && ok "router: .worktrees 不存在 / 为空时输出逐字相同" || bad "router: .worktrees 不存在 / 为空时输出逐字相同" "输出不同：${ROUT}"
+  assert_contains "router: 没有 .worktrees 时照常恢复本检出的任务" "$wt_out_without" "change: solo"
+  assert_not_contains "router: 没有 .worktrees 时输出不含 worktree_path" "$wt_out_without" "worktree_path"
+  assert_not_contains "router: 没有 .worktrees 时输出不含 change_candidate" "$wt_out_without" "change_candidate"
+
+  # 零解释器：缓存命中且有 worktree 任务时，点名恢复 / 泛泛继续都不起 node（遍历与候选是纯 bash 内建）
+  run_router "{\"prompt\":\"继续 demo\",\"cwd\":\"$rc_wt\"}" "$wt_cache" # 缓存按项目根绑定：先为 $rc_wt 生成一次
+  touch "$wt_cache"
+  rm -f "$TMP/NODE_CALLED"
+  ROUT="$(printf '{"prompt":"继续 demo","cwd":"%s"}' "$rc_wt" | PATH="$FB:$PATH" TENON_ROUTER_CACHE="$wt_cache" TENON_RUNTIME_HOME="$RTHOME" CLAUDE_PLUGIN_ROOT="$RPLUG" bash "$R" 2>/dev/null)"
+  [ ! -f "$TMP/NODE_CALLED" ] && ok "router 红线: 命中缓存时点名 worktree 任务零 node spawn" || bad "router 红线: 命中缓存时点名 worktree 任务零 node spawn" "竟 spawn 了 node"
+  assert_contains "router: 零 node 路径仍给出 worktree_path" "$ROUT" "worktree_path: $rc_wt_phys/.worktrees/demo"
+  ROUT="$(printf '{"prompt":"继续","cwd":"%s"}' "$rc_wt" | PATH="$FB:$PATH" TENON_ROUTER_CACHE="$wt_cache" TENON_RUNTIME_HOME="$RTHOME" CLAUDE_PLUGIN_ROOT="$RPLUG" bash "$R" 2>/dev/null)"
+  [ ! -f "$TMP/NODE_CALLED" ] && ok "router 红线: 命中缓存时泛泛继续列 worktree 候选零 node spawn" || bad "router 红线: 命中缓存时泛泛继续列 worktree 候选零 node spawn" "竟 spawn 了 node"
+  assert_contains "router: 零 node 路径仍列出候选" "$ROUT" "change_candidate: change=demo"
+
   # 工作流文件内容变化 → 缓存按内容失效，保存后的下一条消息即按新数据路由。
   # 每次都把被改文件的 mtime 放回过去（早于缓存）：只有按内容比对才会发现变化，mtime 比较发现不了。
   changehome="$TMP/router-change-home"; changedir="$changehome/config/workflows/.pipeline/workflows"
@@ -2596,9 +2732,10 @@ IG="$ROOT/hooks/interactive-skill-gate.sh"
 IA="$ROOT/hooks/interaction-authority.sh"
 TA="$ROOT/hooks/terminal-activity.sh"
 TN="$ROOT/hooks/test-nudge.sh"
+SP="$ROOT/hooks/step-progress.sh"
 
 # 存在 + 可执行（TDD 红阶段在此直接倒）
-for f in "$CC" "$CP" "$DR" "$ST" "$IG" "$IA" "$TA" "$TN"; do
+for f in "$CC" "$CP" "$DR" "$ST" "$IG" "$IA" "$TA" "$TN" "$SP"; do
   base="$(basename "$f")"
   [ -f "$f" ] && ok "PostToolUse: $base 存在" || bad "PostToolUse: $base 存在" "缺文件"
   [ -x "$f" ] && ok "PostToolUse: $base 可执行" || bad "PostToolUse: $base 可执行" "无 x 位"
@@ -3205,7 +3342,7 @@ for _ in 1 2 3 4 5 6 7 8 9 10 11; do BIG_BODY="$BIG_BODY$BIG_BODY"; done
 BIG_INPUT="{\"session_id\":\"s\",\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"cat <<'EOF' > out.txt\\n${BIG_BODY}EOF\\nnpm   test\",\"description\":\"big\"},\"tool_response\":{\"stdout\":\"ok\",\"stderr\":\"\"}}"
 printf '%s' "$BIG_INPUT" > "$TMP/big-heredoc.json"
 ok "超长命令: 构造 $(wc -c < "$TMP/big-heredoc.json" | tr -d ' ') 字节的 PostToolUse 载荷"
-for hook in "$TN" "$ST" "$IG" "$TA" "$GATE"; do
+for hook in "$TN" "$ST" "$IG" "$TA" "$SP" "$GATE"; do
   big_start=$SECONDS
   big_out="$(bash "$hook" < "$TMP/big-heredoc.json" 2>/dev/null)"
   big_elapsed=$((SECONDS - big_start))
@@ -3220,7 +3357,7 @@ assert_contains "中等 heredoc: test-nudge 识别末尾的 npm test" "$MID_OUT"
 # 小命令 + 超大工具输出（PostToolUse 带完整 stdout）：旧解析器同样超时（1.3 MB 约 15 s）。
 BIG_OUTPUT_INPUT="{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"npm test\"},\"tool_response\":{\"stdout\":\"${BIG_BODY}\",\"stderr\":\"\"}}"
 printf '%s' "$BIG_OUTPUT_INPUT" > "$TMP/big-output.json"
-for hook in "$TN" "$ST" "$TA" "$GATE"; do
+for hook in "$TN" "$ST" "$TA" "$SP" "$GATE"; do
   big_start=$SECONDS
   big_out="$(bash "$hook" < "$TMP/big-output.json" 2>/dev/null)"
   big_elapsed=$((SECONDS - big_start))
@@ -4216,6 +4353,193 @@ big_elapsed=$((SECONDS - big_start))
 assert_exit "大命令: 名了受保护路径但只是读 → 放行" 0 "$RC"
 if [ "$big_elapsed" -le 5 ]; then ok "大命令: 形态扫描 ${big_elapsed}s 内完成"; else bad "大命令: 形态扫描 5s 内完成" "耗时 ${big_elapsed}s"; fi
 
+# ── 10d7. step-progress：tenon init / session activate / transition / step run 带任务名 → 打印一行步骤清单；其余零输出 ──
+# 桩 tenon 前置到 PATH：只认 `workflow progress demo`（输出一行清单），其余 exit 1；桩 node 只记调用。每次调用都记下
+# 「工作目录|参数」：不命中的路径日志必须为空（没有起任何解释器 / tenon），命中的路径恰好一行（只调用一次 tenon，且在宿主给的 cwd 里）。
+sp_proj="$TMP/ptu-step-progress"; sp_bin="$TMP/sp-bin"; sp_log="$TMP/sp-calls.log"
+mkdir -p "$sp_proj" "$sp_bin"
+sp_proj="$(cd "$sp_proj" && pwd)" # 桩里的 $PWD 是 cd 规整后的路径（TMPDIR 带尾斜杠时会合并 //），断言前先同口径
+cat > "$sp_bin/tenon" <<'STUB'
+#!/usr/bin/env bash
+printf '%s|%s\n' "$PWD" "$*" >> "${SP_CALL_LOG:-/dev/null}"
+if [ "${1:-}" = workflow ] && [ "${2:-}" = progress ] && [ "${3:-}" = demo ]; then
+  printf '%s\n' '立项 ✓ → 调研 ●'
+  exit 0
+fi
+exit 1
+STUB
+cat > "$sp_bin/node" <<'STUB'
+#!/usr/bin/env bash
+printf '%s|node %s\n' "$PWD" "$*" >> "${SP_CALL_LOG:-/dev/null}"
+exit 0
+STUB
+chmod +x "$sp_bin/tenon" "$sp_bin/node"
+
+sp_run() { # $1=命令（已是 JSON 字符串体） [$2=tool_name，默认 Bash] → SP_OUT / SP_RC；SP_CALL_LOG 记下桩被调用的次数与现场
+  : > "$sp_log"
+  SP_OUT="$(printf '{"tool_name":"%s","cwd":"%s","command":"%s"}' "${2:-Bash}" "$sp_proj" "$1" \
+    | SP_CALL_LOG="$sp_log" PATH="$sp_bin:$PATH" bash "$SP" 2>/dev/null)"
+  SP_RC=$?
+}
+sp_calls() { local n=0 line; while IFS= read -r line; do n=$((n + 1)); done < "$sp_log"; printf '%s' "$n"; }
+sp_message() { # $1=hook 输出 → 解码后的 systemMessage（无 node 或不是 JSON 时失败）
+  command -v node >/dev/null 2>&1 || return 2
+  node -e 'const o=JSON.parse(process.argv[1]);if(Object.keys(o).join()!=="systemMessage"||typeof o.systemMessage!=="string")process.exit(1);process.stdout.write(o.systemMessage)' "$1" 2>/dev/null
+}
+
+sp_run 'tenon transition demo explore-complete'
+assert_exit "step-progress: tenon transition <name> → exit 0" 0 "$SP_RC"
+assert_contains "step-progress: 输出 systemMessage 键" "$SP_OUT" '"systemMessage"'
+assert_contains "step-progress: 首行 Tenon · <change>" "$SP_OUT" 'Tenon · demo'
+assert_contains "step-progress: 第二行是步骤清单" "$SP_OUT" '立项 ✓ → 调研 ●'
+assert_contains "step-progress: 首行与清单以换行分隔" "$SP_OUT" 'Tenon · demo\n立项 ✓ → 调研 ●'
+assert_exit "step-progress: 命中只调用一次 tenon（不起任何别的解释器）" 1 "$(sp_calls)"
+assert_contains "step-progress: 在宿主给的 cwd 里执行 tenon workflow progress <name>" "$(cat "$sp_log")" "$sp_proj|workflow progress demo"
+sp_decoded="$(sp_message "$SP_OUT")"; sp_rc=$?
+case "$sp_rc" in
+  0) [ "$sp_decoded" = $'Tenon · demo\n立项 ✓ → 调研 ●' ] && ok "step-progress: 输出是合法 JSON，仅 systemMessage，内容两行" || bad "step-progress: 输出是合法 JSON，仅 systemMessage，内容两行" "解码得：${sp_decoded}" ;;
+  2) ok "step-progress: 输出 JSON 校验（跳过：无 node）" ;;
+  *) bad "step-progress: 输出是合法 JSON，仅 systemMessage" "node 解析失败；实际输出：${SP_OUT}" ;;
+esac
+
+# 命中：链式 / 管道 / 重定向 / 其它三个子命令 / 多空白 / 换行 / 引号包裹（Codex 的 `zsh -lc "…"`）/ 括号子 shell
+for sp_cmd in \
+  'cd /x && tenon transition demo explore-complete 2>&1 | tail -5' \
+  'cd /x;tenon transition demo explore-complete' \
+  'cd /x\ntenon transition demo explore-complete' \
+  'false || (tenon transition demo explore-complete)' \
+  'tenon step run demo --json > /tmp/s.json' \
+  'tenon init demo --workflow default --track backend --preset full' \
+  'tenon session activate demo --host-session abc' \
+  'tenon   transition   demo   explore-complete' \
+  'tenon transition demo' \
+  '/bin/zsh -lc \"tenon transition demo explore-complete\"'; do
+  sp_run "$sp_cmd"
+  assert_exit "step-progress: 命中「${sp_cmd}」→ exit 0" 0 "$SP_RC"
+  assert_contains "step-progress: 命中「${sp_cmd}」→ 打印清单" "$SP_OUT" 'Tenon · demo\n立项 ✓ → 调研 ●'
+  assert_exit "step-progress: 命中「${sp_cmd}」→ 只调用一次 tenon" 1 "$(sp_calls)"
+done
+
+# 数组形态的命令（Codex argv）按空格拼回后同样识别
+SP_OUT="$(printf '{"tool_name":"exec","cwd":"%s","command":["tenon","transition","demo","explore-complete"]}' "$sp_proj" \
+  | SP_CALL_LOG="$sp_log" PATH="$sp_bin:$PATH" bash "$SP" 2>/dev/null)"
+assert_contains "step-progress: argv 数组形态 + exec 工具 → 打印清单" "$SP_OUT" 'Tenon · demo\n立项 ✓ → 调研 ●'
+SP_OUT="$(printf '{"tool_name":"command_execution","cwd":"%s","command":"tenon transition demo explore-complete"}' "$sp_proj" \
+  | SP_CALL_LOG="$sp_log" PATH="$sp_bin:$PATH" bash "$SP" 2>/dev/null)"
+assert_contains "step-progress: command_execution 工具 → 打印清单" "$SP_OUT" 'Tenon · demo\n立项 ✓ → 调研 ●'
+
+# 不命中：零输出、exit 0、而且一个解释器 / tenon 都没起（日志为空）
+for sp_cmd in \
+  'tenon status demo --json' \
+  'git status' \
+  'tenon transition' \
+  'tenon session activate' \
+  'tenon session list demo' \
+  'tenon workflow progress demo' \
+  'tenon test run demo unit' \
+  'tenon init --help' \
+  'tenon transition --help' \
+  'mytenon transition demo explore-complete' \
+  'tenon-x transition demo explore-complete' \
+  'tenon transition Demo explore-complete' \
+  'tenon transition demo_x explore-complete' \
+  'tenon transition demo.v2 explore-complete' \
+  'tenon transition demo$(whoami) explore-complete' \
+  'tenon transition -demo explore-complete' \
+  'echo tenon' \
+  ''; do
+  sp_run "$sp_cmd"
+  assert_exit "step-progress: 不命中「${sp_cmd}」→ exit 0" 0 "$SP_RC"
+  assert_empty "step-progress: 不命中「${sp_cmd}」→ 零输出" "$SP_OUT"
+  assert_exit "step-progress: 不命中「${sp_cmd}」→ 没起任何解释器 / tenon" 0 "$(sp_calls)"
+done
+
+sp_run 'tenon transition demo explore-complete' Read
+assert_exit "step-progress: 非命令工具 Read → exit 0" 0 "$SP_RC"
+assert_empty "step-progress: 非命令工具 Read → 零输出" "$SP_OUT"
+assert_exit "step-progress: 非命令工具 Read → 没起任何解释器 / tenon" 0 "$(sp_calls)"
+
+# 桩 tenon 对 workflow progress 失败（任务不存在 / 没有冻结计划 / projection 为空）→ 静默
+sp_run 'tenon transition other explore-complete'
+assert_exit "step-progress: tenon workflow progress 失败 → exit 0" 0 "$SP_RC"
+assert_empty "step-progress: tenon workflow progress 失败 → 零输出" "$SP_OUT"
+assert_contains "step-progress: 失败路径确实调用过 tenon workflow progress other" "$(cat "$sp_log")" "|workflow progress other"
+
+# 命令内容绝不被执行：名字只取匹配出的 [a-z0-9][a-z0-9-]*，其后的任何内容只当文本
+sp_marker="$TMP/sp-pwned"; rm -f "$sp_marker"
+sp_run "tenon transition demo;touch $sp_marker"
+assert_contains "step-progress: 名字后跟 ; 命令 → 仍只取 demo" "$SP_OUT" 'Tenon · demo\n'
+assert_exit "step-progress: 只调用一次 tenon（命令内容不被执行）" 1 "$(sp_calls)"
+[ ! -e "$sp_marker" ] && ok "step-progress: 命令内容不被执行（标记文件不存在）" || bad "step-progress: 命令内容不被执行（标记文件不存在）" "标记文件被创建"
+
+# 异常输入：非 JSON、空输入、cwd 不存在 → 静默 exit 0，tenon 没被调用
+: > "$sp_log"
+SP_OUT="$(printf 'not json at all' | SP_CALL_LOG="$sp_log" PATH="$sp_bin:$PATH" bash "$SP" 2>/dev/null)"; SP_RC=$?
+assert_exit "step-progress: 非 JSON 输入 → exit 0" 0 "$SP_RC"
+assert_empty "step-progress: 非 JSON 输入 → 零输出" "$SP_OUT"
+SP_OUT="$(SP_CALL_LOG="$sp_log" PATH="$sp_bin:$PATH" bash "$SP" < /dev/null 2>/dev/null)"; SP_RC=$?
+assert_exit "step-progress: 空输入 → exit 0" 0 "$SP_RC"
+assert_empty "step-progress: 空输入 → 零输出" "$SP_OUT"
+SP_OUT="$(printf '{"tool_name":"Bash","cwd":"%s/not-there","command":"tenon transition demo explore-complete"}' "$sp_proj" \
+  | SP_CALL_LOG="$sp_log" PATH="$sp_bin:$PATH" bash "$SP" 2>/dev/null)"; SP_RC=$?
+assert_exit "step-progress: cwd 不存在 → exit 0" 0 "$SP_RC"
+assert_empty "step-progress: cwd 不存在 → 零输出" "$SP_OUT"
+assert_exit "step-progress: 以上异常输入都没起 tenon" 0 "$(sp_calls)"
+# 载荷没给 cwd：退回 hook 进程自己的工作目录（bootstrap 以宿主 cwd 启动 hook）
+SP_OUT="$(cd "$sp_proj" && printf '{"tool_name":"Bash","command":"tenon transition demo explore-complete"}' \
+  | SP_CALL_LOG="$sp_log" PATH="$sp_bin:$PATH" bash "$SP" 2>/dev/null)"
+assert_contains "step-progress: 没有 cwd 字段 → 退回进程工作目录" "$SP_OUT" 'Tenon · demo\n立项 ✓ → 调研 ●'
+assert_contains "step-progress: 没有 cwd 字段 → tenon 在进程工作目录里执行" "$(cat "$sp_log")" "$sp_proj|workflow progress demo"
+
+# PATH 里没有 tenon → 静默 exit 0（宿主 PATH 不含启动器时不能报错吵到用户）
+if PATH="/usr/bin:/bin" command -v tenon >/dev/null 2>&1; then
+  ok "step-progress: PATH 无 tenon 用例（跳过：系统路径里本来就有 tenon）"
+else
+  SP_OUT="$(printf '{"tool_name":"Bash","cwd":"%s","command":"tenon transition demo explore-complete"}' "$sp_proj" \
+    | PATH="/usr/bin:/bin" bash "$SP" 2>/dev/null)"; SP_RC=$?
+  assert_exit "step-progress: PATH 里没有 tenon → exit 0" 0 "$SP_RC"
+  assert_empty "step-progress: PATH 里没有 tenon → 零输出" "$SP_OUT"
+fi
+
+# ── 10d8. step-progress × 建在 worktree 里的任务（黑盒：真 CLI、真 git worktree） ──
+# 新任务落在 `<主检出>/.worktrees/<c>`，主检出的 openspec/changes 里没有它；hook 的 cwd 仍是主检出
+# （`tenon init` 在主检出执行；`cd <worktree> && tenon transition …` 的 cwd 是命令执行前的目录）。
+# `tenon workflow progress` 在当前根找不到任务时查 worktree，清单照常打印；运行时家目录指向临时目录。
+if [ -f "$ROOT/packages/cli/dist/tenon.mjs" ] && [ -n "$TENON_NODE_PATH" ] && command -v git >/dev/null 2>&1; then
+  spw_proj="$TMP/ptu-step-progress-wt"; spw_home="$TMP/ptu-step-progress-wt-home"; spw_bin="$TMP/spw-bin"
+  mkdir -p "$spw_proj" "$spw_home" "$spw_bin"
+  spw_proj="$(cd "$spw_proj" && pwd -P)"
+  printf '#!/usr/bin/env bash\nexec "%s" "%s/packages/cli/dist/tenon.mjs" "$@"\n' "$TENON_NODE_PATH" "$ROOT" > "$spw_bin/tenon"
+  chmod +x "$spw_bin/tenon"
+  spw_git() { GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null git -C "$spw_proj" -c user.email=t@t.test -c user.name=t -c commit.gpgsign=false "$@"; }
+  printf 'x\n' > "$spw_proj/README.md"
+  spw_git init -q -b main >/dev/null 2>&1
+  spw_git add -A >/dev/null 2>&1
+  spw_git commit -q -m base >/dev/null 2>&1
+  # 这是专测 worktree 的用例：本脚本默认导出的 TENON_INIT_IN_PLACE=1 只对这一次 init 去掉。
+  if ( cd "$spw_proj" && env -u TENON_INIT_IN_PLACE TENON_RUNTIME_HOME="$spw_home" "$spw_bin/tenon" init demo --track backend --preset full ) >/dev/null 2>&1 \
+    && [ -d "$spw_proj/.worktrees/demo/openspec/changes/demo" ]; then
+    [ ! -e "$spw_proj/openspec/changes/demo" ] && ok "step-progress(worktree): 夹具任务建在 .worktrees/demo，主检出里没有它" \
+      || bad "step-progress(worktree): 夹具任务建在 .worktrees/demo，主检出里没有它" "主检出里也有 demo"
+    spw_run() { # $1=hook 载荷里的 cwd $2=命令 → SPW_OUT
+      SPW_OUT="$(printf '{"tool_name":"Bash","cwd":"%s","command":"%s"}' "$1" "$2" \
+        | TENON_RUNTIME_HOME="$spw_home" PATH="$spw_bin:$PATH" bash "$SP" 2>/dev/null)"
+    }
+    spw_run "$spw_proj" 'tenon init demo --track backend --preset full'
+    assert_contains "step-progress(worktree): 主检出里执行 tenon init demo → 打印该任务的清单" "$SPW_OUT" 'Tenon · demo\n立项 ● → '
+    spw_run "$spw_proj" "cd $spw_proj/.worktrees/demo && tenon transition demo explore-complete"
+    assert_contains "step-progress(worktree): hook 的 cwd 是主检出、命令先 cd 进 worktree → 仍打印清单" "$SPW_OUT" 'Tenon · demo\n立项 ● → '
+    spw_run "$spw_proj/.worktrees/demo" 'tenon session activate demo --host-session abc'
+    assert_contains "step-progress(worktree): hook 的 cwd 就是 worktree → 打印同一份清单" "$SPW_OUT" 'Tenon · demo\n立项 ● → '
+    spw_run "$spw_proj" 'tenon transition ghost explore-complete'
+    assert_empty "step-progress(worktree): 主检出和任何 worktree 里都没有的任务 → 零输出" "$SPW_OUT"
+  else
+    bad "step-progress(worktree): 夹具任务建在 .worktrees/demo" "tenon init 失败或没有建出 worktree"
+  fi
+else
+  ok "step-progress(worktree) 黑盒用例（缺 dist/tenon.mjs、node 或 git，按约定跳过）"
+fi
+
 # 性能：状态目录规则的预筛（HOME= 字样）命中的大命令同样线性——每行一个带引号值的 HOME= 前缀赋值，跑的是不调用 tenon 的命令。
 BIG_HOME_LINE='FOO=1 HOME=\"/tmp/x y\" npm run check:docs\n'
 BIG_HOME_BODY="$BIG_HOME_LINE"
@@ -4259,7 +4583,7 @@ assert_exit "大命令: 一大堆 node 脚本调用 + 状态目录字样 + 末�
 if [ "$big_elapsed" -le 5 ]; then ok "大命令: 内联代码判定（拒）${big_elapsed}s 内完成"; else bad "大命令: 内联代码判定（拒）5s 内完成" "耗时 ${big_elapsed}s"; fi
 
 # ── 10e. 红线自证：PostToolUse 热路径保持 bash；唯二 producer hook 只允许精确 managed CLI bridge ──
-for f in "$CC" "$CP" "$DR" "$ST" "$IG" "$IA" "$TA" "$TN"; do
+for f in "$CC" "$CP" "$DR" "$ST" "$IG" "$IA" "$TA" "$TN" "$SP"; do
   base="$(basename "$f")"
   case "$base" in
     decision-recorder.sh|skill-tracker.sh)
@@ -4289,6 +4613,15 @@ assert_contains "hooks.json: 注册 skill-start hook id" "$hjson" "skill-start"
 assert_contains "hooks.json: 注册 interactive-skill-gate hook id" "$hjson" "interactive-skill-gate"
 assert_contains "hooks.json: 注册 terminal-activity hook id" "$hjson" "terminal-activity"
 assert_contains "hooks.json: 注册 test-nudge hook id" "$hjson" "test-nudge"
+assert_contains "hooks.json: 注册 step-progress hook id" "$hjson" "step-progress"
+# step-progress 只订阅 Bash，不带 if 前缀预过滤：链式命令（cd x && tenon transition …、zsh -lc "tenon …"）会被
+# `Bash(tenon *)` 这类前缀过滤挡在脚本之外，窄过滤交给 step-progress.sh 自己（零解释器）；整组恰好一个 hook、5 秒超时。
+if command -v node >/dev/null 2>&1; then
+  sp_group="$(node -e 'const c=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));const g=c.hooks.PostToolUse.filter((x)=>x.hooks.some((h)=>h.command.includes("step-progress")));const h=g[0]&&g[0].hooks[0];process.stdout.write(g.length===1&&g[0].matcher==="Bash"&&g[0].hooks.length===1&&h.type==="command"&&h.timeout===5&&h.if===undefined?"ok":"bad:"+JSON.stringify(g))' "$HJ" 2>&1)"
+  [ "$sp_group" = "ok" ] && ok "hooks.json: step-progress 为 PostToolUse/Bash 单 hook 组，timeout 5，无 if 前缀过滤" || bad "hooks.json: step-progress 为 PostToolUse/Bash 单 hook 组，timeout 5，无 if 前缀过滤" "$sp_group"
+else
+  ok "hooks.json: step-progress 注册形态校验（跳过：无 node）"
+fi
 assert_contains "hooks.json: 含 PostToolUse 段" "$hjson" "PostToolUse"
 assert_contains "hooks.json: PostToolUse 同时订阅 Claude/Codex 人类提问工具" "$hjson" '"matcher": "AskUserQuestion|request_user_input"'
 assert_contains "hooks.json: Skill 证据 hooks 全工具监听（Codex Bash 读取也可见）" "$hjson" '"matcher": "*"'
@@ -5380,6 +5713,65 @@ assert_contains "confirm-clear-prompt: 会话 B 的授权绑定会话 B" "$(cat 
 rm -f "$(active_authority_path "$xs_p")"
 xs_cp "$xs_p" "$XS_SID_A" "$xs_say" >/dev/null
 assert_contains "confirm-clear-prompt: 会话 A 的授权绑定 Change A" "$(cat "$(active_authority_path "$xs_p")" 2>/dev/null)" 'change=xs-change-a'
+
+# ── 15g. 任务 worktree：`.git` 是文件，项目根就是该 worktree 根 ──
+# 会话切进 `<主检出>/.worktrees/<c>`（EnterWorktree）之后，hook 收到的 cwd 在 worktree 里：评审标记、会话绑定、
+# 当前用户的活跃任务指针都以这个 worktree 为项目根，与主检出互不可见（主检出的标记不拦 worktree，反之亦然）。
+if command -v git >/dev/null 2>&1; then
+  wr_main="$TMP/wt-root-main"; mkdir -p "$wr_main"
+  wr_main="$(cd "$wr_main" && pwd -P)"
+  wr_git() { GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null git -C "$wr_main" -c user.email=t@t.test -c user.name=t -c commit.gpgsign=false "$@"; }
+  printf 'x\n' > "$wr_main/README.md"
+  wr_git init -q -b main >/dev/null 2>&1
+  wr_git add -A >/dev/null 2>&1
+  wr_git commit -q -m base >/dev/null 2>&1
+  wr_git worktree add -q -b tenon/demo "$wr_main/.worktrees/demo" >/dev/null 2>&1
+  wr_wt="$wr_main/.worktrees/demo"
+  if [ -f "$wr_wt/.git" ]; then
+    ok "worktree 根: 夹具的 worktree 里 .git 是文件"
+    mkdir -p "$wr_wt/sub/deep"
+    xs_mk_change "$wr_wt" demo build
+
+    # 项目根：从 worktree 的子目录解析到 worktree 根，而不是借用外层主检出
+    wr_root="$(bash -c '. "$1/hooks/project-root.sh"; pipeline_project_root "$2" existing changes' _ "$ROOT" "$wr_wt/sub/deep" 2>/dev/null)"
+    xs_assert_eq "worktree 根: 子目录解析到 worktree 根（不是主检出）" "$wr_wt" "$wr_root"
+
+    # 评审标记：落在 worktree 根；子目录里的写入被拦，主检出里的标记不拦 worktree
+    write_v2_review_marker "$wr_wt" demo build
+    run_gate "{\"cwd\":\"$wr_wt/sub/deep\",\"tool_name\":\"Write\"}"
+    assert_exit "worktree 根: worktree 根上的评审标记拦住它的子目录里的写入" 2 "$RC"
+    run_gate "{\"cwd\":\"$wr_main\",\"tool_name\":\"Write\"}"
+    assert_exit "worktree 根: worktree 的评审标记不拦主检出" 0 "$RC"
+    rm -f "$wr_wt/.pipeline-pending-review"
+    xs_mk_change "$wr_main" main-demo spec
+    write_v2_review_marker "$wr_main" main-demo spec
+    run_gate "{\"cwd\":\"$wr_wt/sub/deep\",\"tool_name\":\"Write\"}"
+    assert_exit "worktree 根: 主检出的评审标记不拦 worktree" 0 "$RC"
+    run_gate "{\"cwd\":\"$wr_main\",\"tool_name\":\"Write\"}"
+    assert_exit "worktree 根: 主检出自己的评审标记照拦主检出" 2 "$RC"
+    rm -f "$wr_main/.pipeline-pending-review"
+
+    # 活跃任务指针与会话绑定：各记在各自的根上
+    set_active "$wr_wt" demo
+    set_active "$wr_main" main-demo
+    xs_bind "$wr_wt" wt-session-0001 demo
+    xs_assert_eq "worktree 根: worktree 的活跃任务指针指向 worktree 里的任务" demo "$(xs_resolve "$wr_wt" '')"
+    xs_assert_eq "worktree 根: 主检出的活跃任务指针不受 worktree 影响" main-demo "$(xs_resolve "$wr_main" '')"
+    xs_assert_eq "worktree 根: 绑定在 worktree 根上的会话取到 worktree 里的任务" demo "$(xs_resolve "$wr_wt" wt-session-0001)"
+    xs_assert_eq "worktree 根: 同一个会话 id 在主检出里解析不到 worktree 的任务（回退主检出自己的指针）" main-demo "$(xs_resolve "$wr_main" wt-session-0001)"
+    if command -v node >/dev/null 2>&1; then
+      run_router "{\"prompt\":\"继续\",\"cwd\":\"$wr_wt/sub\",\"session_id\":\"wt-session-0001\"}" "$TMP/wt-root-router.v5.data"
+      assert_contains "worktree 根: router 在 worktree 子目录按会话绑定恢复 worktree 里的任务" "$ROUT" "change: demo"
+      assert_not_contains "worktree 根: worktree 里的 router 不带 worktree_path（已经在里面）" "$ROUT" "worktree_path"
+    else
+      ok "worktree 根: router 会话绑定用例（缺 node，按约定跳过）"
+    fi
+  else
+    bad "worktree 根: 夹具的 worktree 里 .git 是文件" "git worktree add 没有建出带 .git 文件的 worktree"
+  fi
+else
+  ok "worktree 根用例（缺 git，按约定跳过）"
+fi
 
 # ───────────────────────── 汇总 ─────────────────────────
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"

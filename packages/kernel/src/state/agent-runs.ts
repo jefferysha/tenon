@@ -7,9 +7,12 @@
  * 行是闭集：上一个发行版（v0.2.1）遇到不认识的键就判整份台账损坏。`host`、`host_source`、`rerun_reason` 是 v0.3 新增的，
  * 因此不写进行里，而是按 run_id 记在旁注 `.pipeline-agent-run-meta.jsonl`（agent-run-meta.ts），读取时叠加回 `AgentRunRow`，
  * 调用方看到的行形状不变。读取仍接受行里自带这三项的旧行（本地 integ 构建写过）。
+ * `subagent.reason`（没用专属子代理的原因）同理：行里的 `subagent` 保持 host,type,native 三键，原因记在旁注的
+ * `subagent_reason`，读取时叠加回 `row.subagent.reason`；读取仍接受 `subagent` 里自带 `reason` 的四键行（本地构建写过）。
  */
 import { appendFile, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { isHostSubagentReason, type HostSubagentReason } from '../agents/host-native.js'
 import type { AgentSeverity } from '../workflow/types.js'
 import { decodeRecordActor, type RecordActor } from '../users/user.js'
 import {
@@ -45,13 +48,16 @@ export interface AgentFinding {
 }
 
 /**
- * 宿主用哪种子代理跑这次运行：`native` = Tenon 生成的专属子代理（`tenon-<name>`，工具白名单由宿主
- * 执行），否则是退回的通用子代理。`host` 是 Tenon 宿主 id；旧记录没有这一项。
+ * 宿主用哪种子代理跑这次运行：`native` = `tenon agent install` 装在用户目录的专属子代理（`tenon-<name>`，工具白名单由宿主
+ * 执行），否则是退回的通用子代理，`reason` 写明为什么没用专属的（旧记录与专属子代理没有这一项）。`host` 是 Tenon 宿主 id。
+ * `reason` 不写进台账行（行里 `subagent` 的键集合是闭集，升级前的运行时遇到 `reason` 会判整份台账损坏），而是按 run_id
+ * 记在旁注里的 `subagent_reason`，读取时叠加回来（agent-run-meta.ts）。
  */
 export interface AgentRunSubagent {
   readonly host: string
   readonly type: string
   readonly native: boolean
+  readonly reason?: HostSubagentReason
 }
 
 export interface AgentRunRow {
@@ -106,15 +112,23 @@ const OPTIONAL_ROW_KEYS = ['host', 'host_source', 'rerun_reason', 'subagent'] as
 const RESULTS: ReadonlySet<string> = new Set<AgentRunResult>(['pass', 'fail', 'done', 'failed'])
 const SUBAGENT_TEXT_MAX = 128
 
+/**
+ * 键集合是闭集：`host,native,type`（新写入的行一律是这个形状，原因在旁注里），或再带 `reason`（本地构建曾把原因写在
+ * 行里；仍读得了，新写入不再产生）。
+ */
+const SUBAGENT_KEYS: readonly string[] = ['host,native,type', 'host,native,reason,type']
+
 function decodeSubagent(value: unknown): AgentRunSubagent | undefined {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
   const record = value as Record<string, unknown>
-  if (Object.keys(record).sort().join(',') !== 'host,native,type') return undefined
-  const { host, type, native } = record
+  if (!SUBAGENT_KEYS.includes(Object.keys(record).sort().join(','))) return undefined
+  const { host, type, native, reason } = record
   if (typeof host !== 'string' || host === '' || host.length > SUBAGENT_TEXT_MAX) return undefined
   if (typeof type !== 'string' || type === '' || type.length > SUBAGENT_TEXT_MAX) return undefined
   if (typeof native !== 'boolean') return undefined
-  return { host, type, native }
+  if (!('reason' in record)) return { host, type, native }
+  if (!isHostSubagentReason(reason)) return undefined
+  return { host, type, native, reason }
 }
 
 function decodeFinding(value: unknown): AgentFinding | undefined {
@@ -226,7 +240,7 @@ export async function readAgentRuns(changeDir: string): Promise<readonly AgentRu
 
 /**
  * 追加一整行；调用方负责在 Change 锁内调用（同 state/lock.ts 的写者约定）。
- * `host` / `host_source` / `rerun_reason` 先写进旁注、再写台账行：中途崩溃只会留下一条没人引用的旁注，
+ * `host` / `host_source` / `rerun_reason` / `subagent.reason` 先写进旁注、再写台账行：中途崩溃只会留下一条没人引用的旁注，
  * 不会出现「有台账行、缺旁注」的运行（那会让要求宿主的评审裁决无效）。
  */
 export async function appendAgentRunRow(changeDir: string, row: AgentRunRow): Promise<void> {

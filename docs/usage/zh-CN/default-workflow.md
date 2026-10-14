@@ -62,6 +62,12 @@ Tenon 自有的 skill 只有一个 `tenon`：它读任务冻结的工作流计�
 缺失、非法、陈旧或无法证明来源时，Verify、readiness、HTTP/SSE 与 AFK 统一返回
 `verify-build-revision-untrusted`，修复标识为 `return-to-build-and-capture-current-revision`。不要手动 `set build_sha`。
 
+token 绑定什么取决于任务的 `isolation`：`branch` 绑 Git 对象；`worktree` 与 `in-place` 绑工作区内容指纹（不含 `.git`、依赖、OpenSpec 与文档证据、
+pipeline 控制文件和测试缓存），因为任务 worktree 里的实现在 Build 出口时通常还没提交，Build 也从不要求提交。身份仍绑定物理 repository 与物理 worktree，
+所以在别的检出里验证一个 worktree 任务会得到 `worktree-mismatch`；token 类别与任务的 `isolation` 不符（例如 `worktree` 任务带着 Git 对象类 token，
+来自升级前手动把 `isolation` 设成 `worktree` 的旧任务）得到 `isolation-mismatch`。两者都是回 Build 重新捕获。CLI、Dashboard 流转和 Dashboard 快照
+都从同一个函数（`expectedBuildRevisionKind`）取类别，不会各说各话。详见仓库里的 `docs/CONTRACT.md`。
+
 `pre_verify_review_result=pass` 是 Build 的通过结论，`tenon set` 写入前核对本步声明的就绪证据。
 每条重型轨道的 Build 都声明了可核对的证据：frontend、backend 要求项目测试目录里的单测类套件通过（Build 的
 `test: changed` 档位），pm 要求必需评审者 `spec-consistency`（`block_at: medium`，逐条比对实现与 proposal /
@@ -200,7 +206,12 @@ Explore、Spec、Verify 的 review 必须绑定 exact phase 和 exact event。�
 Verify 的轮次有上限，见下面的[验证轮次上限](#验证轮次上限)。Build 中的 TDD、单元测试、类型检查、lint 和窄集成测试属于实现反馈，不算一轮。
 
 如果 Verify 报告构建修订不可信，沿 `verify-fail → build` 回边重新实现并运行
-`build-complete`；新的 canonical transition record 会提供 token 的来源证明。
+`build-complete`；新的 canonical transition record 会提供 token 的来源证明。worktree 任务要在它自己的 worktree 里验证，换一个检出会得到
+`worktree-mismatch`。
+
+回边不要求本步智能体的技能。这些技能（例如归 `builder` 的 `test-driven-development`）只能在智能体运行期间加载，要求它们等于逼你为了退回去先开始一次
+builder：所以 Build 上的 `requirements-changed` 在本次访问里还没有任何 builder 运行时也能走。主线自己加载的技能在回边上仍然要求，前进边则要求全部。
+`tenon status`、`tenon check` 与 Dashboard 流转对此一致，见[智能体](agents.md#在工作流里使用)。
 
 ## 验证轮次上限
 
@@ -226,6 +237,34 @@ agent 不会自行调高上限，也不会绕过它。命令、`step.rounds` 和
 ```
 
 这个键只能声明在设了 `gate: review`、且至少有一条回退边（回到更早步骤的边，如 `verify-fail`）的步骤上。声明在别处会让工作流解析失败，错误点名步骤和原因（Build 没有评审门，不受上限约束，它的 `requirements-changed` 始终可用）。取值是 1 到 20 的整数，`0`、`21`、`two`、`1.5` 同样被拒。受限步骤没有声明这个键时（自定义工作流的步骤，或这个键出现之前就已冻结的任务），按 2 处理。上限随工作流计划冻结，之后再改工作流文件不影响在途任务；`tenon set <change> max_rounds <N>` 只覆盖单个任务。Dashboard 工作流页读写定义时会保留这个键，但没有编辑控件。
+
+## 任务起点
+
+“自任务开始以来改动了哪些文件”在 Tenon 里只有一个答案：测试文件的登记与同步、改动文件清单、受保护测试配置的批准、测试完整性报告、`diff-risk` 探针、按
+`attach_on` 挂载的评审者、改动行覆盖率、证据导出、流转门（CLI 与 HTTP）、Dashboard 快照和 `tenon verify --ci`，比对的都是同一个起点提交。Tenon 在建任务时记下它，
+并让它跟随上游。
+
+- `tenon init` 把检出时的 `HEAD` 写进任务字段 `start_sha`（AFK 分诊同样写）。仓库还没有提交、或不是 Git 仓库时不写。值存在任务状态旁的一份小记录里
+  （`.pipeline-run/start-sha/`），不写进 `.pipeline.yaml`，所以这个字段出现之前发布的版本仍读得了、也续写得了这个任务。
+- 起点取下面这些候选里最新的一个：
+  1. `start_sha`，当它是 `HEAD` 的祖先、且提交者时间不晚于任务 `created_at` 加 60 秒时（真实的值是建任务时的 `HEAD`，提交时间不可能更晚；
+     校验不过、读不到提交时间、或 `created_at` 不可用，这个候选就被丢弃）；
+  2. `HEAD` 与 `base_branch` 上游（`<base_branch>@{upstream}`）的 merge-base，当这个上游能解析时；
+  3. `HEAD` 与 `base_branch` 的 merge-base，当它不等于 `HEAD` 本身时（任务分支或 worktree 分支有自己的提交，它就是分叉点）。
+
+  候选两两比较：一方是另一方的祖先就取后代；不成链就取二者的 merge-base。所以清单可能多算，但不会少算。一个候选都没有时，仍按原来的规则：取 `created_at` 之前
+  的最后一个提交。
+- 不读提交信息，也不读作者。起点只能前移到 Tenon 记下的 `HEAD`，或本地上游引用可达的提交，改写提交信息藏不住任何改动。
+- `start_sha`、`base_branch`、`created_at` 决定起点，所以只有 `tenon init` 能写它们；`tenon set`、`set-many`、`cas` 拒写（exit `1`，状态不变）。
+  `base_branch` 与 `created_at` 以前可以被改写。`.pipeline-run/start-sha/` 下的那份小记录不在状态摘要的保护范围里，所以才有上面的时间校验：
+  它被改写成更晚的提交或被删除，起点只会前移、清单只会多出文件，不会少。
+- 你会看到的变化：别人合入基线分支、你又拉取进来的提交，不再被算成本任务的改动（不再冒出一堆继承来的测试文件和被改过的目录）。
+- 限制。上游是本地引用，没有 `git fetch` 时可能偏旧，那只会多算文件。原地任务在基线分支上提交了自己的改动并推送到它的上游之后，起点会前移过这些提交，它们不再算本任务的
+  改动。worktree 任务不受影响：它的 `base_branch` 是出发的分支，任务分支的提交在合并前不在那个分支的上游里。
+- 兼容。没有 `start_sha` 又没有上游的任务行为不变。这个字段出现之前发布的运行时读得了带 `start_sha` 的任务；如果那个旧运行时之后又往任务里写了内容（例如回滚之后），
+  新版本再读到的 `start_sha` 是空值，起点退回上游和基线分支候选，与「字段出现之前创建的任务」完全一样（见仓库里的 `docs/CONTRACT.md`）。
+
+新任务建在自己的 worktree 里，也正是这点避免了两个任务共用一个起点，见[任务在哪里](./quickstart.md#任务在哪里任务-worktree)。
 
 ## 阶段产物总览
 

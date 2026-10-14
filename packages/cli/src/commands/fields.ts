@@ -14,7 +14,7 @@
 import { FIELD_ORDER, LIST_FIELDS } from '@tenon/kernel'
 import type { FieldName, HistoryEntry } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
-import { readChangeForDisplay, resolveChangeDir } from '../paths.js'
+import { changeNotFoundMessage, readChangeForDisplay, resolveChangeDir } from '../paths.js'
 import {
   checkName, runComboWrite, runGuardedCas, runGuardedWrite, writePreflight,
 } from './field-writes.js'
@@ -75,6 +75,11 @@ function rejectProtectedField(deps: CliDeps, field: FieldName): boolean {
     deps.io.err(`ERROR: ${msg(deps, 'field.buildShaFrozen')}`)
     return true
   }
+  // 任务起点由建任务时记下：不是转换的副作用，也没有别的命令能写，所以点名 tenon init。
+  if (field === 'start_sha' || field === 'base_branch' || field === 'created_at') {
+    deps.io.err(`ERROR: ${msg(deps, 'field.managedByInit', { field })}`)
+    return true
+  }
   // 任务结果在移动任务目录之前由归档写下（失败时由归档清回）；手写它会让任务不经归档就看起来已经结束。
   if (field === 'task_result') {
     deps.io.err(`ERROR: ${msg(deps, 'field.managedByTask', { field })}`)
@@ -116,7 +121,7 @@ export async function cmdGet(deps: CliDeps, name: string, field: string): Promis
     return 0
   } catch (e) {
     const code = typeof e === 'object' && e !== null ? Reflect.get(e, 'code') : undefined
-    deps.io.err(code === 'ENOENT' ? `ERROR: ${msg(deps, 'change.notFound', { name })}` : `ERROR: ${errMsg(e)}`)
+    deps.io.err(code === 'ENOENT' ? `ERROR: ${await changeNotFoundMessage(deps, name)}` : `ERROR: ${errMsg(e)}`)
     return 1
   }
 }

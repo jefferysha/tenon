@@ -76,7 +76,7 @@ describe('agent validate / add / new 对骨架的处理', () => {
     sandbox = mkdtempSync(join(tmpdir(), 'tenon-agent-check-'))
     deps = makeDeps({ cwd: join(sandbox, 'project') })
     const configRoot = join(sandbox, 'config')
-    deps.agentPaths = () => ({ payloadRoot: REPO_ROOT, configRoot })
+    deps.agentPaths = () => ({ payloadRoot: REPO_ROOT, configRoot, homeDir: join(sandbox, 'home') })
     deps.agentLibrary = () => loadAgentLibrary({ payloadRoot: REPO_ROOT, configRoot, projectRoot: deps.cwd })
     deps.knownSkillIds = () => new Set()
   })

@@ -1,0 +1,618 @@
+{
+  "version": 1,
+  "contract": "openspec-v1",
+  "createdAt": "2026-10-07T09:49:11Z",
+  "records": [
+    {
+      "kind": "delta-spec",
+      "path": "openspec/changes/setup-host-agents-step-progress/specs/host-native-subagents/spec.md",
+      "sha256": "a11f2478ae72c4d8c26648738f18f81cb9b922f3d75ee0f364ca67020c01916b",
+      "producer": "openspec-propose",
+      "recordedAt": "2026-10-11T14:40:51Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-f5e82c1b5950ee987cc8fe720a9f9206050423cc0facab5e0d4eaae2fc55189b",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "56abf412-c3c4-4beb-87af-7560180567e8",
+          "transitionSequence": 12
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "a11f2478ae72c4d8c26648738f18f81cb9b922f3d75ee0f364ca67020c01916b",
+          "readAt": "2026-10-11T15:17:20Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",13]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "a11f2478ae72c4d8c26648738f18f81cb9b922f3d75ee0f364ca67020c01916b",
+          "readAt": "2026-10-11T15:39:30Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",14]"
+        },
+        {
+          "phase": "build",
+          "sha256": "a11f2478ae72c4d8c26648738f18f81cb9b922f3d75ee0f364ca67020c01916b",
+          "readAt": "2026-10-11T16:17:57Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",17]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "a11f2478ae72c4d8c26648738f18f81cb9b922f3d75ee0f364ca67020c01916b",
+          "readAt": "2026-10-11T16:34:55Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",18]"
+        },
+        {
+          "phase": "build",
+          "sha256": "a11f2478ae72c4d8c26648738f18f81cb9b922f3d75ee0f364ca67020c01916b",
+          "readAt": "2026-10-12T00:29:00Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",19]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "a11f2478ae72c4d8c26648738f18f81cb9b922f3d75ee0f364ca67020c01916b",
+          "readAt": "2026-10-12T00:42:01Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",20]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-setup-host-agents-step-progress-0e9cdb86801b:7e0423e5a6d886e7c07d0bee44059e17",
+        "namespace": "change-setup-host-agents-step-progress-0e9cdb86801b",
+        "version": "sha256:a11f2478ae72c4d8c26648738f18f81cb9b922f3d75ee0f364ca67020c01916b",
+        "projection": "document",
+        "content_digest": "sha256:a11f2478ae72c4d8c26648738f18f81cb9b922f3d75ee0f364ca67020c01916b",
+        "source": {
+          "path": "openspec/changes/setup-host-agents-step-progress/specs/host-native-subagents/spec.md",
+          "document_kind": "delta-spec"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "delta-spec",
+      "path": "openspec/changes/setup-host-agents-step-progress/specs/effective-workflow-plan/spec.md",
+      "sha256": "dbb92d63fcd17dd120da56ed4de192947895ab560cd3c39cf25fabae72d3fdc7",
+      "producer": "openspec-propose",
+      "recordedAt": "2026-10-11T16:06:08Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-fc3d524af6d87cf64abeb98aeaf4590a0468ead1532f829e9f9e811d0c5f91d2",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "56abf412-c3c4-4beb-87af-7560180567e8",
+          "transitionSequence": 16
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "dbb92d63fcd17dd120da56ed4de192947895ab560cd3c39cf25fabae72d3fdc7",
+          "readAt": "2026-10-10T08:59:40Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",3]"
+        },
+        {
+          "phase": "build",
+          "sha256": "dbb92d63fcd17dd120da56ed4de192947895ab560cd3c39cf25fabae72d3fdc7",
+          "readAt": "2026-10-11T05:47:31Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",5]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "dbb92d63fcd17dd120da56ed4de192947895ab560cd3c39cf25fabae72d3fdc7",
+          "readAt": "2026-10-11T07:50:30Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",6]"
+        },
+        {
+          "phase": "build",
+          "sha256": "dbb92d63fcd17dd120da56ed4de192947895ab560cd3c39cf25fabae72d3fdc7",
+          "readAt": "2026-10-11T11:27:13Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",9]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "dbb92d63fcd17dd120da56ed4de192947895ab560cd3c39cf25fabae72d3fdc7",
+          "readAt": "2026-10-11T12:26:42Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",10]"
+        },
+        {
+          "phase": "build",
+          "sha256": "dbb92d63fcd17dd120da56ed4de192947895ab560cd3c39cf25fabae72d3fdc7",
+          "readAt": "2026-10-11T15:17:20Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",13]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "dbb92d63fcd17dd120da56ed4de192947895ab560cd3c39cf25fabae72d3fdc7",
+          "readAt": "2026-10-11T15:39:30Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",14]"
+        },
+        {
+          "phase": "build",
+          "sha256": "dbb92d63fcd17dd120da56ed4de192947895ab560cd3c39cf25fabae72d3fdc7",
+          "readAt": "2026-10-11T16:17:57Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",17]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "dbb92d63fcd17dd120da56ed4de192947895ab560cd3c39cf25fabae72d3fdc7",
+          "readAt": "2026-10-11T16:34:55Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",18]"
+        },
+        {
+          "phase": "build",
+          "sha256": "dbb92d63fcd17dd120da56ed4de192947895ab560cd3c39cf25fabae72d3fdc7",
+          "readAt": "2026-10-12T00:29:00Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",19]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "dbb92d63fcd17dd120da56ed4de192947895ab560cd3c39cf25fabae72d3fdc7",
+          "readAt": "2026-10-12T00:42:01Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",20]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-setup-host-agents-step-progress-0e9cdb86801b:7e0423e5a6d886e7c07d0bee44059e17",
+        "namespace": "change-setup-host-agents-step-progress-0e9cdb86801b",
+        "version": "sha256:dbb92d63fcd17dd120da56ed4de192947895ab560cd3c39cf25fabae72d3fdc7",
+        "projection": "document",
+        "content_digest": "sha256:dbb92d63fcd17dd120da56ed4de192947895ab560cd3c39cf25fabae72d3fdc7",
+        "source": {
+          "path": "openspec/changes/setup-host-agents-step-progress/specs/effective-workflow-plan/spec.md",
+          "document_kind": "delta-spec"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "superpower-plan",
+      "path": "docs/superpowers/plans/setup-host-agents-step-progress.md",
+      "sha256": "d8f7e6e91e93aa2364b8da3cd84aca0949aa3d9885f5c9f5e7547900b42cd961",
+      "producer": "writing-plans",
+      "recordedAt": "2026-10-11T16:07:49Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-347e64e51c94860db80f5c7ef1326ad5305045920749c52ed874df722ee4d430",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "56abf412-c3c4-4beb-87af-7560180567e8",
+          "transitionSequence": 16
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "d8f7e6e91e93aa2364b8da3cd84aca0949aa3d9885f5c9f5e7547900b42cd961",
+          "readAt": "2026-10-11T16:17:57Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",17]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "d8f7e6e91e93aa2364b8da3cd84aca0949aa3d9885f5c9f5e7547900b42cd961",
+          "readAt": "2026-10-11T16:34:55Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",18]"
+        },
+        {
+          "phase": "build",
+          "sha256": "d8f7e6e91e93aa2364b8da3cd84aca0949aa3d9885f5c9f5e7547900b42cd961",
+          "readAt": "2026-10-12T00:29:00Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",19]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "d8f7e6e91e93aa2364b8da3cd84aca0949aa3d9885f5c9f5e7547900b42cd961",
+          "readAt": "2026-10-12T00:42:01Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",20]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-setup-host-agents-step-progress-0e9cdb86801b:7b88c50b7f7600be65dd21069826837f",
+        "namespace": "change-setup-host-agents-step-progress-0e9cdb86801b",
+        "version": "sha256:d8f7e6e91e93aa2364b8da3cd84aca0949aa3d9885f5c9f5e7547900b42cd961",
+        "projection": "document",
+        "content_digest": "sha256:d8f7e6e91e93aa2364b8da3cd84aca0949aa3d9885f5c9f5e7547900b42cd961",
+        "source": {
+          "path": "docs/superpowers/plans/setup-host-agents-step-progress.md",
+          "document_kind": "superpower-plan"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "plan",
+      "path": "docs/superpowers/plans/setup-host-agents-step-progress.md",
+      "sha256": "d8f7e6e91e93aa2364b8da3cd84aca0949aa3d9885f5c9f5e7547900b42cd961",
+      "producer": "writing-plans",
+      "recordedAt": "2026-10-11T16:07:49Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-347e64e51c94860db80f5c7ef1326ad5305045920749c52ed874df722ee4d430",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "56abf412-c3c4-4beb-87af-7560180567e8",
+          "transitionSequence": 16
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "d8f7e6e91e93aa2364b8da3cd84aca0949aa3d9885f5c9f5e7547900b42cd961",
+          "readAt": "2026-10-11T16:17:57Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",17]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "d8f7e6e91e93aa2364b8da3cd84aca0949aa3d9885f5c9f5e7547900b42cd961",
+          "readAt": "2026-10-11T16:34:55Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",18]"
+        },
+        {
+          "phase": "build",
+          "sha256": "d8f7e6e91e93aa2364b8da3cd84aca0949aa3d9885f5c9f5e7547900b42cd961",
+          "readAt": "2026-10-12T00:29:00Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",19]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "d8f7e6e91e93aa2364b8da3cd84aca0949aa3d9885f5c9f5e7547900b42cd961",
+          "readAt": "2026-10-12T00:42:01Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",20]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-setup-host-agents-step-progress-0e9cdb86801b:7b88c50b7f7600be65dd21069826837f",
+        "namespace": "change-setup-host-agents-step-progress-0e9cdb86801b",
+        "version": "sha256:d8f7e6e91e93aa2364b8da3cd84aca0949aa3d9885f5c9f5e7547900b42cd961",
+        "projection": "document",
+        "content_digest": "sha256:d8f7e6e91e93aa2364b8da3cd84aca0949aa3d9885f5c9f5e7547900b42cd961",
+        "source": {
+          "path": "docs/superpowers/plans/setup-host-agents-step-progress.md",
+          "document_kind": "plan"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "proposal",
+      "path": "openspec/changes/setup-host-agents-step-progress/proposal.md",
+      "sha256": "635c3d620d34e0e6adb2485d850ad4180c66eb7a7d9026f09b39d05f97f354d8",
+      "producer": "tenon",
+      "recordedAt": "2026-10-11T16:07:51Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-9f7c7606131659bb206873657b435071fa5837cc9e5729f442d454402febcea6",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "56abf412-c3c4-4beb-87af-7560180567e8",
+          "transitionSequence": 16
+        }
+      },
+      "reads": [
+        {
+          "phase": "spec",
+          "sha256": "635c3d620d34e0e6adb2485d850ad4180c66eb7a7d9026f09b39d05f97f354d8",
+          "readAt": "2026-10-11T16:07:55Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",16]"
+        },
+        {
+          "phase": "build",
+          "sha256": "635c3d620d34e0e6adb2485d850ad4180c66eb7a7d9026f09b39d05f97f354d8",
+          "readAt": "2026-10-11T16:17:57Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",17]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "635c3d620d34e0e6adb2485d850ad4180c66eb7a7d9026f09b39d05f97f354d8",
+          "readAt": "2026-10-11T16:34:55Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",18]"
+        },
+        {
+          "phase": "build",
+          "sha256": "635c3d620d34e0e6adb2485d850ad4180c66eb7a7d9026f09b39d05f97f354d8",
+          "readAt": "2026-10-12T00:29:00Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",19]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "635c3d620d34e0e6adb2485d850ad4180c66eb7a7d9026f09b39d05f97f354d8",
+          "readAt": "2026-10-12T00:42:01Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",20]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-setup-host-agents-step-progress-0e9cdb86801b:dc3bb4b811a4bdc1240ece1aa40d178c",
+        "namespace": "change-setup-host-agents-step-progress-0e9cdb86801b",
+        "version": "sha256:635c3d620d34e0e6adb2485d850ad4180c66eb7a7d9026f09b39d05f97f354d8",
+        "projection": "document",
+        "content_digest": "sha256:635c3d620d34e0e6adb2485d850ad4180c66eb7a7d9026f09b39d05f97f354d8",
+        "source": {
+          "path": "openspec/changes/setup-host-agents-step-progress/proposal.md",
+          "document_kind": "proposal"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "openspec-design",
+      "path": "openspec/changes/setup-host-agents-step-progress/design.md",
+      "sha256": "23e109d662c38b5ac53bb437588576fae207de490d49fa4704d9d4fd840c574f",
+      "producer": "tenon",
+      "recordedAt": "2026-10-11T16:07:51Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-9f7c7606131659bb206873657b435071fa5837cc9e5729f442d454402febcea6",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "56abf412-c3c4-4beb-87af-7560180567e8",
+          "transitionSequence": 16
+        }
+      },
+      "reads": [
+        {
+          "phase": "spec",
+          "sha256": "23e109d662c38b5ac53bb437588576fae207de490d49fa4704d9d4fd840c574f",
+          "readAt": "2026-10-11T16:07:55Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",16]"
+        },
+        {
+          "phase": "build",
+          "sha256": "23e109d662c38b5ac53bb437588576fae207de490d49fa4704d9d4fd840c574f",
+          "readAt": "2026-10-11T16:17:57Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",17]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "23e109d662c38b5ac53bb437588576fae207de490d49fa4704d9d4fd840c574f",
+          "readAt": "2026-10-11T16:34:55Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",18]"
+        },
+        {
+          "phase": "build",
+          "sha256": "23e109d662c38b5ac53bb437588576fae207de490d49fa4704d9d4fd840c574f",
+          "readAt": "2026-10-12T00:29:00Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",19]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "23e109d662c38b5ac53bb437588576fae207de490d49fa4704d9d4fd840c574f",
+          "readAt": "2026-10-12T00:42:01Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",20]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-setup-host-agents-step-progress-0e9cdb86801b:eded7b3b065515df4758671b55e2b4cb",
+        "namespace": "change-setup-host-agents-step-progress-0e9cdb86801b",
+        "version": "sha256:23e109d662c38b5ac53bb437588576fae207de490d49fa4704d9d4fd840c574f",
+        "projection": "document",
+        "content_digest": "sha256:23e109d662c38b5ac53bb437588576fae207de490d49fa4704d9d4fd840c574f",
+        "source": {
+          "path": "openspec/changes/setup-host-agents-step-progress/design.md",
+          "document_kind": "openspec-design"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "superpower-design",
+      "path": "docs/superpowers/specs/setup-host-agents-step-progress-design.md",
+      "sha256": "6cda3006daa5384347e0c32072fc567fc1421685cbb42efdf39b48a7c733ac1e",
+      "producer": "tenon",
+      "recordedAt": "2026-10-11T16:07:52Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-9f7c7606131659bb206873657b435071fa5837cc9e5729f442d454402febcea6",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "56abf412-c3c4-4beb-87af-7560180567e8",
+          "transitionSequence": 16
+        }
+      },
+      "reads": [
+        {
+          "phase": "spec",
+          "sha256": "6cda3006daa5384347e0c32072fc567fc1421685cbb42efdf39b48a7c733ac1e",
+          "readAt": "2026-10-11T16:07:55Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",16]"
+        },
+        {
+          "phase": "build",
+          "sha256": "6cda3006daa5384347e0c32072fc567fc1421685cbb42efdf39b48a7c733ac1e",
+          "readAt": "2026-10-11T16:17:57Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",17]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "6cda3006daa5384347e0c32072fc567fc1421685cbb42efdf39b48a7c733ac1e",
+          "readAt": "2026-10-11T16:34:55Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",18]"
+        },
+        {
+          "phase": "build",
+          "sha256": "6cda3006daa5384347e0c32072fc567fc1421685cbb42efdf39b48a7c733ac1e",
+          "readAt": "2026-10-12T00:29:00Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",19]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "6cda3006daa5384347e0c32072fc567fc1421685cbb42efdf39b48a7c733ac1e",
+          "readAt": "2026-10-12T00:42:01Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",20]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-setup-host-agents-step-progress-0e9cdb86801b:71a461ba875898ce7a5faa0c37dcd38b",
+        "namespace": "change-setup-host-agents-step-progress-0e9cdb86801b",
+        "version": "sha256:6cda3006daa5384347e0c32072fc567fc1421685cbb42efdf39b48a7c733ac1e",
+        "projection": "document",
+        "content_digest": "sha256:6cda3006daa5384347e0c32072fc567fc1421685cbb42efdf39b48a7c733ac1e",
+        "source": {
+          "path": "docs/superpowers/specs/setup-host-agents-step-progress-design.md",
+          "document_kind": "superpower-design"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "adr",
+      "path": "docs/adr/setup-host-agents-step-progress.md",
+      "sha256": "8c63b2bb7db72dfd067c8d03695ec9a0c2a8782f200146df08e0803dd89fba7d",
+      "producer": "tenon",
+      "recordedAt": "2026-10-11T16:07:53Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-9f7c7606131659bb206873657b435071fa5837cc9e5729f442d454402febcea6",
+        "evidenceScope": "spec",
+        "stepVisit": {
+          "runId": "56abf412-c3c4-4beb-87af-7560180567e8",
+          "transitionSequence": 16
+        }
+      },
+      "reads": [
+        {
+          "phase": "spec",
+          "sha256": "8c63b2bb7db72dfd067c8d03695ec9a0c2a8782f200146df08e0803dd89fba7d",
+          "readAt": "2026-10-11T16:07:55Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",16]"
+        },
+        {
+          "phase": "build",
+          "sha256": "8c63b2bb7db72dfd067c8d03695ec9a0c2a8782f200146df08e0803dd89fba7d",
+          "readAt": "2026-10-11T16:17:57Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",17]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "8c63b2bb7db72dfd067c8d03695ec9a0c2a8782f200146df08e0803dd89fba7d",
+          "readAt": "2026-10-11T16:34:55Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",18]"
+        },
+        {
+          "phase": "build",
+          "sha256": "8c63b2bb7db72dfd067c8d03695ec9a0c2a8782f200146df08e0803dd89fba7d",
+          "readAt": "2026-10-12T00:29:00Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",19]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "8c63b2bb7db72dfd067c8d03695ec9a0c2a8782f200146df08e0803dd89fba7d",
+          "readAt": "2026-10-12T00:42:01Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",20]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-setup-host-agents-step-progress-0e9cdb86801b:9fe4e854b801695af018910ef9aee7c9",
+        "namespace": "change-setup-host-agents-step-progress-0e9cdb86801b",
+        "version": "sha256:8c63b2bb7db72dfd067c8d03695ec9a0c2a8782f200146df08e0803dd89fba7d",
+        "projection": "document",
+        "content_digest": "sha256:8c63b2bb7db72dfd067c8d03695ec9a0c2a8782f200146df08e0803dd89fba7d",
+        "source": {
+          "path": "docs/adr/setup-host-agents-step-progress.md",
+          "document_kind": "adr"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "tasks",
+      "path": "openspec/changes/setup-host-agents-step-progress/tasks.md",
+      "sha256": "52b21aab36cfb5ba808bd7674889302e7617d1914cee8e80e8f5390c106c595d",
+      "producer": "tenon",
+      "recordedAt": "2026-10-12T00:28:55Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-2d1f9dfc49ee1abd9a2821e3be087ce9dcf70b1751a100a6660945a90bc273fc",
+        "evidenceScope": "build",
+        "stepVisit": {
+          "runId": "56abf412-c3c4-4beb-87af-7560180567e8",
+          "transitionSequence": 19
+        }
+      },
+      "reads": [
+        {
+          "phase": "build",
+          "sha256": "52b21aab36cfb5ba808bd7674889302e7617d1914cee8e80e8f5390c106c595d",
+          "readAt": "2026-10-12T00:29:00Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",19]"
+        },
+        {
+          "phase": "verify",
+          "sha256": "52b21aab36cfb5ba808bd7674889302e7617d1914cee8e80e8f5390c106c595d",
+          "readAt": "2026-10-12T00:42:01Z",
+          "visitId": "[\"56abf412-c3c4-4beb-87af-7560180567e8\",20]"
+        }
+      ],
+      "subjectRef": {
+        "subject_id": "subject:change-setup-host-agents-step-progress-0e9cdb86801b:d412e9352f9a59ced1309032a5ce8ee8",
+        "namespace": "change-setup-host-agents-step-progress-0e9cdb86801b",
+        "version": "sha256:52b21aab36cfb5ba808bd7674889302e7617d1914cee8e80e8f5390c106c595d",
+        "projection": "document",
+        "content_digest": "sha256:52b21aab36cfb5ba808bd7674889302e7617d1914cee8e80e8f5390c106c595d",
+        "source": {
+          "path": "openspec/changes/setup-host-agents-step-progress/tasks.md",
+          "document_kind": "tasks"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    },
+    {
+      "kind": "verification-report",
+      "path": "docs/superpowers/reports/setup-host-agents-step-progress-verify.md",
+      "sha256": "b51e353df95d07b4a93b1c330dc4c3282243b0133397f51b53940332afe3a1e0",
+      "producer": "verification-before-completion",
+      "recordedAt": "2026-10-12T01:02:28Z",
+      "producerInvocation": {
+        "confirmationInvocationId": "invocation-e2ea8dd59746aeaa7957f87157aa5c6e83e57433dd0afd926d343f5aa84edc2b",
+        "evidenceScope": "verify",
+        "stepVisit": {
+          "runId": "56abf412-c3c4-4beb-87af-7560180567e8",
+          "transitionSequence": 20
+        }
+      },
+      "reads": [],
+      "subjectRef": {
+        "subject_id": "subject:change-setup-host-agents-step-progress-0e9cdb86801b:5cb5769ae096238f40a276996749fdd6",
+        "namespace": "change-setup-host-agents-step-progress-0e9cdb86801b",
+        "version": "sha256:b51e353df95d07b4a93b1c330dc4c3282243b0133397f51b53940332afe3a1e0",
+        "projection": "document",
+        "content_digest": "sha256:b51e353df95d07b4a93b1c330dc4c3282243b0133397f51b53940332afe3a1e0",
+        "source": {
+          "path": "docs/superpowers/reports/setup-host-agents-step-progress-verify.md",
+          "document_kind": "verification-report"
+        }
+      },
+      "actor": {
+        "id": "710227704@qq.com",
+        "name": "jefferySha",
+        "trust": "declared"
+      }
+    }
+  ]
+}

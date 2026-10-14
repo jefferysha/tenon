@@ -24,7 +24,6 @@ import { cmdAdvance } from './commands/advance.js'
 import { cmdAfk } from './commands/afk.js'
 import { cmdChannel } from './commands/channel.js'
 import { cmdGenRouterSh } from './commands/gen-router.js'
-import { cmdInit, type InitCmdOpts } from './commands/init.js'
 import { cmdLoops } from './commands/loops.js'
 import { cmdMem } from './commands/mem.js'
 import { cmdScaffold } from './commands/scaffold.js'
@@ -44,6 +43,7 @@ import { cmdTriage, type TriageCommandRuntime } from './commands/triage.js'
 import { bail, stripNl } from './program-exit.js'
 import { registerChangeExistenceGuard } from './program-change-guard.js'
 import { registerFieldCommands } from './program-fields.js'
+import { registerInitCommand } from './program-init.js'
 import { registerInstallCommands } from './program-install.js'
 import { registerDesignCommands, registerMotionGateCommand, registerResourceCommands } from './program-resources.js'
 import { registerAssessCommand } from './program-assess.js'
@@ -82,17 +82,7 @@ export function buildProgram(deps: CliDeps, runtimes: ProgramRuntimes = {}): Com
       writeErr: (s) => deps.io.err(stripNl(s)),
     })
 
-  program
-    .command('init <name>')
-    .description('初始化 change（stdout 无输出，路径信息走 stderr）')
-    // track/preset 非 requiredOption：缺省时 TTY 下走交互向导补齐、非交互 fail-loud（见 cmdInit）；
-    // 若用 requiredOption，commander 会抢在 action 前就报错，向导没机会跑。
-    .option('--track <track>', '工作流的轨道（tenon tracks list 查看）；有分支的工作流必填，平铺工作流省略')
-    .option('--domain <track>', '轻量任务记下的领域轨道（同一工作流里的另一条轨道）；任务升级时用它给出后续重型任务的轨道')
-    .option('--preset <preset>', 'full | hotfix | tweak（default 工作流必填；显式 --workflow 自定义工作流时可省略）')
-    .option('--workflow <workflow>', '自定义 workflow 名（.pipeline/workflows/<name>.yaml），缺省 default')
-    .option('--document-locale <locale>', '治理文档语言：zh-CN（默认）| en')
-    .action(async (name: string, opts: InitCmdOpts) => bail(await cmdInit(deps, name, opts)))
+  registerInitCommand(program, deps)
 
   registerChangeExistenceGuard(program, deps)
   registerInstallCommands(program, deps, runtimes.dashboard)

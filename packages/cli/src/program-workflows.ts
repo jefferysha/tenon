@@ -2,6 +2,7 @@ import { InvalidArgumentError, type Command } from 'commander'
 import type { CliDeps } from './deps.js'
 import { cmdHandoff } from './commands/handoff.js'
 import { cmdWorkflowPlan } from './commands/workflow-plan.js'
+import { cmdWorkflowProgress } from './commands/workflow-progress.js'
 import { bail } from './program-exit.js'
 
 export function registerHandoffCommand(program: Command, deps: CliDeps): void {
@@ -36,7 +37,7 @@ export function registerWorkflowCommands(program: Command, deps: CliDeps): void 
     .command('workflow')
     .description('Workflow 运行计划：从 Change 的冻结快照读取步骤、Skill、门禁和转换')
     .action(() => {
-      deps.io.err('用法：tenon workflow plan <change> [--json]')
+      deps.io.err('用法：tenon workflow plan <change> [--json] | tenon workflow progress <change>')
       bail(1)
     })
   workflow
@@ -45,4 +46,8 @@ export function registerWorkflowCommands(program: Command, deps: CliDeps): void 
     .option('--json', 'Agent 可编程 JSON 输出')
     .action(async (change: string, opts: { json?: boolean }) =>
       bail(await cmdWorkflowPlan(deps, change, opts)))
+  workflow
+    .command('progress <change>')
+    .description('输出一行步骤清单（✓ 已过 / ● 当前 / ○ 未到）')
+    .action(async (change: string) => bail(await cmdWorkflowProgress(deps, change)))
 }

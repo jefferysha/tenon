@@ -22,6 +22,15 @@ export type BuildRevisionReason = (typeof BUILD_REVISION_REASONS)[number]
 
 export type BuildRevisionKind = 'git' | 'workspace'
 
+/**
+ * 隔离方式对应的构建版本类别，是捕获、复核与 Dashboard 快照共用的唯一判定：`branch` 绑 git object，
+ * 其余（`worktree`、`in-place`）绑工作区内容指纹——任务 worktree 里的实现常常尚未提交，HEAD 不动而内容在变。
+ * 取值是否合法由调用方另行判定（复核对非法取值返回 `isolation-mismatch`），这里不抛错。
+ */
+export function expectedBuildRevisionKind(isolation: string): BuildRevisionKind {
+  return isolation === 'branch' ? 'git' : 'workspace'
+}
+
 export interface BuildRevisionIdentity {
   /** Physical Git common directory.  It is consumed locally and never put in a blocker. */
   readonly repository: string
@@ -224,11 +233,10 @@ export async function assessBuildRevisionTrust(
   }
   const token = parseBuildRevisionToken(candidate)
   if (token === undefined) return { trusted: false, blocker: blockerFor('malformed', request) }
-  const expectedKind = request.isolation === 'in-place' ? 'workspace' : 'git'
   if (request.isolation !== 'in-place' && request.isolation !== 'branch' && request.isolation !== 'worktree') {
     return { trusted: false, blocker: blockerFor('isolation-mismatch', request, token) }
   }
-  if (token.kind !== expectedKind) {
+  if (token.kind !== expectedBuildRevisionKind(request.isolation)) {
     return { trusted: false, blocker: blockerFor('isolation-mismatch', request, token) }
   }
 

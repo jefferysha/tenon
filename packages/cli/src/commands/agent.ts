@@ -2,8 +2,9 @@
  * `tenon agent prompt | record`（`next` 在 agent-next.ts）—— 步骤 agent 的交接与登记。
  *
  * Tenon 只负责排顺序、渲染提示词、记录结论与校验候选版本；模型一律由宿主跑（父设计 §6）。
- * 没有 start / abandon：`prompt` 既开始也续跑，`next` 看状态。`prompt` 为当前宿主生成任务冻结 agent 的
- * 专属子代理文件（agent-host.ts），返回 `subagent_type`；库的增删改查在 agent-library.ts。
+ * 没有 start / abandon：`prompt` 既开始也续跑，`next` 看状态。`prompt` 不写任何宿主文件：专属子代理 `tenon-<name>` 只来自
+ * 终端里 `tenon agent install` 装的用户级文件，`prompt` 只读比对（kernel resolveHostSubagent），一致才返回它，否则返回通用子代理
+ * 类型连同 `reason` 与安装提示（提示里给出它检查的用户级子代理目录）；库的增删改查在 agent-library.ts。
  *
  * 跨厂商评审：评审者在工作流步骤里声明 `host: codex|claude`（agent 定义可建议一个）时，`prompt` 指明该在哪个宿主上跑；
  * 当前宿主不是它，就把提示词写进文件并给出另一家 CLI 的确切命令（agent-route.ts）——Tenon 不替用户起那个 CLI。
@@ -16,15 +17,16 @@ import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
-  AGENT_REPORTS_DIR, KNOWN_AGENT_HOSTS,
+  AGENT_REPORTS_DIR, HOST_AGENT_FALLBACK, KNOWN_AGENT_HOSTS,
   appendAgentRunRow, hostAgentName, hostRunValid, inlineSuiteId, latestTestRun, nextAgentWave, parseAgentReport, readTestPlanState,
-  renderAgentBlocker, reviewerHostRequirement, severityRank, sha256Hex,
+  renderAgentBlocker, resolveHostSubagent, reviewerHostRequirement, severityRank, sha256Hex,
 } from '@tenon/kernel'
 import type {
-  AgentRunRow, AgentRunSubagent, AgentSeverity, HostAgentFileOutcome,
+  AgentRunRow, AgentRunSubagent, AgentSeverity, FrozenAgent, HostAgentHost,
 } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
-import { ensureChangeHostAgents, fallbackOutcome, hostAgentHostOf } from './agent-host.js'
+import { agentInstallHint } from './agent-install.js'
+import { agentsDirOf, hostAgentHostOf } from './agent-host.js'
 import { resolveAgentCommand, roleOf, type AgentContext } from './agent-context.js'
 import { renderAgentPrompt, type AgentPromptInput } from './agent-prompt.js'
 import { stepPolicyFor } from '../test-system/plan-context.js'
@@ -37,6 +39,9 @@ import { msg } from '../i18n/messages.js'
 export { cmdAgentNext } from './agent-next.js'
 
 const REPORT_MAX_BYTES = 256 * 1024
+
+/** `tenon agent record --subagent none`：保留字，表示这次运行没有派发任何子代理。 */
+const NOT_DISPATCHED_SUBAGENT = 'none'
 
 /**
  * 评审者声明了 `reads_tests` 时，附上目录套件最新运行的摘要（失败用例、flaky、覆盖率对照门槛、基准变化）。
@@ -75,6 +80,24 @@ async function testsFor(
   }))
 }
 
+/**
+ * 这次运行计划用的子代理（只读判定，不写文件）。查的是宿主读的用户级子代理目录（跟随会话环境里的 `CLAUDE_CONFIG_DIR` /
+ * `CODEX_HOME`，与 `tenon agent install` 同一解析）；`agentPaths` 没装配时无从找到已装文件，按未安装处理。
+ */
+async function plannedSubagent(deps: CliDeps, host: HostAgentHost, frozen: FrozenAgent): Promise<AgentRunSubagent> {
+  const paths = deps.agentPaths?.()
+  if (paths === undefined) return { host, type: HOST_AGENT_FALLBACK[host], native: false, reason: 'not-installed' }
+  return { host, ...await resolveHostSubagent({ agentsDir: agentsDirOf(paths, host), projectRoot: deps.cwd, host, agent: frozen }) }
+}
+
+/** 退回通用子代理时的安装提示，带上所检查的用户级子代理目录；专属子代理或没有宿主子代理时是 null。 */
+function fallbackHint(deps: CliDeps, used: AgentRunSubagent | undefined): string | null {
+  if (used === undefined || used.native) return null
+  const paths = deps.agentPaths?.()
+  const host = hostAgentHostOf(deps, used.host)
+  return agentInstallHint(used.host, paths === undefined || host === undefined ? undefined : agentsDirOf(paths, host))
+}
+
 export async function cmdAgentPrompt(
   deps: CliDeps,
   name: string,
@@ -84,13 +107,7 @@ export async function cmdAgentPrompt(
   const rerunReason = parseRerunReason(deps, options.rerunReason)
   if (rerunReason === null) return 1
   const host = hostAgentHostOf(deps, options.host)
-  let hostFiles: ReadonlyMap<string, HostAgentFileOutcome> = new Map()
-  const context = await resolveAgentCommand(deps, name, {
-    requireOwner: true,
-    prepare: async (frozen) => {
-      if (host !== undefined) hostFiles = await ensureChangeHostAgents(deps, host, frozen)
-    },
-  })
+  const context = await resolveAgentCommand(deps, name, { requireOwner: true })
   if (typeof context === 'number') return context
   const role = roleOf(context.step, agent)
   if (role === undefined) {
@@ -132,12 +149,11 @@ export async function cmdAgentPrompt(
   const reportPath = join('openspec', 'changes', name, AGENT_REPORTS_DIR, `${runId}.md`)
   const promptFile = join('openspec', 'changes', name, AGENT_REPORTS_DIR, `${runId}.prompt.md`)
   const route = planRoute({ requirement, current: options.host ?? host, change: name, runId, promptFile })
-  // 专属子代理 `tenon-<name>` 只在宿主文件确实生成（或已是同一份）时下发；否则退回通用子代理并记下。
-  // 要去另一个宿主跑时，本宿主的子代理不参与，不记。
-  const hostFile = host === undefined ? undefined : hostFiles.get(agent) ?? fallbackOutcome(host)
-  const subagent: AgentRunSubagent | undefined = host === undefined || hostFile === undefined || route.runOn !== null
+  // 专属子代理 `tenon-<name>` 只在用户级已装文件与冻结定义一致时下发；否则退回通用子代理并把原因记下。
+  // 要去另一个宿主跑时，本宿主的子代理不参与，不记；续跑的运行沿用台账里已记下的，不重新判定。
+  const subagent: AgentRunSubagent | undefined = host === undefined || route.runOn !== null || existing?.subagent !== undefined
     ? undefined
-    : { host, type: hostFile.subagentType, native: hostFile.native }
+    : await plannedSubagent(deps, host, frozen)
   if (existing === undefined) {
     const row: AgentRunRow = {
       schema: 'agent-run/v1',
@@ -199,6 +215,9 @@ export async function cmdAgentPrompt(
       role,
       subagent_type: used?.type ?? null,
       native: used?.native ?? false,
+      // 退回通用子代理时的原因与安装提示（专属子代理或没有宿主子代理时都是 null）。
+      reason: used?.reason ?? null,
+      hint: fallbackHint(deps, used),
       model: frozen.definition.model ?? null,
       tools: frozen.definition.tools,
       skills: frozen.definition.skills,
@@ -226,13 +245,19 @@ export async function cmdAgentPrompt(
 }
 
 /**
- * 宿主实际用的子代理：prompt 时记下的是计划用的；专属子代理当场不可用（例如会话中途才生成、宿主
- * 还没加载）而退回通用子代理时，`--subagent <type>` 把实际用的记进结束行。
+ * 宿主实际用的子代理：prompt 时记下的是计划用的；专属子代理当场不可用（例如刚装还没开新会话、宿主
+ * 还没加载）而退回通用子代理时，`--subagent <type>` 把实际用的记进结束行。改写类型时 prompt 给出的 `reason` 保留，
+ * 但只留给仍是通用类型的记录（实际用了专属类型就没有「为什么没用」可说）。
+ * `none` = 运行开始后根本没有派发子代理（例如执行者在开始后被放弃）：如实记下，原因恒为 `not-dispatched`，
+ * 不沿用 prompt 时计划用的子代理，也不留下 prompt 给出的原因。
  */
 function usedSubagent(deps: CliDeps, row: AgentRunRow, type: string | undefined): AgentRunSubagent | undefined {
   if (type === undefined) return row.subagent
   const host = row.subagent?.host ?? hostAgentHostOf(deps) ?? 'terminal'
-  return { host, type, native: type === hostAgentName(row.agent) }
+  if (type === NOT_DISPATCHED_SUBAGENT) return { host, type, native: false, reason: 'not-dispatched' }
+  const native = type === hostAgentName(row.agent)
+  const reason = row.subagent?.reason
+  return { host, type, native, ...(native || reason === undefined ? {} : { reason }) }
 }
 
 export async function cmdAgentRecord(
@@ -324,6 +349,6 @@ export async function cmdAgentRecord(
     : `[AGENT] ${name} ${row.agent} ${row.role} result=${finished.result}`
       + ` findings=${parsed.findings.length} blocking=${blocking}`
       + (host === undefined ? '' : ` host=${host}${finished.host_source === 'declared' ? ` ${msg(deps, 'agent.record.declared')}` : ''}`)
-      + (subagent === undefined ? '' : ` subagent=${subagent.type}${subagent.native ? '' : ` ${msg(deps, 'agent.record.generic')}`}`))
+      + (subagent === undefined ? '' : ` subagent=${subagent.type}${subagent.native || subagent.reason === 'not-dispatched' ? '' : ` ${msg(deps, 'agent.record.generic')}`}`))
   return 0
 }

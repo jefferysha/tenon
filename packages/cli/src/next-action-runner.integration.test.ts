@@ -453,6 +453,8 @@ describe('照着 next 做事的运行器：轻量的平铺工作流（原内建 
               change: SIMPLE,
               command: `tenon task finish ${SIMPLE}`,
               commit: { paths: WORKSPACE_PATHS, untrack: [], message: `chore(tenon): finish ${SIMPLE}` },
+              // 原地建立的任务没有 worktree 要清理。
+              cleanup: null,
             })
             await simple.run(['task', 'finish', SIMPLE])
             simple.commitAsInstructed(action.commit as FinishCommit)
@@ -472,7 +474,7 @@ describe('照着 next 做事的运行器：轻量的平铺工作流（原内建 
     await simple.run(['status', SIMPLE, '--json'])
     const before = JSON.parse(h.out.join('\n')) as { step?: { next: readonly StepAction[] } }
     expect(before.step?.next).toEqual([{
-      action: 'finish-change', change: SIMPLE, command: `tenon task finish ${SIMPLE}`, commit: null,
+      action: 'finish-change', change: SIMPLE, command: `tenon task finish ${SIMPLE}`, commit: null, cleanup: null,
     }])
     await simple.run(['task', 'finish', SIMPLE])
     await simple.run(['status', SIMPLE, '--json'])

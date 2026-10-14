@@ -53,6 +53,9 @@ set -uo pipefail
 # 经 `tenon test run` 启动时，启动器把本机真实的运行时根导出给了本脚本；它们优先于下面各处的 TENON_RUNTIME_HOME="$MACHINE_HOME"，
 # 带着它们跑新 CLI 会读写真实状态。
 unset TENON_RUNTIME_ROOTS TENON_RUNTIME_DATA_ROOT TENON_RUNTIME_STATE_ROOT TENON_RUNTIME_CONFIG_ROOT
+# 新任务默认建在自己的 git worktree 里；new 侧夹具是已提交 base 的 git 仓，而老内核把 change 建在项目根，
+# 双跑要比的是同一个落点，所以让新 CLI 原地建立（老内核不认识这个变量）。
+export TENON_INIT_IN_PLACE=1
 
 ORACLE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${ORACLE_REPO_ROOT:-$(cd "$ORACLE_DIR/../.." && pwd)}"

@@ -108,7 +108,7 @@ describe('transition —— [TRANSITION] 走 stderr / 非法 exit 1（oracle 实
     const deps = makeDeps({ state: mockState({
       phase: 'build',
       build_mode: 'direct',
-      isolation: 'worktree',
+      isolation: 'branch',
       pre_verify_review_result: 'pass',
     }) })
     trustBuildRevision(deps)

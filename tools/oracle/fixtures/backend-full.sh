@@ -85,7 +85,7 @@ tr '|' '\t' > "$target/.oracle-plan" <<'PLAN'
 0|check|t6-be|build
 0|transition|t6-be|spec-complete
 0|set|t6-be|build_mode|direct
-0|set|t6-be|isolation|worktree
+0|set|t6-be|isolation|branch
 0|set|t6-be|direct_override|true
 0|transition|t6-be|build-complete
 0|seed|t6-be|verification_report|docs/verify.md

@@ -34,12 +34,15 @@ export interface TransitionApplicationDeps {
   /**
    * 本步未完成的必需技能（逐条可读文案）。`plan` 带着 document 契约：契约点名为 producer 的技能，
    * 须在本次步骤访问里登记了它的文档才算完成，只调用不算。
+   * `exclude`：本次不要求的技能 id，实现方在生成文案之前按槽位剔除。只有退回边传它（归属本步 agent 的技能只能在该
+   * agent 运行期间加载，退回边不能再要求）；前进边缺省，一个技能都不豁免。
    */
   missingStepSkills?: (input: {
     readonly changeDir: string
     readonly stepId: string
     readonly capability: EffectiveWorkflowPlan['capabilities']['skills']
     readonly plan: EffectiveWorkflowPlan
+    readonly exclude?: ReadonlySet<string>
   }) => Promise<readonly string[]>
   /**
    * 离开步骤前的 agent 判定；只在前进出边上调用（退回边永不检查 agent）。

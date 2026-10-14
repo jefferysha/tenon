@@ -4,7 +4,7 @@ import { gatedBackActions } from './statusStepExits.js'
 import { emptyStepDocuments, type StepDocumentsView, type StepFieldView } from './statusStepParts.js'
 import { documentWriteActions, observedReadActions, skillDocumentActions } from './statusStepDocumentActions.js'
 import { WORKSPACE_COMMIT_PATHS, type GitFinishProbe } from '../gitWorkspace.js'
-import { deliveryCommit } from './statusStepFinish.js'
+import { deliveryCommit, finishedStop } from './statusStepFinish.js'
 
 /** 一个 git 仓里完结时的事实：原目录未跟踪、工作区有改动、没有状态目录 .gitignore 与心跳要处理。 */
 function probe(over: Partial<GitFinishProbe> = {}): GitFinishProbe {
@@ -682,6 +682,8 @@ describe('step.next 顺序', () => {
         untrack: [],
         message: 'chore(openspec): archive demo',
       },
+      // 原地任务没有 worktree 要清理。
+      cleanup: null,
     }])
   })
 
@@ -728,6 +730,7 @@ describe('step.next 顺序', () => {
       command: 'tenon task finish demo',
       // 整个工作区，去掉仓库根的本机门禁标记（真机第三轮：`.pipeline-pending-*` 以 ?? 出现在根上）。
       commit: { paths: WORKSPACE_COMMIT_PATHS, untrack: [], message: 'chore(tenon): finish demo' },
+      cleanup: null,
     }])
     expect(WORKSPACE_COMMIT_PATHS).toEqual(expect.arrayContaining([
       '.', ':(exclude).pipeline-pending-review', ':(exclude).pipeline-pending-interaction',
@@ -744,12 +747,59 @@ describe('step.next 顺序', () => {
     })
     // 已升级（没有验证通过）：目录照移，改动留在工作区，不提交。
     expect(simple(probe(), false)).toEqual([{
-      action: 'finish-change', change: 'demo', command: 'tenon task finish demo', commit: null,
+      action: 'finish-change', change: 'demo', command: 'tenon task finish demo', commit: null, cleanup: null,
     }])
     // 不是 git 仓：命令照发，没有提交。
     expect(simple(null)).toEqual([{
-      action: 'finish-change', change: 'demo', command: 'tenon task finish demo', commit: null,
+      action: 'finish-change', change: 'demo', command: 'tenon task finish demo', commit: null, cleanup: null,
     }])
+  })
+
+  /**
+   * worktree 任务完结后，worktree 与分支还在：`finish-change` 附带 `cleanup`（清理它们的命令），skill 转告用户，Tenon 不自己删。
+   * 目录已移进 archive/ 之后的 `stop finished` 同样带它——用户最后看到的就是这一条。
+   */
+  describe('worktree 任务：完结后提示清理 worktree 与分支', () => {
+    const worktree = { path: '/repo/.worktrees/demo', branch: 'tenon/demo' } as const
+    const CLEANUP = "git worktree remove '/repo/.worktrees/demo' && git branch -d 'tenon/demo'"
+
+    test('治理归档的 finish-change 带 cleanup；原有的 command 与 commit 不变', () => {
+      expect(stepNextActions(input({ runArchived: true, finish: { git: probe(), verified: true, worktree } }))).toEqual([{
+        action: 'finish-change',
+        change: 'demo',
+        command: 'tenon task finish demo',
+        commit: { paths: ['openspec/changes/archive'], untrack: [], message: 'chore(openspec): archive demo' },
+        cleanup: CLEANUP,
+      }])
+    })
+
+    test('非治理工作流的 finish-change 带 cleanup', () => {
+      expect(stepNextActions(input({
+        runArchived: true, governedOpenspec: false, finish: { git: probe(), verified: true, worktree },
+      }))[0]).toMatchObject({ action: 'finish-change', command: 'tenon task finish demo', cleanup: CLEANUP })
+    })
+
+    test('没有 git 事实（不是 git 仓）时 finish-change 仍带 cleanup', () => {
+      expect(stepNextActions(input({ runArchived: true, finish: { git: null, verified: true, worktree } }))[0])
+        .toMatchObject({ action: 'finish-change', commit: null, cleanup: CLEANUP })
+    })
+
+    test('目录已移进 archive/ 之后的 stop finished 带 cleanup（完结 / 已升级 / 已终止都带）', () => {
+      for (const result of ['finished', 'escalated', 'terminated'] as const) {
+        expect(finishedStop('demo', result, worktree)[0]).toMatchObject({ action: 'stop', code: 'finished', cleanup: CLEANUP })
+      }
+    })
+
+    test('原地任务：finish-change 的 cleanup 是 null，stop finished 没有这一键', () => {
+      expect(stepNextActions(input({ runArchived: true }))[0]).toMatchObject({ action: 'finish-change', cleanup: null })
+      expect(finishedStop('demo', 'finished')[0]).not.toHaveProperty('cleanup')
+    })
+
+    test('路径或分支里有单引号：按 shell 单引号规则转义，整条命令仍是两个字面量', () => {
+      const odd = { path: "/tmp/it's/.worktrees/demo", branch: 'tenon/demo' }
+      const cleanup = stepNextActions(input({ runArchived: true, finish: { git: probe(), verified: true, worktree: odd } }))[0]?.cleanup
+      expect(cleanup).toBe("git worktree remove '/tmp/it'\\''s/.worktrees/demo' && git branch -d 'tenon/demo'")
+    })
   })
 
   /**

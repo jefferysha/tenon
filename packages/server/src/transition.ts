@@ -42,7 +42,7 @@ import {
   resolveRequiredSkillSlots,
   stateStorageExistsSync,
   universalGuardCapabilities,
-  taskPlanTasksThroughPhaseForChange, assessBuildRevisionTrust, createBuildRevisionToken,
+  taskPlanTasksThroughPhaseForChange, assessBuildRevisionTrust, createBuildRevisionToken, expectedBuildRevisionKind,
   probeBuildRevisionIdentity, readCurrentRunRevision, readStepRounds, readValidatedTransitionHead, safeRevisionHash,
   readReviewGateBinding, reviewGateBindingMatches,
   actorOf, isTenonUser, USER_MISSING_HINT, userSlug,
@@ -54,7 +54,7 @@ import type {
 } from '@tenon/kernel'
 import { enqueueAfterSpecComplete } from '@tenon/automation'
 import { errText, mapTransitionResult, type TransitionOutcome } from './transitionResult.js'
-import { pruneHostAgentsAfterArchive } from './hostAgentPrune.js'
+import { cleanupLegacyHostAgentsAfterArchive, type HostAgentLibraryReader } from './hostAgentPrune.js'
 import { defaultResolveUser, type ResolveUser } from './serverUserRoutes.js'
 
 // 事件 → 转移边表：re-export kernel 单一真相源（server/index.ts 对外沿用同名）。
@@ -84,7 +84,7 @@ export interface TransitionDeps {
   fileExists?: (root: string, relPath: string) => boolean
   /** `git rev-parse HEAD`（legacy observation/capture adapter；Verify assessor 缺失时 fail-closed）。 */
   gitHeadSha?: (cwd: string) => Promise<string>
-  /** in-place build 的内容寻址工作区基线；缺省时 workspace barrier 降级跳过。 */
+  /** worktree / in-place build 的内容寻址工作区基线；缺省时 workspace barrier 降级跳过。 */
   workspaceFingerprint?: (cwd: string, changeName: string) => Promise<string>
   captureBuildRevision?: (cwd: string, isolation: string) => Promise<string>
   assessBuildRevision?: import('@tenon/kernel').TransitionContext['assessBuildRevision']
@@ -110,6 +110,11 @@ export interface TransitionDeps {
   skillResolver?: EffectiveSkillResolver
   /** Declared identity for the root; defaults to the server resolver. Only the owner may advance. */
   resolveUser?: ResolveUser
+  /**
+   * 任务完结后清理旧版本留下的宿主 agent 文件时读 agent 库：有它才认「内容与当前库渲染一致」这条依据（与 CLI 同口径）；
+   * 缺席或读库失败 = 只按所有权清单清理。
+   */
+  hostAgentLibrary?: HostAgentLibraryReader
 }
 
 const CHANGE_NAME_RE = /^[a-zA-Z0-9_-]+$/
@@ -162,7 +167,7 @@ export async function performTransition(
       : async (isolation): Promise<string> => {
           const identity = await probeBuildRevisionIdentity(root)
           if (!identity) throw new Error('build revision identity unavailable')
-          const kind = isolation === 'in-place' ? 'workspace' as const : 'git' as const
+          const kind = expectedBuildRevisionKind(isolation)
           const revision = kind === 'workspace'
             ? await workspaceFingerprint?.(root, name) ?? ''
             : await gitHeadSha?.(root) ?? ''
@@ -172,7 +177,7 @@ export async function performTransition(
       ? async (request) => {
           const identity = await probeBuildRevisionIdentity(root)
           const observe = async () => {
-            const kind = request.isolation === 'in-place' ? 'workspace' as const : 'git' as const
+            const kind = expectedBuildRevisionKind(request.isolation)
             const revision = kind === 'workspace'
               ? await workspaceFingerprint?.(root, name) ?? ''
               : await gitHeadSha?.(root) ?? ''
@@ -258,7 +263,7 @@ export async function performTransition(
     },
     // 与 CLI 的 check / transition / status 同一份判定（kernel judgeStepSkillSlots）：契约点名为
     // producer 的必需技能，要在本次步骤访问里登记了它的文档才算完成。
-    missingStepSkills: async ({ changeDir: targetDir, stepId, capability, plan }) => {
+    missingStepSkills: async ({ changeDir: targetDir, stepId, capability, plan, exclude }) => {
       let historyRaw = ''
       try {
         historyRaw = await readFile(join(targetDir, HISTORY_FILE), 'utf8')
@@ -272,7 +277,7 @@ export async function performTransition(
         policy,
         stepId,
         visitRecords: policy === undefined ? [] : await documentRecordsInCurrentStepVisit(targetDir),
-      }))
+      }), exclude)
     },
     resolveConstraintContext: async ({ policy }) => {
       const registry = loadRegistry(root, nodeLoopIoStrict)
@@ -319,8 +324,8 @@ export async function performTransition(
         process.stderr.write(`WARN: ${name} AFK 自动挂队失败（transition 已成功）: ${errText(autoError)}\n`)
       }
     }
-    // 任务完结：回收不再被任何在途任务引用的宿主 agent 文件（tenon-<name>），与 CLI 同一份判定。
-    if (result.kind === 'applied') await pruneHostAgentsAfterArchive(deps.store, root, dir, name)
+    // 任务完结：清理升级前的版本留在项目里的宿主 agent 文件（tenon-<name>），与 CLI 同一份清理；失败只 WARN。
+    if (result.kind === 'applied') await cleanupLegacyHostAgentsAfterArchive(deps.store, root, dir, deps.hostAgentLibrary)
     const outcome = mapTransitionResult(name, event, result)
     if (autoEnqueue === undefined) return outcome
     return { ...outcome, body: { ...outcome.body, auto_enqueue: autoEnqueue } }

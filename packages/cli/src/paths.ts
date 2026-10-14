@@ -2,6 +2,8 @@
 import { readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { stateStorageExistsSync } from '@tenon/kernel'
+import type { CliDeps } from './deps.js'
+import { msg } from './i18n/messages.js'
 
 export function changesRoot(cwd: string): string {
   return join(cwd, 'openspec', 'changes')
@@ -93,6 +95,32 @@ export async function readChangeForDisplay<S>(
     if (archived === null) throw error
     return { state: await read(archived), finished: true }
   }
+}
+
+/**
+ * 任务建在 `.worktrees/<c>` 里，主检出的 `openspec/changes` 看不到它。按名读取找不到任务时，
+ * 先看它是不是在某个 worktree 里：在就返回那个 worktree 的路径，否则 null。
+ * worktree 清单读不出来（git 不可用、没装配）一律当作没有——这只是给报错加线索，不能让报错本身失败。
+ */
+export async function worktreeOfChange(deps: Pick<CliDeps, 'taskWorktrees'>, name: string): Promise<string | null> {
+  try {
+    const found = (await deps.taskWorktrees?.() ?? []).find((entry) => entry.changes.includes(name))
+    return found?.path ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 按名读取找不到任务时的那一句：任务只存在于某个 worktree 时带上该路径，让用户（或 skill）切过去再执行；
+ * 否则与历史输出逐字一致。所有「change 不存在」的出口都经这一处，不逐个命令补。
+ */
+export async function changeNotFoundMessage(
+  deps: Pick<CliDeps, 'taskWorktrees' | 'locale'>,
+  name: string,
+): Promise<string> {
+  const path = await worktreeOfChange(deps, name)
+  return path === null ? msg(deps, 'change.notFound', { name }) : msg(deps, 'change.inWorktree', { name, path })
 }
 
 /** 与老内核 validate_change_name 同口径：仅 a-z A-Z 0-9 - _（天然排除 .. / 空格 / 斜杠） */

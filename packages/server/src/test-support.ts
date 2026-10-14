@@ -31,7 +31,7 @@ import {
   stepOutputsContextFor,
   compileEffectiveWorkflowPlan,
   workflowPlanSnapshot,
-  ensureUserLocalDir, isTenonUser, resolveTenonUser,
+  computeContentHash, ensureUserLocalDir, hostAgentPath, isTenonUser, renderHostAgent, resolveTenonUser,
   publishRunRevision, readCurrentRunRevision,
 } from '@tenon/kernel'
 import type { DocumentGovernancePolicy, EffectiveWorkflowPlan, FieldName, FlowEngine, InitOptions, StateStore } from '@tenon/kernel'
@@ -193,6 +193,24 @@ export async function makeProject(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), 'pl-dash-proj-'))
   writeReadyDesignSystem(root)
   return root
+}
+
+/**
+ * 升级前的版本写进项目的宿主 agent 文件 `.claude/agents/tenon-<name>.md`，并在 `.pipeline-owned.json` 记一项
+ * （记的永远是原渲染结果的摘要）：新版本不再生成这些文件，清理用例用它复原旧状态。
+ * `edited` 给出时文件内容换成它（模拟用户改过）。返回仓库相对路径。
+ */
+export async function writeLegacyHostAgent(root: string, name: string, edited?: string): Promise<string> {
+  const rendered = renderHostAgent('claude', {
+    name, description: `${name} 说明`, role: 'reviewer', skills: [], tools: ['Read', 'Grep'], body: '\n正文\n',
+  })
+  const rel = hostAgentPath('claude', name)
+  await mkdir(dirname(join(root, rel)), { recursive: true })
+  await writeFile(join(root, rel), edited ?? rendered, 'utf8')
+  const manifest = join(root, '.pipeline-owned.json')
+  const current = await readFile(manifest, 'utf8').then((text) => JSON.parse(text) as Record<string, string>, () => ({}))
+  await writeFile(manifest, `${JSON.stringify({ ...current, [rel]: computeContentHash(rendered) }, null, 2)}\n`, 'utf8')
+  return rel
 }
 
 /**

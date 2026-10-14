@@ -9,7 +9,7 @@
  * 目录、基线、已知失败清单、项目工作流）。口径与路径分类见 kernel workspace/diff-risk.ts。
  *
  * 任务名取位置参数，缺省取 `TENON_CHANGE_NAME`（`tenon test run` 起测试进程时设置）；起点是任务起点
- * （merge-base / 创建前最后一次提交），所以已提交与未提交的任务改动都算。读不出 git 就失败（exit 1），
+ * （start_sha / 上游与基线分支的 merge-base / 创建前最后一次提交，见 kernel workspace/change-start.ts），所以已提交与未提交的任务改动都算。读不出 git 就失败（exit 1），
  * 绝不当作「没有改动」。退出码不随结论变：超限与否由 `tenon test run` 按 `pass.metrics` 判定并记录，
  * 顶层的七项指标保持原样，`exceeded` / `reasons` 是新增字段（测试运行器只读数值，不受影响）。
  * 任务所在分支读不出 diff-risk 阈值时只给指标，不编造结论。

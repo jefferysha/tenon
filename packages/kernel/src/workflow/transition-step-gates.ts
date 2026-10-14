@@ -2,9 +2,11 @@
  * 离开步骤前的两道步骤级门禁：本步必需技能的证据，和本步 agent 的结论。
  *
  * 两者都只在宿主接了对应注入面时求值（缺省 = 该门禁未接线，不产生拦截），都在 commit 之前、
- * 同一把 Change 锁内。agent 只查前进出边——退回边是修问题的路，必须一直开着。
+ * 同一把 Change 锁内。agent 只查前进出边——退回边是修问题的路，必须一直开着；退回边的技能门也不要求
+ * 归属本步 agent 的技能（只能在该 agent 运行期间加载），不归属任何 agent 的主线技能照旧要求。
  */
 import type { PipelineState } from '../types.js'
+import { skillsExemptOnExit } from './agent-owned-skills.js'
 import { isForwardExit } from './agent-verdict.js'
 import { isAbandonEvent } from './implicit-completion.js'
 import type { EffectiveWorkflowPlan } from './effective-plan-types.js'
@@ -23,11 +25,15 @@ export async function rejectOnStepGates(input: {
   const { deps, plan, workflowName, from } = input
   if (isAbandonEvent(input.event)) return undefined
   if (deps.missingStepSkills !== undefined) {
+    const exclude = await skillsExemptOnExit({
+      changeDir: input.changeDir, plan, state: input.state, stepId: from, to: input.to, event: input.event,
+    })
     const missing = await deps.missingStepSkills({
       changeDir: input.changeDir,
       stepId: from,
       capability: plan.capabilities.skills,
       plan,
+      ...(exclude.size === 0 ? {} : { exclude }),
     })
     if (missing.length > 0) return { kind: 'step-skills-incomplete', workflowName, stepId: from, missing }
   }

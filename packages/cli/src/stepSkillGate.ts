@@ -94,6 +94,11 @@ export async function judgeStepSkills(input: StepSkillJudgementInput): Promise<S
 
 export { missingStepSkillMessages, type StepSkillSlotProgress }
 
-export async function missingStepSkills(input: StepSkillJudgementInput): Promise<readonly string[]> {
-  return missingStepSkillMessages((await judgeStepSkills(input)).slots)
+export interface MissingStepSkillsInput extends StepSkillJudgementInput {
+  /** 本次不要求的技能 id（退回边上归属本步 agent 的技能）：在生成文案之前按槽位剔除；缺省 = 一个都不剔除。 */
+  readonly exclude?: ReadonlySet<string>
+}
+
+export async function missingStepSkills(input: MissingStepSkillsInput): Promise<readonly string[]> {
+  return missingStepSkillMessages((await judgeStepSkills(input)).slots, input.exclude)
 }

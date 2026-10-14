@@ -5,7 +5,9 @@ import { tmpdir } from 'node:os'
 import { delimiter, join } from 'node:path'
 import { afterEach, describe, expect, test } from 'vitest'
 import { fingerprintWorkspaceTwins } from './fingerprint.js'
-import { hostLocalTracking, isCaseInsensitiveRoot, skipUntrackedHostLocal, trackedHostLocalPaths } from './host-local.js'
+import {
+  hostLocalTracking, isCaseInsensitiveRoot, skipUntrackedHostLocal, skipUntrackedHostLocalDirs, trackedHostLocalPaths,
+} from './host-local.js'
 
 const roots: string[] = []
 
@@ -223,6 +225,55 @@ describe('大小写不敏感的文件系统：索引拼写与磁盘拼写只差�
       expect(await trackedHostLocalPaths(root)).toEqual(new Set())
       expect(await portableCounts(root)).toBe(false)
     })
+  })
+})
+
+/**
+ * 完整指纹的跳过判定：只针对宿主本地「目录」（`.claude/worktrees/`）里没被跟踪的路径；宿主本地「文件」
+ * （`.claude/settings.local.json`、`CLAUDE.local.md`）在完整指纹里照算，所以这里一律返回 false。
+ */
+describe('skipUntrackedHostLocalDirs：完整指纹只跳过宿主本地目录里没被跟踪的路径', () => {
+  test('什么都没跟踪：.claude/worktrees 本身与其下的路径都跳过；宿主本地文件与别的路径一律不跳过', () => {
+    const skip = skipUntrackedHostLocalDirs(new Set())
+    expect(skip('.claude/worktrees')).toBe(true)
+    expect(skip('.claude/worktrees/a')).toBe(true)
+    expect(skip('.claude/worktrees/a/b.js')).toBe(true)
+    expect(skip('.claude/settings.local.json'), '宿主本地文件在完整指纹里照算').toBe(false)
+    expect(skip('CLAUDE.local.md'), '宿主本地文件在完整指纹里照算').toBe(false)
+    expect(skip('src/a.js')).toBe(false)
+    expect(skip('.claude/settings.json'), '共享配置不在清单上').toBe(false)
+    expect(skip('.claude'), '外壳目录由指纹自己判断，这里不跳过').toBe(false)
+    expect(skip('.claude/worktrees-extra/a.js'), '名字相近的目录不是清单上的目录').toBe(false)
+    expect(skip('packages/app/.claude/worktrees/a.js'), '只认项目根下的那一个').toBe(false)
+  })
+
+  test('被跟踪的文件及装着它的目录照算（返回 false），同目录里没被跟踪的仍跳过', () => {
+    const skip = skipUntrackedHostLocalDirs(new Set(['.claude/worktrees/x.js', '.claude/worktrees/agent-1/src/a.js']))
+    expect(skip('.claude/worktrees/x.js')).toBe(false)
+    expect(skip('.claude/worktrees'), '装着被跟踪文件的目录').toBe(false)
+    expect(skip('.claude/worktrees/agent-1'), '被跟踪文件的祖先目录').toBe(false)
+    expect(skip('.claude/worktrees/agent-1/src')).toBe(false)
+    expect(skip('.claude/worktrees/agent-1/src/a.js')).toBe(false)
+    expect(skip('.claude/worktrees/y.js'), '同目录里没被跟踪的').toBe(true)
+    expect(skip('.claude/worktrees/agent-1/src/b.js'), '被跟踪文件的同级文件').toBe(true)
+    expect(skip('.claude/worktrees/agent-2'), '没有被跟踪文件的兄弟目录').toBe(true)
+  })
+
+  test('被跟踪的宿主本地文件（settings.local.json）不影响目录的判定，也不会让它自己被跳过', () => {
+    const skip = skipUntrackedHostLocalDirs(new Set(['.claude/settings.local.json']))
+    expect(skip('.claude/settings.local.json')).toBe(false)
+    expect(skip('.claude/worktrees/a.js'), '清单目录里仍然什么都没被跟踪').toBe(true)
+  })
+
+  test('大小写不敏感：索引拼写 .Claude/Worktrees/X.js 对磁盘上的 .claude/worktrees/x.js 算被跟踪；敏感时它们是两个路径', () => {
+    const tracked = new Set(['.Claude/Worktrees/X.js'])
+    const insensitive = skipUntrackedHostLocalDirs(tracked, true)
+    expect(insensitive('.claude/worktrees/x.js'), '按被跟踪处理，要算').toBe(false)
+    expect(insensitive('.claude/worktrees'), '装着被跟踪文件的目录').toBe(false)
+    expect(insensitive('.claude/worktrees/other.js'), '同目录里没被跟踪的仍跳过').toBe(true)
+
+    const sensitive = skipUntrackedHostLocalDirs(tracked)
+    expect(sensitive('.claude/worktrees/x.js'), '区分大小写的文件系统上磁盘上的那个没被跟踪').toBe(true)
   })
 })
 

@@ -16,9 +16,17 @@ import {
   publishReviewAcknowledgedViaRecord,
 } from './review-acknowledged-via-store.js'
 import type { RunRevision } from './run-revision-codec.js'
+import {
+  hydrateStartSha,
+  hydrateStartShaFromSync,
+  publishStartShaRecord,
+} from './start-sha-store.js'
 
 export async function hydrateCompanions(changeDir: string, revision: RunRevision): Promise<RunRevision> {
-  return hydrateReviewAcknowledgedVia(changeDir, await hydratePreVerifyReview(changeDir, revision))
+  return hydrateStartSha(
+    changeDir,
+    await hydrateReviewAcknowledgedVia(changeDir, await hydratePreVerifyReview(changeDir, revision)),
+  )
 }
 
 export function hydrateCompanionsFromSync(
@@ -26,19 +34,24 @@ export function hydrateCompanionsFromSync(
   revision: RunRevision,
   sourceRoot = 'canonical state',
 ): RunRevision {
-  return hydrateReviewAcknowledgedViaFromSync(
+  return hydrateStartShaFromSync(
     readText,
-    hydratePreVerifyReviewFromSync(readText, revision, sourceRoot),
+    hydrateReviewAcknowledgedViaFromSync(
+      readText,
+      hydratePreVerifyReviewFromSync(readText, revision, sourceRoot),
+      sourceRoot,
+    ),
     sourceRoot,
   )
 }
 
-/** The channel record validates its value before writing, so an unpublishable channel writes nothing. */
+/** The channel and start-point records validate their value before writing, so an unpublishable value writes nothing. */
 export async function publishCompanions(
   changeDir: string,
   revision: RunRevision,
   logicalState: PipelineState,
 ): Promise<void> {
+  await publishStartShaRecord(changeDir, revision)
   await publishReviewAcknowledgedViaRecord(changeDir, revision)
   await publishPreVerifyReviewRecord(changeDir, revision, logicalState)
 }

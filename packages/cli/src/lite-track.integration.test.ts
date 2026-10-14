@@ -408,7 +408,7 @@ describe('轻量轨道：风险升级', () => {
     const after = await readStep(tally)
     // 已升级：只剩归档命令，不带提交。
     expect(after.next).toEqual([{
-      action: 'finish-change', change: CHANGE, command: `tenon task finish ${CHANGE}`, commit: null,
+      action: 'finish-change', change: CHANGE, command: `tenon task finish ${CHANGE}`, commit: null, cleanup: null,
     }])
     expect(await runStep(tally, ['task', 'finish', CHANGE]), h.err.join('\n')).toBe(0)
     expect(await h.run(['status', CHANGE, '--json'])).toBe(0)

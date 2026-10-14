@@ -29,6 +29,7 @@ import { createHostTargetPlanRuntime } from './serverGetHostTargetPlanRoutes.js'
 import { handleDeleteRoute, handlePutRoute } from './serverMutationRoutes.js'
 import { handlePostRoute } from './serverPostRoutes.js'
 import { countProjectDeletions, createTaskLifecycleRouteDeps } from './serverTaskLifecycleRoutes.js'
+import { hostAgentLibraryReaderOf } from './hostAgentPrune.js'
 import {
   assertDashboardTransactionId,
   errMsg,
@@ -138,7 +139,7 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
   })
 
   const taskLifecycle = createTaskLifecycleRouteDeps({
-    store, clock, viewer: resolveUser, artifactServices,
+    store, clock, viewer: resolveUser, artifactServices, hostAgentLibrary: hostAgentLibraryReaderOf(paths),
     ...(options.runOpenspecArchive === undefined ? {} : { runOpenspecArchive: options.runOpenspecArchive }),
   })
   const snapshotDeps = snapshotDepsFactory({

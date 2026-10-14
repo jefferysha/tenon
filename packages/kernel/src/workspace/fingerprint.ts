@@ -17,10 +17,12 @@
  * directories, modes, and symlink targets are represented without following symlinks.
  *
  * Two values come out of one traversal (`fingerprintWorkspaceTwins`).  The full one records raw permission
- * bits and counts host-local files; it is the 0.3.0 value, byte for byte, and what reviewer verdicts and
- * build revisions bind.  The portable one is what test records bind: it leaves out untracked host-local
- * files and records modes the way git does (`portableModeOf`), so a runner on another platform reproduces
- * it from the same committed content.
+ * bits and counts the host-local files; it is what reviewer verdicts and build revisions bind, and on a tree
+ * without an untracked `.claude/worktrees/` it is the 0.3.0 value, byte for byte.  It leaves out that directory
+ * (the checkouts the host creates for its sub-agents and sessions, which another session keeps changing and
+ * which can grow very large) unless git tracks something in it.  The portable one is what test records bind:
+ * it leaves out every untracked host-local path and records modes the way git does (`portableModeOf`), so a
+ * runner on another platform reproduces it from the same committed content.
  */
 import { createHash, type Hash } from 'node:crypto'
 import type { Stats } from 'node:fs'
@@ -28,7 +30,7 @@ import { lstat, readdir, readFile, readlink } from 'node:fs/promises'
 import { join, sep } from 'node:path'
 import {
   HOST_LOCAL_DIRS, HOST_LOCAL_FILES, SKIP_NOTHING, hasHostLocalFiles, hostLocalTracking, skipUntrackedHostLocal,
-  type HostLocalSkip,
+  skipUntrackedHostLocalDirs, type HostLocalSkip,
 } from './host-local.js'
 import { isProcessLocalFdPath } from './process-local-fd-path.js'
 import {
@@ -132,9 +134,9 @@ const EXCLUDED_ROOT_FILES = new Set(['.pipeline-owned.json'])
 /**
  * A directory that only wraps excluded host configuration (`.claude/` holding just `agents/`) is not
  * implementation either: Tenon creates it when it first generates a host agent file, and that must not
- * move the candidate the earlier test records are bound to.  For the portable fingerprint the untracked
- * host-local paths count as excluded host configuration too (`.claude/` holding `agents/` and
- * `settings.local.json`).
+ * move the candidate the earlier test records are bound to.  Whatever a sink's `skip` leaves out counts as
+ * excluded host configuration too: for the portable fingerprint the untracked host-local paths (`.claude/`
+ * holding `agents/` and `settings.local.json`), for the full one the untracked `.claude/worktrees/`.
  */
 function isExcludedHostConfigShell(relativePath: string, names: readonly string[], exclusions: Exclusions, skip: HostLocalSkip): boolean {
   const roots: readonly string[] = [...EXCLUDED_RELATIVE_ROOTS, ...HOST_LOCAL_FILES, ...HOST_LOCAL_DIRS]
@@ -379,8 +381,11 @@ async function statRoot(root: string): Promise<Stats> {
 
 export interface WorkspaceFingerprints {
   /**
-   * The value Tenon 0.3.0 and earlier bound into every record and review, byte for byte: host-local files
-   * counted, raw permission bits recorded.  It depends on the machine (symlink modes, umask).
+   * What reviewer verdicts and build revisions bind, and what Tenon 0.3.0 and earlier bound into every record,
+   * byte for byte on a tree without an untracked `.claude/worktrees/`: the host-local files counted, raw
+   * permission bits recorded.  Untracked `.claude/worktrees/` content is not counted (a tracked file in it is),
+   * so a session working in another checkout of the repository does not move it.  It depends on the machine
+   * (symlink modes, umask).
    */
   readonly full: string
   /**
@@ -392,21 +397,30 @@ export interface WorkspaceFingerprints {
 
 /**
  * Both fingerprints of a project root from one traversal, so each file is read once.  They are equal for an
- * ordinary tree (no untracked host-local path, directories 755, files 644/755, no symlink on Linux).
+ * ordinary tree (no untracked host-local file, directories 755, files 644/755, no symlink on Linux).
  * Transient workflow material is excluded by policy above and declared test outputs by
  * `options.declaredOutputs`, so the same implementation tree yields the same values before and after its
  * verification evidence is written.  Production callers go through `candidateFingerprint`, which derives
  * the declarations from the project.
+ *
+ * Neither fingerprint counts an untracked `.claude/worktrees/`; when both leave an entry out the traversal does
+ * not descend into it, so that directory costs nothing however many files it holds (and a part of it that cannot
+ * be read does not fail the traversal).  The full one still counts the other host-local files.
  */
 export async function fingerprintWorkspaceTwins(root: string, options?: FingerprintOptions): Promise<WorkspaceFingerprints> {
   const rootStat = await statRoot(root)
   if (!rootStat.isDirectory()) throw new Error(`workspace root is not a directory: ${root}`)
 
   const exclusions = exclusionsOf(options)
-  const full: Sink = { id: 'full', skip: SKIP_NOTHING, gitModes: false }
-  // The portable fingerprint leaves out the host-local paths git does not track.  When git cannot say what it tracks
-  // (or there is no host-local path to ask about) nothing is left out.
+  // What git tracks among the host-local paths decides what each fingerprint leaves out.  When git cannot say (or there
+  // is no host-local path to ask about) nothing is left out, in either one.
   const tracking = await hasHostLocalFiles(root) ? await hostLocalTracking(root) : undefined
+  // The full fingerprint leaves out only the untracked host-local directories (`.claude/worktrees/`); the host-local files stay in.
+  const full: Sink = {
+    id: 'full', gitModes: false,
+    skip: tracking === undefined ? SKIP_NOTHING : skipUntrackedHostLocalDirs(tracking.tracked, tracking.caseInsensitive),
+  }
+  // The portable fingerprint leaves out every host-local path git does not track.
   const portable: Sink = {
     id: 'portable', gitModes: true,
     skip: tracking === undefined ? SKIP_NOTHING : skipUntrackedHostLocal(tracking.tracked, tracking.caseInsensitive),
@@ -419,7 +433,10 @@ export async function fingerprintWorkspaceTwins(root: string, options?: Fingerpr
   return streams.digests()
 }
 
-/** The fingerprint that counts host-local files (`WorkspaceFingerprints.full`). */
+/**
+ * The fingerprint that counts the host-local files but not an untracked `.claude/worktrees/` (`WorkspaceFingerprints.full`):
+ * the 0.3.0 value on a tree without that directory.
+ */
 export async function fingerprintWorkspace(root: string, options?: FingerprintOptions): Promise<string> {
   return (await fingerprintWorkspaceTwins(root, options)).full
 }

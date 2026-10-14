@@ -12,7 +12,7 @@ import {
 } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
 import { msg } from '../i18n/messages.js'
-import { isValidChangeName, resolveChangeDir } from '../paths.js'
+import { changeNotFoundMessage, isValidChangeName, resolveChangeDir } from '../paths.js'
 import { amendHeadWithTrailers, hasGitIdentity, hasStagedChanges, readCommitNote, resolveCommit, writeCommitNote } from './evidence-git.js'
 import { gatherEvidence } from './evidence-gather.js'
 
@@ -149,7 +149,7 @@ export async function cmdEvidenceExport(deps: CliDeps, change: string, opts: Evi
   }
   const dir = resolveChangeDir(deps.cwd, change)
   if (!stateStorageExistsSync(dir)) {
-    deps.io.err(`ERROR: ${msg(deps, 'change.notFound', { name: change })}`)
+    deps.io.err(`ERROR: ${await changeNotFoundMessage(deps, change)}`)
     return 1
   }
   const commit = await resolveCommit(deps.cwd, opts.commit ?? 'HEAD')

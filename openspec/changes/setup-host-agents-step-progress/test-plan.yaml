@@ -1,0 +1,254 @@
+schema: tenon-test-plan/v1
+change: setup-host-agents-step-progress
+suites:
+  - suite: adapters
+    scope: full
+  - suite: bundle
+    scope: changed
+  - suite: docs-smoke
+    scope: changed
+  - suite: hooks
+    scope: full
+  - suite: lint-comments
+    scope: changed
+  - suite: lint-docs
+    scope: changed
+  - suite: lint-openspec
+    scope: changed
+  - suite: migration-cas
+    scope: full
+  - suite: oracle
+    scope: full
+  - suite: tools-node
+    scope: changed
+  - suite: typecheck-e2e
+    scope: full
+  - suite: typecheck-packages
+    scope: full
+  - suite: typecheck-web
+    scope: full
+  - suite: unit
+    scope: changed
+files:
+  - path: packages/automation/src/triage/workflow-run-create-repository.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/advance.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/agent-host.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/agent-library.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/back-edge-skills.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/catalog-na-stuck-way-out.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/change-start-point.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/advance.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/agent-check.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/agent-host.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/agent-install.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/agent-new.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/buildRevisionAssessor.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/fields.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/init-setup.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/init-worktree-setup.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/init-worktree.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/init.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/setup-from-source-agents.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/setup.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/status.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/statusStep.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/test-trust.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/transition.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/update.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/verify-ci-git.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/commands/workflow-progress.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/init-workflow.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/local-excludes.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/next-action-runner.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/task-host-agents.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/task-worktree-lookup.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/transition-effects.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/cli/src/verify-ci.integration.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/infrastructure/host-agent-files.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/infrastructure/host-agent-fs.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/infrastructure/host-agent-install.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/infrastructure/host-subagent-resolve.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/state/agent-runs.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/state/parse.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/state/run-revision-store.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/state/skill-document-binding.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/state/start-sha-store.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/state/store.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/test-system/catalog.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/types.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/agent-owned-skills.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/build-revision.acceptance.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/build-revision.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/step-exit-report.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/step-progress.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workflow/transition-application.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workspace/change-start.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workspace/changed-files.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workspace/file-diffs.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workspace/fingerprint.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workspace/host-local.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workspace/main-checkout.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workspace/task-worktree-list.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/kernel/src/workspace/task-worktree.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/server/src/hostAgentPrune.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/server/src/server.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/server/src/serverTaskLifecycleRoutes.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/server/src/snapshot.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/server/src/transition-back-edge.test.ts
+    suite: unit
+    kind: unit
+  - path: packages/server/src/transition-build-revision.test.ts
+    suite: unit
+    kind: unit
+  - path: tools/check-docs.node-test.mjs
+    suite: tools-node
+    kind: unit
+  - path: tools/check-repository-hygiene.node-test.mjs
+    suite: tools-node
+    kind: unit
+  - path: tools/test-adapters.sh
+    suite: adapters
+    kind: integration
+  - path: tools/test-bundle.sh
+    suite: bundle
+    kind: smoke
+  - path: tools/test-hooks.sh
+    suite: hooks
+    kind: integration
+cases: []
+waivers:
+  - test: code-size
+    reason: 本任务含 15 个实现任务（用户级宿主子代理安装与卸载、步骤进度 hook、任务起点 start_sha、新任务 worktree 隔离、退回边技能门、完整指纹跳过 .claude/worktrees），共用 init/status/指纹契约，不能拆开单独交付；新增行约为源码 2.7k、测试 7.2k、提交的构建产物 6.3k（packages/cli/dist/tenon.mjs 与 dashboard dist）、文档 1.8k，超出 2000 行上限主要来自测试与构建产物
+    approved_by: 710227704@qq.com
+    approved_candidate: workspace:sha256:6344f94feb1252caef33b9b59360bd4ae0a6875f2f681705b3e0fea8dad784dd

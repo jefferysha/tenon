@@ -24,7 +24,7 @@
  *   · CI 环境由运行器显式设置 `TENON_TEST_TRUST=1` 预先信任。
  */
 import {
-  addTrustEntries, catalogExecDigest, catalogExecEntries, isTrusted, readTestSeal, readTrustStore, stepTestExecEntries,
+  addTrustEntries, catalogExecDigest, catalogExecEntries, catalogSetupEntry, isTrusted, readTestSeal, readTrustStore, stepTestExecEntries,
   stepTestsExecDigest, updateTestSeal, userSlug,
   type EffectiveWorkflowPlan, type ExecEntry, type TestCatalog,
 } from '@tenon/kernel'
@@ -47,9 +47,28 @@ export interface TrustTarget {
   readonly entries: readonly ExecEntry[]
 }
 
-/** 目录里的命令；`suiteIds` 给出时只校验这些套件（本次要执行的），缺省 = 整个目录。 */
-export function catalogTrustTarget(catalog: TestCatalog, suiteIds?: readonly string[]): TrustTarget {
-  return { kind: 'catalog', digest: catalogExecDigest(catalog), entries: catalogExecEntries(catalog, suiteIds) }
+/**
+ * 目录里的命令；`suiteIds` 给出时只校验这些套件（本次要执行的），缺省 = 整个目录的套件。
+ * `setup`（准备命令）不属于任何套件，执行测试不会跑它：只有 `tenon test trust` 确认整份目录时才带上
+ * （`opts.setup`），新 worktree 的准备另用 `catalogSetupTrustTarget`。
+ */
+export function catalogTrustTarget(
+  catalog: TestCatalog,
+  suiteIds?: readonly string[],
+  opts: { readonly setup?: boolean } = {},
+): TrustTarget {
+  const setup = opts.setup === true ? catalogSetupEntry(catalog) : undefined
+  return {
+    kind: 'catalog',
+    digest: catalogExecDigest(catalog),
+    entries: [...(setup === undefined ? [] : [setup]), ...catalogExecEntries(catalog, suiteIds)],
+  }
+}
+
+/** 目录声明的准备命令；没有声明 = undefined。`tenon init` 建好 worktree 后据此判断 setup 是否已得到用户的信任。 */
+export function catalogSetupTrustTarget(catalog: TestCatalog): TrustTarget | undefined {
+  const setup = catalogSetupEntry(catalog)
+  return setup === undefined ? undefined : { kind: 'catalog', digest: catalogExecDigest(catalog), entries: [setup] }
 }
 
 /** 任务冻结工作流里的步骤内联测试；`testIds` 给出时只校验这些测试（本次要执行的），缺省 = 全部。没有步骤测试 = undefined。 */
@@ -215,8 +234,10 @@ export async function cmdTestTrust(
   const targets: TrustTarget[] = []
   const catalogFile = await readCatalogFile(deps.cwd)
   if (catalogFile.state === 'invalid') return fail(deps, `catalog.yaml 无效：${catalogFile.issues.slice(0, 3).join('；')}`)
-  if (catalogFile.state === 'ok' && (catalogFile.catalog.suites.length > 0 || catalogFile.catalog.services.length > 0)) {
-    targets.push(catalogTrustTarget(catalogFile.catalog))
+  if (catalogFile.state === 'ok') {
+    // 套件或 setup 任一有命令才需要信任；什么命令都没有的目录没有可确认的东西。
+    const catalogTarget = catalogTrustTarget(catalogFile.catalog, undefined, { setup: true })
+    if (catalogTarget.entries.length > 0) targets.push(catalogTarget)
   }
   if (change !== undefined) {
     const context = await resolveTestCommand(deps, change, { requireOwner: false })

@@ -306,6 +306,59 @@ describe('max_rounds —— 任务级验证轮次上限覆盖（只接受 1 到 
   })
 })
 
+describe('任务起点字段 start_sha / base_branch / created_at —— 只由 tenon init 写入', () => {
+  const GUARDED: ReadonlyArray<readonly [string, string]> = [
+    ['start_sha', 'a'.repeat(40)],
+    ['base_branch', 'dev'],
+    ['created_at', '2030-01-01T00:00:00Z'],
+  ]
+
+  test.each(GUARDED)('set %s 被拒：exit 1，不落盘、不记历史，stderr 说明由 tenon init 管理', async (field, value) => {
+    const deps = makeDeps({ state: mockState({ start_sha: 'b'.repeat(40), base_branch: 'main', created_at: '2026-01-01T00:00:00Z' }) })
+    expect(await cmdSet(deps, 'demo', field, value)).toBe(1)
+    expect(deps.store.write.calls).toHaveLength(0)
+    expect(deps.store.set.calls).toHaveLength(0)
+    expect(deps.historyEntries).toEqual([])
+    const err = deps.errLines.join('\n')
+    expect(err).toContain(field)
+    expect(err).toContain('tenon init')
+  })
+
+  test.each(GUARDED)('set-many 带 %s 整批拒绝、零落盘（不能借批量写绕过）', async (field, value) => {
+    const deps = makeDeps()
+    expect(await cmdSetMany(deps, 'demo', [`${field}=${value}`, 'branch=x'])).toBe(1)
+    expect(deps.store.write.calls).toHaveLength(0)
+    expect(deps.store.setMany.calls).toHaveLength(0)
+    expect(deps.historyEntries).toEqual([])
+  })
+
+  test.each(GUARDED)('cas %s 被拒：即使期望值命中也不写（cas 不是旁路）', async (field, value) => {
+    const deps = makeDeps({ state: mockState({ start_sha: 'b'.repeat(40), base_branch: 'main', created_at: '2026-01-01T00:00:00Z' }) })
+    const current = field === 'start_sha' ? 'b'.repeat(40) : field === 'base_branch' ? 'main' : '2026-01-01T00:00:00Z'
+    expect(await cmdCas(deps, 'demo', field, current, value)).toBe(1)
+    expect(deps.store.write.calls).toHaveLength(0)
+    expect(deps.historyEntries).toEqual([])
+  })
+
+  test('英文环境下拒绝文案不含中日韩字符', async () => {
+    const deps = makeDeps()
+    deps.locale = 'en'
+    expect(await cmdSet(deps, 'demo', 'start_sha', 'a'.repeat(40))).toBe(1)
+    const err = deps.errLines.join('\n')
+    expect(err).toContain('tenon init')
+    expect(err).not.toMatch(/[぀-ヿ㐀-鿿]/)
+  })
+
+  test('get 仍可读：没记录时是空行', async () => {
+    const deps = makeDeps({ state: mockState({ start_sha: 'c'.repeat(40) }) })
+    expect(await cmdGet(deps, 'demo', 'start_sha')).toBe(0)
+    expect(deps.outLines).toEqual(['c'.repeat(40)])
+    const unset = makeDeps()
+    expect(await cmdGet(unset, 'demo', 'start_sha')).toBe(0)
+    expect(unset.outLines).toEqual([''])
+  })
+})
+
 describe('set-many —— k=v 批量原子写', () => {
   test('包含 phase 的批量写入始终拒绝，不能借 set-many 绕过 transition', async () => {
     const deps = makeDeps({ state: mockState({

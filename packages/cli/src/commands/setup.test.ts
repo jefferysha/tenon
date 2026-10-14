@@ -3236,3 +3236,110 @@ describe('caller-level provenance replay', () => {
     expect(calls.exec).toEqual([])
   })
 })
+
+describe('tenon setup 成功后安装宿主子代理', () => {
+  const LAUNCHER = '/home/test/.local/bin/tenon'
+  const installCalls = (calls: SpyCalls) => calls.exec.filter(([cmd]) => cmd === LAUNCHER)
+  const installExec = (stdout = ''): ExecStub => (cmd, args) => cmd === LAUNCHER
+    ? { code: 0, stdout, stderr: '' }
+    : codexInstallExec(cmd, args)
+  const currentRelease = async () => ({ pluginVersion: TENON_RELEASE_VERSION, payloadDigest: 'a'.repeat(64) })
+
+  test('原生宿主主出口（Codex）：runtime 发布后经稳定启动器执行 agent install --host codex，并转出子进程输出', async () => {
+    const deps = makeDeps()
+    const { env, calls } = spyEnv({ pathExists: setupPathExists, readText: setupReadText },
+      installExec('[AGENT] 已写入 /home/x/.codex/agents/tenon-builder.toml\n'))
+    const runtime = fakeRuntimeInstaller()
+
+    expect(await cmdSetupHost(deps, 'codex', { codex: true }, env, runtime.installer, fakeDashboardStarter().starter, true, currentRelease)).toBe(0)
+
+    expect(runtime.calls.activations).toHaveLength(1)
+    expect(installCalls(calls)).toEqual([[LAUNCHER, ['agent', 'install', '--host', 'codex']]])
+    expect(deps.outLines.join('\n')).toContain('已写入 /home/x/.codex/agents/tenon-builder.toml')
+  })
+
+  test('收敛恢复出口（等待新宿主会话）：同样安装', async () => {
+    const deps = makeDeps()
+    const releaseId = `sha256-${'a'.repeat(64)}`
+    const paths = resolveRuntimePaths({ homeDir: '/home/test', env: {} })
+    const receiptPath = join(paths.migrationsRoot, 'host-plugin-convergence', 'codex.json')
+    const proofPath = join(paths.stateRoot, 'migration', 'tenon-session-loaded')
+    const receipt = JSON.stringify({
+      version: 2,
+      state: 'cleanup-pending',
+      host: 'codex',
+      conflictPluginId: 'pipeline-lite@pipeline-lite',
+      conflictScopes: ['user'],
+      releaseId,
+      releaseRoot: `/runtime/releases/${releaseId}/payload`,
+      candidateRoot: '/installed/tenon',
+      createdAtEpoch: 1_800_000_000,
+      updatedAt: '2027-01-15T08:00:00Z',
+    })
+    const { env, calls } = spyEnv({
+      pathExists: (path) => path === receiptPath || path === proofPath || setupPathExists(path),
+      readText: (path) => {
+        if (path === receiptPath) return receipt
+        if (path === proofPath) {
+          return `version=2\nloaded_at_epoch=1800000000\nhost=codex\nrelease_id=${releaseId}\nrelease_root=/runtime/releases/${releaseId}/payload\n`
+        }
+        return setupReadText(path)
+      },
+    }, installExec())
+    const runtime = fakeRuntimeInstaller(false, null, releaseId, null, undefined, TENON_RELEASE_VERSION)
+
+    expect(await cmdSetupHost(deps, 'codex', { codex: true }, env, runtime.installer, fakeDashboardStarter(false, releaseId).starter, true, currentRelease)).toBe(0)
+
+    expect(deps.outLines.join('\n')).toContain('等待新宿主会话')
+    expect(runtime.calls.activations).toEqual([])
+    expect(installCalls(calls)).toEqual([[LAUNCHER, ['agent', 'install', '--host', 'codex']]])
+  })
+
+  test('adapter 宿主（cursor）没有宿主原生子代理目录：setup 与 update 都不执行 agent install', async () => {
+    const setup = spyEnv({ pathExists: setupPathExists, readText: setupReadText })
+    expect(await cmdSetup(makeDeps(), undefined, { cursor: true, yes: true }, setup.env,
+      fakeRt(), fakeRuntimeInstaller().installer, fakeDashboardStarter().starter)).toBe(0)
+    expect(installCalls(setup.calls)).toEqual([])
+
+    const update = spyEnv({ pathExists: setupPathExists, readText: setupReadText })
+    expect(await cmdUpdate(makeDeps(), { cursor: true, target: '/workspace' }, update.env,
+      fakeRuntimeInstaller().installer, fakeDashboardStarter().starter)).toBe(0)
+    expect(installCalls(update.calls)).toEqual([])
+  })
+
+  test('setup 失败或 --dry-run：不执行 agent install', async () => {
+    const failing = spyEnv({ pathExists: setupPathExists, readText: setupReadText }, installExec())
+    expect(await cmdSetupHost(makeDeps(), 'codex', { codex: true }, failing.env, fakeRuntimeInstaller(true).installer)).toBe(1)
+    expect(installCalls(failing.calls)).toEqual([])
+
+    const dry = spyEnv()
+    expect(cmdSetup(makeDeps(), undefined, { codex: true, dryRun: true }, dry.env)).toBe(0)
+    expect(installCalls(dry.calls)).toEqual([])
+  })
+
+  test('安装失败只 WARN：setup 退出码不变，并给出手动重试命令', async () => {
+    const deps = makeDeps()
+    const { env } = spyEnv({ pathExists: setupPathExists, readText: setupReadText },
+      (cmd, args) => cmd === LAUNCHER ? { code: 127, stdout: '', stderr: 'tenon: command not found' } : codexInstallExec(cmd, args))
+
+    expect(await cmdSetupHost(deps, 'codex', { codex: true }, env, fakeRuntimeInstaller().installer, fakeDashboardStarter().starter, true, currentRelease)).toBe(0)
+
+    expect(deps.errLines.join('\n')).toContain('WARN: 宿主子代理安装失败（tenon: command not found）')
+    expect(deps.errLines.join('\n')).toContain('tenon agent install --host codex')
+  })
+
+  test('全流程 cmdSetup：安装发生在宿主 setup 之后、运行时就绪清单之前', async () => {
+    const deps = makeDeps()
+    const { env, calls } = spyEnv({ pathExists: setupPathExists, readText: setupReadText },
+      installExec('[AGENT] 未变化 /home/x/.codex/agents/tenon-builder.toml\n'))
+
+    expect(await cmdSetup(deps, undefined, { codex: true, yes: true }, env, fakeRt(),
+      fakeRuntimeInstaller().installer, fakeDashboardStarter().starter)).toBe(0)
+
+    expect(installCalls(calls)).toHaveLength(1)
+    const installed = deps.outLines.findIndex((line) => line.includes('[AGENT] 未变化'))
+    const readiness = deps.outLines.findIndex((line) => line.includes('[setup runtime] AFK 运行时就绪清单'))
+    expect(installed).toBeGreaterThanOrEqual(0)
+    expect(installed).toBeLessThan(readiness)
+  })
+})

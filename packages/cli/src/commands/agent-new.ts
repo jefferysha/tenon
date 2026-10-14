@@ -10,6 +10,7 @@ import {
   type AgentDefinition, type AgentRole, type ReviewerHost,
 } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
+import { hintAgentInstall } from './agent-install.js'
 import { REAL_INIT_WIZARD_ENV, type InitWizardEnv } from './init.js'
 import {
   ROLE_WORD, SKELETON_DO_PLACEHOLDER, SKELETON_PLACEHOLDERS, SOURCE_WORD, checkDefinition, loadLibrary, registerAgent, scopeOf,
@@ -212,5 +213,6 @@ export async function cmdAgentNew(
   if (typeof entry === 'number') return entry
   deps.io.out(`[AGENT] 已创建 ${entry.name}（${SOURCE_WORD[entry.source]} · ${ROLE_WORD[role]}）${entry.path ?? ''}`)
   if (base === undefined) deps.io.out('正文是骨架：补全后运行 tenon agent validate ' + entry.name)
+  hintAgentInstall(deps, entry.source === 'project' ? 'project' : 'user')
   return 0
 }

@@ -7,7 +7,7 @@
  */
 import { join } from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { pruneHostAgentsForRemovedTask } from './hostAgentPrune.js'
+import { cleanupLegacyHostAgentsBestEffort, type HostAgentLibraryReader } from './hostAgentPrune.js'
 import { createTaskLifecycleApplication, probeChangeTracked, probeUncommittedTaskDeletions, USER_MISSING_HINT } from '@tenon/kernel'
 import type {
   StateStore, TaskLifecycleApplication, TaskLifecycleAssessOutcome, TaskLifecycleOutcome,
@@ -29,8 +29,8 @@ export interface TaskLifecycleRouteDeps {
   readonly viewer: (root: string) => TenonUserResolution
   /** Drop the cached artifact service of a Change whose directory is gone. */
   readonly evictChange: (changeDir: string) => void
-  /** 任务删除 / 终止之后回收它生成的宿主 agent 文件（尽力而为）。 */
-  readonly reclaimHostAgents: (repoRoot: string, change: string) => Promise<void>
+  /** 任务删除 / 终止之后清理旧版本留在项目里的宿主 agent 文件（尽力而为，失败只 WARN）。 */
+  readonly cleanupLegacyHostAgents: (repoRoot: string) => Promise<void>
 }
 
 export interface TaskLifecycleHandlerDeps {
@@ -74,6 +74,8 @@ export function createTaskLifecycleRouteDeps(input: {
   readonly clock: () => string
   readonly viewer: (root: string) => TenonUserResolution
   readonly artifactServices: Map<string, unknown>
+  /** 清理旧宿主 agent 文件时读 agent 库（「内容与当前库渲染一致」这条依据）；读失败退回只按所有权清单。 */
+  readonly hostAgentLibrary: HostAgentLibraryReader
   /** `openspec archive` for OpenSpec-governed tasks; tests inject a stand-in, production calls the installed CLI. */
   readonly runOpenspecArchive?: (repoRoot: string, change: string) => Promise<void>
 }): TaskLifecycleRouteDeps {
@@ -86,7 +88,7 @@ export function createTaskLifecycleRouteDeps(input: {
     }),
     viewer: input.viewer,
     evictChange: (changeDir) => { input.artifactServices.delete(changeDir) },
-    reclaimHostAgents: (repoRoot, change) => pruneHostAgentsForRemovedTask(input.store, repoRoot, change),
+    cleanupLegacyHostAgents: (repoRoot) => cleanupLegacyHostAgentsBestEffort(repoRoot, input.hostAgentLibrary),
   }
 }
 
@@ -231,7 +233,7 @@ export async function handleTaskLifecyclePost(
     return true
   }
   taskLifecycle.evictChange(join(repoRoot, 'openspec', 'changes', change))
-  await taskLifecycle.reclaimHostAgents(repoRoot, change)
+  await taskLifecycle.cleanupLegacyHostAgents(repoRoot)
   sendJson(res, 200, {
     ok: true,
     result: outcome.archived.result,
@@ -280,7 +282,7 @@ export async function handleTaskLifecycleDelete(
     return true
   }
   taskLifecycle.evictChange(join(repoRoot, 'openspec', 'changes', change))
-  await taskLifecycle.reclaimHostAgents(repoRoot, change)
+  await taskLifecycle.cleanupLegacyHostAgents(repoRoot)
   sendJson(res, 200, {
     ok: true,
     removed: outcome.removed,

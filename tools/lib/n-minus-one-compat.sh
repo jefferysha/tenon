@@ -3,11 +3,13 @@
 #
 # 合同：当前版本在正常使用中「隐式写下」的数据（状态、记录链、台账、计划、discover 写的目录、history 与边车）
 # 必须能被上一个正式版本（fixture 固定的 N-1）读取，不被它判为损坏、被改动或非法；反方向，N-1 写下的数据当前版本也要读得了。
-# 期望值取决于 fixture 固定的那个 N-1 认得什么。现在的 N-1 是 v0.3.2：它认得 agent 运行台账旁注（host / host_source / rerun_reason）、
+# 期望值取决于 fixture 固定的那个 N-1 认得什么。现在的 N-1 是 v0.3.3：它认得 agent 运行台账旁注（host / host_source / rerun_reason）、
 # 记录链的 `chain-base` 标记与 `TENON_RECORD_RETENTION`、测试记录的本机封存，所以这些不再是「N-1 不懂、当前版本独有」的豁免项，
-# 而是双向都要读得了：旁注与链基点在下面两个方向都测。v0.3.2 也认得 0.3.1 起记录绑的「可移植指纹」（不含宿主本地文件），
+# 而是双向都要读得了：旁注与链基点在下面两个方向都测。v0.3.3 也认得 0.3.1 起记录绑的「可移植指纹」（不含宿主本地文件），
 # 当前版本与它绑的是同一种指纹，所以工作区里有未跟踪的 `.claude/settings.local.json` 时，两个方向读对方的记录都是新鲜的；
 # 这与 v0.3.0（只认完整指纹，把当前版本的记录判为「已过期」）不同，v0.3.0 当 N-1 时这里断言的是「已过期、退出码 2」。无论哪个方向都不能判为损坏。
+# v0.3.3 还认得 default 工作流前进边上的三个通用离开条件（`tasks-through-step` / `not-afk-queued` / `dependencies-ended`，v0.3.3 引入），
+# 所以它读当前版本 default 任务的 status --json 给的是完整的 step 投影、没有警告；v0.3.2 及更早的 N-1 不认得它们，那时只给一行「step 投影不可用」警告。
 # 目录 `profile: coarse`、`integrity: block|notice`、评审者 `host:`、自定义 agent 的 `attach_on` 也是 v0.3.0 起就有的用户选用能力，
 # 这里没有交叉测；换到下一个 N-1 时重新核对这一段与下面每一条期望。
 #
@@ -40,8 +42,9 @@ n1_clean_only() {
   if n1_clean "$3"; then ok "$1"; else bad "$1" "exit=$2: $(printf '%s' "$3" | head -c 700)"; fi
 }
 
-# 带一条 backend 分支：当前版本的平铺工作流任务把工作流名记作轨道，N-1 的内建轨道表不认得（发布说明的已知限制），
-# 而分支 id backend 两边都认得——这一节测的是记录链与台账的互读，不是轨道。
+# 带一条 backend 分支：当前版本的平铺工作流任务把工作流名记作轨道，v0.3.2 及更早的 N-1 的内建轨道表不认得（发布说明的已知限制；
+# v0.3.3 起没有 `tracks:` 的工作流就是自己唯一的轨道），而分支 id backend 两边都认得——这一节测的是记录链与台账的互读，不是轨道，
+# 所以 N-1 换成 v0.3.3 后仍保留带 backend 分支的写法，覆盖面不变。
 n1_workflow() {
   cat <<'YAML'
 name: compat
@@ -112,12 +115,14 @@ n1_compat_default_task() {
   local old="$2" proj="$3" change="$4" label="$5" out code
   out="$(cd "$proj" && node "$old" agent next "$change" 2>&1)"; code="$?"
   n1_expect "$label 读取当前版本冻结的官方 agent（agent next）" 0 "$code" "$out"
-  # 当前 default 把三个通用离开条件（tasks-through-step / not-afk-queued / dependencies-ended）写在前进边上，
-  # N-1 不认识它们：status 照常退出 0、给出任务行，只把 step 投影降级成一行警告（发布说明的回滚条目要求先结束这类任务）。
+  # 当前 default 把三个通用离开条件（tasks-through-step / not-afk-queued / dependencies-ended）写在前进边上。
+  # 这三个条件由 v0.3.3 引入，N-1 是 v0.3.3 时它认得它们：status 退出 0、给出任务行和完整的 step 投影，没有任何警告。
+  # （v0.3.2 及更早的 N-1 不认得，那时 step 投影降级成一行 `WARN: step 投影不可用`，发布说明的回滚条目要求先结束这类任务。）
   out="$(cd "$proj" && node "$old" status "$change" --json 2>&1)"; code="$?"
   if [ "$code" -eq 0 ] && printf '%s' "$out" | grep -q '"active_changes"' \
-    && [ "$(printf '%s\n' "$out" | grep -c '^WARN')" -eq 1 ] && printf '%s' "$out" | grep -q '^WARN: step 投影不可用'; then
-    ok "$label 读取当前版本任务（status --json：任务行可读，step 投影按已知限制降级为一行警告）"
+    && printf '%s' "$out" | grep -q "\"step\":{\"schema\":\"tenon-step-v1\",\"change\":\"$change\"" \
+    && [ "$(printf '%s\n' "$out" | grep -c '^WARN')" -eq 0 ] && n1_clean "$out"; then
+    ok "$label 读取当前版本任务（status --json：任务行与 step 投影都可读，没有警告）"
   else
     bad "$label 读取当前版本任务（status --json）" "exit=$code $(printf '%s' "$out" | head -c 700)"
   fi
@@ -260,7 +265,7 @@ n1_compat_gate() {
   # ── 记录清理（用户主动设 TENON_RECORD_RETENTION，只留最新 N 份并写 chain-base 标记）────────────────────
   # v0.3.0 起 N-1 认得这个环境变量和 chain-base 标记，所以两个方向都要读得了；默认（上面 22 次运行）不清理、不写标记。
   # 放在宿主本地文件之前：这一节的记录先于 `.claude/settings.local.json` 写下。v0.3.0 及更早只认完整指纹，文件一出现它读到的记录就是「已过期」；
-  # v0.3.1 起读记录时先比宿主给的候选、再比它的可移植孪生（不含宿主本地文件），v0.3.2 同样，所以现在这个顺序不影响结果，只是保持原有的覆盖面。
+  # v0.3.1 起读记录时先比宿主给的候选、再比它的可移植孪生（不含宿主本地文件），v0.3.2、v0.3.3 同样，所以现在这个顺序不影响结果，只是保持原有的覆盖面。
   out="$(cd "$proj" && node "$cur" init compat-rc --track backend --workflow compat --preset full 2>&1)"; code="$?"
   [ "$code" -eq 0 ] || { bad "N-1 兼容：当前版本创建 compat-rc" "exit=$code $out"; return; }
   ( cd "$proj" && node "$cur" test plan compat-rc --seed && node "$cur" test register compat-rc --suite smoke ) >/dev/null 2>&1
@@ -306,7 +311,7 @@ n1_compat_gate() {
 
   # ── 宿主本地文件（放在最后：它让此前所有记录绑定的候选变了）─────────────────────────
   # 工作区里有未被 git 跟踪的 .claude/settings.local.json（Claude Code 自己写的权限允许列表）：当前版本写下的记录绑「不含宿主本地文件」的
-  # 可移植指纹，干净克隆才复现得出来。v0.3.2 绑的是同一种指纹（0.3.1 起），所以它读这条记录是新鲜的（退出码 0），Claude Code 之后改写
+  # 可移植指纹，干净克隆才复现得出来。v0.3.3 绑的是同一种指纹（0.3.1 起），所以它读这条记录是新鲜的（退出码 0），Claude Code 之后改写
   # 这个文件也不让它过期；当前版本自己读它同样新鲜。（v0.3.0 只认完整指纹，会把这条记录判成「已过期：代码已变化」、退出码 2；它不是现在的 N-1。）
   # 反方向：N-1 在同样的工作区里写下的记录绑可移植指纹，当前版本照样读作新鲜、链完好——升级不让它们过期。
   mkdir -p "$proj/.claude"

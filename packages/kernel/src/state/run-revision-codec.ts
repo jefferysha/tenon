@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 import {
-  FIELD_ORDER,
+  COMPANION_BACKED_FIELDS, FIELD_ORDER,
   LIST_FIELDS,
   PRE_VERIFY_REVIEW_DEFAULT,
   PRE_VERIFY_REVIEW_FIELD,
@@ -142,8 +142,7 @@ function withoutCompanionFields(
 ): PipelineState {
   const logical = splitPreVerifyReviewAnchor(state).state
   const fields = structuredClone(state.fields) as Record<string, string | string[]>
-  delete fields[PRE_VERIFY_REVIEW_FIELD]
-  delete fields[REVIEW_ACKNOWLEDGED_VIA_FIELD]
+  for (const field of COMPANION_BACKED_FIELDS) delete fields[field]
   for (const field of OMIT_WHEN_EMPTY_FIELDS) if (fields[field] === '') delete fields[field]
   // Released v1 anchor payload (result only): runtimes v1.0.7–v1.0.9 verify this exact digest.
   const anchor: PreVerifyReviewAnchor = {
@@ -266,7 +265,8 @@ function canonicalState(value: unknown, opts: { allowLegacyFieldOmissions?: bool
     ? legacyReviewGateOmissions(rawFields, missing)
     : new Set<FieldName>()
   // Companion-backed fields are absent from the current wire. A development-build wire that still
-  // carries the channel keeps its value; hydration overrides it only with a bound companion.
+  // carries the channel or `start_sha` keeps its value; hydration overrides it only with a bound
+  // companion. `start_sha` is also omit-when-empty, so its absence is the empty string below.
   const companionDefaults = new Set<FieldName>(opts.allowLegacyFieldOmissions === true
     ? missing.filter((field) => field === PRE_VERIFY_REVIEW_FIELD || field === REVIEW_ACKNOWLEDGED_VIA_FIELD)
     : [])

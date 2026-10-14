@@ -128,6 +128,29 @@ for _change_dir in "$PROOT"/openspec/changes/*; do
   fi
 done
 
+# 建在 `.worktrees/<c>` 里的任务（`tenon init` 为新任务建的 worktree，状态不在主检出的 openspec/changes 里）：
+# 单独成表，绝不并入上面的 ACTIVE_CHANGE_*——它们既不参与「新建还是选择」的判定，也不是主检出的唯一候选。
+# 纯 bash（不起 git）：没有 .worktrees 目录时 glob 不展开，下面一个分支都不进，输出与没有这段时逐字相同。
+WT_CHANGE_NAMES=() WT_CHANGE_PHASES=() WT_CHANGE_TRACKS=() WT_CHANGE_WORKFLOWS=() WT_CHANGE_PATHS=()
+for _wt_change_dir in "$PROOT"/.worktrees/*/openspec/changes/*; do
+  [ -d "$_wt_change_dir" ] || continue
+  f="$(pipeline_state_source "$_wt_change_dir" || true)"
+  [ -n "$f" ] || continue
+  [ "$(yget "$f" archived)" = "true" ] && continue
+  _change_name="${_wt_change_dir##*/}"
+  case "$_change_name" in ''|*[!A-Za-z0-9_-]*) continue ;; esac
+  # worktree 根会原样进入 dispatch 的结构化输出（`change_candidate: change=<n>;worktree_path=<p>` 是 `;` 分隔的
+  # key=value 串）：含换行、尖括号、`;` 或 `=` 的路径不可信（会拆开 / 冒充键值），直接不收。
+  _wt_root="${_wt_change_dir%/openspec/changes/*}"
+  case "$_wt_root" in *$'\n'*|*$'\r'*|*"<"*|*">"*|*";"*|*"="*) continue ;; esac
+  _change_index="${#WT_CHANGE_NAMES[@]}"
+  WT_CHANGE_NAMES[$_change_index]="$_change_name"
+  WT_CHANGE_PHASES[$_change_index]="$(yget "$f" phase)"
+  WT_CHANGE_TRACKS[$_change_index]="$(yget "$f" track)"
+  WT_CHANGE_WORKFLOWS[$_change_index]="$(yget "$f" workflow)"
+  WT_CHANGE_PATHS[$_change_index]="$_wt_root"
+done
+
 # mtime 仅可用于展示/诊断，不能在多个活跃 change 中猜测当前会话。没有显式
 # `active-change` 时，只有唯一活跃 change 才是可恢复候选。
 if [ "$ACTIVE_CHANGE_COUNT" -eq 1 ]; then
@@ -167,6 +190,8 @@ fi
 # ambiguous and is surfaced to the root skill as `select`, never resolved by mtime.
 INTENT_HELPER="$(dirname "${BASH_SOURCE[0]:-$0}")/prompt-intent.sh"
 DISPATCH_INTENT="new"
+# 恢复的任务只存在于 worktree 里时，它所在的绝对路径（dispatch 的 worktree_path）；WORKTREE_SELECT=1 = 选择候选来自 worktree 任务。
+WORKTREE_PATH="" WORKTREE_SELECT=0
 # 1 = this prompt approves the selected Change's open review receipt (confirm-clear-prompt writes it).
 ROUTER_REVIEW_REPLY=0
 if [ -r "$INTENT_HELPER" ]; then
@@ -226,7 +251,31 @@ if [ -r "$INTENT_HELPER" ]; then
     fi
     _change_index=$(( _change_index + 1 ))
   done
-  if [ "$EXPLICIT_CHANGE_COUNT" -eq 1 ]; then
+  # 点名的任务只存在于 worktree 时（主检出一个都没点中）：同样是显式选择，dispatch 另带 worktree_path 让入口 skill 先切进去。
+  WT_EXPLICIT_COUNT=0 WT_EXPLICIT_INDEX=-1
+  _change_index=0
+  while [ "$_change_index" -lt "${#WT_CHANGE_NAMES[@]}" ]; do
+    if pipeline_prompt_names_change "$PROMPT" "${WT_CHANGE_NAMES[$_change_index]}"; then
+      WT_EXPLICIT_COUNT=$((WT_EXPLICIT_COUNT + 1))
+      WT_EXPLICIT_INDEX="$_change_index"
+    fi
+    _change_index=$(( _change_index + 1 ))
+  done
+  if [ "$EXPLICIT_CHANGE_COUNT" -eq 0 ] && [ "$WT_EXPLICIT_COUNT" -eq 1 ]; then
+    CHANGE_NAME="${WT_CHANGE_NAMES[$WT_EXPLICIT_INDEX]}"
+    CHANGE_PHASE="${WT_CHANGE_PHASES[$WT_EXPLICIT_INDEX]}"
+    CHANGE_TRACK="${WT_CHANGE_TRACKS[$WT_EXPLICIT_INDEX]}"
+    CHANGE_WORKFLOW="${WT_CHANGE_WORKFLOWS[$WT_EXPLICIT_INDEX]}"
+    WORKTREE_PATH="${WT_CHANGE_PATHS[$WT_EXPLICIT_INDEX]}"
+    DISPATCH_INTENT="resume"
+  elif [ "$EXPLICIT_CHANGE_COUNT" -eq 0 ] && [ "$WT_EXPLICIT_COUNT" -gt 1 ]; then
+    DISPATCH_INTENT="select"
+    WORKTREE_SELECT=1
+    CHANGE_NAME=""
+    CHANGE_PHASE=""
+    CHANGE_TRACK=""
+    CHANGE_WORKFLOW=""
+  elif [ "$EXPLICIT_CHANGE_COUNT" -eq 1 ]; then
     CHANGE_NAME="$EXPLICIT_CHANGE_NAME"
     CHANGE_PHASE="$EXPLICIT_CHANGE_PHASE"
     CHANGE_TRACK="$EXPLICIT_CHANGE_TRACK"
@@ -259,6 +308,16 @@ if [ -r "$INTENT_HELPER" ]; then
   elif [ -z "$HOST_SESSION_ID" ] && [ "$ACTIVE_CHANGE_COUNT" -gt 1 ] \
     && pipeline_prompt_requests_resume "$PROMPT" ""; then
     DISPATCH_INTENT="select"
+    CHANGE_NAME=""
+    CHANGE_PHASE=""
+    CHANGE_TRACK=""
+    CHANGE_WORKFLOW=""
+  elif [ "$ACTIVE_CHANGE_COUNT" -eq 0 ] && [ "${#WT_CHANGE_NAMES[@]}" -gt 0 ] \
+    && pipeline_prompt_requests_resume "$PROMPT" ""; then
+    # 主检出没有自己的在途任务、用户却泛泛地说「继续」：能继续的只有 worktree 里的任务，把它们连同路径列为候选，
+    # 要求用户点名——绝不按 mtime 猜。主检出另有在途任务时走上面的现有规则，不进这里。
+    DISPATCH_INTENT="select"
+    WORKTREE_SELECT=1
     CHANGE_NAME=""
     CHANGE_PHASE=""
     CHANGE_TRACK=""
@@ -836,7 +895,11 @@ if [ "$DISPATCH_INTENT" = "resume" ] && [ -n "$CHANGE_NAME" ]; then
   fi
 elif [ "$DISPATCH_INTENT" = "select" ]; then
   HDR="疑似 track=${TRACK}（评分 ${SCORE_SHOWN}）· 恢复目标未选择"
-  TAIL="用户明确要继续，但项目中有多个未选择的活跃 change。必须立即调用 Skill 工具的 tenon，让入口 skill 用 tenon list/status 列出候选并要求用户点名；严禁按 mtime 猜测，也严禁把它当作新任务创建。"
+  if [ "$WORKTREE_SELECT" = "1" ]; then
+    TAIL="用户明确要继续，但能继续的任务都建在各自的 worktree 里（候选与路径见下方 change_candidate）。必须立即调用 Skill 工具的 tenon，让入口 skill 列出这些候选及路径并要求用户点名；用户点名后先切进该任务的 worktree 再恢复。严禁按 mtime 猜测，也严禁把它当作新任务创建。"
+  else
+    TAIL="用户明确要继续，但项目中有多个未选择的活跃 change。必须立即调用 Skill 工具的 tenon，让入口 skill 用 tenon list/status 列出候选并要求用户点名；严禁按 mtime 猜测，也严禁把它当作新任务创建。"
+  fi
 else
   if [ "$TRACK_BASIS" = "user-named" ] && [ "$TRACK" != "unresolved" ]; then
     TRACK_LABEL="track=${TRACK}（用户点名）"
@@ -874,6 +937,9 @@ elif [ "$DISPATCH_INTENT" = "resume" ] && [ "$RESUME_PLAN_TODO" -eq 0 ] && [ -n 
     default) ;;
     *) TAIL="$TAIL 当前 Change 绑定自定义 workflow '${CHANGE_WORKFLOW}'：router 不推断它的阶段要求；必须先调用 tenon，由它以 canonical state 与项目 workflow 图解析本阶段的真实 DAG、OpenSpec 约束和依赖顺序后再分派。" ;;
   esac
+fi
+if [ -n "$WORKTREE_PATH" ]; then
+  TAIL="$TAIL 该任务建在 worktree 里（见 dispatch 的 worktree_path）：先切进该目录（Claude Code 用 EnterWorktree 的 path；Codex 请用户在该目录开新会话），再执行 tenon session activate 恢复。"
 fi
 # Real session, round 4: after 「按推荐」 the receipt was written, yet the resume text above ("产出交用户
 # 确认后再推进") led the agent to say the gate still waited for 「确认继续」.  The two hooks run
@@ -939,6 +1005,17 @@ elif [ "$DISPATCH_INTENT" = "select" ]; then
   printf 'phase: select\ntodo_source: tenon-active-change-selection\n'
 else
   printf 'phase: open\ntodo_source: tenon-workflow-plan\n'
+fi
+# 任务建在 worktree 里：点名恢复的带上它的绝对路径，入口 skill 先切进去再恢复；泛泛的「继续」把 worktree 任务列为候选。
+if [ "$DISPATCH_INTENT" = "resume" ] && [ -n "$WORKTREE_PATH" ]; then
+  printf 'worktree_path: %s\n' "$WORKTREE_PATH"
+fi
+if [ "$DISPATCH_INTENT" = "select" ] && [ "$WORKTREE_SELECT" = "1" ]; then
+  _change_index=0
+  while [ "$_change_index" -lt "${#WT_CHANGE_NAMES[@]}" ]; do
+    printf 'change_candidate: change=%s;worktree_path=%s\n' "${WT_CHANGE_NAMES[$_change_index]}" "${WT_CHANGE_PATHS[$_change_index]}"
+    _change_index=$(( _change_index + 1 ))
+  done
 fi
 printf 'required: true\n</tenon-dispatch>\n'
 exit 0
