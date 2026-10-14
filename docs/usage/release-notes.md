@@ -4,128 +4,243 @@ Tenon release notes explain what changed, what users need to do, and how to veri
 
 Only capabilities included in a public distribution belong here. Plans, internal ADRs, and unmerged experiments are not presented as shipped work.
 
-## Unreleased
+## v0.3.3 · 2026-10-14
 
-The built-in Workflows collapse to two: `default`, whose Tracks are now lightweight (`lite`), product (`pm`), frontend
-(`frontend`) and backend (`backend`), and the flat `design-system`. The lightweight Track replaces the `standard` and
-`simple` Workflows, a development request is assessed before a Change is created, every task ends in
-`openspec/changes/archive/`, and the Workspace gets an Ended category. The document mechanism is reworked as well: a
-Workflow no longer declares the input and output documents of a step, Tenon records what each step actually wrote, and a
-step can only require a file by path. Read "Retired and migration" before you upgrade a project.
+v0.3.3 makes a task lighter to start, to configure and to confirm. Only two Workflows are built in now: `default`, whose
+Tracks are lightweight (`lite`), product (`pm`), frontend (`frontend`) and backend (`backend`), and the flat
+`design-system`. A Workflow no longer declares the documents of a step, because Tenon records what each step wrote. A step
+declares its testing with one level, and the default `code-size` test has no line ceiling. A back edge within the round
+limit and a read-only command chain no longer wait for a confirmation, and parallel sessions in one project no longer
+block each other. Read "Behaviour changes and upgrade impact" before you upgrade a project.
 
-### Retired and migration
+### One default Workflow
 
-- The `standard` and `simple` Workflows are gone. `tenon init <name> --workflow standard` and `--workflow simple` fail and
-  print `--workflow default --track lite`.
-- The `chat` and `free` Tracks of `default` are gone, and no neutral Track is needed any more: a Workflow without `tracks:`
-  is its own single Track, so `tenon init <name> --workflow design-system` takes no `--track`. The retired Track ids
-  (`standard`, `simple`, `chat`, `free`) given to `--track` fail and list the Tracks the Workflow offers.
-- The built-in Track registry and `.pipeline/tracks.yaml` are no longer read; when the file exists Tenon prints one line.
-  A Track is now only a branch (`tracks.<id>`) of a Workflow YAML, so move the routing words you kept in `tracks.yaml`
-  into the `route` of the branch.
-- "Hiding" is removed. `tenon task archive` and `tenon task unarchive`, the Workspace "Archived" toggle and the per-user
-  `archived.json` are gone; the two old subcommands exit `1` and point to `tenon task terminate` and `tenon task finish`.
-  Tasks you had hidden show again under In progress.
-- New Changes no longer carry the `build_mode`, `isolation`, `direct_override` and `branch_status` fields or their
-  checks, and the checks for a statefile, literal proposal/tasks/design paths and the spec coverage matrix are gone.
-  Changes created before the upgrade keep their fields.
-- The manifest skill matrix (`mandatory_skills`) and the Dashboard endpoint that wrote it, `POST /api/changes` (the
-  Dashboard no longer creates tasks) and the router preview are removed; skills come only from the Workflow YAML.
-- The old phase-manifest engine now serves only Changes created before the upgrade, by their frozen snapshots, and is
-  removed in the next release. An in-flight `standard`, `simple`, chat or free Change finishes on the snapshot it froze.
-- Document mechanism: `document_contract` (top level or on a Track branch) and the step keys `inputs`, `outputs` and
-  `artifacts` are removed from the Workflow definition, and so is the `nonempty-output` guard that depended on `outputs`.
-  Saving a Workflow, creating a Change and compiling a new plan reject them and name the replacement: documents are
-  recorded automatically, a file condition is a `required-output` guard, a field condition is `field-nonempty` or
-  `field-equals`. Empty `inputs: []`, `outputs: []` and `artifacts: []` still load and are no longer written back.
-  `default` and `design-system` declare none of them, and the rule that `brainstorming` produces the `adr` is gone with
-  the contract.
-- A new Change gets no proposal or design skeleton and no document ledger (`.pipeline-documents.json`); a Track with
-  `spec: openspec` only gets the `tasks.md` skeleton. `tenon document scaffold`, `record`, `init` and `migrate-delta`
-  (exit `2`) and `tenon artifact register` (exit `1`) serve only Changes created before the upgrade and tell a new Change
-  that its outputs are recorded automatically.
-- `gate: auto` is no longer derived from a step's `outputs`: an auto step can be left when its leave conditions are met.
-  A new custom Workflow that freezes a build revision writes `freeze-build-sha` on the `build-complete` edge and
-  `build-head-unchanged` on the `verify-pass` edge itself, as `default` does.
-- The frontend Track no longer requires a ready `DESIGN.md` before Open (the rule came from the former document
-  contract). The validity of `DESIGN.md` is still checked by the `design-system` test at Ship. Changes created before the
-  upgrade are not affected.
-- Changes created before the upgrade finish under the plan they froze, former document contract included: the document
-  ledger, per-kind reads and the `scaffold-document`, `record-document` and `register-field` actions work as before.
-- The Workflow API no longer returns `effectiveIo`, and the `io` field of `GET /api/change/:name/orchestration` is
-  replaced by `stepIo`.
+- The lightweight Track replaces the `standard` and `simple` Workflows: `open → build → verify → done` with one review
+  gate and a change-risk probe in Build. When the probe fails the task escalates: `scope-expanded` ends it as Escalated and
+  names the command that opens the heavy Track task and links it with `depends_on` (the domain recorded by
+  `tenon init --domain`, otherwise a list of Tracks for you to choose from).
+- A development request is assessed before a task exists. Routing decides only the domain. Then
+  `tenon assess --files <path>...` checks the files you expect to change against the lightweight limits (exit `0` within
+  them, `3` over a limit with the breached limits listed, `1` error), and the `tenon` skill shows you the result and its
+  recommendation and creates the task only after you confirm. A request with a heavy signal (by default words such as
+  architecture, migration, schema, authentication or release) goes to the domain's heavy Track directly.
+  `tenon init --domain <track>` records the heavy Track a lightweight task escalates to.
+- A Track is a branch (`tracks.<id>`) of a Workflow YAML with its own steps and three optional settings: `spec`
+  (`openspec` or `none`), `route` (`keywords`, `exclude`, `priority`, `fallback`) and `automation` (`eligible`,
+  `enqueue_after_spec`). A Workflow without `tracks:` is its own single Track. Routing is generated from the branches, so a
+  Workflow saved on the Dashboard routes the next message by its new rules. `tenon tracks list` lists the Tracks of every
+  Workflow.
+- `default` runs from its YAML. Its rules are written there as leave conditions, three of them general:
+  `tasks-through-step`, `not-afk-queued` and `dependencies-ended`. `tenon check <name>` without an event lists the unmet
+  conditions of the step and of its forward edges at once and exits `2`.
+- Every task ends in `openspec/changes/archive/`. `tenon task finish <name>` and `tenon task terminate <name>` move the task
+  there with the result Finished, Escalated or Terminated, and `tenon list --finished` lists ended tasks. The Workspace
+  categories are All · Needs you · Running · Ended, and an Ended card shows its result.
+- The workflow page edits a Track's spec and routing keywords and lists each step's leave conditions read-only.
 
-### Added
+### Documents recorded at runtime
 
-- Step outputs. Entering a step takes a checkpoint (git `HEAD` and the files that differ from it, with their SHA-256);
-  leaving a step compares the workspace with it, inside the transition lock, and records the files added, modified and
-  deleted together with the Skill that wrote each (`unknown` when Tenon cannot tell) in `.pipeline-step-outputs.json`. It
-  works the same on every Track and Workflow, shell and subagent writes included. Outside a git repository nothing is
-  recorded and no transition is blocked.
-- Handoff by direct upstream. The next step receives only the Markdown documents its direct upstream step produced;
-  `step.next` lists the unread ones in `read-documents`, `tenon document read <name> all` (or one path) writes the read
-  receipt, and no edge except terminating the task can be left while an input is unread (exit `1`). A file the step
-  changes after reading it needs no new receipt; the change is recorded as the step's output. `tenon document status`
-  prints the inputs, outputs and required outputs of the step, and `step.documents` carries the same.
+- A Workflow no longer declares the input and output documents of a step. Entering a step takes a checkpoint (git `HEAD`
+  and the files that differ from it, with their SHA-256); leaving it compares the workspace with the checkpoint and
+  records the files added, modified and deleted, with the Skill that wrote each (`unknown` when Tenon cannot tell), in
+  `.pipeline-step-outputs.json`. Shell and subagent writes count. Outside a git repository nothing is recorded and no
+  transition is blocked.
+- The next step receives only the Markdown documents its direct upstream step produced. `step.next` lists the unread ones in
+  `read-documents`, and `tenon document read <name> all` (or one path) writes the read receipt. No edge except the abandon
+  edge can be left while an input is unread (exit `1`). `tenon document status <name>` prints the inputs, outputs and
+  required outputs of the step.
 - The `required-output` guard, `{ type: required-output, path: <pattern> }`, on a step or an edge: the step must have
-  written a matching file in this Change before it can be left (exit `2`). `{change}` stands for the task name, `*`
-  matches inside one segment, `**` any number of segments and `?` one character. `default` uses it for the proposal, the
-  design, the delta spec, the plan and the verification report, and `design-system` for its direction and `DESIGN.md`.
-- The document mechanism no longer depends on OpenSpec: observation, handoff, read receipts and required outputs apply to
-  the lightweight Track, to `spec: none` and to flat custom Workflows, and `spec: openspec` only governs the OpenSpec
-  lifecycle. A Spec Kit style flow is a plain Workflow that requires `specs/*/spec.md`, `plan.md` and `tasks.md`.
+  written a matching file in this task before it can be left (exit `2`). `{change}` is the task name, `*` matches inside
+  one path segment, `**` any number of segments and `?` one character. `default` uses it for the proposal, the design, the
+  delta spec, the plan and the verification report.
+- Observation, handoff, read receipts and required outputs work the same on every Track and Workflow and do not depend on
+  OpenSpec. A Spec Kit style flow is a plain Workflow that requires `specs/*/spec.md`, `plan.md` and `tasks.md`. See
+  [Documents, Skills, and evidence](documents-skills-and-evidence.md).
 - The Workspace shows the real inputs of each step (file, source stage, source skill, read or unread) and outputs (file,
-  added, modified or deleted, source skill); the workflow page has no input or output tables any more and lists
-  “Required output `<path>`” under the gate.
+  added, modified or deleted, source skill). The workflow page has no input or output tables any more and lists
+  "Required output `<path>`" under the gate.
 
-- `default` is executed from its YAML. Its rules are written there as leave conditions, three of them general:
-  `tasks-through-step`, `not-afk-queued` and `dependencies-ended`. `tenon check <name>` without an event lists the step's
-  guards together with those of its forward edges, reports every unmet condition at once and exits `2`; `tenon advance`
-  follows only a single forward edge.
-- The Track keys `spec` (`openspec` or `none`), `route` (`keywords`, `exclude`, `priority`, `fallback`) and `automation`
-  (`eligible`, `enqueue_after_spec`) sit on the branch. AFK eligibility reads only `automation.eligible`; a Track without
-  `automation` cannot be queued (`tenon afk enqueue` exits `3`, `reason: "track-not-afk-eligible"` under `--json`).
-  `tenon tracks list` lists the Tracks of every Workflow.
-- Routing is generated from the Workflow branches (cache `router.v6`, rebuilt when any Workflow file changes) and no longer
-  decides weight from a keyword: a development request without a heavy signal is dispatched with `assess: required` and two
-  `candidate:` lines, the lightweight Track and the domain's heavy Track.
-- `tenon assess --files <path>...` evaluates the files you expect to change against the lightweight limits before the Change
-  exists, with the same classification as the risk probe (exit `0` within the limits, `3` over a limit with the breached
-  limits listed, `1` error). The `tenon` skill shows you the result and its recommendation and creates the Change only after
-  you confirm.
-- `tenon init --domain <track>` records the heavy Track a lightweight Change escalates to, so the probe's `escalate.then`
-  names it directly.
-- `tenon task finish <name>` and `tenon task terminate <name>` end a task by moving it to
-  `openspec/changes/archive/<date>-<name>/` with the result Finished, Escalated or Terminated. `finish-change` in `step.next`
-  now runs `tenon task finish`, Tenon calls `openspec archive <name> --skip-specs --yes --json` itself for OpenSpec Tracks,
-  and `terminate` commits only the task directory. `tenon list --finished` lists ended tasks.
-- The Workspace categories are All · Needs you · Running · Ended. An Ended card shows its result and All includes ended
-  tasks after the running ones. The workflow page edits a Track's spec and routing keywords and lists each step's leave
-  conditions read-only; `GET /api/change/:dir/snapshot?archived=1` reads an ended task.
+### Simpler test settings
 
-### Back edges within the round limit no longer need a review receipt; the gate allows read-only command chains
+- One level per step. A workflow step declares `test: none | plan | changed | full` instead of the multi-field
+  `test_policy` (a step cannot carry both, and a frozen `test_policy` is still read). `default` uses `changed` at Build and
+  `full` at Verify on the lite, frontend and backend Tracks, `plan` at Spec of frontend and backend, and `none` at Spec of
+  pm (its Verify is `changed`). The default `full` runs the unit class in full and the other classes the change touches,
+  not every integration and e2e suite.
+- `levels`. The catalog (`.tenon/tests/catalog.yaml`) takes an optional top-level `levels` key that defines `plan`,
+  `changed` and `full` with six keys (`required`, `touched`, `scenarios`, `coverage`, `flaky`, `require_baseline`); what you
+  leave out keeps the built-in default (`required: [unit]`, no coverage threshold, `scenarios: off`). When a task changes
+  `levels`, the change summary in `tenon review request` marks each loosened or tightened key per level.
+- Five test classes: `unit`, `integration`, `e2e`, `static` and `benchmark` (plus `custom`, run only when named) group the
+  17 kinds. A suite's `kind` may be a class or an old kind name.
+- Claiming, not registering. A test file the change adds or modifies is claimed by the suite whose `files` glob matches it
+  and is never written to `test-plan.yaml`. A file no suite claims is an orphan (`test-file-orphan`), and
+  `tenon test register <change> --auto` appends its exact path to a suitable suite; it no longer widens a glob or scans the
+  whole repository. Paths under `openspec/`, `.tenon/` and `.pipeline/`, and files without a source extension (for example
+  `.spec.report`), are never test files.
+- Suites without `covers`. A suite is touched when a changed file matches its `files` or `covers` glob. When a change edits
+  only source files, `changed` and `full` skip a suite that has no `covers` and print the non-blocking notice
+  `suites-without-covers` naming it; write `covers` with
+  `tenon test catalog set <id> --cover-glob "<glob>"` to have source changes run it.
+- `tenon test sync <change> --prune` deletes from the plan's `files` the registrations the catalog no longer claims, which
+  clears `registered-test-not-executed`.
+- Catalog writes keep your comments: `catalog add|set|rm|not-applicable` and `register --auto` rewrite only the lines that
+  changed. Scenario mapping is off by default, so no scenario blocks an exit and the traceability matrix lists the mapped
+  rows plus one "N more ... not mapped" line.
+- Test trust is per user, repository and command. `tenon test trust` stores the decision in your user state directory,
+  every worktree of the same repository shares it, and editing one command asks again for that command only. The hook
+  refuses an agent writing under a `test-trust/` path.
+- `code-size` has no ceiling by default. The 2000-line `lines_added` limit is removed from the default workflow and the
+  `code-size` direction; the probe still reports its metrics, exits `0` and records the measured values, and the
+  `code-size` reviewer reads and judges them. A project that wants a limit writes `pass.metrics` under the test in its
+  workflow. A `test:<id>` waiver shown in `review request` now carries the latest measured value next to your reason.
+- Run records carry relative paths: the repository root and your home directory (`~/`) are rewritten before the digest is
+  computed. Existing records are not rewritten.
+- Test output no longer invalidates the candidate. An untracked file with an evidence extension (log, txt, xml, md, csv,
+  png, jpg, jpeg, gif, webp, webm, mp4, lcov, info) under `test-results/`, `playwright-report/` or `coverage/` is not part
+  of the candidate fingerprint, so an e2e server writing a log does not make the frozen build stale. Tracked files,
+  scripts, files without an extension and formats that code or a browser can load or unpack (json, html, htm, zip, gz,
+  har) still count.
+- Dashboard: the workflow page picks a step's level with one choice, the project Tests page shows the effective level
+  definitions, and the task Tests tab marks claimed files and collapses the scenario trace.
+
+### Fewer confirmations
 
 - Back edges within the round limit. On a step limited by verification rounds (a review gate with a back edge, such as
   Verify with `verify-fail`), taking the back edge while rounds remain needs no review receipt: run `tenon transition`
-  directly. `step.next` now hands you `transition` for the only back edge instead of `request-review`, and the Dashboard
+  directly. `step.next` hands you `transition` for the only back edge instead of `request-review`, and the Dashboard
   transition endpoint behaves the same. Forward edges, residual blockers and test waivers still need a human
-  confirmation, and once the rounds are used up the back edge is refused as before. Every successful transition now also
-  deletes the review marker (`.pipeline-pending-review`) bound to that task, so a review request that was open before the
-  upgrade, or a forward review that was waiting when the user asked to go back, no longer leaves a stale marker that
-  blocks writes for up to 30 minutes. A failed delete only prints a warning.
+  confirmation, and once the rounds are used up the back edge is refused as before.
+- Every successful transition deletes the review marker (`.pipeline-pending-review`) bound to that task, so a review request
+  that was open before the upgrade, or a forward review that was waiting when you asked to go back, no longer leaves a
+  stale marker that blocks writes for up to 30 minutes. A failed delete only prints a warning.
 - Read-only command chains. While a review, interaction or confirmation is pending, the write gate lets through commands
   joined by `|`, `&&`, `||` or `;` when every segment is read-only (`git status --short | grep x`, `cd sub && ls`).
-  Redirections other than `>/dev/null`, `2>/dev/null`, `&>/dev/null` and `2>&1`, a background `&`, command substitution or variable expansion (including `$IFS`),
-  unclosed quotes and commands over 2048 characters are never read-only. Some read-only commands are now refused in their
-  writing or program-running forms: `git diff|log|show --output`, `--ext-diff` and `--textconv`, `rg --pre`, `-z` and
-  `--search-zip`, `sed -n` with anything but a line-range print, and `file -C`.
-- Per-kind hints and `tenon transition` under a pending review. While a review waits, the gate lets exactly
-  `tenon transition <change> <event>` for the task that owns the marker through and leaves the decision to the CLI, so an agent can take a back edge when
-  the user asks to go back (the CLI still refuses a forward edge without its approved receipt). The block message now
-  depends on the marker kind: a review block names the task and the event, lists the approval phrases and the Dashboard
-  confirmation, and no longer mentions AskUserQuestion; confirm and interaction blocks keep their AskUserQuestion wording.
+  Redirections other than `>/dev/null`, `2>/dev/null`, `&>/dev/null` and `2>&1`, a background `&`, command substitution or
+  variable expansion (including `$IFS`), unclosed quotes and commands over 2048 characters are never read-only. Some
+  read-only commands are refused in their writing or program-running forms: `git diff|log|show --output`, `--ext-diff`
+  and `--textconv`, `rg --pre`, `-z` and `--search-zip`, `sed -n` with anything but a line-range print, and `file -C`.
+- While a review waits, the gate also lets exactly `tenon transition <change> <event>` for the task that owns the marker
+  through and leaves the decision to the CLI, so an agent can take a back edge when you ask to go back (the CLI still
+  refuses a forward edge without its approved receipt).
+- The block message depends on the marker kind. A review block names the task and the event, lists the approval phrases and
+  the Dashboard confirmation, and no longer mentions AskUserQuestion.
+
+### Fixed
+
+- Parallel sessions in one project no longer block or confirm each other. Before, a review waiting in one session stopped
+  the writes, skill loads and subagents of another session working on a different task, a reply in the other session could
+  write the first one's review receipt, and skill evidence landed on the wrong task. The hooks that block, confirm or
+  record evidence now use the task bound to their own host session. A session whose task is bound to another session is
+  neither blocked nor able to confirm it, and a host that gives no session id behaves as before.
+- `tenon session activate <name> --host-session <id>` binds a task to one session at a time: it removes any other session's
+  binding to that task and names the old session on stderr. After a conversation is resumed with a new session id, the
+  hooks of that session neither block nor confirm until the task is activated again with the new id.
+- A pending interaction marker (the question a skill waits for you to answer) belongs to the session that raised it. The gate
+  blocks only that session, only its AskUserQuestion answer or approval phrase clears it, and sessions that wait at the same
+  time no longer overwrite each other's marker. A marker in the old format is deleted when it is seen.
+- A pasted approval phrase no longer approves a review. An approval phrase counts only when it is the whole short reply
+  (for example "确认继续。"); inside a longer message, a quote or a paste it is ignored, and for AskUserQuestion the chosen
+  answer is judged, not the text of the question. Before, a phrase inside a paste was matched as a substring and could
+  record a review as approved.
+
+### Added
+
+- Verification round limit. A step with a review gate and a back edge (Verify with `verify-fail` in `default`) allows at most
+  two rounds, a round being one entry into the step; the count starts again after `requirements-changed` back to Spec. A
+  step declares its limit with `max_rounds` (1 to 20), a limited step that declares nothing gets 2, and
+  `tenon set <change> max_rounds <N>` overrides it for one task. When the rounds are used up and a required test or
+  reviewer still fails, Tenon stops going back by itself: `step.next` asks you to accept the remaining reviewer blockers at
+  the forward review, or stops with `rounds-exhausted`, and lists the other ways out (raise the limit, return to Spec, end
+  the task). The CLI and the Dashboard (HTTP `409`, `code: "rounds-exhausted"`) refuse the back edge. Only a human
+  confirmation accepts remaining blockers, bound to the reviewer's run and the code candidate; `--delegated` and AFK mode
+  never do, and the Dashboard's Approve refuses them (HTTP `409`, `code: "residual-pending"`), so confirm in the terminal.
+  An agent raises the limit only when you say so. See [Verification round limit](cli-reference.md#verification-round-limit).
+- Step-test waiver. `tenon test waive <change> --test <step-test-id> --reason <text>` lets a failing required step test such
+  as `code-size` through. Before, nothing could: `step.next` stayed on `run-test` and the task never reached the review
+  gate. The waiver is listed by `tenon review request` and approved by your confirmation, it covers only a failure that is
+  fresh on the current candidate, and the approval is bound to that code candidate, so changed code that fails again needs
+  a new approval. Reviewers see the reason marked as the registrant's own words.
+- `tenon review revoke <change> --reason <text>` withdraws an approval given by mistake: it turns the current step's
+  approved, not yet consumed receipt back into a pending one for the same event, restores the review marker and records the
+  revocation in the change history.
+- Source development install, for working inside a Tenon checkout. `tenon setup --claude --from-source <repo>` (or
+  `--codex`) builds the checkout, fetches the upstream skills it is missing and installs the checkout's plugin and managed
+  runtime in place of the release, so the skills, hooks and CLI your agent loads are the checkout's. Rerun it after editing
+  the checkout to sync (`--skip-build` when the build is current, `--dry-run` to preview). It never poses as a release:
+  `/api/health` reports `channel: dev` and `<version>+dev.<sha7>`, `tenon doctor` shows `identity:release` as a warning,
+  auto-update is off and `tenon update` refuses it. `tenon update --claude --to-stable` (or `--codex`) goes back to the
+  latest stable release. A new session started in the checkout warns when the installed files no longer match it, and
+  `tenon doctor` reports `source:drift`. `--from-source` runs the build of the checkout you give it and installs that
+  checkout's hooks for good, so use it only on a checkout you trust. See
+  [Run your checkout as the installed plugin](contributor-development.md#run-your-checkout-as-the-installed-plugin).
+
+### Behaviour changes and upgrade impact
+
+- **`standard` and `simple` are gone, and so are the `chat` and `free` Tracks.** `tenon init <name> --workflow standard`
+  and `--workflow simple` exit `1` and print `--workflow default --track lite`. A retired Track id given to `--track` exits
+  `1` and lists the Tracks the Workflow offers. `tenon init <name> --workflow design-system` takes no `--track`. A task
+  created before the upgrade finishes on the snapshot it froze, whatever its Workflow or Track was.
+- **`.pipeline/tracks.yaml` and the built-in Track registry are no longer read.** Tenon prints one line when the file exists.
+  Move the routing words you kept there into the `route` of the Workflow branches.
+- **"Hiding" is removed.** `tenon task archive` and `tenon task unarchive`, the Workspace "Archived" toggle and the
+  per-user `archived.json` are gone; the two subcommands exit `1` and point to `tenon task terminate` and
+  `tenon task finish`. Tasks you had hidden show again in the Workspace.
+- **New tasks carry fewer fields and checks.** `build_mode`, `isolation`, `direct_override` and `branch_status` and their
+  checks, and the checks for a statefile, literal proposal/tasks/design paths and the spec coverage matrix, are gone; a task
+  created before the upgrade keeps its fields. The manifest skill matrix (`mandatory_skills`), `POST /api/changes` (the
+  Dashboard no longer creates tasks) and the router preview are removed, so skills come only from the Workflow YAML. A
+  failed leave condition of `default` exits `2`, not `1`.
+- **Workflow definitions reject the document-contract keys.** `document_contract` (top level or on a Track branch) and the
+  step keys `inputs`, `outputs` and `artifacts` are removed, and so is the `nonempty-output` guard. Saving a Workflow,
+  creating a task and compiling a plan reject them and name the replacement: a file condition is a `required-output` guard,
+  a field condition is `field-nonempty` or `field-equals`. Empty `inputs: []`, `outputs: []` and `artifacts: []` still
+  load. A `gate: auto` step is no longer derived from its `outputs`, so write those checks as guards. A new custom Workflow
+  that freezes a build revision writes `freeze-build-sha` on the `build-complete` edge and `build-head-unchanged` on the
+  `verify-pass` edge itself, as `default` does. See
+  [Keys that were removed](custom-workflows-and-tracks.md#keys-that-were-removed).
+- **New tasks get no proposal or design skeleton and no document ledger** (`.pipeline-documents.json`); a Track with
+  `spec: openspec` gets only the `tasks.md` skeleton. `tenon document scaffold`, `record`, `init` and `migrate-delta` exit
+  `2` and `tenon artifact register` exits `1` on a new task and say that outputs are recorded automatically. The frontend
+  Track no longer requires a ready `DESIGN.md` before Open; the `design-system` test still checks it at Ship. The Workflow
+  API no longer returns `effectiveIo`, and the `io` field of `GET /api/change/:name/orchestration` is now `stepIo`. A task
+  created before the upgrade finishes under the plan it froze, former document contract included.
+- **A Track enters AFK only if it says so.** Whether a task may be queued reads only `automation.eligible` on its Track. The
+  `pm`, `frontend` and `backend` Tracks of `default` are eligible; the `lite` Track and any Track without an `automation`
+  block, every flat Workflow included, are not (`tenon afk enqueue` exits `3`, and `--json` reports
+  `reason: "track-not-afk-eligible"`).
+- **A step with a review gate and a back edge is limited to two verification rounds**, a step of a custom Workflow that
+  declares nothing included. Write `max_rounds` on the step to change it.
+- **Test settings change what a pass asks for.** The default `code-size` test no longer blocks on 2000 added lines, the
+  default `full` no longer runs every integration and e2e suite, and scenario mapping no longer blocks an exit. The 80%
+  line-coverage threshold that `default` asked of frontend and backend Verify is gone: a project that wants it writes
+  `levels.full.coverage` in its catalog.
+- **Test trust is asked once more in each git repository.** Trust stored in a checkout's seal counts only in a project that
+  is not a git repository (new trust is written there too); in a git repository the old seal is ignored, tracked or not,
+  because the seal and its key can arrive with the repository or an archive. A checkout counts as "not a git repository"
+  only when neither it nor any parent has a `.git`; one whose repository identity cannot be read (git fails or times out,
+  or a forged pointer) is untrusted, `tenon test run` says to fix git first and `tenon test trust` refuses to write.
+- **An agent cannot confirm a review for you.** The write gate refuses an agent's `tenon review acknowledge` without
+  `--delegated`. Confirm with an approval phrase as your whole reply (the hook writes the receipt), in the Dashboard
+  (`tenon dashboard --open`), or by running `tenon review acknowledge <change-name>` in your own terminal.
+- **A source development install replaces the release until you go back.** `tenon update` refuses it; use
+  `tenon update --claude --to-stable` (or `--codex`).
+
+### Development
+
+- A test or acceptance script that starts a `tenon` child in an isolated runtime must drop the launcher's runtime roots
+  (`TENON_RUNTIME_ROOTS` and `TENON_RUNTIME_DATA_ROOT`, `_STATE_ROOT`, `_CONFIG_ROOT`): use `isolatedEnv`, or pass the
+  environment through `withoutInheritedRuntimeRoots` from `tools/lib/runtime-roots.mjs`. Otherwise a suite run through
+  `tenon test run` reads and writes your real Tenon state.
+
+### Documentation
+
+- The installation page says that the retired 1.x releases and tags were deleted on 2026-10-07 and that the maintainers keep
+  an archive.
 
 ### What you need to do
+
+Run `tenon update --codex` (or `--claude`) and open a new host session, then:
 
 1. Replace `--workflow standard` / `--workflow simple` in scripts and notes with `--workflow default --track lite`, and drop
    `--track` from `design-system` tasks.
@@ -133,105 +248,62 @@ step can only require a file by path. Read "Retired and migration" before you up
    (a task that reached its end).
 3. Move rules from `.pipeline/tracks.yaml` into the `route` of the Workflow branches.
 4. If you saved your own `default` in the global store, it still loads, but a copy that lacks the `lite` branch makes
-   `tenon assess` report "no change-risk thresholds" instead of guessing; add a `lite` branch with a `diff-risk` test to use
+   `tenon assess` report "no change-risk thresholds" instead of guessing. Add a `lite` branch with a `diff-risk` test to use
    assessment.
-5. Before rolling back to an earlier release, finish or terminate the tasks you created after upgrading. An earlier
-   release does not know the three general leave conditions, so `tenon status` shows the step projection of a new
-   `default` task only as a warning, and it rejects a new task on a Track it does not know: `lite`, or a Workflow without
-   `tracks:` (`design-system` or your own flat Workflow), whose Track is recorded under the Workflow's name (see
-   [Updates, recovery, and uninstall](updates-recovery-and-uninstall.md)).
-6. If a Workflow of yours fails to save and names `document_contract`, `inputs`, `outputs` or `artifacts`, delete those
-   keys; write `required-output` for a file a step must produce and `field-nonempty` or `field-equals` for a field. A
-   `gate: auto` step that relied on its `outputs` now needs those checks written as guards. Scripts that read
-   `effectiveIo` from the Workflow API or `io` from `GET /api/change/:name/orchestration` read `stepIo` instead.
-7. Scripts and notes that ask for a review of the back edge before taking it can drop that step while rounds remain:
-   `tenon transition <name> verify-fail` succeeds on its own, and a request that already exists is still accepted.
-   Nothing changes for forward edges.
+5. If a Workflow of yours fails to save and names `document_contract`, `inputs`, `outputs` or `artifacts`, delete those keys;
+   write `required-output` for a file a step must produce and `field-nonempty` or `field-equals` for a field. Scripts that
+   read `effectiveIo` from the Workflow API or `io` from `GET /api/change/:name/orchestration` read `stepIo` instead.
+6. In each git repository, run `tenon test trust` once in your own terminal before the first test run.
+7. Scripts and notes that request a review of the back edge before taking it can drop that step while rounds remain:
+   `tenon transition <name> verify-fail` succeeds on its own. Nothing changes for forward edges.
+8. Codex: the hook files changed, so Codex may ask you to trust them again. Run `/hooks`, trust `tenon`, and start a new
+   session (see [Codex hook trust](installation.md#codex-hook-trust)). Run `tenon sync --migrate` if `tenon update` says
+   the block in `AGENTS.md` is stale.
+9. Before rolling back to an earlier release, finish or terminate the tasks you created after upgrading, and remove
+   `levels` from `.tenon/tests/catalog.yaml` (see Compatibility).
 
-### Simplified test settings
+### Compatibility
 
-A step now declares its testing with one level instead of a dozen policy fields, and the manual
-bookkeeping around tests is gone.
+N-1 is v0.3.2. The N-1 gate (`tools/test-bundle.sh`) crosses it with this release in both directions on every run.
 
-- Levels. A workflow step takes `test: none | plan | changed | full`; it replaces the multi-field `test_policy`
-  (a step cannot carry both, and a frozen `test_policy` is still read). `default` uses `changed` at Build and `full`
-  at Verify (lite, frontend, backend), `plan` at Spec of frontend and backend, and `none` at Spec of pm, which no
-  longer asks for scenario mapping. The default `full` no longer runs every integration and e2e suite: it runs the unit
-  class in full and the other classes the change touches.
-- `levels`. The catalog (`.tenon/tests/catalog.yaml`) takes an optional top-level `levels` key that defines
-  `plan`, `changed` and `full` with six keys (`required`, `touched`, `scenarios`, `coverage`, `flaky`, `require_baseline`);
-  what you leave out keeps the built-in default (`required: [unit]`, no coverage threshold, `scenarios: off`). The
-  default workflow's old frontend and backend 80% line-coverage threshold is now `levels.full.coverage`, written by
-  the projects that want it. The catalog is still protected test configuration: when a task changes `levels`, the
-  change summary in `tenon review request` marks each loosened or tightened key per level, ahead of suite changes.
-- Five test classes. `unit`, `integration`, `e2e`, `static` and `benchmark` (plus `custom`, run only when named) group the
-  17 kinds; a suite's `kind` may be a class or an old kind name (an alias), and a frozen `test_policy` still matches the old
-  names literally.
-- Claiming, not registering. A test file the change adds or modifies is claimed by the suite whose `files` glob matches
-  it when the step is evaluated and is never written to `test-plan.yaml`; `test-file-unregistered` is no longer issued.
-  A file no suite claims is an orphan (`test-file-orphan`), and `tenon test register <change> --auto` fixes it by
-  appending that file's exact path to a suitable suite (it no longer widens a glob or scans the whole repository). Paths
-  under `openspec/`, `.tenon/` and `.pipeline/`, and files without a source extension (`.spec.report`, `data.spec.json`),
-  are never test files. `step.next` issues `test-register-files` only for orphans and `test-plan-map` only for a missing
-  required class or a level that asks for mapping.
-- Suites without `covers`. A suite is touched when a changed file matches its `files` or `covers` glob, so one that has
-  no `covers` is touched only by its own test files. When a change edits only source files, `changed` and `full` skip
-  such a suite and `tenon test status` and `tenon test run --stage` print the non-blocking notice `suites-without-covers`
-  naming it; write `covers` with `tenon test catalog set <id> --cover-glob "<glob>"` to have source changes run it.
-- Catalog writes keep your comments. `catalog add|set|rm|not-applicable` and `register --auto` rewrite only the lines
-  that changed; comments, blank lines and layout stay (an inline comment on a key you changed is the only loss).
-- Scenario mapping is off by default. With `scenarios: off` no scenario blocks an exit, and the traceability matrix
-  lists the mapped rows plus one "N more … not mapped" line instead of a row of "uncovered" each.
-- Test trust is per user, repository and command. `tenon test trust` stores the decision in your user state directory
-  (`<state>/test-trust/`), every worktree of the same repository shares it, and editing one command asks again for that
-  command only. The checkout must be listed by `git worktree list`, and the hook refuses an agent writing to a
-  `test-trust/` path. Trust you gave earlier in a checkout seal keeps counting only in a project that is not a git
-  repository (new trust is written there too); nothing is migrated. A git repository never honors the old seal in the
-  checkout, tracked or not, because the seal and its key can arrive with the repository or an archive and trust the
-  repository for itself. A checkout is treated as "not a git repository" only when neither it nor any parent has a
-  `.git`. One that has a `.git` whose repository
-  identity cannot be read (git fails or times out, or a forged pointer) is untrusted: `tenon test run` says to fix git
-  first and `tenon test trust` refuses to write.
-- `code-size` has no ceiling by default. The 2000-line `lines_added` limit is removed from the default workflow and the
-  `code-size` direction; the probe still reports its metrics, exits `0` and records the measured values in the run
-  record, and the `code-size` reviewer reads them in its prompt and judges them. A project that wants a limit writes `pass.metrics` under the test in its workflow. A `test:<id>`
-  waiver listed in `review request`, the report or a reviewer prompt now shows the latest measured value next to your
-  reason.
-- Run records carry relative paths. New records rewrite the repository root to a relative path and your home directory
-  to `~/` before the digest is computed; existing records are not rewritten.
-- Test output no longer invalidates the candidate. An untracked file with an evidence extension (log, txt, xml, md, csv,
-  png, jpg, jpeg, gif, webp, webm, mp4, lcov, info) under `test-results/`, `playwright-report/` or `coverage/` is not part
-  of the candidate fingerprint, so an e2e server writing a log does not make the frozen build stale. Tracked files,
-  scripts, extension-less files and formats that code or a browser can load or unpack (json, html, htm, zip, gz, har) still
-  count; a suite that really produces them declares them as outputs in the catalog.
-- Dashboard. The workflow page picks a step's level with one choice; the project Tests page shows the effective level
-  definitions; the task Tests tab marks claimed files and collapses the scenario trace.
-
-Rolling back (N-1). The previous release cannot read the step `test` key or the catalog `levels` key: reading such a
-workflow fails and such a catalog is reported with an unknown key. Before rolling back, finish or terminate the tasks you
-created with the new `test` key, and remove `levels` from `.tenon/tests/catalog.yaml`. Fingerprint rule change: a task in
-flight whose workspace holds an undeclared test output (for example an untracked `test-results/**/*.log`) can show a
-one-time `revision-stale` on its first check after the upgrade, because the file is no longer counted; the remedy is the
-usual one for a stale build revision, return to Build and capture the current revision again. Tasks without such files are
-unaffected.
-
-Upgrade note. After upgrading, the first test run in a git repository asks you to run `tenon test trust` once in your own
-terminal: trust stored in the checkout's seal no longer counts there.
+- The gate crosses the test record chain, the agent run ledger with its sidecar, the test plan, catalogs written by
+  `discover --write`, chains pruned by `TENON_RECORD_RETENTION`, and records written beside an untracked
+  `.claude/settings.local.json`. It also checks that v0.3.2 reads a task this release created on a heavy Track of `default`
+  with only the warning described in the third bullet. The other limits below are known and not crossed by the gate.
+- v0.3.2 cannot read the step `test` key, the step `max_rounds` key or the catalog `levels` key: reading a Workflow with
+  one of the step keys fails, and a catalog with `levels` is reported with an unknown key. Before rolling back, finish or
+  terminate the tasks you created with those keys, and remove `levels` from `.tenon/tests/catalog.yaml`.
+- v0.3.2 does not know the three general leave conditions or the `required-output` guard. For a task this release created on
+  a heavy Track of `default`, `tenon status` shows a one-line warning instead of the step projection. v0.3.2 rejects a task
+  on a Track it does not know: `lite`, or a Workflow without `tracks:` (`design-system` or your own flat Workflow), whose
+  Track is recorded under the Workflow's name. Finish or terminate such tasks before rolling back (see
+  [Updates, recovery, and uninstall](updates-recovery-and-uninstall.md)).
+- Fingerprint rule change: a task in flight whose workspace holds an undeclared test output (for example an untracked
+  `test-results/**/*.log`) can show a one-time `revision-stale` on its first check after the upgrade, because the file is no
+  longer counted. The remedy is the usual one for a stale build revision: return to Build and capture the current revision
+  again. Tasks without such files are unaffected.
+- Commands and options added: `tenon assess`, `tenon tracks list` and `show`, `tenon task finish` and `terminate`,
+  `tenon list --finished`, `tenon init --domain`, `tenon review revoke`, `tenon test waive --test`,
+  `tenon test sync --prune`, `tenon set <change> max_rounds`, `tenon setup --from-source` and `tenon update --to-stable`.
+  Removed: `tenon task archive` and `unarchive`, `POST /api/changes`, the router preview and the `effectiveIo` and `io`
+  response fields.
 
 ### Verify
 
 ```bash
+tenon --version
+tenon doctor
+tenon runtime status
 tenon tracks list
-tenon assess --files <path>... --json
 tenon init demo --workflow standard
 ```
 
-`tracks list` shows the `lite`, `pm`, `frontend` and `backend` Tracks of `default`, `design-system` and your own Workflows; `assess`
-reports whether the files you expect to change stay within the limits; the last command exits `1` and prints
-`--workflow default --track lite` (`demo` is just a sample name, nothing is created). On a Change created after the
-upgrade, `tenon document status <name> --json` reports `mode: "observed"` with its `inputs`, `outputs` and `required`;
-on one created before with the former document contract, `tenon status <name> --json` shows
-`step.documents.mode: "contract"`.
+`tenon --version` prints `0.3.3`. In `tenon doctor`, `identity:release` lists 0.3.3 for the host plugin, the runtime and the
+Dashboard server. `tenon runtime status` shows the active release with `valid=yes`. `tracks list` shows the `lite`, `pm`,
+`frontend` and `backend` Tracks of `default`, `design-system` and your own Workflows. The last command exits `1` and prints
+`--workflow default --track lite` (`demo` is just a sample name, nothing is created). On a task created after the upgrade,
+`tenon document status <name> --json` reports `mode: "observed"` with its `inputs`, `outputs` and `required`; on one created
+before with the former document contract, `tenon status <name> --json` shows `step.documents.mode: "contract"`.
 
 ## v0.3.2 · 2026-10-07
 
